@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -33,26 +35,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <header className="border-b">
-            <nav className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
-              <a className="font-semibold mr-4" href="/">Inventory</a>
-              <a className="hover:underline" href="/products">Products</a>
-              <a className="hover:underline" href="/categories">Categories</a>
-              <a className="hover:underline" href="/warehouses">Warehouses</a>
-              <a className="hover:underline" href="/suppliers">Suppliers</a>
-              <a className="hover:underline" href="/customers">Customers</a>
-              <span className="mx-2 text-muted-foreground">|</span>
-              <a className="hover:underline" href="/movements">Movements</a>
-              <a className="hover:underline" href="/stock">Stock</a>
-              <a className="hover:underline" href="/kardex">Kardex</a>
-              <span className="mx-2 text-muted-foreground">|</span>
-              <a className="hover:underline" href="/purchases">Purchases</a>
-              <a className="hover:underline" href="/sales">Sales</a>
-            </nav>
-          </header>
-          <main className="max-w-7xl mx-auto px-4 py-6">
-            {children}
-          </main>
+          <div className="min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr]">
+            <Sidebar />
+            <main className="px-4 py-6 max-w-7xl w-full mx-auto space-y-6">
+              <Breadcrumbs />
+              {children}
+            </main>
+          </div>
         </ThemeProvider>
       </body>
     </html>

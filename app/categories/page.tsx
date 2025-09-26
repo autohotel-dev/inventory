@@ -2,6 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 
 export const dynamic = "force-dynamic";
 
@@ -56,11 +57,9 @@ export default async function CategoriesPage() {
                     <Button variant="secondary" asChild>
                       <Link href={`/categories/${c.id}/edit`}>Edit</Link>
                     </Button>
-                    <form action={deleteCategoryAction} onSubmit={(e) => {
-                      if (!confirm("Delete this category?")) e.preventDefault();
-                    }}>
+                    <form action={deleteCategoryAction}>
                       <input type="hidden" name="id" value={c.id} />
-                      <Button variant="destructive" type="submit">Delete</Button>
+                      <ConfirmButton confirmText="Delete this category?" variant="destructive" type="submit">Delete</ConfirmButton>
                     </form>
                   </div>
                 </td>

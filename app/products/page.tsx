@@ -2,6 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 
 export const dynamic = "force-dynamic";
 
@@ -87,11 +88,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
                     <Button variant="secondary" asChild>
                       <Link href={`/products/${p.id}/edit`}>Edit</Link>
                     </Button>
-                    <form action={deleteProductAction} onSubmit={(e) => {
-                      if (!confirm("Delete this product?")) e.preventDefault();
-                    }}>
+                    <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={p.id} />
-                      <Button variant="destructive" type="submit">Delete</Button>
+                      <ConfirmButton confirmText="Delete this product?" variant="destructive" type="submit">Delete</ConfirmButton>
                     </form>
                   </div>
                 </td>
