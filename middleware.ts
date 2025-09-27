@@ -1,7 +1,18 @@
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest } from "next/server";
+import createMiddleware from 'next-intl/middleware';
+import { locales } from './i18n-config';
+
+// Create the internationalization middleware
+const intlMiddleware = createMiddleware({
+  locales,
+  defaultLocale: 'es',
+  localePrefix: 'never' // Never add locale prefix to URLs
+});
 
 export async function middleware(request: NextRequest) {
+  // For now, just handle Supabase session for all routes
+  // TODO: Re-enable i18n when configuration is fixed
   return await updateSession(request);
 }
 

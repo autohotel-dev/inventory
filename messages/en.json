@@ -1,0 +1,101 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "actions": "Actions",
+    "yes": "Yes",
+    "no": "No",
+    "close": "Close",
+    "back": "Back"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "products": "Products",
+    "categories": "Categories",
+    "warehouses": "Warehouses",
+    "suppliers": "Suppliers",
+    "customers": "Customers",
+    "movements": "Movements",
+    "stock": "Stock",
+    "kardex": "Kardex",
+    "purchases": "Purchases",
+    "sales": "Sales",
+    "logout": "Logout"
+  },
+  "landing": {
+    "title": "Inventory System",
+    "subtitle": "Manage your inventory efficiently with our complete system. Stock control, sales, purchases and more.",
+    "getStarted": "Get Started",
+    "login": "Sign In",
+    "features": {
+      "stockControl": {
+        "title": "Stock Control",
+        "description": "Monitor your inventory in real time with minimum stock alerts"
+      },
+      "salesPurchases": {
+        "title": "Sales & Purchases",
+        "description": "Manage sales and purchase orders with complete tracking"
+      },
+      "barcodeScanner": {
+        "title": "Barcode Scanner",
+        "description": "Scan barcodes to streamline your operations"
+      }
+    },
+    "footer": "Inventory System. Developed by Ricardo Minor."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "stats": {
+      "products": "Products",
+      "totalStock": "Total Stock",
+      "openPurchases": "Open Purchases",
+      "openSales": "Open Sales"
+    },
+    "latestMovements": "Latest Movements",
+    "quickActions": "Quick Actions",
+    "modules": "Modules",
+    "newProduct": "New Product",
+    "newPurchase": "New Purchase",
+    "newSale": "New Sale",
+    "newMovement": "New Movement"
+  },
+  "auth": {
+    "login": "Sign In",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "forgotPassword": "Forgot your password?"
+  },
+  "products": {
+    "title": "Products",
+    "newProduct": "New Product",
+    "sku": "SKU",
+    "name": "Name",
+    "price": "Price",
+    "category": "Category",
+    "stock": "Stock",
+    "minStock": "Min Stock",
+    "active": "Active"
+  },
+  "sales": {
+    "title": "Sales",
+    "newSale": "New Sale",
+    "customer": "Customer",
+    "warehouse": "Warehouse",
+    "currency": "Currency",
+    "notes": "Notes",
+    "addProduct": "Add Product",
+    "quantity": "Quantity",
+    "unitPrice": "Unit Price",
+    "discount": "Discount",
+    "tax": "Tax",
+    "total": "Total",
+    "status": "Status"
+  }
+}

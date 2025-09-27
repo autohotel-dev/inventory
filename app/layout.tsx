@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { ConditionalLayout } from "@/components/layout/conditional-layout";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -11,8 +10,8 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  title: "Sistema de Inventario",
+  description: "Sistema de gestión de inventario con Next.js y Supabase",
 };
 
 const geistSans = Geist({
@@ -35,13 +34,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen flex flex-col md:grid md:grid-cols-[240px_1fr]">
-            <Sidebar />
-            <main className="flex-1 px-3 py-4 md:px-6 md:py-6 max-w-7xl w-full mx-auto space-y-4 md:space-y-6">
-              <Breadcrumbs />
-              {children}
-            </main>
-          </div>
+          <ConditionalLayout>
+            {children}
+          </ConditionalLayout>
         </ThemeProvider>
       </body>
     </html>

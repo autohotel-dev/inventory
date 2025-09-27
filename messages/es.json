@@ -1,0 +1,101 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "actions": "Acciones",
+    "yes": "Sí",
+    "no": "No",
+    "close": "Cerrar",
+    "back": "Volver"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "products": "Productos",
+    "categories": "Categorías",
+    "warehouses": "Almacenes",
+    "suppliers": "Proveedores",
+    "customers": "Clientes",
+    "movements": "Movimientos",
+    "stock": "Stock",
+    "kardex": "Kardex",
+    "purchases": "Compras",
+    "sales": "Ventas",
+    "logout": "Cerrar Sesión"
+  },
+  "landing": {
+    "title": "Sistema de Inventario",
+    "subtitle": "Gestiona tu inventario de manera eficiente con nuestro sistema completo. Control de stock, ventas, compras y más.",
+    "getStarted": "Comenzar Ahora",
+    "login": "Iniciar Sesión",
+    "features": {
+      "stockControl": {
+        "title": "Control de Stock",
+        "description": "Monitorea tu inventario en tiempo real con alertas de stock mínimo"
+      },
+      "salesPurchases": {
+        "title": "Ventas y Compras",
+        "description": "Gestiona órdenes de venta y compra con seguimiento completo"
+      },
+      "barcodeScanner": {
+        "title": "Escáner de Códigos",
+        "description": "Escanea códigos de barras para agilizar tus operaciones"
+      }
+    },
+    "footer": "Sistema de Inventario. Desarrollado por Ricardo Minor."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "stats": {
+      "products": "Productos",
+      "totalStock": "Stock Total",
+      "openPurchases": "Compras Abiertas",
+      "openSales": "Ventas Abiertas"
+    },
+    "latestMovements": "Últimos Movimientos",
+    "quickActions": "Acciones Rápidas",
+    "modules": "Módulos",
+    "newProduct": "Nuevo Producto",
+    "newPurchase": "Nueva Compra",
+    "newSale": "Nueva Venta",
+    "newMovement": "Nuevo Movimiento"
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "signIn": "Entrar",
+    "signUp": "Registrarse",
+    "forgotPassword": "¿Olvidaste tu contraseña?"
+  },
+  "products": {
+    "title": "Productos",
+    "newProduct": "Nuevo Producto",
+    "sku": "SKU",
+    "name": "Nombre",
+    "price": "Precio",
+    "category": "Categoría",
+    "stock": "Stock",
+    "minStock": "Stock Mínimo",
+    "active": "Activo"
+  },
+  "sales": {
+    "title": "Ventas",
+    "newSale": "Nueva Venta",
+    "customer": "Cliente",
+    "warehouse": "Almacén",
+    "currency": "Moneda",
+    "notes": "Notas",
+    "addProduct": "Agregar Producto",
+    "quantity": "Cantidad",
+    "unitPrice": "Precio Unitario",
+    "discount": "Descuento",
+    "tax": "Impuesto",
+    "total": "Total",
+    "status": "Estado"
+  }
+}

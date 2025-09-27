@@ -3,6 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { useTheme } from "next-themes";
+import { LogoutButton } from "@/components/logout-button";
+// import { LanguageSwitcher } from "@/components/language-switcher"; // Temporarily disabled
 
 function Icon({ name, className }: { name: string; className?: string }) {
   // Minimal inline icons to avoid adding deps
@@ -50,7 +52,7 @@ function Icon({ name, className }: { name: string; className?: string }) {
 }
 
 const links = [
-  { href: "/", label: "Dashboard", icon: "home" },
+  { href: "/dashboard", label: "Dashboard", icon: "home" },
   { href: "/products", label: "Productos", icon: "box" },
   { href: "/categories", label: "Categorías", icon: "arrows" },
   { href: "/warehouses", label: "Almacenes", icon: "building" },
@@ -93,7 +95,7 @@ export function Sidebar() {
     <>
       <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link href="/" className="font-semibold text-lg">📦 Inventory</Link>
+          <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
           <button
             type="button"
             aria-label="Toggle sidebar"
@@ -114,12 +116,13 @@ export function Sidebar() {
         <div className="h-full p-3 md:p-4 space-y-4 overflow-auto">
           {/* Mobile header inside sidebar */}
           <div className="md:hidden px-1 pb-4 border-b">
-            <Link href="/" className="font-semibold text-lg">📦 Inventory</Link>
+            <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
           </div>
           
           <div className="px-1 flex items-center justify-between gap-2">
-            <Link href="/" className={`hidden md:block font-semibold text-lg ${compact ? "truncate" : ""}`}>{compact ? "📦" : "📦 Inventory"}</Link>
+            <Link href="/dashboard" className={`hidden md:block font-semibold text-lg ${compact ? "truncate" : ""}`}>{compact ? "📦" : "📦 Inventory"}</Link>
             <div className="hidden md:flex items-center gap-2">
+              {/* <LanguageSwitcher /> */}
               <button
                 type="button"
                 className="border rounded px-2 py-1 text-xs"
@@ -154,23 +157,37 @@ export function Sidebar() {
               )
             )}
           </nav>
-          <div className="md:hidden flex items-center gap-2 pt-2 border-t">
-            <button
-              type="button"
-              className="border rounded px-2 py-1 text-xs"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              title="Toggle theme"
-            >
+          
+          {/* Desktop logout section */}
+          <div className="hidden md:flex flex-col gap-2 pt-2 border-t mt-auto">
+            <div className="pt-2">
+              <LogoutButton />
+            </div>
+          </div>
+          
+          <div className="md:hidden flex flex-col gap-2 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              {/* <LanguageSwitcher /> */}
+              <button
+                type="button"
+                className="border rounded px-2 py-1 text-xs"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                title="Toggle theme"
+              >
 {theme === "dark" ? "Claro" : "Oscuro"}
-            </button>
-            <button
-              type="button"
-              className="border rounded px-2 py-1 text-xs"
-              onClick={toggleCompact}
-              title="Toggle compact"
-            >
+              </button>
+              <button
+                type="button"
+                className="border rounded px-2 py-1 text-xs"
+                onClick={toggleCompact}
+                title="Toggle compact"
+              >
 {compact ? "Expandir" : "Compacto"}
-            </button>
+              </button>
+            </div>
+            <div className="pt-2">
+              <LogoutButton />
+            </div>
           </div>
         </div>
       </aside>
