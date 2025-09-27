@@ -11,9 +11,10 @@ type Props = {
   className?: string;
   defaultValue?: string;
   required?: boolean;
+  onChange?: (value: string) => void;
 };
 
-export function SearchableSelect({ id, name, options, placeholder = "Select...", className, defaultValue, required }: Props) {
+export function SearchableSelect({ id, name, options, placeholder = "Select...", className, defaultValue, required, onChange }: Props) {
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState(defaultValue ?? "");
@@ -28,9 +29,17 @@ export function SearchableSelect({ id, name, options, placeholder = "Select...",
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
+  // Sincronizar el valor interno con defaultValue cuando cambie
+  React.useEffect(() => {
+    if (defaultValue !== undefined) {
+      setValue(defaultValue);
+    }
+  }, [defaultValue]);
+
   const filtered = query
     ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
     : options;
+
 
   return (
     <div ref={ref} className={className}>
@@ -58,6 +67,9 @@ export function SearchableSelect({ id, name, options, placeholder = "Select...",
               onClick={() => {
                 setValue(o.value);
                 setOpen(false);
+                if (onChange) {
+                  onChange(o.value);
+                }
               }}
             >
               {o.label}

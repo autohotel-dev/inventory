@@ -9,6 +9,8 @@ import { ProductSelectorWithScanner } from "@/components/product-selector-with-s
 interface ProductOption {
   value: string;
   label: string;
+  price?: number | null;
+  tax_rate?: number | null;
 }
 
 interface AddSalesItemFormProps {
@@ -20,21 +22,22 @@ interface AddSalesItemFormProps {
 export function AddSalesItemForm({ orderId, productOptions, addItemAction }: AddSalesItemFormProps) {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [unitPrice, setUnitPrice] = useState("0");
+  const [taxRate, setTaxRate] = useState("0");
 
   // Función para obtener el precio del producto seleccionado
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
     
-    // Aquí podrías hacer una llamada para obtener el precio del producto
-    // Por ahora, extraemos el precio del label si está disponible
+    // Buscar el producto seleccionado y autocompletar el precio
     const selectedProduct = productOptions.find(p => p.value === productId);
     if (selectedProduct) {
-      // Si el label contiene información de precio, la extraemos
-      // Formato esperado: "SKU - Name (Price: XX.XX)"
-      const priceMatch = selectedProduct.label.match(/Price:\s*(\d+\.?\d*)/);
-      if (priceMatch) {
-        setUnitPrice(priceMatch[1]);
+      if (selectedProduct.price !== null && selectedProduct.price !== undefined) {
+        setUnitPrice(selectedProduct.price.toString());
       }
+      // Por ahora no autocompletamos el impuesto hasta que tengamos la columna tax_rate
+      // if (selectedProduct.tax_rate !== null && selectedProduct.tax_rate !== undefined) {
+      //   setTaxRate(selectedProduct.tax_rate.toString());
+      // }
     }
   };
 
@@ -86,7 +89,15 @@ export function AddSalesItemForm({ orderId, productOptions, addItemAction }: Add
           
           <div className="space-y-1">
             <Label htmlFor="tax">Impuesto</Label>
-            <Input id="tax" name="tax" type="number" min="0" step="0.01" defaultValue={0} />
+            <Input 
+              id="tax" 
+              name="tax" 
+              type="number" 
+              min="0" 
+              step="0.01" 
+              value={taxRate}
+              onChange={(e) => setTaxRate(e.target.value)}
+            />
           </div>
         </div>
         

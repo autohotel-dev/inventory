@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { AddSalesItemForm } from "@/components/add-sales-item-form";
+import { DeleteSalesItemForm } from "@/components/delete-sales-item-form";
 
 // Types to help TS with nested selects
 type SalesOrderDetail = {
@@ -47,6 +48,7 @@ type Product = {
   id: string;
   sku: string | null;
   name: string | null;
+  price: number | null;
 };
 
 type StockData = {
@@ -101,11 +103,15 @@ async function getSalesDetail(id: string) {
     .order("id", { ascending: true });
   if (itemsErr) throw itemsErr;
 
-  const { data: products } = await supabase
+  const { data: products, error: productsError } = await supabase
     .from("products")
-    .select("id, sku, name")
+    .select("id, sku, name, price")
     .eq("is_active", true)
     .order("name");
+    
+  if (productsError) {
+    console.error("Error fetching products:", productsError);
+  }
 
   // Fetch stock for this order's warehouse to show availability
   const { data: stockRows } = await supabase
@@ -311,14 +317,20 @@ export default async function SalesDetailPage({ params }: { params: Promise<{ id
     const stock = Number(stockMap?.[p.id] || 0);
     const reserved = Number(reservedMap?.[p.id] || 0);
     const available = Math.max(0, stock - reserved);
-    return { value: p.id, label: `${p.sku} - ${p.name} (Avail: ${available})` };
+    const price = Number(p.price || 0).toFixed(2);
+    return { 
+      value: p.id, 
+      label: `${p.sku} - ${p.name} (Precio: $${price}) (Disp: ${available})`,
+      price: p.price
+    };
   });
+
 
   return (
     <div className="p-6 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Sales Order</h1>
+          <h1 className="text-2xl font-semibold">Orden de Venta</h1>
           <p className="text-sm text-muted-foreground">{order.id}</p>
         </div>
         <div className="flex items-center gap-3">
@@ -375,11 +387,11 @@ export default async function SalesDetailPage({ params }: { params: Promise<{ id
                   <td className="p-3 text-right">{Number(it.total).toFixed(2)}</td>
                   <td className="p-3 text-right">
                     {order.status === "OPEN" && (
-                      <form action={deleteItemAction} onSubmit={(e) => { if (!confirm('Delete this item?')) e.preventDefault(); }}>
-                        <input type="hidden" name="itemId" value={it.id} />
-                        <input type="hidden" name="orderId" value={order.id} />
-                        <Button variant="destructive" type="submit" size="sm">Delete</Button>
-                      </form>
+                      <DeleteSalesItemForm 
+                        itemId={it.id} 
+                        orderId={order.id} 
+                        deleteAction={deleteItemAction}
+                      />
                     )}
                   </td>
                 </tr>

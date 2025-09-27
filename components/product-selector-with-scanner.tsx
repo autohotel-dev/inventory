@@ -9,6 +9,8 @@ import { Scan } from "lucide-react";
 interface ProductOption {
   value: string;
   label: string;
+  price?: number | null;
+  tax_rate?: number | null;
 }
 
 interface ProductSelectorWithScannerProps {
@@ -73,6 +75,7 @@ export function ProductSelectorWithScanner({
             className={className}
             placeholder={placeholder}
             defaultValue={defaultValue}
+            onChange={onProductSelect}
             key={defaultValue} // Forzar re-render cuando cambie defaultValue
           />
         </div>
