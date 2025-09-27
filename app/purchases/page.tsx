@@ -39,10 +39,11 @@ async function getPurchaseOrders({ q, status, page, pageSize }: { q?: string; st
   return { rows: data ?? [], count: count ?? 0 };
 }
 
-export default async function PurchasesPage({ searchParams }: { searchParams: { q?: string; status?: string; page?: string } }) {
-  const q = searchParams?.q ?? "";
-  const status = searchParams?.status ?? "ALL";
-  const page = Math.max(1, Number(searchParams?.page ?? 1));
+export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
+  const params = await searchParams;
+  const q = params?.q ?? "";
+  const status = params?.status ?? "ALL";
+  const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = 10;
   const { rows: orders, count } = await getPurchaseOrders({ q, status, page, pageSize });
   const totalPages = Math.max(1, Math.ceil(count / pageSize));

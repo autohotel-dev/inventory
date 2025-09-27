@@ -32,8 +32,9 @@ async function updateWarehouseAction(formData: FormData) {
   redirect("/warehouses");
 }
 
-export default async function EditWarehousePage({ params }: { params: { id: string } }) {
-  const warehouse = await getWarehouse(params.id).catch(() => null);
+export default async function EditWarehousePage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const warehouse = await getWarehouse(resolvedParams.id).catch(() => null);
   if (!warehouse) return notFound();
 
   return (

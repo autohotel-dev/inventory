@@ -34,8 +34,9 @@ async function updateCustomerAction(formData: FormData) {
   redirect("/customers");
 }
 
-export default async function EditCustomerPage({ params }: { params: { id: string } }) {
-  const customer = await getCustomer(params.id).catch(() => null);
+export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const customer = await getCustomer(resolvedParams.id).catch(() => null);
   if (!customer) return notFound();
 
   return (

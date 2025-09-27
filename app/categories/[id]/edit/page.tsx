@@ -30,8 +30,9 @@ async function updateCategoryAction(formData: FormData) {
   redirect("/categories");
 }
 
-export default async function EditCategoryPage({ params }: { params: { id: string } }) {
-  const category = await getCategory(params.id).catch(() => null);
+export default async function EditCategoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const category = await getCategory(resolvedParams.id).catch(() => null);
   if (!category) return notFound();
 
   return (

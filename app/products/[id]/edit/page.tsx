@@ -33,8 +33,9 @@ async function updateProductAction(formData: FormData) {
   redirect("/products");
 }
 
-export default async function EditProductPage({ params }: { params: { id: string } }) {
-  const product = await getProduct(params.id).catch(() => null);
+export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const product = await getProduct(resolvedParams.id).catch(() => null);
   if (!product) return notFound();
 
   return (

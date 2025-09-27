@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DeletePurchaseItemForm } from "@/components/delete-purchase-item-form";
 
 // Explicit types to help TS understand nested selects returned by Supabase
 type PurchaseOrderDetail = {
@@ -31,6 +32,21 @@ type PurchaseOrderItemView = {
   tax: number | null;
   total: number;
   products?: { sku?: string | null; name?: string | null } | null;
+};
+
+type PurchaseOrderItemBasic = {
+  product_id: string;
+  qty: number;
+};
+
+type PurchaseTotalRow = {
+  total: number | null;
+};
+
+type Product = {
+  id: string;
+  sku: string | null;
+  name: string | null;
 };
 
 async function getPurchaseDetail(id: string) {
@@ -71,7 +87,7 @@ async function getPurchaseDetail(id: string) {
   const orderTyped = order as unknown as PurchaseOrderDetail;
   const itemsTyped = (items ?? []) as unknown as PurchaseOrderItemView[];
 
-  return { order: orderTyped, items: itemsTyped, products: (products ?? []) as any };
+  return { order: orderTyped, items: itemsTyped, products: (products ?? []) };
 }
 
 async function recomputeOrderTotals(orderId: string) {
@@ -81,7 +97,7 @@ async function recomputeOrderTotals(orderId: string) {
     .select("total")
     .eq("purchase_order_id", orderId);
   if (error) throw error;
-  const subtotal = (rows ?? []).reduce((a, r: any) => a + Number(r.total || 0), 0);
+  const subtotal = (rows ?? []).reduce((a, r: PurchaseTotalRow) => a + Number(r.total || 0), 0);
   // Nota: si tu total de item ya incluye impuestos, tax es separado opcional.
   // Aquí asumimos que item.total = qty*unit_cost + tax
   const tax = 0; // podrías separar impuestos por línea y sumarlos si prefieres.
@@ -169,7 +185,7 @@ async function receiveOrderAction(formData: FormData) {
   if (!reason) throw new Error("Reason PURCHASE not found");
 
   // Insert movements in batch
-  const rows = items.map((it: any) => ({
+  const rows = items.map((it: PurchaseOrderItemBasic) => ({
     product_id: it.product_id,
     warehouse_id: order0.warehouse_id,
     qty: Math.abs(Number(it.qty || 0)),
@@ -196,8 +212,9 @@ async function receiveOrderAction(formData: FormData) {
   redirect(`/purchases/${orderId}`);
 }
 
-export default async function PurchaseDetailPage({ params }: { params: { id: string } }) {
-  const detail = await getPurchaseDetail(params.id);
+export default async function PurchaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const detail = await getPurchaseDetail(resolvedParams.id);
   if (!detail) return notFound();
   const { order, items, products } = detail;
 
@@ -251,7 +268,7 @@ export default async function PurchaseDetailPage({ params }: { params: { id: str
               </tr>
             </thead>
             <tbody>
-              {items.map((it: any) => (
+              {items.map((it: PurchaseOrderItemView) => (
                 <tr key={it.id} className="border-t">
                   <td className="p-3">{it.products?.sku} - {it.products?.name}</td>
                   <td className="p-3 text-right">{Number(it.qty).toFixed(2)}</td>
@@ -259,11 +276,11 @@ export default async function PurchaseDetailPage({ params }: { params: { id: str
                   <td className="p-3 text-right">{Number(it.tax || 0).toFixed(2)}</td>
                   <td className="p-3 text-right">{Number(it.total).toFixed(2)}</td>
                   <td className="p-3 text-right">
-                    <form action={deleteItemAction} onSubmit={(e) => { if (!confirm('Delete this item?')) e.preventDefault(); }}>
-                      <input type="hidden" name="itemId" value={it.id} />
-                      <input type="hidden" name="orderId" value={order.id} />
-                      <Button variant="destructive" type="submit" size="sm">Delete</Button>
-                    </form>
+                    <DeletePurchaseItemForm 
+                      itemId={it.id} 
+                      orderId={order.id} 
+                      deleteAction={deleteItemAction} 
+                    />
                   </td>
                 </tr>
               ))}
@@ -290,7 +307,7 @@ export default async function PurchaseDetailPage({ params }: { params: { id: str
                 required
                 className="w-full"
                 placeholder="Search product..."
-                options={(products ?? []).map((p: any) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                options={(products ?? []).map((p: Product) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
               />
             </div>
             <div className="space-y-1">

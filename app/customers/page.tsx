@@ -2,6 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { DeleteCustomerForm } from "@/components/delete-customer-form";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,10 @@ async function deleteCustomerAction(formData: FormData) {
   revalidatePath("/customers");
 }
 
-export default async function CustomersPage({ searchParams }: { searchParams: { q?: string; page?: string } }) {
-  const q = searchParams?.q ?? "";
-  const page = Math.max(1, Number(searchParams?.page ?? 1));
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
+  const params = await searchParams;
+  const q = params?.q ?? "";
+  const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = 10;
   const { rows: customers, count } = await getCustomers({ q, page, pageSize });
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
@@ -89,12 +91,10 @@ export default async function CustomersPage({ searchParams }: { searchParams: { 
                     <Button variant="secondary" asChild>
                       <Link href={`/customers/${c.id}/edit`}>Edit</Link>
                     </Button>
-                    <form action={deleteCustomerAction} onSubmit={(e) => {
-                      if (!confirm("Delete this customer?")) e.preventDefault();
-                    }}>
-                      <input type="hidden" name="id" value={c.id} />
-                      <Button variant="destructive" type="submit">Delete</Button>
-                    </form>
+                    <DeleteCustomerForm 
+                      customerId={c.id} 
+                      deleteAction={deleteCustomerAction} 
+                    />
                   </div>
                 </td>
               </tr>

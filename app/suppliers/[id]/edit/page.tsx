@@ -34,8 +34,9 @@ async function updateSupplierAction(formData: FormData) {
   redirect("/suppliers");
 }
 
-export default async function EditSupplierPage({ params }: { params: { id: string } }) {
-  const supplier = await getSupplier(params.id).catch(() => null);
+export default async function EditSupplierPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const supplier = await getSupplier(resolvedParams.id).catch(() => null);
   if (!supplier) return notFound();
 
   return (

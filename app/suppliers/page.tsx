@@ -36,9 +36,10 @@ async function deleteSupplierAction(formData: FormData) {
   revalidatePath("/suppliers");
 }
 
-export default async function SuppliersPage({ searchParams }: { searchParams: { q?: string; page?: string } }) {
-  const q = searchParams?.q ?? "";
-  const page = Math.max(1, Number(searchParams?.page ?? 1));
+export default async function SuppliersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
+  const params = await searchParams;
+  const q = params?.q ?? "";
+  const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = 10;
   const { rows: suppliers, count } = await getSuppliers({ q, page, pageSize });
   const totalPages = Math.max(1, Math.ceil(count / pageSize));

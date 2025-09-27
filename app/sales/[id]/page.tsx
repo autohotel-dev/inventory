@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { AddSalesItemForm } from "@/components/add-sales-item-form";
 
 // Types to help TS with nested selects
 type SalesOrderDetail = {
@@ -32,6 +33,43 @@ type SalesOrderItemView = {
   tax: number | null;
   total: number; // generated in DB
   products?: { sku?: string | null; name?: string | null } | null;
+};
+
+type StockRow = {
+  total: number | null;
+};
+
+type ExistingItem = {
+  qty: number | null;
+};
+
+type Product = {
+  id: string;
+  sku: string | null;
+  name: string | null;
+};
+
+type StockData = {
+  product_id: string;
+  warehouse_id: string;
+  qty: number | null;
+};
+
+type MovementRow = {
+  product_id: string;
+  warehouse_id: string;
+  qty: number;
+  reason_id: string;
+  reference: string;
+};
+
+type SalesOrderItemBasic = {
+  product_id: string;
+  qty: number;
+};
+
+type ProductSku = {
+  sku: string | null;
 };
 
 async function getSalesDetail(id: string) {
@@ -73,23 +111,23 @@ async function getSalesDetail(id: string) {
   const { data: stockRows } = await supabase
     .from("stock")
     .select("product_id, warehouse_id, qty")
-    .eq("warehouse_id", (order as any).warehouse_id);
+    .eq("warehouse_id", (order as unknown as SalesOrderDetail).warehouse_id);
 
   const stockMap: Record<string, number> = {};
   for (const s of stockRows ?? []) {
-    stockMap[String((s as any).product_id)] = Number((s as any).qty || 0);
+    stockMap[String((s as StockData).product_id)] = Number((s as StockData).qty || 0);
   }
 
   // Compute reserved qty in current order (sum by product)
   const reservedMap: Record<string, number> = {};
   for (const it of items ?? []) {
-    const pid = String((it as any).product_id);
-    reservedMap[pid] = (reservedMap[pid] || 0) + Math.abs(Number((it as any).qty || 0));
+    const pid = String((it as SalesOrderItemView).product_id);
+    reservedMap[pid] = (reservedMap[pid] || 0) + Math.abs(Number((it as SalesOrderItemView).qty || 0));
   }
 
   const orderTyped = order as unknown as SalesOrderDetail;
   const itemsTyped = (items ?? []) as unknown as SalesOrderItemView[];
-  return { order: orderTyped, items: itemsTyped, products: (products ?? []) as any, stockMap, reservedMap };
+  return { order: orderTyped, items: itemsTyped, products: (products ?? []), stockMap, reservedMap };
 }
 
 async function recomputeOrderTotals(orderId: string) {
@@ -99,7 +137,7 @@ async function recomputeOrderTotals(orderId: string) {
     .select("total")
     .eq("sales_order_id", orderId);
   if (error) throw error;
-  const subtotal = (rows ?? []).reduce((a, r: any) => a + Number(r.total || 0), 0);
+  const subtotal = (rows ?? []).reduce((a, r: StockRow) => a + Number(r.total || 0), 0);
   const tax = 0; // totals already include line-level tax in "total"
   const total = subtotal;
   const { error: updErr } = await supabase
@@ -144,7 +182,7 @@ async function addItemAction(formData: FormData) {
     .select("qty")
     .eq("sales_order_id", orderId)
     .eq("product_id", product_id);
-  const already = (existingItems ?? []).reduce((a, r: any) => a + Math.abs(Number(r.qty || 0)), 0);
+  const already = (existingItems ?? []).reduce((a, r: ExistingItem) => a + Math.abs(Number(r.qty || 0)), 0);
   if (already + Math.abs(qty) > available) {
     throw new Error("Requested quantity exceeds available stock for this product in the selected warehouse");
   }
@@ -196,7 +234,7 @@ async function deliverOrderAction(formData: FormData) {
   if (!items || items.length === 0) throw new Error("No items to deliver");
 
   // Validate stock in the warehouse before delivering
-  const productIds = Array.from(new Set(items.map((it: any) => it.product_id)));
+  const productIds = Array.from(new Set(items.map((it: SalesOrderItemBasic) => it.product_id)));
   const { data: stockRows } = await supabase
     .from("stock")
     .select("product_id, warehouse_id, qty")
@@ -224,7 +262,7 @@ async function deliverOrderAction(formData: FormData) {
       .from("products")
       .select("sku")
       .in("id", insufficient);
-    const list = (badProds ?? []).map((p: any) => p.sku).filter(Boolean).join(", ");
+    const list = (badProds ?? []).map((p: ProductSku) => p.sku).filter(Boolean).join(", ");
     throw new Error(`Insufficient stock for: ${list || insufficient.join(", ")}`);
   }
 
@@ -237,7 +275,7 @@ async function deliverOrderAction(formData: FormData) {
   if (!reason) throw new Error("Reason SALE not found");
 
   // Insert movements in batch (negative qty)
-  const rows = items.map((it: any) => ({
+  const rows = items.map((it: SalesOrderItemBasic) => ({
     product_id: it.product_id,
     warehouse_id: order.warehouse_id,
     qty: -Math.abs(Number(it.qty || 0)),
@@ -264,11 +302,12 @@ async function deliverOrderAction(formData: FormData) {
   redirect(`/sales/${orderId}`);
 }
 
-export default async function SalesDetailPage({ params }: { params: { id: string } }) {
-  const detail = await getSalesDetail(params.id);
+export default async function SalesDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const detail = await getSalesDetail(resolvedParams.id);
   if (!detail) return notFound();
-  const { order, items, products, stockMap, reservedMap } = detail as any;
-  const productOptions = (products ?? []).map((p: any) => {
+  const { order, items, products, stockMap, reservedMap } = detail;
+  const productOptions = (products ?? []).map((p: Product) => {
     const stock = Number(stockMap?.[p.id] || 0);
     const reserved = Number(reservedMap?.[p.id] || 0);
     const available = Math.max(0, stock - reserved);
@@ -326,7 +365,7 @@ export default async function SalesDetailPage({ params }: { params: { id: string
               </tr>
             </thead>
             <tbody>
-              {items.map((it: any) => (
+              {items.map((it: SalesOrderItemView) => (
                 <tr key={it.id} className="border-t">
                   <td className="p-3">{it.products?.sku} - {it.products?.name}</td>
                   <td className="p-3 text-right">{Number(it.qty).toFixed(2)}</td>
@@ -356,35 +395,11 @@ export default async function SalesDetailPage({ params }: { params: { id: string
       </div>
 
       {order.status === "OPEN" && (
-        <div className="space-y-3 max-w-2xl">
-          <h3 className="text-lg font-semibold">Add Item</h3>
-          <form action={addItemAction} className="grid grid-cols-1 md:grid-cols-6 gap-3">
-            <input type="hidden" name="orderId" value={order.id} />
-            <div className="space-y-1 md:col-span-2">
-              <Label htmlFor="product_id">Product</Label>
-              <SearchableSelect id="product_id" name="product_id" options={productOptions} required className="w-full" placeholder="Search product..." />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="qty">Qty</Label>
-              <Input id="qty" name="qty" type="number" min="0" step="0.01" defaultValue={1} required />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="unit_price">Unit Price</Label>
-              <Input id="unit_price" name="unit_price" type="number" min="0" step="0.01" defaultValue={0} required />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="discount">Discount</Label>
-              <Input id="discount" name="discount" type="number" min="0" step="0.01" defaultValue={0} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="tax">Tax</Label>
-              <Input id="tax" name="tax" type="number" min="0" step="0.01" defaultValue={0} />
-            </div>
-            <div className="md:col-span-6">
-              <SubmitButton pendingText="Adding...">Add Item</SubmitButton>
-            </div>
-          </form>
-        </div>
+        <AddSalesItemForm 
+          orderId={order.id}
+          productOptions={productOptions}
+          addItemAction={addItemAction}
+        />
       )}
     </div>
   );

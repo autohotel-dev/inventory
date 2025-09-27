@@ -1,5 +1,17 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+
+type KardexRow = {
+  id: string;
+  created_at: string;
+  qty: number | null;
+  warehouses?: { code?: string | null; name?: string | null } | null;
+  movement_reasons?: { code?: string | null } | null;
+  reference_table?: string | null;
+  reference_id?: string | null;
+  note?: string | null;
+  balance?: number;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +37,9 @@ async function getKardex(productId: string) {
   return data ?? [];
 }
 
-export default async function KardexPage({ searchParams }: { searchParams: { productId?: string } }) {
-  const productId = searchParams?.productId;
+export default async function KardexPage({ searchParams }: { searchParams: Promise<{ productId?: string }> }) {
+  const params = await searchParams;
+  const productId = params?.productId;
   if (!productId) {
     return (
       <div className="p-6 space-y-4">
@@ -38,9 +51,10 @@ export default async function KardexPage({ searchParams }: { searchParams: { pro
 
   const rows = await getKardex(productId);
   let running = 0;
-  const enriched = rows.map((r: any) => {
-    running += Number(r.qty || 0);
-    return { ...r, balance: running };
+  const enriched = (rows as unknown[]).map((r: unknown) => {
+    const row = r as KardexRow;
+    running += Number(row.qty || 0);
+    return { ...row, balance: running };
   });
 
   return (
@@ -64,7 +78,7 @@ export default async function KardexPage({ searchParams }: { searchParams: { pro
             </tr>
           </thead>
           <tbody>
-            {enriched.map((m: any) => (
+            {enriched.map((m: KardexRow & { balance: number }) => (
               <tr key={m.id} className="border-t">
                 <td className="p-3">{new Date(m.created_at).toLocaleString()}</td>
                 <td className="p-3">{m.warehouses?.code} - {m.warehouses?.name}</td>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { DeleteWarehouseForm } from "@/components/delete-warehouse-form";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,10 @@ async function deleteWarehouseAction(formData: FormData) {
   revalidatePath("/warehouses");
 }
 
-export default async function WarehousesPage({ searchParams }: { searchParams: { q?: string; page?: string } }) {
-  const q = searchParams?.q ?? "";
-  const page = Math.max(1, Number(searchParams?.page ?? 1));
+export default async function WarehousesPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
+  const params = await searchParams;
+  const q = params?.q ?? "";
+  const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = 10;
   const { rows: warehouses, count } = await getWarehouses({ q, page, pageSize });
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
@@ -85,12 +87,10 @@ export default async function WarehousesPage({ searchParams }: { searchParams: {
                     <Button variant="secondary" asChild>
                       <Link href={`/warehouses/${w.id}/edit`}>Edit</Link>
                     </Button>
-                    <form action={deleteWarehouseAction} onSubmit={(e) => {
-                      if (!confirm("Delete this warehouse?")) e.preventDefault();
-                    }}>
-                      <input type="hidden" name="id" value={w.id} />
-                      <Button variant="destructive" type="submit">Delete</Button>
-                    </form>
+                    <DeleteWarehouseForm 
+                      warehouseId={w.id} 
+                      deleteAction={deleteWarehouseAction} 
+                    />
                   </div>
                 </td>
               </tr>

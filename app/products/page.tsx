@@ -36,9 +36,10 @@ async function deleteProductAction(formData: FormData) {
   revalidatePath("/products");
 }
 
-export default async function ProductsPage({ searchParams }: { searchParams: { q?: string; page?: string } }) {
-  const q = searchParams?.q ?? "";
-  const page = Math.max(1, Number(searchParams?.page ?? 1));
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
+  const params = await searchParams;
+  const q = params?.q ?? "";
+  const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = 10;
   const { rows: products, count } = await getProducts({ q, page, pageSize });
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
@@ -46,9 +47,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Products</h1>
+        <h1 className="text-2xl font-semibold">Productos</h1>
         <Button asChild>
-          <Link href="/products/new">New Product</Link>
+          <Link href="/products/new">Nuevo Producto</Link>
         </Button>
       </div>
 
@@ -56,11 +57,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
         <input
           type="text"
           name="q"
-          placeholder="Search by SKU or Name"
+          placeholder="Buscar por SKU o Nombre"
           defaultValue={q}
           className="border rounded px-3 py-2 w-full max-w-md"
         />
-        <Button type="submit">Search</Button>
+        <Button type="submit">Buscar</Button>
       </form>
 
       <div className="overflow-x-auto border rounded">
@@ -68,11 +69,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
           <thead className="bg-muted">
             <tr>
               <th className="text-left p-3">SKU</th>
-              <th className="text-left p-3">Name</th>
-              <th className="text-right p-3">Price</th>
-              <th className="text-right p-3">Min Stock</th>
-              <th className="text-center p-3">Active</th>
-              <th className="text-right p-3">Actions</th>
+              <th className="text-left p-3">Nombre</th>
+              <th className="text-right p-3">Precio</th>
+              <th className="text-right p-3">Stock Mín</th>
+              <th className="text-center p-3">Activo</th>
+              <th className="text-right p-3">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -86,11 +87,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
                 <td className="p-3">
                   <div className="flex gap-2 justify-end">
                     <Button variant="secondary" asChild>
-                      <Link href={`/products/${p.id}/edit`}>Edit</Link>
+                      <Link href={`/products/${p.id}/edit`}>Editar</Link>
                     </Button>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={p.id} />
-                      <ConfirmButton confirmText="Delete this product?" variant="destructive" type="submit">Delete</ConfirmButton>
+                      <ConfirmButton confirmText="¿Eliminar este producto?" variant="destructive" type="submit">Eliminar</ConfirmButton>
                     </form>
                   </div>
                 </td>
@@ -99,7 +100,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
             {products.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-6 text-center text-muted-foreground">
-                  No products yet.
+                  No hay productos aún.
                 </td>
               </tr>
             )}
@@ -111,11 +112,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
         <div className="text-sm text-muted-foreground">Total: {count}</div>
         <div className="flex gap-2">
           <Button variant="secondary" asChild disabled={page <= 1}>
-            <Link href={`/products?${new URLSearchParams({ q, page: String(page - 1) }).toString()}`}>Prev</Link>
+            <Link href={`/products?${new URLSearchParams({ q, page: String(page - 1) }).toString()}`}>Anterior</Link>
           </Button>
-          <span className="text-sm">Page {page} / {totalPages}</span>
+          <span className="text-sm">Página {page} / {totalPages}</span>
           <Button variant="secondary" asChild disabled={page >= totalPages}>
-            <Link href={`/products?${new URLSearchParams({ q, page: String(page + 1) }).toString()}`}>Next</Link>
+            <Link href={`/products?${new URLSearchParams({ q, page: String(page + 1) }).toString()}`}>Siguiente</Link>
           </Button>
         </div>
       </div>

@@ -17,7 +17,7 @@ async function getDashboardData() {
     .from("stock")
     .select("qty")
     .limit(100000);
-  const totalStock = (stockRows ?? []).reduce((a: number, r: any) => a + Number(r.qty || 0), 0);
+  const totalStock = (stockRows ?? []).reduce((a: number, r: { qty: number | null }) => a + Number(r.qty || 0), 0);
 
   // Open orders
   const { count: poOpen } = await supabase
@@ -102,11 +102,11 @@ export default async function Home() {
                 </tr>
               </thead>
               <tbody>
-                {lastMoves.map((m: any, idx: number) => (
+                {lastMoves.map((m: Record<string, unknown>, idx: number) => (
                   <tr key={idx} className="border-t">
-                    <td className="p-3">{new Date(m.created_at).toLocaleString()}</td>
-                    <td className="p-3">{m.products?.sku} - {m.products?.name}</td>
-                    <td className="p-3">{m.warehouses?.code} - {m.warehouses?.name}</td>
+                    <td className="p-3">{new Date(m.created_at as string).toLocaleString()}</td>
+                    <td className="p-3">{(m.products as any)?.sku} - {(m.products as any)?.name}</td>
+                    <td className="p-3">{(m.warehouses as any)?.code} - {(m.warehouses as any)?.name}</td>
                     <td className="p-3 text-right">{Number(m.qty).toFixed(2)}</td>
                   </tr>
                 ))}
