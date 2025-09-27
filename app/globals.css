@@ -66,3 +66,34 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Mejoras para móviles */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Mejorar el tap target en móviles */
+  @media (max-width: 768px) {
+    button, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      @apply flex items-center justify-center;
+    }
+    
+    /* Mejorar inputs en móviles */
+    input, select, textarea {
+      font-size: 16px; /* Previene zoom en iOS */
+    }
+    
+    /* Mejorar tablas en móviles */
+    .table-responsive {
+      @apply overflow-x-auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .table-responsive table {
+      @apply min-w-full;
+    }
+  }
+}

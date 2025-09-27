@@ -59,7 +59,7 @@ export function AddSalesItemForm({ orderId, productOptions, addItemAction }: Add
         </div>
         
         {/* Campos numéricos en grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
           <div className="space-y-1">
             <Label htmlFor="qty">Cantidad</Label>
             <Input id="qty" name="qty" type="number" min="0" step="0.01" defaultValue={1} required />

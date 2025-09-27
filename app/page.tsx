@@ -49,49 +49,47 @@ export default async function Home() {
   const { productsCount, totalStock, poOpen, soOpen, lastMoves } = await getDashboardData();
 
   const quickLinks = [
-    { href: "/products/new", label: "New Product" },
-    { href: "/purchases/new", label: "New Purchase" },
-    { href: "/sales/new", label: "New Sale" },
-    { href: "/movements/new", label: "New Movement" },
+    { href: "/products/new", label: "Nuevo Producto" },
+    { href: "/purchases/new", label: "Nueva Compra" },
+    { href: "/sales/new", label: "Nueva Venta" },
+    { href: "/movements/new", label: "Nuevo Movimiento" },
   ];
 
   const modules = [
-    { href: "/products", label: "Products" },
-    { href: "/categories", label: "Categories" },
-    { href: "/warehouses", label: "Warehouses" },
-    { href: "/suppliers", label: "Suppliers" },
-    { href: "/customers", label: "Customers" },
-    { href: "/movements", label: "Movements" },
+    { href: "/products", label: "Productos" },
+    { href: "/categories", label: "Categorías" },
+    { href: "/warehouses", label: "Almacenes" },
+    { href: "/suppliers", label: "Proveedores" },
+    { href: "/customers", label: "Clientes" },
+    { href: "/movements", label: "Movimientos" },
     { href: "/stock", label: "Stock" },
-    { href: "/purchases", label: "Purchases" },
-    { href: "/sales", label: "Sales" },
   ];
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="border rounded p-4">
-          <div className="text-sm text-muted-foreground">Active Products</div>
-          <div className="text-2xl font-semibold">{productsCount}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="border rounded p-4 bg-card">
+          <div className="text-sm text-muted-foreground">Productos</div>
+          <div className="text-xl md:text-2xl font-semibold">{productsCount}</div>
         </div>
-        <div className="border rounded p-4">
-          <div className="text-sm text-muted-foreground">Total Stock (qty)</div>
-          <div className="text-2xl font-semibold">{Number(totalStock).toFixed(2)}</div>
+        <div className="border rounded p-4 bg-card">
+          <div className="text-sm text-muted-foreground">Stock Total</div>
+          <div className="text-xl md:text-2xl font-semibold">{totalStock.toFixed(0)}</div>
         </div>
-        <div className="border rounded p-4">
-          <div className="text-sm text-muted-foreground">Open Purchases</div>
-          <div className="text-2xl font-semibold">{poOpen}</div>
+        <div className="border rounded p-4 bg-card">
+          <div className="text-sm text-muted-foreground">Compras Abiertas</div>
+          <div className="text-xl md:text-2xl font-semibold">{poOpen}</div>
         </div>
-        <div className="border rounded p-4">
-          <div className="text-sm text-muted-foreground">Open Sales</div>
-          <div className="text-2xl font-semibold">{soOpen}</div>
+        <div className="border rounded p-4 bg-card">
+          <div className="text-sm text-muted-foreground">Ventas Abiertas</div>
+          <div className="text-xl md:text-2xl font-semibold">{soOpen}</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Latest Movements</h2>
-          <div className="overflow-x-auto border rounded">
+          <h2 className="text-lg font-semibold">Últimos Movimientos</h2>
+          <div className="table-responsive border rounded">
             <table className="min-w-full text-sm">
               <thead className="bg-muted">
                 <tr>
@@ -121,7 +119,7 @@ export default async function Home() {
         </div>
 
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Quick Actions</h2>
+          <h2 className="text-lg font-semibold">Acciones Rápidas</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {quickLinks.map((l) => (
               <Link key={l.href} href={l.href} className="border rounded p-4 hover:bg-muted transition-colors">
@@ -129,7 +127,7 @@ export default async function Home() {
               </Link>
             ))}
           </div>
-          <h2 className="text-lg font-semibold mt-6">Modules</h2>
+          <h2 className="text-lg font-semibold mt-6">Módulos</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {modules.map((l) => (
               <Link key={l.href} href={l.href} className="border rounded p-4 hover:bg-muted transition-colors">

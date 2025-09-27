@@ -51,18 +51,18 @@ function Icon({ name, className }: { name: string; className?: string }) {
 
 const links = [
   { href: "/", label: "Dashboard", icon: "home" },
-  { href: "/products", label: "Products", icon: "box" },
-  { href: "/categories", label: "Categories", icon: "arrows" },
-  { href: "/warehouses", label: "Warehouses", icon: "building" },
-  { href: "/suppliers", label: "Suppliers", icon: "truck" },
-  { href: "/customers", label: "Customers", icon: "users" },
+  { href: "/products", label: "Productos", icon: "box" },
+  { href: "/categories", label: "Categorías", icon: "arrows" },
+  { href: "/warehouses", label: "Almacenes", icon: "building" },
+  { href: "/suppliers", label: "Proveedores", icon: "truck" },
+  { href: "/customers", label: "Clientes", icon: "users" },
   { divider: true },
-  { href: "/movements", label: "Movements", icon: "activity" },
+  { href: "/movements", label: "Movimientos", icon: "activity" },
   { href: "/stock", label: "Stock", icon: "box" },
   { href: "/kardex", label: "Kardex", icon: "activity" },
   { divider: true },
-  { href: "/purchases", label: "Purchases", icon: "bag" },
-  { href: "/sales", label: "Sales", icon: "cart" },
+  { href: "/purchases", label: "Compras", icon: "bag" },
+  { href: "/sales", label: "Ventas", icon: "cart" },
 ] as const;
 
 export function Sidebar() {
@@ -91,29 +91,34 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="md:hidden sticky top-0 z-30 border-b bg-background">
+      <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link href="/" className="font-semibold">Inventory</Link>
+          <Link href="/" className="font-semibold text-lg">📦 Inventory</Link>
           <button
             type="button"
             aria-label="Toggle sidebar"
             onClick={() => setOpen((v) => !v)}
-            className="border rounded px-3 py-1 text-sm"
+            className="border rounded px-3 py-2 text-sm hover:bg-muted transition-colors"
           >
-            Menu
+            ☰ Menu
           </button>
         </div>
       </div>
 
       {/* Backdrop for mobile */}
       {open && (
-        <div className="fixed inset-0 bg-black/30 md:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setOpen(false)} />
       )}
 
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-muted/20 border-r ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`} style={{ width: compact ? 72 : 256, transition: "transform 200ms ease, width 200ms ease" }}>
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`} style={{ width: compact ? 72 : 256, transition: "transform 200ms ease, width 200ms ease" }}>
         <div className="h-full p-3 md:p-4 space-y-4 overflow-auto">
+          {/* Mobile header inside sidebar */}
+          <div className="md:hidden px-1 pb-4 border-b">
+            <Link href="/" className="font-semibold text-lg">📦 Inventory</Link>
+          </div>
+          
           <div className="px-1 flex items-center justify-between gap-2">
-            <Link href="/" className={`hidden md:block font-semibold text-lg ${compact ? "truncate" : ""}`}>{compact ? "Inv" : "Inventory"}</Link>
+            <Link href="/" className={`hidden md:block font-semibold text-lg ${compact ? "truncate" : ""}`}>{compact ? "📦" : "📦 Inventory"}</Link>
             <div className="hidden md:flex items-center gap-2">
               <button
                 type="button"
@@ -121,7 +126,7 @@ export function Sidebar() {
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 title="Toggle theme"
               >
-                {theme === "dark" ? "Light" : "Dark"}
+{theme === "dark" ? "Claro" : "Oscuro"}
               </button>
               <button
                 type="button"
@@ -129,7 +134,7 @@ export function Sidebar() {
                 onClick={toggleCompact}
                 title="Toggle compact"
               >
-                {compact ? "Expand" : "Compact"}
+{compact ? "Expandir" : "Compacto"}
               </button>
             </div>
           </div>
@@ -156,7 +161,7 @@ export function Sidebar() {
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               title="Toggle theme"
             >
-              {theme === "dark" ? "Light" : "Dark"}
+{theme === "dark" ? "Claro" : "Oscuro"}
             </button>
             <button
               type="button"
@@ -164,7 +169,7 @@ export function Sidebar() {
               onClick={toggleCompact}
               title="Toggle compact"
             >
-              {compact ? "Expand" : "Compact"}
+{compact ? "Expandir" : "Compacto"}
             </button>
           </div>
         </div>

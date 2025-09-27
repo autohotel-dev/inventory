@@ -35,9 +35,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr]">
+          <div className="min-h-screen flex flex-col md:grid md:grid-cols-[240px_1fr]">
             <Sidebar />
-            <main className="px-4 py-6 max-w-7xl w-full mx-auto space-y-6">
+            <main className="flex-1 px-3 py-4 md:px-6 md:py-6 max-w-7xl w-full mx-auto space-y-4 md:space-y-6">
               <Breadcrumbs />
               {children}
             </main>
