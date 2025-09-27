@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { ConditionalLayout } from "@/components/layout/conditional-layout";
+import { AuthDebug } from "@/components/auth/auth-debug";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -10,7 +11,6 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Sistema de Inventario",
   description: "Sistema de gestión de inventario con Next.js y Supabase",
 };
 
@@ -37,6 +37,7 @@ export default function RootLayout({
           <ConditionalLayout>
             {children}
           </ConditionalLayout>
+          <AuthDebug />
         </ThemeProvider>
       </body>
     </html>
