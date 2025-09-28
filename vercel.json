@@ -58,6 +58,10 @@
     {
       "source": "/manifest.json",
       "destination": "/api/manifest"
+    },
+    {
+      "source": "/sw.js",
+      "destination": "/sw.js"
     }
   ]
 }
