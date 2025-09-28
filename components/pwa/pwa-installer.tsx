@@ -90,8 +90,50 @@ export function PWAInstaller() {
     localStorage.setItem('pwa-install-dismissed', 'true');
   };
 
+  // Detectar si es móvil
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
   // No mostrar si ya está instalado o si el usuario ya rechazó
-  if (isInstalled || !showInstallPrompt || localStorage.getItem('pwa-install-dismissed')) {
+  if (isInstalled || localStorage.getItem('pwa-install-dismissed')) {
+    return null;
+  }
+
+  // En móvil, mostrar instrucciones manuales si no hay prompt automático
+  if (isMobile && !showInstallPrompt) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+        <Card className="shadow-lg border-2 border-primary/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-primary" />
+                Instalar App
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => localStorage.setItem('pwa-install-dismissed', 'true')}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-sm text-muted-foreground mb-4">
+              Para instalar: Menú del navegador → "Agregar a pantalla de inicio"
+            </p>
+            <div className="text-xs text-muted-foreground">
+              ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Si no hay prompt y no es móvil, no mostrar nada
+  if (!showInstallPrompt) {
     return null;
   }
 
