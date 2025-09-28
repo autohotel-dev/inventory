@@ -37,7 +37,16 @@ Ve a tu proyecto en [Supabase Dashboard](https://supabase.com/dashboard):
 - **Value:** `https://tu-proyecto.vercel.app`
 - **Environments:** ✅ Production ✅ Preview ✅ Development
 
-### 3. **Re-deploy**
+### 3. **Configurar Google OAuth en Supabase (Importante)**
+
+Para que Google Login funcione correctamente:
+
+1. **Ve a Supabase Dashboard → Authentication → Providers**
+2. **Habilita Google Provider**
+3. **En "Site URL"** pon: `https://tu-proyecto.vercel.app`
+4. **En "Redirect URLs"** agrega: `https://tu-proyecto.vercel.app/auth/callback`
+
+### 4. **Re-deploy**
 
 Después de configurar las variables:
 

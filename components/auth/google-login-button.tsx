@@ -11,10 +11,13 @@ export function GoogleLoginButton() {
     try {
       setIsLoading(true);
       
+      // Obtener la URL base correcta
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect_to=/dashboard`,
+          redirectTo: `${baseUrl}/auth/callback?redirect_to=/dashboard`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
