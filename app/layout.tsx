@@ -23,14 +23,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  manifest: "/manifest.json",
+  manifest: "/api/manifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Inventario Pro",
     startupImage: [
       {
-        url: "/icons/icon-512x512.png",
+        url: "/icons/icon-512x512.svg",
         media: "(device-width: 768px) and (device-height: 1024px)"
       }
     ]

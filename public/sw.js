@@ -80,8 +80,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'Nueva notificación del sistema de inventario',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-72x72.png',
+    icon: '/icons/icon-192x192.svg',
+    badge: '/icons/icon-72x72.svg',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
@@ -91,12 +91,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'Ver detalles',
-        icon: '/icons/icon-192x192.png'
+        icon: '/icons/icon-192x192.svg'
       },
       {
         action: 'close',
         title: 'Cerrar',
-        icon: '/icons/icon-192x192.png'
+        icon: '/icons/icon-192x192.svg'
       }
     ]
   };
