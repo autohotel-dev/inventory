@@ -28,14 +28,21 @@ export function AuthCallbackHandler() {
           // Usuario autenticado exitosamente
           const redirectTo = searchParams.get('redirect_to') || '/dashboard';
           
+          // Debug: mostrar información del redirect
+          console.log('🔍 OAuth Callback Debug:');
+          console.log('- Session found:', !!data.session);
+          console.log('- redirect_to param:', searchParams.get('redirect_to'));
+          console.log('- Final redirectTo:', redirectTo);
+          console.log('- Current URL:', window.location.href);
+          
           // Usar window.location.href para forzar navegación completa al dominio correcto
           const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pixanpax.com';
+          const finalUrl = `${baseUrl}${redirectTo}`;
           
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Redirecting to:', `${baseUrl}${redirectTo}`);
-          }
+          console.log('- Final URL:', finalUrl);
           
-          window.location.href = `${baseUrl}${redirectTo}`;
+          // Forzar redirect al dashboard específicamente
+          window.location.href = finalUrl;
         } else {
           // No hay sesión válida, redirigir al login
           console.warn('No session found after OAuth callback');

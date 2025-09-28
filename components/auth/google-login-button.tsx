@@ -13,11 +13,16 @@ export function GoogleLoginButton() {
       
       // Forzar el uso del dominio de producción
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pixanpax.com';
+      const redirectUrl = `${baseUrl}/auth/callback?redirect_to=/dashboard`;
+      
+      console.log('🔍 Google OAuth Debug:');
+      console.log('- Base URL:', baseUrl);
+      console.log('- Redirect URL:', redirectUrl);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${baseUrl}/auth/callback?redirect_to=/dashboard`,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
