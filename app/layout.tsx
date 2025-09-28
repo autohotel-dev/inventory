@@ -8,7 +8,7 @@ import { ToastProvider } from "@/components/providers/toast-provider";
 import { DataDebug } from "@/components/debug/data-debug";
 import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
 
-const defaultUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://pixanpax.com";
+const defaultUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.pixanpax.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
