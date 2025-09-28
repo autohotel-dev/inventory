@@ -12,7 +12,7 @@ export function GoogleLoginButton() {
       setIsLoading(true);
       
       // Forzar el uso del dominio de producción
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pixanpax.com';
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://pixanpax.com';
       const redirectUrl = `${baseUrl}/auth/callback?redirect_to=/dashboard`;
       
       console.log('🔍 Google OAuth Debug:');
