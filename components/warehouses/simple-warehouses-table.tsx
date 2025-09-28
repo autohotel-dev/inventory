@@ -58,14 +58,14 @@ export function SimpleWarehousesTable() {
       }
 
       // Enriquecer almacenes con estadísticas
-      const enrichedWarehouses = (warehousesData || []).map(warehouse => {
-        const warehouseStock = stockData?.filter(s => s.warehouse_id === warehouse.id) || [];
-        const activeProductStock = warehouseStock.filter(s => s.product && s.product.is_active);
+      const enrichedWarehouses = (warehousesData || []).map((warehouse: any) => {
+        const warehouseStock = (stockData as any[])?.filter((s: any) => s.warehouse_id === warehouse.id) || [];
+        const activeProductStock = warehouseStock.filter((s: any) => s.product && (s.product as any).is_active);
         
-        const productCount = new Set(activeProductStock.map(s => s.product.id)).size;
-        const totalStock = activeProductStock.reduce((sum, s) => sum + (s.qty || 0), 0);
-        const stockValue = activeProductStock.reduce((sum, s) => 
-          sum + ((s.qty || 0) * (s.product.price || 0)), 0
+        const productCount = new Set(activeProductStock.map((s: any) => (s.product as any).id)).size;
+        const totalStock = activeProductStock.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
+        const stockValue = activeProductStock.reduce((sum: number, s: any) => 
+          sum + ((s.qty || 0) * ((s.product as any).price || 0)), 0
         );
         
         // Tasa de utilización basada en productos únicos (máximo 100 productos por almacén)
