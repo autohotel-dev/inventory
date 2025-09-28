@@ -4,6 +4,8 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { ConditionalLayout } from "@/components/layout/conditional-layout";
 import { AuthDebug } from "@/components/auth/auth-debug";
+import { ToastProvider } from "@/components/providers/toast-provider";
+import { DataDebug } from "@/components/debug/data-debug";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -37,7 +39,9 @@ export default function RootLayout({
           <ConditionalLayout>
             {children}
           </ConditionalLayout>
+          <ToastProvider />
           <AuthDebug />
+          <DataDebug />
         </ThemeProvider>
       </body>
     </html>

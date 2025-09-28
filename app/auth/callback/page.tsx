@@ -1,21 +1,23 @@
 import { Suspense } from "react";
-import AuthCallbackContent from "./auth-callback-content";
+import { AuthCallbackHandler } from "./auth-callback-handler";
 
 export default function AuthCallback() {
   return (
-    <Suspense fallback={<AuthCallbackFallback />}>
-      <AuthCallbackContent />
-    </Suspense>
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <Suspense fallback={<LoadingFallback />}>
+          <AuthCallbackHandler />
+        </Suspense>
+      </div>
+    </div>
   );
 }
 
-function AuthCallbackFallback() {
+function LoadingFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Cargando...</p>
-      </div>
-    </div>
+    <>
+      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Cargando...</p>
+    </>
   );
 }
