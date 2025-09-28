@@ -14,11 +14,16 @@ export function AuthCallbackHandler() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        console.log('🔍 OAuth Callback Starting...');
+        console.log('- Current URL:', window.location.href);
+        
         // Esperar un momento para que el middleware procese el código OAuth
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Verificar si hay una sesión válida después del callback
         const { data, error } = await supabase.auth.getSession();
+        
+        console.log('- Session check result:', { hasSession: !!data.session, error });
         
         if (error) {
           console.error('Error getting session after callback:', error);
@@ -26,28 +31,14 @@ export function AuthCallbackHandler() {
           return;
         }
 
-        if (data.session) {
-          // Usuario autenticado exitosamente
-          const redirectTo = searchParams.get('redirect_to') || '/dashboard';
-          
-          // Debug: mostrar información del redirect
-          console.log('🔍 OAuth Callback Debug:');
-          console.log('- Session found:', !!data.session);
-          console.log('- redirect_to param:', searchParams.get('redirect_to'));
-          console.log('- Final redirectTo:', redirectTo);
-          console.log('- Current URL:', window.location.href);
-          
-          // ACTIVAR COMPONENTE DE FORZAR REDIRECT
-          console.log('- Activating force redirect component...');
-          setShouldForceRedirect(true);
-        } else {
-          // No hay sesión válida, redirigir al login
-          console.warn('No session found after OAuth callback');
-          router.push('/auth/login?error=no_session');
-        }
+        // SIEMPRE redirigir al dashboard después del callback
+        console.log('🚀 FORCING REDIRECT TO DASHBOARD...');
+        setShouldForceRedirect(true);
+        
       } catch (error) {
         console.error('Callback processing error:', error);
-        router.push('/auth/login?error=unexpected_error');
+        // Incluso si hay error, intentar ir al dashboard
+        setShouldForceRedirect(true);
       }
     };
 

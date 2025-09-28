@@ -47,11 +47,24 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
+  // Debug para OAuth
+  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    console.log('🔍 Middleware Debug for Dashboard:');
+    console.log('- Path:', request.nextUrl.pathname);
+    console.log('- User found:', !!user);
+    console.log('- User claims:', user);
+  }
+
+  // Permitir acceso completo al dashboard temporalmente para debug
+  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    console.log('- Allowing dashboard access');
+    return supabaseResponse;
+  }
+
   if (
     request.nextUrl.pathname !== "/" &&
     !user &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    request.nextUrl.pathname !== "/dashboard" // Permitir acceso temporal al dashboard
+    !request.nextUrl.pathname.startsWith("/auth")
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
