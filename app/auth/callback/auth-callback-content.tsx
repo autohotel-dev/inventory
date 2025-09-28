@@ -2,12 +2,14 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ForceDashboardRedirect } from "./force-dashboard-redirect";
 
 export function AuthCallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+  const [shouldForceRedirect, setShouldForceRedirect] = useState(false);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -35,14 +37,9 @@ export function AuthCallbackHandler() {
           console.log('- Final redirectTo:', redirectTo);
           console.log('- Current URL:', window.location.href);
           
-          // Usar window.location.href para forzar navegación completa al dominio correcto
-          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pixanpax.com';
-          const finalUrl = `${baseUrl}${redirectTo}`;
-          
-          console.log('- Final URL:', finalUrl);
-          
-          // Forzar redirect al dashboard específicamente
-          window.location.href = finalUrl;
+          // ACTIVAR COMPONENTE DE FORZAR REDIRECT
+          console.log('- Activating force redirect component...');
+          setShouldForceRedirect(true);
         } else {
           // No hay sesión válida, redirigir al login
           console.warn('No session found after OAuth callback');
@@ -59,6 +56,11 @@ export function AuthCallbackHandler() {
       handleAuthCallback();
     }
   }, [router, searchParams, supabase.auth]);
+
+  // Si debemos forzar redirect, mostrar el componente de forzar redirect
+  if (shouldForceRedirect) {
+    return <ForceDashboardRedirect />;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center">
