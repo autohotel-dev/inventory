@@ -6,6 +6,7 @@ import { ConditionalLayout } from "@/components/layout/conditional-layout";
 import { AuthDebug } from "@/components/auth/auth-debug";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { DataDebug } from "@/components/debug/data-debug";
+import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -13,7 +14,49 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  description: "Sistema de gestión de inventario con Next.js y Supabase",
+  title: "Sistema de Inventario Profesional",
+  description: "Sistema completo de gestión de inventario con analytics avanzados, movimientos en tiempo real y exportación de datos",
+  keywords: ["inventario", "gestión", "stock", "almacén", "productos", "analytics"],
+  authors: [{ name: "Sistema de Inventario Pro" }],
+  creator: "Sistema de Inventario Pro",
+  publisher: "Sistema de Inventario Pro",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  manifest: "/manifest.json",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" }
+  ],
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: "cover"
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Inventario Pro",
+    startupImage: [
+      {
+        url: "/icons/icon-512x512.png",
+        media: "(device-width: 768px) and (device-height: 1024px)"
+      }
+    ]
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "default",
+    "apple-mobile-web-app-title": "Inventario Pro",
+    "application-name": "Inventario Pro",
+    "msapplication-TileColor": "#2563eb",
+    "msapplication-config": "/browserconfig.xml"
+  }
 };
 
 const geistSans = Geist({
@@ -40,6 +83,8 @@ export default function RootLayout({
             {children}
           </ConditionalLayout>
           <ToastProvider />
+          <PWAInstaller />
+          <PWAStatus />
           <AuthDebug />
           <DataDebug />
         </ThemeProvider>

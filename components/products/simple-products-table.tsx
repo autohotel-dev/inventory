@@ -13,8 +13,12 @@ import { BarcodeScanner } from "@/components/barcode-scanner";
 export function SimpleProductsTable() {
   const [products, setProducts] = useState<SimpleProduct[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<SimpleProduct | null>(null);
   const { success, error: showError } = useToast();
@@ -55,6 +59,17 @@ export function SimpleProductsTable() {
 
       if (!categoriesError && categoriesData) {
         setCategories(categoriesData);
+      }
+
+      // Obtener proveedores para el formulario
+      const { data: suppliersData, error: suppliersError } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+
+      if (!suppliersError && suppliersData) {
+        setSuppliers(suppliersData);
       }
 
       // Combinar datos y calcular información
@@ -156,10 +171,33 @@ export function SimpleProductsTable() {
     setIsModalOpen(true);
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(search.toLowerCase()) ||
-    product.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProducts = products.filter(product => {
+    // Filtro de búsqueda
+    const matchesSearch = search === "" || 
+      product.name.toLowerCase().includes(search.toLowerCase()) ||
+      product.sku.toLowerCase().includes(search.toLowerCase()) ||
+      (product.description && product.description.toLowerCase().includes(search.toLowerCase()));
+
+    // Filtro de categoría
+    const matchesCategory = categoryFilter === "" || 
+      (categoryFilter === "sin-categoria" && !product.category) ||
+      (product.category && product.category.id === categoryFilter);
+
+    // Filtro de stock
+    const matchesStock = stockFilter === "" ||
+      (stockFilter === "sin-stock" && (product.totalStock || 0) === 0) ||
+      (stockFilter === "stock-bajo" && product.stockStatus === 'low') ||
+      (stockFilter === "stock-critico" && product.stockStatus === 'critical') ||
+      (stockFilter === "stock-normal" && product.stockStatus === 'normal') ||
+      (stockFilter === "stock-alto" && product.stockStatus === 'high');
+
+    // Filtro de estado
+    const matchesStatus = statusFilter === "" ||
+      (statusFilter === "activo" && product.is_active) ||
+      (statusFilter === "inactivo" && !product.is_active);
+
+    return matchesSearch && matchesCategory && matchesStock && matchesStatus;
+  });
 
   if (loading) {
     return (
@@ -222,26 +260,144 @@ export function SimpleProductsTable() {
       </div>
 
       {/* Controles */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Buscar por nombre o SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Buscar por nombre, SKU o descripción..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Button onClick={fetchProducts} variant="outline">
+              Actualizar
+            </Button>
+            <Button onClick={handleNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Producto
+            </Button>
+          </div>
         </div>
-        
-        <div className="flex gap-2">
-          <Button onClick={fetchProducts} variant="outline">
-            Actualizar
-          </Button>
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Producto
-          </Button>
+
+        {/* Filtros Avanzados */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
+          <div>
+            <label className="block text-sm font-medium mb-2">Categoría</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+            >
+              <option value="">Todas las categorías</option>
+              <option value="sin-categoria">Sin categoría</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Estado de Stock</label>
+            <select
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+            >
+              <option value="">Todos los stocks</option>
+              <option value="sin-stock">🔴 Sin stock</option>
+              <option value="stock-critico">🔴 Stock crítico</option>
+              <option value="stock-bajo">🟡 Stock bajo</option>
+              <option value="stock-normal">✅ Stock normal</option>
+              <option value="stock-alto">🟢 Stock alto</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Estado del Producto</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+            >
+              <option value="">Todos los estados</option>
+              <option value="activo">✅ Activos</option>
+              <option value="inactivo">❌ Inactivos</option>
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSearch("");
+                setCategoryFilter("");
+                setStockFilter("");
+                setStatusFilter("");
+              }}
+              className="w-full"
+            >
+              Limpiar Filtros
+            </Button>
+          </div>
         </div>
+
+        {/* Indicador de filtros activos */}
+        {(search || categoryFilter || stockFilter || statusFilter) && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-muted-foreground">Filtros activos:</span>
+            {search && (
+              <Badge variant="secondary" className="text-xs">
+                Búsqueda: "{search}"
+                <button 
+                  onClick={() => setSearch("")}
+                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {categoryFilter && (
+              <Badge variant="secondary" className="text-xs">
+                Categoría: {categoryFilter === "sin-categoria" ? "Sin categoría" : 
+                  categories.find(c => c.id === categoryFilter)?.name || categoryFilter}
+                <button 
+                  onClick={() => setCategoryFilter("")}
+                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {stockFilter && (
+              <Badge variant="secondary" className="text-xs">
+                Stock: {stockFilter.replace("stock-", "").replace("-", " ")}
+                <button 
+                  onClick={() => setStockFilter("")}
+                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {statusFilter && (
+              <Badge variant="secondary" className="text-xs">
+                Estado: {statusFilter}
+                <button 
+                  onClick={() => setStatusFilter("")}
+                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabla mejorada */}
@@ -418,6 +574,7 @@ export function SimpleProductsTable() {
             <ProductForm
               product={editingProduct}
               categories={categories}
+              suppliers={suppliers}
               onSave={handleSave}
               onCancel={() => setIsModalOpen(false)}
             />
@@ -432,11 +589,13 @@ export function SimpleProductsTable() {
 function ProductForm({ 
   product, 
   categories,
+  suppliers,
   onSave, 
   onCancel 
 }: { 
   product: SimpleProduct | null;
   categories: any[];
+  suppliers: any[];
   onSave: (data: any) => void;
   onCancel: () => void;
 }) {
@@ -450,6 +609,7 @@ function ProductForm({
     unit: product?.unit || "EA",
     barcode: product?.barcode || "",
     category_id: product?.category?.id || "",
+    supplier_id: (product as any)?.supplier_id || "",
     is_active: product?.is_active ?? true,
   });
 
@@ -480,29 +640,56 @@ function ProductForm({
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">Categoría</label>
-        {categories.length > 0 ? (
-          <select
-            value={formData.category_id}
-            onChange={(e) => setFormData({...formData, category_id: e.target.value})}
-            className="w-full px-3 py-2 border border-input rounded-md bg-background"
-          >
-            <option value="">Sin categoría</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <Input
-            value={formData.category_id}
-            onChange={(e) => setFormData({...formData, category_id: e.target.value})}
-            placeholder="No hay categorías disponibles"
-            disabled
-          />
-        )}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Categoría</label>
+          {categories.length > 0 ? (
+            <select
+              value={formData.category_id}
+              onChange={(e) => setFormData({...formData, category_id: e.target.value})}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background"
+            >
+              <option value="">Sin categoría</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Input
+              value={formData.category_id}
+              onChange={(e) => setFormData({...formData, category_id: e.target.value})}
+              placeholder="No hay categorías disponibles"
+              disabled
+            />
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Proveedor</label>
+          {suppliers.length > 0 ? (
+            <select
+              value={formData.supplier_id}
+              onChange={(e) => setFormData({...formData, supplier_id: e.target.value})}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background"
+            >
+              <option value="">Sin proveedor</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Input
+              value={formData.supplier_id}
+              onChange={(e) => setFormData({...formData, supplier_id: e.target.value})}
+              placeholder="No hay proveedores disponibles"
+              disabled
+            />
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

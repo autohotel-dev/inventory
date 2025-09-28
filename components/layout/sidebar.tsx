@@ -46,6 +46,14 @@ function Icon({ name, className }: { name: string; className?: string }) {
       return (
         <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       );
+    case "chart":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+      );
+    case "download":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      );
     default:
       return <span className={common}>•</span>;
   }
@@ -62,6 +70,9 @@ const links = [
   { href: "/movements", label: "Movimientos", icon: "activity" },
   { href: "/stock", label: "Stock", icon: "box" },
   { href: "/kardex", label: "Kardex", icon: "activity" },
+  { divider: true },
+  { href: "/analytics", label: "Analytics", icon: "chart" },
+  { href: "/export", label: "Exportar", icon: "download" },
   { divider: true },
   { href: "/purchases", label: "Compras", icon: "bag" },
   { href: "/sales", label: "Ventas", icon: "cart" },
