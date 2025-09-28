@@ -11,8 +11,8 @@ export function GoogleLoginButton() {
     try {
       setIsLoading(true);
       
-      // Obtener la URL base correcta
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      // Forzar el uso del dominio de producción
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pixanpax.com';
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
