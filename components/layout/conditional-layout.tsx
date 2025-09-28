@@ -12,7 +12,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const pathname = usePathname();
   
   // Rutas que no deben mostrar el sidebar
-  const noSidebarRoutes = ['/auth', '/protected'];
+  const noSidebarRoutes = ['/auth'];
   const isNoSidebarRoute = noSidebarRoutes.some(route => pathname.startsWith(route));
   const isLandingPage = pathname === '/';
   

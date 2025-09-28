@@ -21,7 +21,9 @@ const criticalFiles = [
   'public/sw.js',
   'app/layout.tsx',
   'app/dashboard/page.tsx',
-  'components/layout/sidebar.tsx'
+  'components/layout/sidebar.tsx',
+  'app/products/page.tsx',
+  'app/analytics/page.tsx'
 ];
 
 // Verificar archivos críticos
@@ -94,9 +96,56 @@ pwaFiles.forEach(file => {
   console.log(`  ${exists ? '✅' : '❌'} ${file}`);
 });
 
+// Verificar imports problemáticos
+console.log('\n🔍 Verificando imports problemáticos:');
+
+function checkImportsInDirectory(dir) {
+  let hasProblems = false;
+  
+  if (!fs.existsSync(dir)) return hasProblems;
+  
+  const files = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const file of files) {
+    const fullPath = path.join(dir, file.name);
+    
+    if (file.isDirectory() && !file.name.startsWith('.') && file.name !== 'node_modules') {
+      hasProblems = checkImportsInDirectory(fullPath) || hasProblems;
+    } else if (file.name.endsWith('.tsx') || file.name.endsWith('.ts')) {
+      try {
+        const content = fs.readFileSync(fullPath, 'utf8');
+        
+        // Verificar imports problemáticos conocidos
+        const problematicImports = [
+          '@/components/tutorial',
+          'fetch-data-steps',
+          '@/components/ui/form', // Si no existe
+        ];
+        
+        for (const problematicImport of problematicImports) {
+          if (content.includes(problematicImport)) {
+            console.log(`  ❌ Import problemático encontrado en ${fullPath}: ${problematicImport}`);
+            hasProblems = true;
+          }
+        }
+      } catch (error) {
+        // Ignorar errores de lectura de archivos
+      }
+    }
+  }
+  
+  return hasProblems;
+}
+
+const hasImportProblems = checkImportsInDirectory('./app') || checkImportsInDirectory('./components');
+
+if (!hasImportProblems) {
+  console.log('  ✅ No se encontraron imports problemáticos');
+}
+
 // Resultado final
 console.log('\n' + '='.repeat(50));
-if (allFilesExist) {
+if (allFilesExist && !hasImportProblems) {
   console.log('🎉 ¡Verificación completada! El proyecto está listo para deploy.');
   console.log('\n📋 Pasos siguientes:');
   console.log('  1. Configura las variables de entorno en Vercel');
@@ -107,6 +156,7 @@ if (allFilesExist) {
   console.log('❌ Se encontraron problemas. Revisa los errores arriba.');
   console.log('\n🔧 Soluciones sugeridas:');
   console.log('  - Verifica que todos los archivos críticos existan');
+  console.log('  - Corrige los imports problemáticos');
   console.log('  - Instala las dependencias faltantes');
   console.log('  - Revisa la estructura de directorios');
   process.exit(1);
