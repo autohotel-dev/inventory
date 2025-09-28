@@ -54,6 +54,10 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
+    },
+    {
+      "source": "/manifest.json",
+      "destination": "/api/manifest"
     }
   ]
 }
