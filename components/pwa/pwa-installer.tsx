@@ -18,8 +18,16 @@ export function PWAInstaller() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+    
+    // Verificar si fue rechazado anteriormente
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    setIsDismissed(!!dismissed);
+    
     // Registrar service worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -86,15 +94,20 @@ export function PWAInstaller() {
 
   const handleDismiss = () => {
     setShowInstallPrompt(false);
-    // Guardar en localStorage que el usuario rechazó
+    setIsDismissed(true);
     localStorage.setItem('pwa-install-dismissed', 'true');
   };
+
+  // No renderizar en servidor
+  if (!isMounted) {
+    return null;
+  }
 
   // Detectar si es móvil
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   
   // No mostrar si ya está instalado o si el usuario ya rechazó
-  if (isInstalled || localStorage.getItem('pwa-install-dismissed')) {
+  if (isInstalled || isDismissed) {
     return null;
   }
 
@@ -112,7 +125,7 @@ export function PWAInstaller() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => localStorage.setItem('pwa-install-dismissed', 'true')}
+                onClick={handleDismiss}
                 className="h-6 w-6 p-0"
               >
                 <X className="h-4 w-4" />
