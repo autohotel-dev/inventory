@@ -12,30 +12,45 @@ export function AuthCallbackHandler() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Handle the OAuth callback
+        // Esperar un momento para que el middleware procese el código OAuth
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verificar si hay una sesión válida después del callback
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error);
+          console.error('Error getting session after callback:', error);
           router.push('/auth/login?error=callback_error');
           return;
         }
 
         if (data.session) {
-          // User is authenticated, redirect to dashboard or specified redirect
+          // Usuario autenticado exitosamente
           const redirectTo = searchParams.get('redirect_to') || '/dashboard';
-          router.push(redirectTo);
+          
+          // Usar window.location.href para forzar navegación completa al dominio correcto
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pixanpax.com';
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Redirecting to:', `${baseUrl}${redirectTo}`);
+          }
+          
+          window.location.href = `${baseUrl}${redirectTo}`;
         } else {
-          // No session, redirect to login
-          router.push('/auth/login');
+          // No hay sesión válida, redirigir al login
+          console.warn('No session found after OAuth callback');
+          router.push('/auth/login?error=no_session');
         }
       } catch (error) {
-        console.error('Callback error:', error);
+        console.error('Callback processing error:', error);
         router.push('/auth/login?error=unexpected_error');
       }
     };
 
-    handleAuthCallback();
+    // Solo ejecutar si estamos en el cliente
+    if (typeof window !== 'undefined') {
+      handleAuthCallback();
+    }
   }, [router, searchParams, supabase.auth]);
 
   return (
