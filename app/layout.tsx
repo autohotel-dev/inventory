@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  manifest: "/manifest.json",
+  manifest: "/manifest-simple.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
