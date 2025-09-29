@@ -1,5 +1,16 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Package,
+  TrendingUp,
+  ShoppingCart,
+  Activity,
+  RefreshCw,
+  Plus,
+  ArrowRight
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -49,94 +60,191 @@ export default async function Home() {
   const { productsCount, totalStock, poOpen, soOpen, lastMoves } = await getDashboardData();
 
   const quickLinks = [
-    { href: "/products/new", label: "Nuevo Producto" },
-    { href: "/purchases/new", label: "Nueva Compra" },
-    { href: "/sales/new", label: "Nueva Venta" },
-    { href: "/movements/new", label: "Nuevo Movimiento" },
+    { href: "/products/new", label: "Nuevo Producto", icon: "📦" },
+    { href: "/purchases/new", label: "Nueva Compra", icon: "🛒" },
+    { href: "/sales/new", label: "Nueva Venta", icon: "💰" },
+    { href: "/movements/new", label: "Nuevo Movimiento", icon: "📋" },
   ];
 
   const modules = [
-    { href: "/products", label: "Productos" },
-    { href: "/categories", label: "Categorías" },
-    { href: "/warehouses", label: "Almacenes" },
-    { href: "/suppliers", label: "Proveedores" },
-    { href: "/customers", label: "Clientes" },
-    { href: "/movements", label: "Movimientos" },
-    { href: "/stock", label: "Stock" },
+    { href: "/products", label: "Productos", icon: "📦" },
+    { href: "/categories", label: "Categorías", icon: "🏷️" },
+    { href: "/warehouses", label: "Almacenes", icon: "🏪" },
+    { href: "/suppliers", label: "Proveedores", icon: "🚚" },
+    { href: "/customers", label: "Clientes", icon: "👥" },
+    { href: "/movements", label: "Movimientos", icon: "📊" },
+    { href: "/stock", label: "Stock", icon: "📦" },
+    { href: "/analytics", label: "Analytics", icon: "📈" },
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <div className="border rounded p-4 bg-card">
-          <div className="text-sm text-muted-foreground">Productos</div>
-          <div className="text-xl md:text-2xl font-semibold">{productsCount}</div>
+    <div className="space-y-8 p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Dashboard Ejecutivo</h1>
+          <p className="text-muted-foreground">
+            Resumen completo de tu inventario y operaciones diarias
+          </p>
         </div>
-        <div className="border rounded p-4 bg-card">
-          <div className="text-sm text-muted-foreground">Stock Total</div>
-          <div className="text-xl md:text-2xl font-semibold">{totalStock.toFixed(0)}</div>
+
+        <div className="flex gap-2">
+          <Link href="/analytics" className="inline-flex items-center gap-2">
+            <Badge variant="outline" className="cursor-pointer hover:bg-muted">
+              📈 Ver Analytics
+              <ArrowRight className="h-3 w-3" />
+            </Badge>
+          </Link>
         </div>
-        <div className="border rounded p-4 bg-card">
-          <div className="text-sm text-muted-foreground">Compras Abiertas</div>
-          <div className="text-xl md:text-2xl font-semibold">{poOpen}</div>
-        </div>
-        <div className="border rounded p-4 bg-card">
-          <div className="text-sm text-muted-foreground">Ventas Abiertas</div>
-          <div className="text-xl md:text-2xl font-semibold">{soOpen}</div>
-        </div>
+      </div>
+
+      {/* KPIs principales */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Productos Activos</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{productsCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Productos disponibles en catálogo
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock Total</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalStock.toFixed(0)}</div>
+            <p className="text-xs text-muted-foreground">
+              Unidades en todos los almacenes
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Compras Abiertas</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{poOpen}</div>
+            <p className="text-xs text-muted-foreground">
+              Órdenes pendientes de recibir
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ventas Abiertas</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{soOpen}</div>
+            <p className="text-xs text-muted-foreground">
+              Órdenes pendientes de entregar
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Últimos Movimientos</h2>
-          <div className="table-responsive border rounded">
-            <table className="min-w-full text-sm">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Product</th>
-                  <th className="text-left p-3">Warehouse</th>
-                  <th className="text-right p-3">Qty</th>
-                </tr>
-              </thead>
-              <tbody>
+        {/* Últimos Movimientos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Últimos Movimientos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lastMoves.length > 0 ? (
+              <div className="space-y-3">
                 {lastMoves.map((m: Record<string, unknown>, idx: number) => (
-                  <tr key={idx} className="border-t">
-                    <td className="p-3">{new Date(m.created_at as string).toLocaleString()}</td>
-                    <td className="p-3">{(m.products as any)?.sku} - {(m.products as any)?.name}</td>
-                    <td className="p-3">{(m.warehouses as any)?.code} - {(m.warehouses as any)?.name}</td>
-                    <td className="p-3 text-right">{Number(m.qty).toFixed(2)}</td>
-                  </tr>
+                  <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {(m.products as any)?.sku} - {(m.products as any)?.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {(m.warehouses as any)?.code} - {new Date(m.created_at as string).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <Badge
+                      variant={Number(m.qty) > 0 ? "default" : "destructive"}
+                      className="ml-2"
+                    >
+                      {Number(m.qty) > 0 ? '📈' : '📉'} {Math.abs(Number(m.qty)).toFixed(2)}
+                    </Badge>
+                  </div>
                 ))}
-                {lastMoves.length === 0 && (
-                  <tr>
-                    <td className="p-6 text-center text-muted-foreground" colSpan={4}>No movements</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No hay movimientos recientes</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Acciones Rápidas</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {quickLinks.map((l) => (
-              <Link key={l.href} href={l.href} className="border rounded p-4 hover:bg-muted transition-colors">
-                {l.label}
-              </Link>
-            ))}
-          </div>
-          <h2 className="text-lg font-semibold mt-6">Módulos</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {modules.map((l) => (
-              <Link key={l.href} href={l.href} className="border rounded p-4 hover:bg-muted transition-colors">
-                {l.label}
-              </Link>
-            ))}
-          </div>
-        </div>
+        {/* Acciones Rápidas */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Acciones Rápidas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {quickLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group"
+                >
+                  <span className="text-2xl">{link.icon}</span>
+                  <span className="font-medium group-hover:text-primary transition-colors">
+                    {link.label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Módulos del Sistema */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Módulos del Sistema
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {modules.map((module) => (
+              <Link
+                key={module.href}
+                href={module.href}
+                className="flex flex-col items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group text-center"
+              >
+                <span className="text-3xl">{module.icon}</span>
+                <span className="font-medium group-hover:text-primary transition-colors">
+                  {module.label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
