@@ -1,14 +1,15 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { LogoutButton } from "@/components/logout-button";
+import { createClient } from "@/lib/supabase/client";
 // import { LanguageSwitcher } from "@/components/language-switcher"; // Temporarily disabled
 
 function Icon({ name, className }: { name: string; className?: string }) {
   // Minimal inline icons to avoid adding deps
-  const common = "w-4 h-4" + (className ? ` ${className}` : "");
+  const common = className || "w-4 h-4";
   switch (name) {
     case "home":
       return (
@@ -54,6 +55,26 @@ function Icon({ name, className }: { name: string; className?: string }) {
       return (
         <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       );
+    case "sun":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      );
+    case "moon":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      );
+    case "expand":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+      );
+    case "compress":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+      );
+    case "logout":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      );
     default:
       return <span className={common}>•</span>;
   }
@@ -75,15 +96,20 @@ const links = [
   { href: "/export", label: "Exportar", icon: "download" },
   { divider: true },
   { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart" },
-  { href: "/purchases", label: "Compras", icon: "bag" },
   { href: "/sales", label: "Ventas", icon: "cart" },
 ] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [open, setOpen] = React.useState(false);
-  const [compact, setCompact] = React.useState(false);
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [compact, setCompact] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   React.useEffect(() => {
     // close on route change
@@ -101,6 +127,12 @@ export function Sidebar() {
       localStorage.setItem("sidebar-compact", nv ? "1" : "0");
       return nv;
     });
+  };
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/auth/login");
   };
 
   return (
@@ -131,28 +163,13 @@ export function Sidebar() {
             <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
           </div>
           
-          <div className="px-1 flex items-center justify-between gap-2">
-            <Link href="/dashboard" className={`hidden md:block font-semibold text-lg ${compact ? "truncate" : ""}`}>{compact ? "📦" : "📦 Inventory"}</Link>
-            <div className="hidden md:flex items-center gap-2">
-              {/* <LanguageSwitcher /> */}
-              <button
-                type="button"
-                className="border rounded px-2 py-1 text-xs"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                title="Toggle theme"
-              >
-{theme === "dark" ? "Claro" : "Oscuro"}
-              </button>
-              <button
-                type="button"
-                className="border rounded px-2 py-1 text-xs"
-                onClick={toggleCompact}
-                title="Toggle compact"
-              >
-{compact ? "Expandir" : "Compacto"}
-              </button>
-            </div>
+          {/* Logo section */}
+          <div className="px-1 hidden md:block">
+            <Link href="/dashboard" className={`font-semibold text-lg block ${compact ? "text-center" : ""}`}>
+              {compact ? "📦" : "📦 Inventory"}
+            </Link>
           </div>
+          
           <nav className="grid gap-1 text-sm">
             {links.map((l, idx) =>
               ("divider" in l) ? (
@@ -172,33 +189,92 @@ export function Sidebar() {
           
           {/* Desktop logout section */}
           <div className="hidden md:flex flex-col gap-2 pt-2 border-t mt-auto">
-            <div className="pt-2">
+            {/* Compact toggle button */}
+            <button
+              type="button"
+              className={`border rounded ${compact ? 'p-1.5 flex items-center justify-center' : 'px-2 py-1 flex items-center gap-1'} text-xs w-full`}
+              onClick={toggleCompact}
+              title="Toggle compact"
+            >
+              {compact ? (
+                <div className="w-4 h-4 flex items-center justify-center">
+                  <Icon name="expand" className="w-3 h-3" />
+                </div>
+              ) : (
+                <>
+                  <Icon name="compress" className="w-3 h-3" />
+                  Compacto
+                </>
+              )}
+            </button>
+            {/* Theme button */}
+            <button
+              type="button"
+              className={`border rounded ${compact ? 'p-1.5 flex items-center justify-center' : 'px-2 py-1 flex items-center gap-1'} text-xs w-full`}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title="Toggle theme"
+            >
+              {mounted ? (
+                compact ? (
+                  <div className="w-4 h-4 flex items-center justify-center">
+                    <Icon name={theme === "dark" ? "sun" : "moon"} className="w-3 h-3" />
+                  </div>
+                ) : (
+                  <>
+                    <Icon name={theme === "dark" ? "sun" : "moon"} className="w-3 h-3" />
+                    {theme === "dark" ? "Claro" : "Oscuro"}
+                  </>
+                )
+              ) : (
+                compact ? (
+                  <div className="w-4 h-4 flex items-center justify-center">
+                    <Icon name="sun" className="w-3 h-3" />
+                  </div>
+                ) : (
+                  "Tema"
+                )
+              )}
+            </button>
+            {/* Logout button */}
+            {compact ? (
+              <button
+                type="button"
+                className="border rounded p-1.5 flex items-center justify-center text-xs w-full hover:bg-red-50 hover:border-red-200 transition-colors"
+                onClick={handleLogout}
+                title="Cerrar sesión"
+              >
+                <div className="w-4 h-4 flex items-center justify-center">
+                  <Icon name="logout" className="w-3 h-3 text-red-500" />
+                </div>
+              </button>
+            ) : (
               <LogoutButton />
-            </div>
+            )}
           </div>
           
           <div className="md:hidden flex flex-col gap-2 pt-2 border-t">
             <div className="flex items-center gap-2">
-              {/* <LanguageSwitcher /> */}
               <button
                 type="button"
-                className="border rounded px-2 py-1 text-xs"
+                className="border rounded px-2 py-1 text-xs flex items-center gap-1"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 title="Toggle theme"
               >
-{theme === "dark" ? "Claro" : "Oscuro"}
+                {mounted ? (
+                  <>
+                    <Icon name={theme === "dark" ? "sun" : "moon"} />
+                    {theme === "dark" ? "Claro" : "Oscuro"}
+                  </>
+                ) : (
+                  <>
+                    <Icon name="sun" />
+                    Tema
+                  </>
+                )}
               </button>
-              <button
-                type="button"
-                className="border rounded px-2 py-1 text-xs"
-                onClick={toggleCompact}
-                title="Toggle compact"
-              >
-{compact ? "Expandir" : "Compacto"}
-              </button>
-            </div>
-            <div className="pt-2">
-              <LogoutButton />
+              <div className="flex-1">
+                <LogoutButton />
+              </div>
             </div>
           </div>
         </div>
