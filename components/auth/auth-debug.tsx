@@ -31,7 +31,7 @@ export function AuthDebug() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 bg-card border rounded-lg p-4 text-xs max-w-sm">
+    <div className="fixed bottom-4 right-4 bg-card border rounded-lg p-4 text-xs max-w-sm opacity-20">
       <h4 className="font-semibold mb-2">Auth Debug</h4>
       <div className="space-y-1">
         <div>Session: {session ? '✅ Active' : '❌ None'}</div>

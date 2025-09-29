@@ -19,7 +19,7 @@ export function DataDebug() {
         .from("products")
         .select("*")
         .limit(5);
-      
+
       results.products = {
         data: products,
         error: productsError,
@@ -31,7 +31,7 @@ export function DataDebug() {
         .from("categories")
         .select("*")
         .limit(5);
-      
+
       results.categories = {
         data: categories,
         error: categoriesError,
@@ -43,7 +43,7 @@ export function DataDebug() {
         .from("suppliers")
         .select("*")
         .limit(5);
-      
+
       results.suppliers = {
         data: suppliers,
         error: suppliersError,
@@ -64,57 +64,59 @@ export function DataDebug() {
   }
 
   return (
-    <div className="fixed bottom-20 right-4 bg-card border rounded-lg p-4 text-xs max-w-md max-h-96 overflow-auto z-50">
-      <h4 className="font-semibold mb-2">Database Debug</h4>
-      
-      <Button 
-        onClick={checkTables} 
-        disabled={isLoading}
-        size="sm"
-        className="mb-2"
-      >
-        {isLoading ? "Checking..." : "Check Tables"}
-      </Button>
+    <div>
+      {/* <div className="fixed bottom-20 right-4 bg-card border rounded-lg p-4 text-xs max-w-md max-h-96 overflow-auto z-50">
+        <h4 className="font-semibold mb-2">Database Debug</h4>
 
-      {debugInfo && (
-        <div className="space-y-2">
-          <div>
-            <strong>Products:</strong> {debugInfo.products?.count || 0} items
-            {debugInfo.products?.error && (
-              <div className="text-red-500 text-xs">
-                Error: {debugInfo.products.error.message}
-              </div>
-            )}
-          </div>
-          
-          <div>
-            <strong>Categories:</strong> {debugInfo.categories?.count || 0} items
-            {debugInfo.categories?.error && (
-              <div className="text-red-500 text-xs">
-                Error: {debugInfo.categories.error.message}
-              </div>
-            )}
-          </div>
-          
-          <div>
-            <strong>Suppliers:</strong> {debugInfo.suppliers?.count || 0} items
-            {debugInfo.suppliers?.error && (
-              <div className="text-red-500 text-xs">
-                Error: {debugInfo.suppliers.error.message}
-              </div>
-            )}
-          </div>
+        <Button
+          onClick={checkTables}
+          disabled={isLoading}
+          size="sm"
+          className="mb-2"
+        >
+          {isLoading ? "Checking..." : "Check Tables"}
+        </Button>
 
-          {debugInfo.products?.data && debugInfo.products.data.length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer">Sample Products</summary>
-              <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-auto">
-                {JSON.stringify(debugInfo.products.data, null, 2)}
-              </pre>
-            </details>
-          )}
-        </div>
-      )}
+        {debugInfo && (
+          <div className="space-y-2">
+            <div>
+              <strong>Products:</strong> {debugInfo.products?.count || 0} items
+              {debugInfo.products?.error && (
+                <div className="text-red-500 text-xs">
+                  Error: {debugInfo.products.error.message}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <strong>Categories:</strong> {debugInfo.categories?.count || 0} items
+              {debugInfo.categories?.error && (
+                <div className="text-red-500 text-xs">
+                  Error: {debugInfo.categories.error.message}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <strong>Suppliers:</strong> {debugInfo.suppliers?.count || 0} items
+              {debugInfo.suppliers?.error && (
+                <div className="text-red-500 text-xs">
+                  Error: {debugInfo.suppliers.error.message}
+                </div>
+              )}
+            </div>
+
+            {debugInfo.products?.data && debugInfo.products.data.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer">Sample Products</summary>
+                <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-auto">
+                  {JSON.stringify(debugInfo.products.data, null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
+      </div> */}
     </div>
   );
 }

@@ -74,6 +74,7 @@ const links = [
   { href: "/analytics", label: "Analytics", icon: "chart" },
   { href: "/export", label: "Exportar", icon: "download" },
   { divider: true },
+  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart" },
   { href: "/purchases", label: "Compras", icon: "bag" },
   { href: "/sales", label: "Ventas", icon: "cart" },
 ] as const;
