@@ -9,7 +9,6 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   // Optimizaciones para producción
-  swcMinify: true,
   compress: true,
   poweredByHeader: false,
   // Configuración para PWA

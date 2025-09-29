@@ -73,6 +73,16 @@
     -webkit-overflow-scrolling: touch;
   }
   
+  /* Ocultar barras de scroll pero mantener funcionalidad */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+  
   /* Mejorar el tap target en móviles */
   @media (max-width: 768px) {
     button, a, [role="button"] {
