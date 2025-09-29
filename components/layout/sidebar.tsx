@@ -96,6 +96,7 @@ const links = [
   { href: "/export", label: "Exportar", icon: "download" },
   { divider: true },
   { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart" },
+  { href: "/purchases", label: "Compras", icon: "cart" },
   { href: "/sales", label: "Ventas", icon: "cart" },
 ] as const;
 
@@ -186,13 +187,12 @@ export function Sidebar() {
               )
             )}
           </nav>
-          
-          {/* Desktop logout section */}
-          <div className="hidden md:flex flex-col gap-2 pt-2 border-t mt-auto">
-            {/* Compact toggle button */}
+
+          {/* Compact toggle button */}
+          <div className="px-1 hidden md:flex justify-end border-t">
             <button
               type="button"
-              className={`border rounded ${compact ? 'p-1.5 flex items-center justify-center' : 'px-2 py-1 flex items-center gap-1'} text-xs w-full`}
+              className={`border rounded ${compact ? 'p-1.5 flex items-center justify-center' : 'px-2 py-1 flex items-center gap-1'} text-xs`}
               onClick={toggleCompact}
               title="Toggle compact"
             >
@@ -207,6 +207,10 @@ export function Sidebar() {
                 </>
               )}
             </button>
+          </div>
+          
+          {/* Desktop logout section */}
+          <div className="hidden md:flex flex-col gap-2 pt-2 border-t mt-auto">
             {/* Theme button */}
             <button
               type="button"
