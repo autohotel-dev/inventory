@@ -34,8 +34,11 @@ interface Customer {
   // Estadísticas calculadas
   total_orders?: number;
   total_spent?: number;
-  last_order?: string;
+  last_order?: string | null;
   customer_type?: 'new' | 'regular' | 'vip';
+  // Campos adicionales de la vista
+  customer_name?: string;
+  customer_email?: string;
 }
 
 export function AdvancedCustomersTable() {
@@ -51,39 +54,65 @@ export function AdvancedCustomersTable() {
   const fetchCustomers = async () => {
     const supabase = createClient();
     try {
-      // Obtener clientes
-      const { data: customersData, error: customersError } = await supabase
-        .from("customers")
+      // Opción 1: Usar la vista (más simple y confiable)
+      const { data: customersWithStats, error } = await supabase
+        .from("customer_statistics_view")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (customersError) throw customersError;
+      if (error) {
+        console.error("Error con vista, intentando procedimiento almacenado:", error);
 
-      // Obtener estadísticas de ventas por cliente (simulado - ajustar según tu esquema)
-      // Por ahora usaremos datos mock para las estadísticas
-      const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
-        // Simular estadísticas (en una implementación real, obtendrías esto de la tabla de ventas)
-        const mockOrders = Math.floor(Math.random() * 20);
-        const mockSpent = Math.random() * 10000;
-        const mockLastOrder = new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000);
-        
-        let customerType: 'new' | 'regular' | 'vip' = 'new';
-        if (mockSpent > 5000) customerType = 'vip';
-        else if (mockOrders > 5) customerType = 'regular';
+        // Opción 2: Fallback al procedimiento almacenado si la vista falla
+        const { data: customersData, error: customersError } = await supabase
+          .from("customers")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-        return {
-          ...customer,
-          total_orders: mockOrders,
-          total_spent: mockSpent,
-          last_order: mockLastOrder.toISOString(),
-          customer_type: customerType
-        };
-      });
+        if (customersError) throw customersError;
+
+        const { data: statsData, error: statsError } = await supabase
+          .rpc("get_customer_statistics");
+
+        if (statsError) throw statsError;
+
+        // Combinar datos
+        const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
+          const stats = statsData?.find((s: any) => s.customer_id === customer.id);
+
+          return {
+            ...customer,
+            total_orders: stats?.total_orders || 0,
+            total_spent: Number(stats?.total_spent) || 0,
+            last_order: stats?.last_order_date || null,
+            customer_type: (stats?.customer_type as 'new' | 'regular' | 'vip') || 'new'
+          };
+        });
+
+        setCustomers(enrichedCustomers);
+        return;
+      }
+
+      // Usar datos de la vista directamente
+      const enrichedCustomers: Customer[] = (customersWithStats || []).map(customer => ({
+        id: customer.customer_id,
+        name: customer.customer_name,
+        email: customer.customer_email,
+        tax_id: "", // Estos campos no están en la vista, se pueden agregar después
+        phone: "",
+        address: "",
+        is_active: true,
+        created_at: new Date().toISOString(), // Fecha por defecto
+        total_orders: customer.total_orders || 0,
+        total_spent: Number(customer.total_spent) || 0,
+        last_order: customer.last_order_date || null,
+        customer_type: (customer.customer_type as 'new' | 'regular' | 'vip') || 'new'
+      }));
 
       setCustomers(enrichedCustomers);
     } catch (error) {
       console.error("Error fetching customers:", error);
-      showError("Error", "No se pudieron cargar los clientes");
+      showError("Error", error instanceof Error ? error.message : "No se pudieron cargar los clientes");
     } finally {
       setLoading(false);
     }
@@ -153,13 +182,17 @@ export function AdvancedCustomersTable() {
   };
 
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = search === "" || 
-      customer.name.toLowerCase().includes(search.toLowerCase()) ||
-      (customer.email && customer.email.toLowerCase().includes(search.toLowerCase())) ||
+    // Usar nombre real del cliente (de la vista o del campo name)
+    const customerName = customer.customer_name || customer.name || "";
+    const customerEmail = customer.customer_email || customer.email || "";
+
+    const matchesSearch = search === "" ||
+      customerName.toLowerCase().includes(search.toLowerCase()) ||
+      customerEmail.toLowerCase().includes(search.toLowerCase()) ||
       (customer.phone && customer.phone.includes(search)) ||
       (customer.tax_id && customer.tax_id.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesStatus = statusFilter === "" || 
+    const matchesStatus = statusFilter === "" ||
       (statusFilter === "active" && customer.is_active) ||
       (statusFilter === "inactive" && !customer.is_active);
 
@@ -328,7 +361,7 @@ export function AdvancedCustomersTable() {
                   <div>
                     <div className="font-medium text-foreground flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
-                      {customer.name}
+                      {customer.customer_name || customer.name}
                     </div>
                     {customer.tax_id && (
                       <div className="text-sm text-muted-foreground">
@@ -346,11 +379,11 @@ export function AdvancedCustomersTable() {
                 
                 <td className="p-4">
                   <div className="space-y-1">
-                    {customer.email && (
+                    {(customer.customer_email || customer.email) && (
                       <div className="flex items-center gap-2 text-sm">
                         <Mail className="h-3 w-3 text-muted-foreground" />
-                        <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">
-                          {customer.email}
+                        <a href={`mailto:${customer.customer_email || customer.email}`} className="text-blue-600 hover:underline">
+                          {customer.customer_email || customer.email}
                         </a>
                       </div>
                     )}
@@ -411,7 +444,7 @@ export function AdvancedCustomersTable() {
                       variant="destructive" 
                       size="sm"
                       onClick={() => {
-                        if (confirm(`¿Estás seguro de eliminar "${customer.name}"?`)) {
+                        if (confirm(`¿Estás seguro de eliminar "${customer.customer_name || customer.name}"?`)) {
                           handleDelete(customer.id);
                         }
                       }}
