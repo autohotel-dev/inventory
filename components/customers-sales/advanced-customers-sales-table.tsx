@@ -22,7 +22,9 @@ import {
     RefreshCw,
     Archive,
     CheckCircle,
-    Check
+    Check,
+    ShoppingBag,
+    Clock
 } from "lucide-react";
 import { Customer, CustomerSales } from "@/lib/types/inventory";
 import { getCustomer, getCustomerSales } from "@/lib/functions/customer";
@@ -102,7 +104,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Ventas</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{totalCustomerSales}</div>
@@ -128,7 +130,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
-                        <Building className="h-4 w-4 text-purple-500" />
+                        <Clock className="h-4 w-4 text-purple-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-purple-600">{pendingCustomerSales}</div>
@@ -183,8 +185,11 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                             className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
                         >
                             <option value="">Todos los estados</option>
-                            <option value="COMPLETED">✅ Abiertas</option>
-                            <option value="PENDING">❌ Cerradas</option>
+                            <option value="OPEN">📋 Abiertas</option>
+                            <option value="PENDING">⏳ En Pagos</option>
+                            <option value="COMPLETED">✅ Completadas</option>
+                            <option value="ENDED">📦 Finalizadas</option>
+                            <option value="CANCELLED">❌ Canceladas</option>
                         </select>
                     </div>
 
@@ -235,8 +240,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                 <td className="p-4">
                                     <div>
                                         <div className="font-medium text-foreground flex items-center gap-2">
-                                            <Users className="h-4 w-4 text-muted-foreground" />
-                                            {customerSale.order_number || customerSale.id}
+                                            🛒 {customerSale.order_number || customerSale.id}
                                         </div>
                                         {customerSale.customer_id && (
                                             <div className="text-sm text-muted-foreground">
@@ -245,13 +249,16 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                                 </div>
                                             </div>
                                         )}
-                                        {customerSale.status && (
-                                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                                <Badge variant="outline" className="bg-green-500/50 text-muted-foreground">
-                                                    {customerSale.status === "COMPLETED" ? "Completada" : "Pendiente"}
-                                                </Badge>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                            <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-500 hover:bg-gray-100/20 p-2">
+                                                {
+                                                    customerSale.status === "OPEN" ? "📋 ABIERTA"
+                                                        : customerSale.status === "PENDING" ? "⏳ PENDIENTE"
+                                                            : customerSale.status === "COMPLETED" ? "✅ COMPLETADA"
+                                                                : customerSale.status === "ENDED" ? "📦 FINALIZADA"
+                                                                    : customerSale.status === "CANCELLED" ? "❌ CANCELADA" : "⏳ VENCIDA"}
+                                            </Badge>
+                                        </div>
                                     </div>
                                 </td>
 
@@ -262,39 +269,46 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                                 ${(customerSale.subtotal || customerSale.tax).toFixed(2)}
                                             </div>
                                         )}
-                                        {customerSale.total && (
-                                            <div className="flex items-center justify-center gap-2 text-sm">
-                                                <Badge variant="outline" className="bg-yellow-500/50 text-muted-foreground">
-                                                    Restante: ${(customerSale.total - customerSale.discount || 0).toFixed(2)}
-                                                </Badge>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center justify-center gap-2 text-sm">
+                                            <Badge variant="outline" className="bg-amber-700 text-gray-100 border-amber-300 hover:bg-amber-600/90 p-2">
+                                                💰 Restante: ${(customerSale.total - customerSale.discount || 0).toFixed(2)}
+                                            </Badge>
+                                        </div>
                                     </div>
                                 </td>
 
                                 <td className="p-4 text-center">
                                     <div className="space-y-1">
                                         <div className="font-medium">{customerSale.notes}</div>
-                                        <div className="text-sm text-green-600 font-medium">
-                                            ${(customerSale.total || 0).toFixed(2)}
+                                        <div className="text-sm font-medium text-primary">
+                                            💰 ${(customerSale.total || 0).toFixed(2)}
                                         </div>
                                         {customerSale.created_at && (
                                             <div className="text-xs text-muted-foreground">
-                                                Último abono: {new Date(customerSale.created_at).toLocaleDateString()}
+                                                ⏰ Último abono: {new Date(customerSale.created_at).toLocaleDateString()}
                                             </div>
                                         )}
                                     </div>
                                 </td>
 
                                 <td className="p-4 text-center">
-                                    <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
-                                        {new Date(customerSale.created_at).toLocaleDateString()}
+                                    <Badge variant="outline" className="bg-slate-900 text-slate-100 border-slate-200 hover:bg-slate-600/80 p-2">
+                                        📅 {new Date(customerSale.created_at).toLocaleDateString()}
                                     </Badge>
                                 </td>
 
                                 <td className="p-4 text-center">
-                                    <Badge variant={customerSale.status === "ACTIVE" ? "default" : "destructive"} className="px-2 py-1 text-muted-foreground">
-                                        {customerSale.status === "ACTIVE" ? "✅ Activa" : "❌ Cerrada"}
+                                    <Badge variant={customerSale.status === "ACTIVE" ? "default" : "secondary"}
+                                        className={customerSale.status === "ACTIVE" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
+                                            : customerSale.status === "PENDING" ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"
+                                                : customerSale.status === "COMPLETED" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
+                                                    : customerSale.status === "ENDED" ? "bg-black-100 text-black-800 border-gray-200 hover:bg-black-600/80 p-2"
+                                                        : customerSale.status === "CANCELLED" ? "bg-red-100 text-red-800 border-red-200 hover:bg-red-600/80 p-2" : "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"}>
+                                        {customerSale.status === "ACTIVE" ? "✅ Activa"
+                                            : customerSale.status === "PENDING" ? "⏳ PENDIENTE"
+                                                : customerSale.status === "COMPLETED" ? "✅ COMPLETADA"
+                                                    : customerSale.status === "ENDED" ? "📦 FINALIZADA"
+                                                        : customerSale.status === "CANCELLED" ? "❌ CANCELADA" : "⏳ VENCIDA"}
                                     </Badge>
                                 </td>
                             </tr>
@@ -304,7 +318,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
 
                 {filteredCustomerSales.length === 0 && (
                     <div className="text-center py-12">
-                        <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                         <div className="text-lg font-medium text-muted-foreground mb-2">
                             {customerSales.length === 0
                                 ? "No hay ventas registradas"
