@@ -21,6 +21,7 @@ import {
   Building,
   RefreshCw
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -50,6 +51,7 @@ export function AdvancedCustomersTable() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const { success, error: showError } = useToast();
+  const router = useRouter();
 
   const fetchCustomers = async () => {
     const supabase = createClient();
@@ -125,6 +127,10 @@ export function AdvancedCustomersTable() {
   const handleEdit = (customer: Customer) => {
     setEditingCustomer(customer);
     setIsModalOpen(true);
+  };
+
+  const handleViewSales = (customerId: string) => {
+    router.push(`/customers/own-sales/${customerId}`);
   };
 
   const handleDelete = async (customerId: string) => {
@@ -450,6 +456,13 @@ export function AdvancedCustomersTable() {
                       }}
                     >
                       Eliminar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleViewSales(customer.id)}
+                    >
+                      Ver Ventas
                     </Button>
                   </div>
                 </td>

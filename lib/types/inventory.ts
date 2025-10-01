@@ -55,3 +55,40 @@ export interface Supplier {
   created_at: string;
   updated_at: string;
 }
+
+export interface Customer {
+  id: string;
+  name: string;
+  tax_id?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  is_active: boolean;
+  created_at: string;
+  // Estadísticas calculadas
+  total_orders?: number;
+  total_spent?: number;
+  last_order?: string | null;
+  customer_type?: 'new' | 'regular' | 'vip';
+  // Campos adicionales de la vista
+  customer_name?: string;
+  customer_email?: string;
+}
+
+export interface CustomerSales {
+  id: string;
+  customer_id: string;
+  warehouse_id: string;
+  status: string;
+  currency: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  discount: number;
+  notes: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  order_number: string;
+  order_date: string;
+}

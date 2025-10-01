@@ -17,7 +17,12 @@ import {
   ShoppingBag,
   Users,
   RefreshCw,
-  X
+  X,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  Archive,
+  TrendingUp
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -43,8 +48,8 @@ interface SupabaseSalesOrder {
   subtotal: number;
   tax: number;
   total: number;
-  customers: { name: string }[] | null;
-  warehouses: { code: string; name: string }[] | null;
+  customers: { name: string } | null;
+  warehouses: { code: string; name: string } | null;
   notes?: string;
 }
 
@@ -73,7 +78,10 @@ export function AdvancedSalesTable() {
     total: 0,
     totalAmount: 0,
     pending: 0,
-    completed: 0
+    completed: 0,
+    cancelled: 0,
+    open: 0,
+    ended: 0
   });
 
   const fetchSales = async () => {
@@ -123,10 +131,10 @@ export function AdvancedSalesTable() {
       if (error) throw error;
       
       // Transformar datos de Supabase al formato esperado
-      const transformedData: SalesOrder[] = (data as SupabaseSalesOrder[] || []).map(item => ({
+      const transformedData: SalesOrder[] = (data as any || []).map((item: any) => ({
         ...item,
-        customers: item.customers && item.customers.length > 0 ? item.customers[0] : null,
-        warehouses: item.warehouses && item.warehouses.length > 0 ? item.warehouses[0] : null
+        customers: item.customers || null,
+        warehouses: item.warehouses || null
       }));
       
       let filteredData = transformedData;
@@ -141,18 +149,26 @@ export function AdvancedSalesTable() {
         );
       }
       
+      console.log("Data filtrada: ", filteredData);
+      
       setSales(filteredData);
       
       // Calcular estadísticas
       const totalAmount = filteredData.reduce((sum, s) => sum + (s.total || 0), 0);
-      const pending = filteredData.filter(s => s.status === 'OPEN').length;
+      const pending = filteredData.filter(s => s.status === 'PARTIAL').length;
       const completed = filteredData.filter(s => s.status === 'COMPLETED').length;
+      const cancelled = filteredData.filter(s => s.status === 'CANCELLED').length;
+      const open = filteredData.filter(s => s.status === 'OPEN').length;
+      const ended = filteredData.filter(s => s.status === 'ENDED').length;
       
       setStats({
         total: filteredData.length,
         totalAmount,
         pending,
-        completed
+        completed,
+        cancelled,
+        open,
+        ended
       });
       
     } catch (error) {
@@ -185,19 +201,35 @@ export function AdvancedSalesTable() {
     const variants = {
       'OPEN': 'default',
       'COMPLETED': 'secondary',
+      'PARTIAL': 'outline',
       'CANCELLED': 'destructive',
-      'SHIPPED': 'outline'
+      'ENDED': 'outline',
+      'SHIPPED': 'default'
     } as const;
-    
+
+    const colors = {
+      'OPEN': 'bg-primary/10 text-primary border-primary/20',
+      'COMPLETED': 'bg-green-100 text-green-800 border-green-300',
+      'PARTIAL': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      'CANCELLED': 'bg-destructive/10 text-destructive border-destructive/20',
+      'ENDED': 'bg-muted text-muted-foreground border-border',
+      'SHIPPED': 'bg-blue-100 text-blue-800 border-blue-300'
+    } as const;
+
     const labels = {
       'OPEN': 'Abierta',
       'COMPLETED': 'Completada',
+      'PARTIAL': 'En Pagos',
       'CANCELLED': 'Cancelada',
+      'ENDED': 'Finalizada',
       'SHIPPED': 'Enviada'
     };
-    
+
     return (
-      <Badge variant={variants[status as keyof typeof variants] || 'outline'}>
+      <Badge
+        variant={variants[status as keyof typeof variants] || 'outline'}
+        className={`font-medium text-xs ${colors[status as keyof typeof colors] || 'bg-muted text-muted-foreground border-border'}`}
+      >
         {labels[status as keyof typeof labels] || status}
       </Badge>
     );
@@ -293,14 +325,14 @@ export function AdvancedSalesTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-orange-600" />
+              <TrendingUp className="h-4 w-4 text-blue-600" />
               <div>
-                <p className="text-sm text-muted-foreground">Pendientes</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
+                <p className="text-sm text-muted-foreground">Activas</p>
+                <p className="text-2xl font-bold">{stats.open}</p>
               </div>
             </div>
           </CardContent>
@@ -309,10 +341,46 @@ export function AdvancedSalesTable() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-purple-600" />
+              <Clock className="h-4 w-4 text-amber-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Pendientes</p>
+                <p className="text-2xl font-bold">{stats.pending}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Completadas</p>
                 <p className="text-2xl font-bold">{stats.completed}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <div>
+                        <p className="text-sm text-muted-foreground">Canceladas</p>
+                        <p className="text-2xl font-bold">{stats.cancelled}</p>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-slate-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Finalizadas</p>
+                <p className="text-2xl font-bold">{stats.ended}</p>
               </div>
             </div>
           </CardContent>
@@ -429,72 +497,98 @@ export function AdvancedSalesTable() {
               <p>Cargando órdenes de venta...</p>
             </div>
           ) : sales.length === 0 ? (
-            <div className="p-8 text-center">
-              <ShoppingBag className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">No hay órdenes de venta</h3>
-              <p className="text-muted-foreground mb-4">
-                {Object.values(filters).some(f => f !== '' && f !== 'ALL') 
-                  ? 'No se encontraron órdenes con los filtros aplicados'
-                  : 'Comienza creando tu primera orden de venta'
-                }
-              </p>
-              <Button asChild>
-                <Link href="/sales/new">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nueva Venta
-                </Link>
-              </Button>
+            <div className="text-center py-16 px-4">
+              <div className="max-w-sm mx-auto">
+                <ShoppingBag className="h-16 w-16 mx-auto mb-6 text-muted-foreground/50" />
+                <h3 className="text-xl font-semibold text-muted-foreground mb-3">
+                  {Object.values(filters).some(f => f !== '' && f !== 'ALL')
+                    ? 'No se encontraron órdenes'
+                    : 'No hay órdenes de venta'
+                  }
+                </h3>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  {Object.values(filters).some(f => f !== '' && f !== 'ALL')
+                    ? 'Intenta ajustar los filtros o crear una nueva búsqueda'
+                    : 'Comienza creando tu primera orden de venta para ver los datos aquí'
+                  }
+                </p>
+                <Button asChild className="shadow-sm">
+                  <Link href="/sales/new">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nueva Venta
+                  </Link>
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
               <table className="w-full">
-                <thead className="border-b bg-muted/50">
+                <thead className="bg-muted/50 border-b">
                   <tr>
-                    <th className="text-left p-4 font-medium">Fecha</th>
-                    <th className="text-left p-4 font-medium">Cliente</th>
-                    <th className="text-left p-4 font-medium">Almacén</th>
-                    <th className="text-left p-4 font-medium">Estado</th>
-                    <th className="text-right p-4 font-medium">Subtotal</th>
-                    <th className="text-right p-4 font-medium">Impuesto</th>
-                    <th className="text-right p-4 font-medium">Total</th>
-                    <th className="text-center p-4 font-medium">Acciones</th>
+                    <th className="text-left p-4 font-semibold text-muted-foreground">Fecha</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Cliente</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Almacén</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Estado</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Subtotal</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Impuesto</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Total</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sales.map((sale) => (
-                    <tr key={sale.id} className="border-b hover:bg-muted/50 transition-colors">
+                  {sales.map((sale, index) => (
+                    <tr
+                      key={sale.id}
+                      className="border-b hover:bg-muted/30 transition-all duration-200 hover:shadow-sm group"
+                      style={{
+                        backgroundColor: index % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)'
+                      }}
+                    >
                       <td className="p-4">
-                        <div className="text-sm">
+                        <div className="text-sm font-medium text-foreground">
                           {formatDate(sale.created_at)}
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="font-medium">
+                        <div className="font-medium text-center text-foreground">
                           {sale.customers?.name || 'Cliente general'}
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm">
-                          {sale.warehouses ? 
-                            `${sale.warehouses.code} - ${sale.warehouses.name}` : 
+                        <div className="text-sm text-center text-muted-foreground">
+                          {sale.warehouses ?
+                            `${sale.warehouses.code} - ${sale.warehouses.name}` :
                             'Sin almacén'
                           }
                         </div>
                       </td>
                       <td className="p-4">
-                        {getStatusBadge(sale.status)}
-                      </td>
-                      <td className="p-4 text-right">
-                        {formatCurrency(sale.subtotal || 0, sale.currency)}
-                      </td>
-                      <td className="p-4 text-right">
-                        {formatCurrency(sale.tax || 0, sale.currency)}
-                      </td>
-                      <td className="p-4 text-right font-medium">
-                        {formatCurrency(sale.total || 0, sale.currency)}
+                        <div className="flex justify-center">
+                          {getStatusBadge(sale.status)}
+                        </div>
                       </td>
                       <td className="p-4 text-center">
-                        <Button variant="ghost" size="sm" asChild>
+                        <Badge variant="secondary" className="font-mono text-xs bg-muted/50 text-muted-foreground border-border">
+                          {formatCurrency(sale.subtotal || 0, sale.currency)}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant="outline" className="font-mono text-xs bg-muted/30 text-muted-foreground border-border">
+                          {formatCurrency(sale.tax || 0, sale.currency)}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant="default" className="font-mono text-xs bg-primary text-primary-foreground border-primary/20">
+                          {formatCurrency(sale.total || 0, sale.currency)}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          className="opacity-70 group-hover:opacity-100 transition-opacity"
+                        >
                           <Link href={`/sales/${sale.id}`}>
                             <Eye className="h-4 w-4" />
                           </Link>

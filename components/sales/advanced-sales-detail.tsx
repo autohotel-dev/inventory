@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  ShoppingBag, 
-  Users, 
-  Building, 
+import {
+  ShoppingBag,
+  Users,
+  Building,
   Calendar,
   DollarSign,
   Edit,
@@ -30,6 +30,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Customer } from "@/lib/types/inventory";
 
 interface SalesOrderDetail {
   id: string;
@@ -42,7 +43,7 @@ interface SalesOrderDetail {
   notes: string;
   customer_id: string | null;
   warehouse_id: string;
-  customers: { name: string; email?: string; phone?: string } | null;
+  customers: { name: string; email: string; phone: string } | null;
   warehouses: { code: string; name: string } | null;
 }
 
@@ -92,7 +93,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const fetchOrderDetail = async () => {
     setLoading(true);
     const supabase = createClient();
-    
+
     try {
       // Fetch order details (simplified query first)
       const { data: orderData, error: orderError } = await supabase
@@ -105,7 +106,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         console.error('Error fetching sales order:', orderError);
         throw orderError;
       }
-      
+
       if (!orderData) {
         console.log('No se encontró la orden con ID:', orderId);
         return;
@@ -121,7 +122,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           .select("name, email, phone")
           .eq("id", orderData.customer_id)
           .single();
-        customerData = customer;
+        customerData = customer as Customer ;
       }
 
       if (orderData.warehouse_id) {
@@ -183,14 +184,14 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     const statusConfig = {
       'OPEN': { variant: 'default' as const, icon: Clock, label: 'Abierta' },
       'COMPLETED': { variant: 'secondary' as const, icon: CheckCircle, label: 'Completada' },
-      'SHIPPED': { variant: 'outline' as const, icon: Truck, label: 'Enviada' },
+      'PARTIAL': { variant: 'outline' as const, icon: Truck, label: 'En Pagos' },
       'CANCELLED': { variant: 'destructive' as const, icon: XCircle, label: 'Cancelada' },
-      'INVOICED': { variant: 'secondary' as const, icon: FileText, label: 'Facturada' }
+      'ENDED': { variant: 'secondary' as const, icon: FileText, label: 'Finalizada' }
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.OPEN;
     const Icon = config.icon;
-    
+
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
@@ -218,10 +219,10 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
   const updateOrderStatus = async (newStatus: string) => {
     const supabase = createClient();
-    
+
     try {
       // Create inventory movements for completed/shipped orders
-      if ((newStatus === 'COMPLETED' || newStatus === 'SHIPPED') && order) {
+      if ((newStatus === 'COMPLETED' || newStatus === 'PARTIAL') && order) {
         const movements = items.map(item => ({
           product_id: item.product_id,
           warehouse_id: order.warehouse_id,
@@ -250,9 +251,9 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         .eq("id", orderId);
 
       if (error) throw error;
-      
+
       await fetchOrderDetail();
-      
+
       toast.success("Estado actualizado", {
         description: `La orden ahora está en estado: ${newStatus}`
       });
@@ -266,13 +267,13 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
   const calculateProfitMargin = () => {
     if (!order || !items.length) return 0;
-    
+
     const totalCost = items.reduce((sum, item) => {
       // Assuming we have purchase_price in products, otherwise use a default margin
       const estimatedCost = item.unit_price * 0.7; // 70% of sale price as estimated cost
       return sum + (estimatedCost * item.qty);
     }, 0);
-    
+
     const revenue = order.total;
     const profit = revenue - totalCost;
     return totalCost > 0 ? (profit / revenue) * 100 : 0;
@@ -287,7 +288,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     if (!selectedProduct || !order) return;
 
     const supabase = createClient();
-    
+
     try {
       const { error } = await supabase
         .from("sales_order_items")
@@ -302,19 +303,19 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       // Recalcular totales de la orden
       await recalculateOrderTotals();
-      
+
       // Refrescar datos
       await fetchOrderDetail();
-      
+
       // Cerrar modal y resetear
       setShowAddProduct(false);
       setSelectedProduct(null);
       setNewItemData({ quantity: 1, unit_price: 0 });
-      
+
       toast.success("Producto agregado exitosamente", {
         description: `${selectedProduct.name} agregado a la orden`
       });
-      
+
     } catch (error) {
       console.error('Error adding product:', error);
       toast.error("Error al agregar el producto", {
@@ -325,7 +326,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
   const recalculateOrderTotals = async () => {
     const supabase = createClient();
-    
+
     try {
       const { data: itemsData } = await supabase
         .from("sales_order_items")
@@ -340,7 +341,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         .from("sales_orders")
         .update({ subtotal, tax, total })
         .eq("id", orderId);
-        
+
     } catch (error) {
       console.error('Error recalculating totals:', error);
     }
@@ -356,7 +357,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
   const removeItemFromOrder = async () => {
     const supabase = createClient();
-    
+
     try {
       const { error } = await supabase
         .from("sales_order_items")
@@ -367,14 +368,14 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       // Recalcular totales
       await recalculateOrderTotals();
-      
+
       // Refrescar datos
       await fetchOrderDetail();
-      
+
       toast.success("Producto eliminado", {
         description: "El producto ha sido removido de la orden"
       });
-      
+
     } catch (error) {
       console.error('Error removing item:', error);
       toast.error("Error al eliminar el producto", {
@@ -433,15 +434,21 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
             Exportar
           </Button>
           {order.status === 'OPEN' && (
-            <Button onClick={() => updateOrderStatus('COMPLETED')}>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Completar Venta
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => updateOrderStatus('COMPLETED')}>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Completar Venta
+              </Button>
+              <Button onClick={() => updateOrderStatus('PARTIAL')}>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Mandar a Pagos
+              </Button>
+            </div>
           )}
           {order.status === 'COMPLETED' && (
-            <Button onClick={() => updateOrderStatus('SHIPPED')}>
+            <Button onClick={() => updateOrderStatus('ENDED')}>
               <Truck className="h-4 w-4 mr-2" />
-              Marcar como Enviada
+              Finalizar Venta
             </Button>
           )}
         </div>
@@ -478,7 +485,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           <CardContent>
             <div className="space-y-2">
               <div className="font-medium text-lg">
-                {order.customers?.name || 'Cliente General'}
+                {order.customers?.name}
               </div>
               {order.customers?.email && (
                 <div className="text-sm text-muted-foreground">
@@ -617,8 +624,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                     </div>
                     {order.status === 'OPEN' && (
                       <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveClick(item.id, item.products?.name || 'Producto')}
                         >
@@ -655,8 +662,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           <div className="bg-background border rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Agregar Producto</h3>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setShowAddProduct(false);
