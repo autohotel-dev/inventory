@@ -76,8 +76,11 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
             customerSaleStatus.toLowerCase().includes(search.toLowerCase());
 
         const matchesStatus = statusFilter === "" ||
+            (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
             (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
-            (statusFilter === "PENDING" && customerSale.status === "PENDING");
+            (statusFilter === "PENDING" && customerSale.status === "PENDING") ||
+            (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
+            (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
 
         const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
 
