@@ -24,10 +24,15 @@ import {
     CheckCircle,
     Check,
     ShoppingBag,
-    Clock
+    Clock,
+    AlertTriangle
 } from "lucide-react";
 import { Customer, CustomerSales } from "@/lib/types/inventory";
 import { getCustomer, getCustomerSales } from "@/lib/functions/customer";
+import { Modal } from "@/components/ui/modal";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import Link from "next/link";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -41,11 +46,77 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
     const [warehouseFilter, setWarehouseFilter] = useState("");
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentAmount, setPaymentAmount] = useState(0);
+    const [order, setOrder] = useState<CustomerSales | null>(null);
+    const [paymentError, setPaymentError] = useState<string>("");
     const { success, error: showError } = useToast();
 
     useEffect(() => {
         fetchCustomers();
     }, []);
+
+    // Función de validación
+    const validatePaymentAmount = (amount: number) => {
+        if (amount > (order?.remaining_amount || 0)) {
+            setPaymentError(`El monto no puede exceder $${order?.remaining_amount?.toFixed(2)}`);
+            return false;
+        } else {
+            setPaymentError("");
+            return true;
+        }
+    };
+
+    const handlePaymentModalClose = () => {
+        setShowPaymentModal(false);
+    };
+
+    const handlePaymentModalOpen = () => {
+        setShowPaymentModal(true);
+    };
+
+    const resetPaymentForm = () => {
+        setShowPaymentModal(false);
+        setPaymentAmount(0);
+    };
+
+    const handlePaymentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!paymentAmount || paymentAmount <= 0) {
+            toast.error('El monto debe ser mayor a 0');
+            return;
+        }
+
+        try {
+            const supabase = createClient();
+            const { data, error } = await supabase
+                .rpc("process_payment", {
+                    order_id: order?.id,
+                    payment_amount: paymentAmount
+                });
+
+            if (error) {
+                console.error('Error creating payment:', error);
+                toast.error('Error al crear el pago');
+                return;
+            }
+
+            const result = data[0] as any;
+
+            if (result.success === true) {
+                toast.success('Pago creado exitosamente');
+                fetchCustomers();
+                resetPaymentForm();
+            } else {
+                toast.error(result.message);
+            }
+        } catch (error) {
+            console.error('Error creating payment:', error);
+            toast.error('Error al crear el pago');
+        }
+    };
+
 
     const fetchCustomers = async () => {
         setLoading(true);
@@ -76,7 +147,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         const matchesStatus = statusFilter === "" ||
             (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
             (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
-            (statusFilter === "PENDING" && customerSale.status === "PENDING") ||
+            (statusFilter === "PARTIAL" && customerSale.status === "PARTIAL") ||
             (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
             (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
 
@@ -95,8 +166,11 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
 
     const totalCustomerSales = customerSales.length;
     const completedCustomerSales = customerSales.filter(c => c.status === 'COMPLETED').length;
-    const pendingCustomerSales = customerSales.filter(c => c.status === 'PENDING').length;
-    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
+    const endedCustomerSales = customerSales.filter(c => c.status === 'ENDED').length;
+    const pendingCustomerSales = customerSales.filter(c => c.status === 'PARTIAL').length;
+    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.paid_amount || 0), 0);
+    const totalPending = customerSales.reduce((sum, c) => sum + (c.remaining_amount || 0), 0);
+    const totalEstimated = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
 
     return (
         <div className="space-y-6">
@@ -117,7 +191,20 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Completados</CardTitle>
+                        <CardTitle className="text-sm font-medium">Numero de ventas a credito</CardTitle>
+                        <Clock className="h-4 w-4 text-purple-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-purple-600">{pendingCustomerSales}</div>
+                        <p className="text-xs text-muted-foreground">
+                            Ventas a credito
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Completadas</CardTitle>
                         <TrendingUp className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
@@ -130,26 +217,52 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Pendientes de pago o abonos</CardTitle>
-                        <Clock className="h-4 w-4 text-purple-500" />
+                        <CardTitle className="text-sm font-medium">Finalizadas</CardTitle>
+                        <TrendingUp className="h-4 w-4 text-red-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-purple-600">{pendingCustomerSales}</div>
+                        <div className="text-2xl font-bold text-red-500">{endedCustomerSales}</div>
                         <p className="text-xs text-muted-foreground">
-                            Pendientes de pago o abonos
+                            {((endedCustomerSales / totalCustomerSales) * 100).toFixed(1)}% del total
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Ingresos</CardTitle>
+                        <CardTitle className="text-sm font-medium">Total ingresos estimados</CardTitle>
                         <DollarSign className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-600">${totalRevenue.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-green-600">${totalEstimated.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">
-                            Ventas acumuladas
+                            Total ingresos estimados
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total ingresos pagados</CardTitle>
+                        <DollarSign className="h-4 w-4 text-blue-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">${totalRevenue.toFixed(2)}</div>
+                        <p className="text-xs text-muted-foreground">
+                            Total ingresos pagados
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total ingresos por pagar</CardTitle>
+                        <DollarSign className="h-4 w-4 text-amber-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-amber-600">${totalPending.toFixed(2)}</div>
+                        <p className="text-xs text-muted-foreground">
+                            Ventas pendientes
                         </p>
                     </CardContent>
                 </Card>
@@ -187,7 +300,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         >
                             <option value="">Todos los estados</option>
                             <option value="OPEN">📋 Abiertas</option>
-                            <option value="PENDING">⏳ En Pagos</option>
+                            <option value="PARTIAL">⏳ En Pagos</option>
                             <option value="COMPLETED">✅ Completadas</option>
                             <option value="ENDED">📦 Finalizadas</option>
                             <option value="CANCELLED">❌ Canceladas</option>
@@ -240,9 +353,11 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                             <tr key={customerSale.id} className="border-t hover:bg-muted/25 transition-colors">
                                 <td className="p-4">
                                     <div>
-                                        <div className="font-medium text-foreground flex items-center gap-2">
-                                            🛒 {customerSale.order_number || customerSale.id}
-                                        </div>
+                                        <Link className="hover:underline cursor-pointer hover:animate-pulse hover:animate-infinite hover:animate-duration-[0.5s] hover:animate-ease-in-out" href={`/sales/${customerSale.id}`}>
+                                            <div className="font-medium text-foreground flex items-center gap-2">
+                                                🛒 {customerSale.order_number || customerSale.id}
+                                            </div>
+                                        </Link>
                                         {customerSale.customer_id && (
                                             <div className="text-sm text-muted-foreground">
                                                 <div className="truncate max-w-[200px]" title={customerSale.customer_id}>
@@ -272,10 +387,10 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                         )}
                                         <div className="flex flex-col items-center justify-center gap-2 text-sm">
                                             <Badge variant="outline" className="bg-amber-700 text-gray-100 border-amber-600 hover:bg-amber-600/90 p-1 w-40">
-                                                <div className="text-center w-full">💰 Restante: ${(customerSale.remaining_amount || 0).toFixed(2)}</div>
+                                                <div className="text-center w-full">💰 Restante: <span className="font-bold">${(customerSale.remaining_amount || 0).toFixed(2)}</span></div>
                                             </Badge>
                                             <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-700 hover:bg-gray-100/20 p-1 w-40">
-                                                <div className="text-center w-full">💰 Pagado: ${(customerSale.paid_amount || 0).toFixed(2)}</div>
+                                                <div className="text-center w-full">💰 Pagado: <span className="font-bold text-md">${(customerSale.paid_amount || 0).toFixed(2)}</span></div>
                                             </Badge>
                                         </div>
                                     </div>
@@ -302,18 +417,31 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                 </td>
 
                                 <td className="p-4 text-center">
-                                    <Badge variant={customerSale.status === "ACTIVE" ? "default" : "secondary"}
-                                        className={customerSale.status === "ACTIVE" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
-                                            : customerSale.status === "PARTIAL" ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"
+                                    <Badge variant={customerSale.status === "OPEN" ? "default" : "secondary"}
+                                        className={customerSale.status === "OPEN" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
+                                            : customerSale.status === "PARTIAL" ? "bg-amber-700 text-gray-100 border-amber-600 hover:bg-amber-600/90 p-1 w-28"
                                                 : customerSale.status === "COMPLETED" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
                                                     : customerSale.status === "ENDED" ? "bg-black-100 text-black-800 border-gray-200 hover:bg-black-600/80 p-2"
                                                         : customerSale.status === "CANCELLED" ? "bg-red-100 text-red-800 border-red-200 hover:bg-red-600/80 p-2" : "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"}>
-                                        {customerSale.status === "ACTIVE" ? "✅ Activa"
+                                        <div className="text-center w-full">{customerSale.status === "OPEN" ? "📋 ABIERTA"
                                             : customerSale.status === "PARTIAL" ? "⏳ EN PAGOS"
                                                 : customerSale.status === "COMPLETED" ? "✅ COMPLETADA"
                                                     : customerSale.status === "ENDED" ? "📦 FINALIZADA"
                                                         : customerSale.status === "CANCELLED" ? "❌ CANCELADA" : "⏳ VENCIDA"}
+                                        </div>
                                     </Badge>
+                                    {customerSale.status === "PARTIAL" && (
+                                        <Button
+                                            variant="outline"
+                                            className="ml-2"
+                                            onClick={() => {
+                                                setOrder(customerSale);
+                                                setShowPaymentModal(true);
+                                            }}
+                                        >
+                                            Abonar
+                                        </Button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -374,103 +502,49 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                     </div>
                 </div>
             )} */}
+            <Modal
+                isOpen={showPaymentModal}
+                onClose={() => setShowPaymentModal(false)}
+                title="Editar Venta"
+                size="lg"
+            >
+                <form onSubmit={handlePaymentSubmit}>
+                    <div>
+                        <Label htmlFor="amount">Monto</Label>
+                        <Input
+                            id="amount"
+                            type="number"
+                            min="0"
+                            max={order?.remaining_amount || 0}
+                            step="0.01"
+                            value={paymentAmount}
+                            onChange={(e) => {
+                                const value = parseFloat(e.target.value) || 0;
+                                setPaymentAmount(value);
+                                validatePaymentAmount(value);
+                            }}
+                            placeholder={`Máximo: $${order?.remaining_amount?.toFixed(2) || 0}`}
+                            className={paymentError ? "border-red-500 focus:border-red-500" : ""}
+                        />
+                        {paymentError && (
+                            <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                                <AlertTriangle className="h-4 w-4" />
+                                {paymentError}
+                            </p>
+                        )}                    </div>
+                    <div className="flex gap-2 justify-end pt-4">
+                        <Button type="button" variant="outline" onClick={resetPaymentForm}>
+                            Cancelar
+                        </Button>
+                        <Button type="submit">Abonar</Button>
+                    </div>
+                </form>
+
+            </Modal>
         </div>
     );
 }
 
-// Formulario simple para clientes
-function CustomerForm({
-    customer,
-    onSave,
-    onCancel
-}: {
-    customer: Customer | null;
-    onSave: (data: any) => void;
-    onCancel: () => void;
-}) {
-    const [formData, setFormData] = useState({
-        name: customer?.name || "",
-        tax_id: customer?.tax_id || "",
-        email: customer?.email || "",
-        phone: customer?.phone || "",
-        address: customer?.address || "",
-        is_active: customer?.is_active ?? true,
-    });
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSave(formData);
-    };
 
-    return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
-                <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ej: Juan Pérez"
-                    required
-                />
-            </div>
 
-            <div>
-                <label className="block text-sm font-medium mb-1">RFC/ID Fiscal</label>
-                <Input
-                    value={formData.tax_id}
-                    onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
-                    placeholder="RFC o identificación fiscal"
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
-                <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="cliente@email.com"
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium mb-1">Teléfono</label>
-                <Input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+52 555 123 4567"
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium mb-1">Dirección</label>
-                <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Dirección completa del cliente"
-                    className="w-full px-3 py-2 border border-input rounded-md bg-background min-h-[80px] resize-none"
-                />
-            </div>
-
-            <div className="flex items-center space-x-2">
-                <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                />
-                <label htmlFor="is_active" className="text-sm font-medium">Cliente activo</label>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-                <Button type="button" variant="outline" onClick={onCancel}>
-                    Cancelar
-                </Button>
-                <Button type="submit">
-                    {customer ? "Actualizar" : "Crear"}
-                </Button>
-            </div>
-        </form>
-    );
-}
