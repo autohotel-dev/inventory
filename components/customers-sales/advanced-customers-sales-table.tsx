@@ -41,8 +41,6 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
     const [warehouseFilter, setWarehouseFilter] = useState("");
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const { success, error: showError } = useToast();
 
     useEffect(() => {
@@ -256,7 +254,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                             <Badge variant="outline" className="bg-gray-100/10 text-gray-5\400 border-gray-700 hover:bg-gray-100/20 p-2">
                                                 {
                                                     customerSale.status === "OPEN" ? "📋 ABIERTA"
-                                                        : customerSale.status === "PENDING" ? "⏳ PENDIENTE"
+                                                        : customerSale.status === "PARTIAL" ? "⏳ EN PAGOS"
                                                             : customerSale.status === "COMPLETED" ? "✅ COMPLETADA"
                                                                 : customerSale.status === "ENDED" ? "📦 FINALIZADA"
                                                                     : customerSale.status === "CANCELLED" ? "❌ CANCELADA" : "⏳ VENCIDA"}
@@ -306,12 +304,12 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                 <td className="p-4 text-center">
                                     <Badge variant={customerSale.status === "ACTIVE" ? "default" : "secondary"}
                                         className={customerSale.status === "ACTIVE" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
-                                            : customerSale.status === "PENDING" ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"
+                                            : customerSale.status === "PARTIAL" ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"
                                                 : customerSale.status === "COMPLETED" ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-600/80 p-2"
                                                     : customerSale.status === "ENDED" ? "bg-black-100 text-black-800 border-gray-200 hover:bg-black-600/80 p-2"
                                                         : customerSale.status === "CANCELLED" ? "bg-red-100 text-red-800 border-red-200 hover:bg-red-600/80 p-2" : "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-600/80 p-2"}>
                                         {customerSale.status === "ACTIVE" ? "✅ Activa"
-                                            : customerSale.status === "PENDING" ? "⏳ PENDIENTE"
+                                            : customerSale.status === "PARTIAL" ? "⏳ EN PAGOS"
                                                 : customerSale.status === "COMPLETED" ? "✅ COMPLETADA"
                                                     : customerSale.status === "ENDED" ? "📦 FINALIZADA"
                                                         : customerSale.status === "CANCELLED" ? "❌ CANCELADA" : "⏳ VENCIDA"}
