@@ -233,7 +233,7 @@ export function PWAStatus() {
     };
   }, []);
 
-  if (!isPWA) return null;
+  if (!isPWA) return <></>;
 
   return (
     <div className="fixed top-4 right-4 z-40">

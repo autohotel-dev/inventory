@@ -67,14 +67,6 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         }
     };
 
-    const handlePaymentModalClose = () => {
-        setShowPaymentModal(false);
-    };
-
-    const handlePaymentModalOpen = () => {
-        setShowPaymentModal(true);
-    };
-
     const resetPaymentForm = () => {
         setShowPaymentModal(false);
         setPaymentAmount(0);
@@ -382,17 +374,26 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                     <div className="space-y-1">
                                         {(customerSale.total || customerSale.subtotal) && (
                                             <div className="flex items-center justify-center gap-2 text-sm w-full p-2">
-                                                <div className="text-center w-full">Total: ${(customerSale.subtotal || customerSale.tax).toFixed(2)}</div>
+                                                <div className="text-center w-full">Total: {(customerSale.subtotal || customerSale.tax).toFixed(2)}</div>
                                             </div>
                                         )}
-                                        <div className="flex flex-col items-center justify-center gap-2 text-sm">
-                                            <Badge variant="outline" className="bg-amber-700 text-gray-100 border-amber-600 hover:bg-amber-600/90 p-1 w-40">
-                                                <div className="text-center w-full">💰 Restante: <span className="font-bold">${(customerSale.remaining_amount || 0).toFixed(2)}</span></div>
-                                            </Badge>
-                                            <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-700 hover:bg-gray-100/20 p-1 w-40">
-                                                <div className="text-center w-full">💰 Pagado: <span className="font-bold text-md">${(customerSale.paid_amount || 0).toFixed(2)}</span></div>
-                                            </Badge>
-                                        </div>
+                                        {(customerSale.status !== "COMPLETED" && customerSale.status !== "ENDED" && customerSale.status !== "CANCELLED") && (
+                                            <div className="flex flex-col items-center justify-center gap-2 text-sm">
+                                                <Badge variant="outline" className="bg-amber-700 text-gray-100 border-amber-600 hover:bg-amber-600/90 p-1 w-40">
+                                                    <div className="text-center w-full">💰 Restante: <span className="font-bold">${(customerSale.remaining_amount || 0).toFixed(2)}</span></div>
+                                                </Badge>
+                                                <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-700 hover:bg-gray-100/20 p-1 w-40">
+                                                    <div className="text-center w-full">💰 Pagado: <span className="font-bold text-md">${(customerSale.paid_amount || 0).toFixed(2)}</span></div>
+                                                </Badge>
+                                            </div>
+                                        )}
+                                        {(customerSale.status === "COMPLETED" || customerSale.status === "ENDED" || customerSale.status === "CANCELLED") && (
+                                            <div className="flex flex-col items-center justify-center gap-2 text-sm">
+                                                <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-700 hover:bg-gray-100/20 p-1 w-28">
+                                                    <div className="text-center w-full">Pagado</div>
+                                                </Badge>
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
 

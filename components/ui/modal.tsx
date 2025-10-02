@@ -30,7 +30,7 @@ export function Modal({
   closeOnOverlayClick = true,
   closeOnEscape = true
 }: ModalProps) {
-  if (!isOpen) return null;
+  if (!isOpen) return <></>;
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget && closeOnOverlayClick) {

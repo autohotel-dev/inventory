@@ -60,7 +60,7 @@ export function AdvancedCustomersTable() {
       const { data: customersWithStats, error } = await supabase
         .from("customer_statistics_view")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("customer_created_at", { ascending: false });
 
       if (error) {
         console.error("Error con vista, intentando procedimiento almacenado:", error);
@@ -91,6 +91,7 @@ export function AdvancedCustomersTable() {
           };
         });
 
+        console.log("Enriched customers:", enrichedCustomers);
         setCustomers(enrichedCustomers);
         return;
       }
@@ -111,6 +112,7 @@ export function AdvancedCustomersTable() {
         customer_type: (customer.customer_type as 'new' | 'regular' | 'vip') || 'new'
       }));
 
+      console.log("Enriched customers from view:", enrichedCustomers);
       setCustomers(enrichedCustomers);
     } catch (error) {
       console.error("Error fetching customers:", error);
