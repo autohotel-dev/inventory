@@ -132,13 +132,13 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
+                        <CardTitle className="text-sm font-medium">Pendientes de pago o abonos</CardTitle>
                         <Clock className="h-4 w-4 text-purple-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-purple-600">{pendingCustomerSales}</div>
                         <p className="text-xs text-muted-foreground">
-                            Pendientes de pago
+                            Pendientes de pago o abonos
                         </p>
                     </CardContent>
                 </Card>
@@ -253,7 +253,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                             </div>
                                         )}
                                         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                            <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-500 hover:bg-gray-100/20 p-2">
+                                            <Badge variant="outline" className="bg-gray-100/10 text-gray-5\400 border-gray-700 hover:bg-gray-100/20 p-2">
                                                 {
                                                     customerSale.status === "OPEN" ? "📋 ABIERTA"
                                                         : customerSale.status === "PENDING" ? "⏳ PENDIENTE"
@@ -268,13 +268,16 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                 <td className="p-4">
                                     <div className="space-y-1">
                                         {(customerSale.total || customerSale.subtotal) && (
-                                            <div className="flex items-center justify-center gap-2 text-sm">
-                                                ${(customerSale.subtotal || customerSale.tax).toFixed(2)}
+                                            <div className="flex items-center justify-center gap-2 text-sm w-full p-2">
+                                                <div className="text-center w-full">Total: ${(customerSale.subtotal || customerSale.tax).toFixed(2)}</div>
                                             </div>
                                         )}
-                                        <div className="flex items-center justify-center gap-2 text-sm">
-                                            <Badge variant="outline" className="bg-amber-700 text-gray-100 border-amber-300 hover:bg-amber-600/90 p-2">
-                                                💰 Restante: ${(customerSale.total - customerSale.discount || 0).toFixed(2)}
+                                        <div className="flex flex-col items-center justify-center gap-2 text-sm">
+                                            <Badge variant="outline" className="bg-amber-700 text-gray-100 border-amber-600 hover:bg-amber-600/90 p-1 w-40">
+                                                <div className="text-center w-full">💰 Restante: ${(customerSale.remaining_amount || 0).toFixed(2)}</div>
+                                            </Badge>
+                                            <Badge variant="outline" className="bg-gray-100/10 text-green-700 border-gray-700 hover:bg-gray-100/20 p-1 w-40">
+                                                <div className="text-center w-full">💰 Pagado: ${(customerSale.paid_amount || 0).toFixed(2)}</div>
                                             </Badge>
                                         </div>
                                     </div>

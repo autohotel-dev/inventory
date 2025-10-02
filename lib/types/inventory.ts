@@ -91,4 +91,6 @@ export interface CustomerSales {
   updated_at: string;
   order_number: string;
   order_date: string;
+  remaining_amount: number;
+  paid_amount: number;
 }

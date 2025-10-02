@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Customer } from "@/lib/types/inventory";
+import { Modal } from "@/components/sales/make_payment_modal";
 
 interface SalesOrderDetail {
   id: string;
@@ -45,6 +46,7 @@ interface SalesOrderDetail {
   warehouse_id: string;
   customers: { name: string; email: string; phone: string } | null;
   warehouses: { code: string; name: string } | null;
+  remaining_amount: number;
 }
 
 interface SalesOrderItem {
@@ -69,6 +71,7 @@ interface AdvancedSalesDetailProps {
 
 export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const router = useRouter();
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [order, setOrder] = useState<SalesOrderDetail | null>(null);
   const [items, setItems] = useState<SalesOrderItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -86,9 +89,61 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     itemName: ''
   });
 
+  const [paymentAmount, setPaymentAmount] = useState(0);
+
   useEffect(() => {
     fetchOrderDetail();
   }, [orderId]);
+
+  const handlePaymentModalClose = () => {
+    setShowPaymentModal(false);
+  };
+
+  const handlePaymentModalOpen = () => {
+    setShowPaymentModal(true);
+  };
+
+  const resetPaymentForm = () => {
+    setShowPaymentModal(false);
+    setPaymentAmount(0);
+  };
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!paymentAmount || paymentAmount <= 0) {
+      toast.error('El monto debe ser mayor a 0');
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .rpc("process_payment", {
+          order_id: orderId,
+          payment_amount: paymentAmount
+        });
+
+      if (error) {
+        console.error('Error creating payment:', error);
+        toast.error('Error al crear el pago');
+        return;
+      }
+
+      const result = data[0] as any;
+
+      if (result.success === true) {
+        toast.success('Pago creado exitosamente');
+        fetchOrderDetail();
+        resetPaymentForm();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      toast.error('Error al crear el pago');
+    }
+  };
 
   const fetchOrderDetail = async () => {
     setLoading(true);
@@ -122,7 +177,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           .select("name, email, phone")
           .eq("id", orderData.customer_id)
           .single();
-        customerData = customer as Customer ;
+        customerData = customer as Customer;
       }
 
       if (orderData.warehouse_id) {
@@ -182,19 +237,19 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      'OPEN': { variant: 'default' as const, icon: Clock, label: 'Abierta' },
-      'COMPLETED': { variant: 'secondary' as const, icon: CheckCircle, label: 'Completada' },
-      'PARTIAL': { variant: 'outline' as const, icon: Truck, label: 'En Pagos' },
-      'CANCELLED': { variant: 'destructive' as const, icon: XCircle, label: 'Cancelada' },
-      'ENDED': { variant: 'secondary' as const, icon: FileText, label: 'Finalizada' }
+      'OPEN': { variant: 'default' as const, icon: Clock, label: 'Abierta', color: 'bg-gray-700' },
+      'COMPLETED': { variant: 'secondary' as const, icon: CheckCircle, label: 'Completada', color: 'bg-green-700' },
+      'PARTIAL': { variant: 'outline' as const, icon: Truck, label: 'En Pagos', color: 'bg-yellow-700' },
+      'CANCELLED': { variant: 'destructive' as const, icon: XCircle, label: 'Cancelada', color: 'bg-red-700' },
+      'ENDED': { variant: 'secondary' as const, icon: FileText, label: 'Finalizada', color: 'bg-blue-700' }
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.OPEN;
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
-        <Icon className="h-3 w-3" />
+      <Badge variant={config.variant} className={`flex items-center gap-2 p-2 ${config.color}`}>
+        <Icon className="h-4 w-4" />
         {config.label}
       </Badge>
     );
@@ -427,7 +482,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
             <p className="text-muted-foreground">#{order.id}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {getStatusBadge(order.status)}
           <Button variant="outline" onClick={exportToPDF}>
             <Download className="h-4 w-4 mr-2" />
@@ -444,6 +499,12 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                 Mandar a Pagos
               </Button>
             </div>
+          )}
+          {order.status === 'PARTIAL' && (
+            <Button onClick={handlePaymentModalOpen}>
+              <Truck className="h-4 w-4 mr-2" />
+              Abonar
+            </Button>
           )}
           {order.status === 'COMPLETED' && (
             <Button onClick={() => updateOrderStatus('ENDED')}>
@@ -766,6 +827,35 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={showPaymentModal}
+        onClose={handlePaymentModalClose}
+        title="Abonar"
+      >
+        <div>
+          <form onSubmit={handlePaymentSubmit}>
+            <div>
+              <Label htmlFor="amount">Monto</Label>
+              <Input
+                id="amount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
+                placeholder={`Máximo: $${order?.remaining_amount || 0}`}
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <Button type="button" variant="outline" onClick={resetPaymentForm}>
+                Cancelar
+              </Button>
+              <Button type="submit">Abonar</Button>
+            </div>
+          </form>
+        </div>
+      </Modal>
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog

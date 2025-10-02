@@ -63,6 +63,8 @@ interface SalesFormData {
   discount_rate: number;
   discount_amount: number;
   total: number;
+  remaining_amount: number;
+  paid_amount: number;
 }
 
 export function AdvancedSalesForm() {
@@ -85,7 +87,9 @@ export function AdvancedSalesForm() {
     tax_amount: 0,
     discount_rate: 0,
     discount_amount: 0,
-    total: 0
+    total: 0,
+    remaining_amount: 0,
+    paid_amount: 0
   });
   const [includeTax, setIncludeTax] = useState(false);
 
@@ -226,6 +230,9 @@ export function AdvancedSalesForm() {
     const supabase = createClient();
 
     try {
+      // Obtener el usuario actual
+      const { data: { user } } = await supabase.auth.getUser();
+
       // Crear la orden de venta
       const { data: salesOrder, error: orderError } = await supabase
         .from("sales_orders")
@@ -237,7 +244,10 @@ export function AdvancedSalesForm() {
           subtotal: formData.subtotal,
           tax: formData.tax_amount,
           total: formData.total,
-          status: "OPEN"
+          status: "OPEN",
+          remaining_amount: formData.total,
+          paid_amount: 0,
+          created_by: user?.id || null
         })
         .select("id")
         .single();
