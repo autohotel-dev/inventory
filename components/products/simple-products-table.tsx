@@ -113,6 +113,7 @@ export function SimpleProductsTable() {
 
   // Funciones para manejar productos
   const handleEdit = (product: SimpleProduct) => {
+    console.log(product);
     setEditingProduct(product);
     setIsModalOpen(true);
   };
@@ -586,13 +587,13 @@ export function SimpleProductsTable() {
 }
 
 // Formulario simple para productos
-function ProductForm({ 
-  product, 
+function ProductForm({
+  product,
   categories,
   suppliers,
-  onSave, 
-  onCancel 
-}: { 
+  onSave,
+  onCancel
+}: {
   product: SimpleProduct | null;
   categories: any[];
   suppliers: any[];
@@ -602,7 +603,7 @@ function ProductForm({
   const [formData, setFormData] = useState({
     name: product?.name || "",
     description: product?.description || "",
-    sku: product?.sku || "",
+    sku: product?.sku || product?.barcode || "",
     price: product?.price || 0,
     cost: product?.cost || 0,
     min_stock: product?.min_stock || 0,
@@ -615,9 +616,19 @@ function ProductForm({
 
   const [showScanner, setShowScanner] = useState(false);
 
+  // Mantener el SKU sincronizado con el código de barras
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, sku: formData.barcode }));
+  }, [formData.barcode]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
+  };
+
+  const handleBarcodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const barcodeValue = e.target.value;
+    setFormData({...formData, barcode: barcodeValue});
   };
 
   return (
@@ -627,15 +638,6 @@ function ProductForm({
         <Input
           value={formData.name}
           onChange={(e) => setFormData({...formData, name: e.target.value})}
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">SKU *</label>
-        <Input
-          value={formData.sku}
-          onChange={(e) => setFormData({...formData, sku: e.target.value})}
           required
         />
       </div>
@@ -788,7 +790,7 @@ function ProductForm({
         <div className="flex gap-2">
           <Input
             value={formData.barcode}
-            onChange={(e) => setFormData({...formData, barcode: e.target.value})}
+            onChange={handleBarcodeChange}
             placeholder="Código de barras del producto"
           />
           <Button
@@ -800,6 +802,23 @@ function ProductForm({
             <Scan className="h-4 w-4" />
           </Button>
         </div>
+        <div className="text-xs text-muted-foreground mt-1">
+          El SKU se genera automáticamente del código de barras
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          SKU *
+          <span className="text-xs text-muted-foreground ml-2">(Se genera automáticamente del código de barras)</span>
+        </label>
+        <Input
+          value={formData.sku}
+          disabled={true}
+          required
+          className="bg-muted"
+          placeholder="Se genera automáticamente..."
+        />
       </div>
 
       <div className="flex items-center space-x-2">
