@@ -8,7 +8,7 @@ export function ForceDashboardRedirect() {
     
     // Múltiples intentos de redirect
     const redirectToDashboard = () => {
-      const dashboardUrl = 'https://www.pixanpax.com/dashboard';
+      const dashboardUrl = String(process.env.NEXT_PUBLIC_DASHBOARD_URL);
       
       console.log('Attempting redirect to:', dashboardUrl);
       
@@ -50,7 +50,7 @@ export function ForceDashboardRedirect() {
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <p className="text-muted-foreground">Redirigiendo al dashboard...</p>
         <p className="text-xs text-muted-foreground mt-2">Si no redirige automáticamente,
-          <a href="https://www.pixanpax.com/dashboard" className="text-primary underline ml-1">
+          <a href={String(process.env.NEXT_PUBLIC_DASHBOARD_URL)} className="text-primary underline ml-1">
             haz click aquí
           </a>
         </p>

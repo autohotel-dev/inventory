@@ -8,7 +8,6 @@
 - ✅ `MANIFEST-ROUTE-FIX.md` - Fix temporal ya aplicado
 - ✅ `PWA-MANIFEST-FIX.md` - Fix temporal ya aplicado
 - ✅ `PWA-ERRORS-FIXED.md` - Fix temporal ya aplicado
-- ✅ `PIXANPAX-OAUTH-FIX.md` - Fix temporal ya aplicado
 - ✅ `OAUTH-PWA-FINAL-FIX.md` - Fix temporal ya aplicado
 - ✅ `OAUTH-LOCALHOST-FIX.md` - Fix temporal ya aplicado
 - ✅ `DEBUG-OAUTH-CONFIG.md` - Debug temporal ya resuelto
