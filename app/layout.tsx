@@ -23,17 +23,12 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  manifest: "/api/manifest",
+  manifest: '/manifest.json',
+  themeColor: '#2563eb',
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "Inventario Pro",
-    startupImage: [
-      {
-        url: "/icons/icon-512x512.svg",
-        media: "(device-width: 768px) and (device-height: 1024px)"
-      }
-    ]
+    statusBarStyle: 'default',
+    title: 'Inventario Pro',
   },
   other: {
     "mobile-web-app-capable": "yes",
@@ -72,7 +67,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         <ThemeProvider
           attribute="class"
