@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Search, 
-  Package, 
-  TrendingUp, 
+import {
+  Search,
+  Package,
+  TrendingUp,
   TrendingDown,
   RotateCcw,
   Calendar,
@@ -86,7 +86,7 @@ export function AdvancedKardexView() {
             lastMovementMap.set(movement.product_id, movement.created_at);
           }
           movementCountMap.set(
-            movement.product_id, 
+            movement.product_id,
             (movementCountMap.get(movement.product_id) || 0) + 1
           );
         });
@@ -111,10 +111,10 @@ export function AdvancedKardexView() {
 
   const fetchKardex = async (productId: string) => {
     if (!productId) return;
-    
+
     const supabase = createClient();
     setLoading(true);
-    
+
     try {
       const { data: movementsData, error: movementsError } = await supabase
         .from("inventory_movements")
@@ -179,12 +179,12 @@ export function AdvancedKardexView() {
   }, [selectedProduct]);
 
   const filteredEntries = kardexEntries.filter(entry => {
-    const matchesSearch = search === "" || 
+    const matchesSearch = search === "" ||
       entry.reason.toLowerCase().includes(search.toLowerCase()) ||
       entry.warehouse_name.toLowerCase().includes(search.toLowerCase()) ||
       (entry.notes && entry.notes.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesDate = dateFilter === "" || 
+    const matchesDate = dateFilter === "" ||
       new Date(entry.created_at).toDateString() === new Date(dateFilter).toDateString();
 
     const matchesType = typeFilter === "" || entry.movement_type === typeFilter;
@@ -227,7 +227,7 @@ export function AdvancedKardexView() {
                 ))}
               </select>
             </div>
-            
+
             {selectedProductInfo && (
               <div className="space-y-2">
                 <div className="text-sm font-medium">Información del Producto:</div>
@@ -314,7 +314,7 @@ export function AdvancedKardexView() {
                   className="pl-10"
                 />
               </div>
-              
+
               <div className="flex gap-2">
                 <Button onClick={() => fetchKardex(selectedProduct)} variant="outline">
                   <RefreshCw className="h-4 w-4 mr-2" />
@@ -350,8 +350,8 @@ export function AdvancedKardexView() {
               </div>
 
               <div className="flex items-end">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setSearch("");
                     setDateFilter("");
@@ -365,8 +365,8 @@ export function AdvancedKardexView() {
               </div>
 
               <div className="flex items-end">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     // Exportar kardex (simplificado)
                     const csvContent = [
@@ -381,7 +381,7 @@ export function AdvancedKardexView() {
                         entry.notes || ''
                       ].join(','))
                     ].join('\n');
-                    
+
                     const blob = new Blob([csvContent], { type: 'text/csv' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -399,7 +399,7 @@ export function AdvancedKardexView() {
           </div>
 
           {/* Tabla de kardex */}
-          <div className="border rounded-lg overflow-hidden bg-card">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
@@ -432,12 +432,12 @@ export function AdvancedKardexView() {
                           </div>
                         </div>
                       </td>
-                      
+
                       <td className="p-4 text-center">
-                        <Badge 
+                        <Badge
                           variant={
                             entry.movement_type === 'IN' ? 'default' :
-                            entry.movement_type === 'OUT' ? 'destructive' : 'secondary'
+                              entry.movement_type === 'OUT' ? 'destructive' : 'secondary'
                           }
                         >
                           {entry.movement_type === 'IN' && '📈 Entrada'}
@@ -445,12 +445,11 @@ export function AdvancedKardexView() {
                           {entry.movement_type === 'ADJUSTMENT' && '🔄 Ajuste'}
                         </Badge>
                       </td>
-                      
+
                       <td className="p-4 text-right">
-                        <div className={`font-medium ${
-                          entry.movement_type === 'IN' ? 'text-green-600' :
-                          entry.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
-                        }`}>
+                        <div className={`font-medium ${entry.movement_type === 'IN' ? 'text-green-600' :
+                            entry.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
+                          }`}>
                           {entry.movement_type === 'OUT' ? '-' : '+'}
                           {entry.quantity}
                         </div>
@@ -458,7 +457,7 @@ export function AdvancedKardexView() {
                           {selectedProductInfo?.unit}
                         </div>
                       </td>
-                      
+
                       <td className="p-4 text-right">
                         <div className="font-bold text-lg">
                           {entry.balance}
@@ -467,18 +466,18 @@ export function AdvancedKardexView() {
                           balance
                         </div>
                       </td>
-                      
+
                       <td className="p-4">
                         <div className="font-medium">{entry.warehouse_name}</div>
                         <div className="text-sm text-muted-foreground">
                           {entry.warehouse_code}
                         </div>
                       </td>
-                      
+
                       <td className="p-4">
                         <div className="font-medium">{entry.reason}</div>
                       </td>
-                      
+
                       <td className="p-4">
                         <div className="text-sm text-muted-foreground">
                           {entry.notes || '-'}
@@ -494,14 +493,14 @@ export function AdvancedKardexView() {
               <div className="text-center py-12">
                 <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <div className="text-lg font-medium text-muted-foreground mb-2">
-                  {kardexEntries.length === 0 
-                    ? "No hay movimientos registrados" 
+                  {kardexEntries.length === 0
+                    ? "No hay movimientos registrados"
                     : "No se encontraron movimientos"
                   }
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {kardexEntries.length === 0 
-                    ? "Los movimientos aparecerán aquí cuando se registren cambios de stock" 
+                  {kardexEntries.length === 0
+                    ? "Los movimientos aparecerán aquí cuando se registren cambios de stock"
                     : "Intenta ajustar los filtros de búsqueda"
                   }
                 </div>

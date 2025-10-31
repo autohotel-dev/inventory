@@ -6,12 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  Plus, 
-  Eye, 
+import {
+  Search,
+  Filter,
+  Download,
+  Plus,
+  Eye,
   Calendar,
   DollarSign,
   Package,
@@ -79,7 +79,7 @@ export function AdvancedPurchasesTable() {
   const fetchPurchases = async () => {
     setLoading(true);
     const supabase = createClient();
-    
+
     try {
       let query = supabase
         .from("purchase_orders")
@@ -101,60 +101,60 @@ export function AdvancedPurchasesTable() {
       if (filters.status !== 'ALL') {
         query = query.eq('status', filters.status);
       }
-      
+
       if (filters.dateFrom) {
         query = query.gte('created_at', filters.dateFrom);
       }
-      
+
       if (filters.dateTo) {
         query = query.lte('created_at', filters.dateTo);
       }
-      
+
       if (filters.minAmount) {
         query = query.gte('total', parseFloat(filters.minAmount));
       }
-      
+
       if (filters.maxAmount) {
         query = query.lte('total', parseFloat(filters.maxAmount));
       }
 
       const { data, error } = await query;
-      
+
       if (error) throw error;
-      
+
       // Transformar datos de Supabase al formato esperado
       const transformedData: PurchaseOrder[] = (data as SupabasePurchaseOrder[] || []).map(item => ({
         ...item,
         suppliers: item.suppliers && item.suppliers.length > 0 ? item.suppliers[0] : null,
         warehouses: item.warehouses && item.warehouses.length > 0 ? item.warehouses[0] : null
       }));
-      
+
       let filteredData = transformedData;
-      
+
       // Filtro de búsqueda (cliente)
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        filteredData = filteredData.filter(purchase => 
+        filteredData = filteredData.filter(purchase =>
           purchase.suppliers?.name?.toLowerCase().includes(searchLower) ||
           purchase.id.toLowerCase().includes(searchLower) ||
           purchase.notes?.toLowerCase().includes(searchLower)
         );
       }
-      
+
       setPurchases(filteredData);
-      
+
       // Calcular estadísticas
       const totalAmount = filteredData.reduce((sum, p) => sum + (p.total || 0), 0);
       const pending = filteredData.filter(p => p.status === 'OPEN').length;
       const received = filteredData.filter(p => p.status === 'RECEIVED').length;
-      
+
       setStats({
         total: filteredData.length,
         totalAmount,
         pending,
         received
       });
-      
+
     } catch (error) {
       console.error('Error fetching purchases:', error);
     } finally {
@@ -187,13 +187,13 @@ export function AdvancedPurchasesTable() {
       'RECEIVED': 'secondary',
       'CANCELLED': 'destructive'
     } as const;
-    
+
     const labels = {
       'OPEN': 'Abierta',
       'RECEIVED': 'Recibida',
       'CANCELLED': 'Cancelada'
     };
-    
+
     return (
       <Badge variant={variants[status as keyof typeof variants] || 'outline'}>
         {labels[status as keyof typeof labels] || status}
@@ -279,7 +279,7 @@ export function AdvancedPurchasesTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ export function AdvancedPurchasesTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ export function AdvancedPurchasesTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -337,7 +337,7 @@ export function AdvancedPurchasesTable() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-4">
           {/* Search Bar */}
           <div className="relative">
@@ -366,7 +366,7 @@ export function AdvancedPurchasesTable() {
                   <option value="CANCELLED">Cancelada</option>
                 </select>
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Fecha Desde</Label>
                 <Input
@@ -375,7 +375,7 @@ export function AdvancedPurchasesTable() {
                   onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Fecha Hasta</Label>
                 <Input
@@ -384,7 +384,7 @@ export function AdvancedPurchasesTable() {
                   onChange={(e) => handleFilterChange('dateTo', e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Monto Mín.</Label>
                 <Input
@@ -394,7 +394,7 @@ export function AdvancedPurchasesTable() {
                   onChange={(e) => handleFilterChange('minAmount', e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Monto Máx.</Label>
                 <Input
@@ -404,7 +404,7 @@ export function AdvancedPurchasesTable() {
                   onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>&nbsp;</Label>
                 <Button variant="outline" onClick={clearFilters} className="w-full">
@@ -430,7 +430,7 @@ export function AdvancedPurchasesTable() {
               <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">No hay órdenes de compra</h3>
               <p className="text-muted-foreground mb-4">
-                {Object.values(filters).some(f => f !== '' && f !== 'ALL') 
+                {Object.values(filters).some(f => f !== '' && f !== 'ALL')
                   ? 'No se encontraron órdenes con los filtros aplicados'
                   : 'Comienza creando tu primera orden de compra'
                 }
@@ -443,7 +443,7 @@ export function AdvancedPurchasesTable() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
               <table className="w-full">
                 <thead className="border-b bg-muted/50">
                   <tr>
@@ -472,8 +472,8 @@ export function AdvancedPurchasesTable() {
                       </td>
                       <td className="p-4">
                         <div className="text-sm">
-                          {purchase.warehouses ? 
-                            `${purchase.warehouses.code} - ${purchase.warehouses.name}` : 
+                          {purchase.warehouses ?
+                            `${purchase.warehouses.code} - ${purchase.warehouses.name}` :
                             'Sin almacén'
                           }
                         </div>

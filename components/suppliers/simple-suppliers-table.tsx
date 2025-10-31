@@ -223,7 +223,7 @@ export function SimpleSuppliersTable() {
       </div>
 
       {/* Tabla mejorada */}
-      <div className="border rounded-lg overflow-hidden bg-card">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>

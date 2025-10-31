@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Search, 
-  Package, 
-  AlertTriangle, 
-  TrendingDown, 
+import {
+  Search,
+  Package,
+  AlertTriangle,
+  TrendingDown,
   TrendingUp,
   Warehouse,
   BarChart3,
@@ -56,7 +56,7 @@ export function AdvancedStockView() {
   const fetchStock = async () => {
     const supabase = createClient();
     setLoading(true);
-    
+
     try {
       // Obtener productos con stock
       const { data: productsData, error: productsError } = await supabase
@@ -117,7 +117,7 @@ export function AdvancedStockView() {
 
         const totalStock = stockByWarehouse.reduce((sum: number, s: any) => sum + s.qty, 0);
         const stockValue = totalStock * product.price;
-        
+
         let stockStatus: 'critical' | 'low' | 'normal' | 'high' = 'normal';
         if (totalStock === 0) {
           stockStatus = 'critical';
@@ -158,14 +158,14 @@ export function AdvancedStockView() {
   }, []);
 
   const filteredItems = stockItems.filter(item => {
-    const matchesSearch = search === "" || 
+    const matchesSearch = search === "" ||
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.sku.toLowerCase().includes(search.toLowerCase()) ||
       (item.category_name && item.category_name.toLowerCase().includes(search.toLowerCase()));
 
     const matchesStatus = statusFilter === "" || item.stock_status === statusFilter;
 
-    const matchesWarehouse = warehouseFilter === "" || 
+    const matchesWarehouse = warehouseFilter === "" ||
       item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0);
 
     return matchesSearch && matchesStatus && matchesWarehouse;
@@ -259,7 +259,7 @@ export function AdvancedStockView() {
               className="pl-10"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Button onClick={fetchStock} variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -302,8 +302,8 @@ export function AdvancedStockView() {
           </div>
 
           <div className="flex items-end">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setSearch("");
                 setStatusFilter("");
@@ -319,7 +319,7 @@ export function AdvancedStockView() {
       </div>
 
       {/* Tabla de stock */}
-      <div className="border rounded-lg overflow-hidden bg-card">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
@@ -343,7 +343,7 @@ export function AdvancedStockView() {
                     </div>
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="font-medium text-lg">
                     {item.total_stock} {item.unit}
@@ -352,13 +352,13 @@ export function AdvancedStockView() {
                     Mín: {item.min_stock} {item.unit}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
-                  <Badge 
+                  <Badge
                     variant={
                       item.stock_status === 'critical' ? 'destructive' :
-                      item.stock_status === 'low' ? 'secondary' :
-                      item.stock_status === 'high' ? 'default' : 'outline'
+                        item.stock_status === 'low' ? 'secondary' :
+                          item.stock_status === 'high' ? 'default' : 'outline'
                     }
                   >
                     {item.stock_status === 'critical' && '🔴 Crítico'}
@@ -367,14 +367,14 @@ export function AdvancedStockView() {
                     {item.stock_status === 'high' && '🔵 Alto'}
                   </Badge>
                 </td>
-                
+
                 <td className="p-4 text-right">
                   <div className="font-medium">${item.stock_value.toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">
                     ${item.price.toFixed(2)} c/u
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="text-sm">
                     {item.stock_by_warehouse.filter(s => s.qty > 0).length} ubicaciones
@@ -383,7 +383,7 @@ export function AdvancedStockView() {
                     {item.stock_by_warehouse.filter(s => s.qty > 0).map(s => s.warehouse_code).join(', ')}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="flex justify-center gap-2">
                     <Button
@@ -440,7 +440,7 @@ export function AdvancedStockView() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <StockDetailView item={selectedItem} />
           </div>
         </div>
@@ -488,11 +488,11 @@ function StockDetailView({ item }: { item: StockItem }) {
             <CardTitle className="text-sm">Estado</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge 
+            <Badge
               variant={
                 item.stock_status === 'critical' ? 'destructive' :
-                item.stock_status === 'low' ? 'secondary' :
-                item.stock_status === 'high' ? 'default' : 'outline'
+                  item.stock_status === 'low' ? 'secondary' :
+                    item.stock_status === 'high' ? 'default' : 'outline'
               }
               className="text-lg px-3 py-1"
             >
@@ -533,7 +533,7 @@ function StockDetailView({ item }: { item: StockItem }) {
                 </div>
               </div>
             ))}
-            
+
             {item.stock_by_warehouse.filter(s => s.qty > 0).length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 No hay stock en ningún almacén
