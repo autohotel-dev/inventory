@@ -324,7 +324,7 @@ export function PWAStatus() {
   if (!isPWA) return <></>;
 
   return (
-    <div className="fixed top-4 right-4 z-40">
+    <div className="fixed bottom-4 right-4 z-40">
       <div className="flex items-center gap-2 bg-background/95 backdrop-blur-sm border rounded-lg px-3 py-2 shadow-sm">
         <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
         <span className="text-xs font-medium">
