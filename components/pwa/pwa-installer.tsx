@@ -97,21 +97,42 @@ export function PWAInstaller() {
   }, [deferredPrompt, isInstalled, isDismissed]);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    // Detectar si es iOS
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
     
-    if (process.env.NODE_ENV === 'development') {
-      if (outcome === 'accepted') {
-        console.log('Usuario aceptó instalar la PWA');
+    if (!deferredPrompt) {
+      // Si no hay prompt automático, mostrar instrucciones manuales
+      if (isIOS) {
+        alert(`Para instalar en iPhone/iPad:\n\n1. Toca el botón Compartir ⬆️ en la parte inferior de Safari\n2. Desliza hacia abajo y toca "Agregar a pantalla de inicio" ➕\n3. Toca "Agregar" en la esquina superior derecha\n\nLa app aparecerá en tu pantalla de inicio.`);
+      } else if (isAndroid) {
+        alert(`Para instalar en Android:\n\n1. Toca el menú ⋮ en la parte superior derecha de Chrome\n2. Selecciona "Instalar aplicación" o "Agregar a pantalla de inicio"\n3. Confirma la instalación\n\nLa app se instalará automáticamente.`);
       } else {
-        console.log('Usuario rechazó instalar la PWA');
+        // Para desktop
+        alert(`Para instalar en Desktop:\n\n1. En Chrome/Edge, busca el ícono de instalación ⬇️ en la barra de dirección\n2. Toca "Instalar"\n3. Confirma la instalación\n\nO usa Ctrl+Shift+I → Application → Manifest → Install.`);
       }
+      return;
     }
-    
-    setDeferredPrompt(null);
-    setShowInstallPrompt(false);
+
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (process.env.NODE_ENV === 'development') {
+        if (outcome === 'accepted') {
+          console.log('Usuario aceptó instalar la PWA');
+        } else {
+          console.log('Usuario rechazó instalar la PWA');
+        }
+      }
+      
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    } catch (error) {
+      console.error('Error durante la instalación:', error);
+      // Fallback a instrucciones manuales
+      alert('Error al instalar. Por favor, usa las instrucciones manuales para tu dispositivo.');
+    }
   };
 
   const handleDismiss = () => {
@@ -127,14 +148,92 @@ export function PWAInstaller() {
 
   // Detectar si es móvil
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isAndroid = /Android/i.test(navigator.userAgent);
   
-  // No mostrar si ya está instalado o si el usuario ya rechazó
-  if (isInstalled || isDismissed) {
+  // No mostrar si ya está instalado
+  if (isInstalled) {
     return null;
   }
 
-  // En móvil, mostrar instrucciones manuales si no hay prompt automático
-  if (isMobile && !showInstallPrompt) {
+  // Si es iOS, siempre mostrar instrucciones manuales (no soporta beforeinstallprompt)
+  if (isIOS && !isDismissed) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+        <Card className="shadow-lg border-2 border-primary/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-primary" />
+                Instalar en iPhone/iPad
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDismiss}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                <strong>Paso 1:</strong> Toca el botón <strong>Compartir</strong> <span className="text-primary">⬆️</span> en la parte inferior del navegador
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Paso 2:</strong> Desliza hacia abajo y toca <strong>"Agregar a pantalla de inicio"</strong> <span className="text-primary">➕</span>
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Paso 3:</strong> Toca <strong>"Agregar"</strong> en la esquina superior derecha
+              </p>
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground">
+              ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Si es Android y no hay prompt automático, mostrar instrucciones
+  if (isAndroid && !showInstallPrompt && !isDismissed) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+        <Card className="shadow-lg border-2 border-primary/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-primary" />
+                Instalar App Android
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDismiss}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-sm text-muted-foreground mb-4">
+              Para instalar: Toca el menú <strong>⋮</strong> → "Agregar a pantalla de inicio" o "Instalar aplicación"
+            </p>
+            <div className="text-xs text-muted-foreground">
+              ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Para desktop o si hay prompt disponible, siempre mostrar botón de instalación
+  if (!isDismissed) {
     return (
       <div className="fixed bottom-4 right-4 z-50 max-w-sm">
         <Card className="shadow-lg border-2 border-primary/20">
@@ -156,9 +255,28 @@ export function PWAInstaller() {
           </CardHeader>
           <CardContent className="pt-0">
             <p className="text-sm text-muted-foreground mb-4">
-              Para instalar: Menú del navegador → "Agregar a pantalla de inicio"
+              Instala nuestra app para acceso rápido y funcionalidad offline
             </p>
-            <div className="text-xs text-muted-foreground">
+            
+            <div className="flex gap-2">
+              <Button
+                onClick={handleInstallClick}
+                className="flex-1"
+                size="sm"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Instalar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDismiss}
+                size="sm"
+              >
+                Después
+              </Button>
+            </div>
+            
+            <div className="mt-3 text-xs text-muted-foreground">
               ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
             </div>
           </CardContent>
@@ -167,60 +285,8 @@ export function PWAInstaller() {
     );
   }
 
-  // Si no hay prompt y no es móvil, no mostrar nada
-  if (!showInstallPrompt) {
-    return null;
-  }
-
-  return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-      <Card className="shadow-lg border-2 border-primary/20">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Smartphone className="h-5 w-5 text-primary" />
-              Instalar App
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDismiss}
-              className="h-6 w-6 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <p className="text-sm text-muted-foreground mb-4">
-            Instala nuestra app para acceso rápido y funcionalidad offline
-          </p>
-          
-          <div className="flex gap-2">
-            <Button
-              onClick={handleInstallClick}
-              className="flex-1"
-              size="sm"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Instalar
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleDismiss}
-              size="sm"
-            >
-              Después
-            </Button>
-          </div>
-          
-          <div className="mt-3 text-xs text-muted-foreground">
-            ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  // No mostrar si fue descartado
+  return null;
 }
 
 // Hook para detectar si es PWA
