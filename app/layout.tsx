@@ -23,8 +23,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  manifest: '/manifest.json',
-  themeColor: '#2563eb',
+  manifest: '/api/manifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -48,10 +47,7 @@ export function generateViewport(): Viewport {
     maximumScale: 1,
     userScalable: false,
     viewportFit: "cover",
-    themeColor: [
-      { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-      { media: "(prefers-color-scheme: dark)", color: "#000000" }
-    ]
+    themeColor: "#eb2525ff"
   };
 }
 

@@ -24,27 +24,34 @@ export function PWAInstaller() {
   useEffect(() => {
     setIsMounted(true);
     
-    // Verificar si fue rechazado anteriormente
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    setIsDismissed(!!dismissed);
+    // Verificar si fue rechazado anteriormente (solo por 24 horas)
+    const dismissedTime = localStorage.getItem('pwa-install-dismissed');
+    if (dismissedTime) {
+      const hoursSinceDismissed = (Date.now() - parseInt(dismissedTime)) / (1000 * 60 * 60);
+      setIsDismissed(hoursSinceDismissed < 24); // Solo considerar rechazado si hace menos de 24 horas
+    }
     
-    // Registrar service worker
+    // Registrar service worker inmediatamente
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((registration) => {
-            if (process.env.NODE_ENV === 'development') {
-              console.log('SW registrado: ', registration);
-            }
-          })
-          .catch((registrationError) => {
-            console.error('SW registro falló: ', registrationError);
-          });
-      });
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('SW registrado: ', registration);
+          }
+          // Forzar update check
+          registration.update();
+        })
+        .catch((registrationError) => {
+          console.error('SW registro falló: ', registrationError);
+        });
     }
 
-    // Detectar si ya está instalado
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    // Detectar si ya está instalado (múltiples métodos)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isStandaloneIOS = (window.navigator as any).standalone === true;
+    const isStandaloneChrome = window.matchMedia('(display-mode: minimal-ui)').matches;
+    
+    if (isStandalone || isStandaloneIOS || isStandaloneChrome) {
       setIsInstalled(true);
     }
 
@@ -53,6 +60,9 @@ export function PWAInstaller() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstallPrompt(true);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Evento beforeinstallprompt detectado');
+      }
     };
 
     // Escuchar cuando se instala la app
@@ -60,10 +70,21 @@ export function PWAInstaller() {
       setIsInstalled(true);
       setShowInstallPrompt(false);
       setDeferredPrompt(null);
+      localStorage.removeItem('pwa-install-dismissed');
       if (process.env.NODE_ENV === 'development') {
-        console.log('PWA instalada');
+        console.log('PWA instalada exitosamente');
       }
     };
+
+    // Forzar detección después de 2 segundos
+    const timer = setTimeout(() => {
+      if (!deferredPrompt && !isInstalled && !isDismissed) {
+        setShowInstallPrompt(true);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Mostrando prompt manual después de timeout');
+        }
+      }
+    }, 2000);
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
@@ -71,8 +92,9 @@ export function PWAInstaller() {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      clearTimeout(timer);
     };
-  }, []);
+  }, [deferredPrompt, isInstalled, isDismissed]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
