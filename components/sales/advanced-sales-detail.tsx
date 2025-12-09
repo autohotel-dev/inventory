@@ -89,7 +89,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     itemName: ''
   });
 
-  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
 
   useEffect(() => {
     fetchOrderDetail();
@@ -100,18 +100,34 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   };
 
   const handlePaymentModalOpen = () => {
+    if (!order || typeof order.remaining_amount !== "number") {
+      toast.error("No se pudo obtener el saldo pendiente");
+      return;
+    }
+
+    if (order.remaining_amount <= 0) {
+      toast.error("No hay saldo pendiente", {
+        description: "Esta orden ya está pagada al 100%."
+      });
+      return;
+    }
+
+    // Pre-cargar el monto con el saldo pendiente para facilitar el flujo
+    setPaymentAmount(String(order.remaining_amount));
     setShowPaymentModal(true);
   };
 
   const resetPaymentForm = () => {
     setShowPaymentModal(false);
-    setPaymentAmount(0);
+    setPaymentAmount("");
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!paymentAmount || paymentAmount <= 0) {
+    const amount = parseFloat(paymentAmount || "0");
+
+    if (!amount || amount <= 0) {
       toast.error('El monto debe ser mayor a 0');
       return;
     }
@@ -121,7 +137,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       const { data, error } = await supabase
         .rpc("process_payment", {
           order_id: orderId,
-          payment_amount: paymentAmount
+          payment_amount: amount
         });
 
       if (error) {
@@ -385,16 +401,29 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     try {
       const { data: itemsData } = await supabase
         .from("sales_order_items")
-        .select("total")
+        .select("qty, unit_price")
         .eq("sales_order_id", orderId);
 
-      const subtotal = itemsData?.reduce((sum, item) => sum + (item.total || 0), 0) || 0;
+      const subtotal =
+        itemsData?.reduce(
+          (sum, item: any) => sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0),
+          0
+        ) || 0;
       const tax = 0; // Simplificado por ahora
       const total = subtotal + tax;
+      // Obtener monto ya pagado para recalcular saldo pendiente
+      const { data: orderData } = await supabase
+        .from("sales_orders")
+        .select("paid_amount")
+        .eq("id", orderId)
+        .single();
+
+      const paid_amount = Number(orderData?.paid_amount) || 0;
+      const remaining_amount = Math.max(total - paid_amount, 0);
 
       await supabase
         .from("sales_orders")
-        .update({ subtotal, tax, total })
+        .update({ subtotal, tax, total, remaining_amount })
         .eq("id", orderId);
 
     } catch (error) {
@@ -843,7 +872,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                 min="0"
                 step="0.01"
                 value={paymentAmount}
-                onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
+                onChange={(e) => setPaymentAmount(e.target.value)}
                 placeholder={`Máximo: $${order?.remaining_amount || 0}`}
               />
             </div>
