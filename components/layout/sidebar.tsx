@@ -215,6 +215,10 @@ export function Sidebar() {
     setCompact(prev => {
       const newValue = !prev;
       localStorage.setItem("sidebar-compact", newValue ? "1" : "0");
+      // Disparar evento después del render para evitar warning de React
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("sidebar-compact-change"));
+      }, 0);
       return newValue;
     });
   }, []);
