@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import {
   Building,
   Calendar,
   DollarSign,
-  Edit,
   Trash2,
   Plus,
   FileText,
@@ -23,15 +22,17 @@ import {
   ArrowLeft,
   Truck,
   AlertTriangle,
-  Package,
-  X
+  X,
+  CreditCard,
+  Receipt,
+  Wallet
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Customer } from "@/lib/types/inventory";
-import { Modal } from "@/components/sales/make_payment_modal";
+import { AddProductModal } from "@/components/sales/add-product-modal";
 
 interface SalesOrderDetail {
   id: string;
@@ -78,11 +79,6 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const [loading, setLoading] = useState(true);
   const [stockWarnings, setStockWarnings] = useState<string[]>([]);
   const [showAddProduct, setShowAddProduct] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [newItemData, setNewItemData] = useState({
-    quantity: 1,
-    unit_price: 0
-  });
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     itemId: '',
@@ -355,20 +351,23 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     console.log('Exportar a PDF');
   };
 
-  const addProductToOrder = async () => {
-    if (!selectedProduct || !order) return;
+  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number }[]) => {
+    if (!order || items.length === 0) return;
 
     const supabase = createClient();
 
     try {
+      // Insertar todos los productos
+      const insertData = items.map(item => ({
+        sales_order_id: orderId,
+        product_id: item.product.id,
+        qty: item.quantity,
+        unit_price: item.unit_price
+      }));
+
       const { error } = await supabase
         .from("sales_order_items")
-        .insert({
-          sales_order_id: orderId,
-          product_id: selectedProduct.id,
-          qty: newItemData.quantity,
-          unit_price: newItemData.unit_price
-        });
+        .insert(insertData);
 
       if (error) throw error;
 
@@ -378,18 +377,17 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       // Refrescar datos
       await fetchOrderDetail();
 
-      // Cerrar modal y resetear
+      // Cerrar modal
       setShowAddProduct(false);
-      setSelectedProduct(null);
-      setNewItemData({ quantity: 1, unit_price: 0 });
 
-      toast.success("Producto agregado exitosamente", {
-        description: `${selectedProduct.name} agregado a la orden`
+      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+      toast.success(`${totalItems} producto(s) agregado(s)`, {
+        description: `Se agregaron ${items.length} línea(s) a la orden`
       });
 
     } catch (error) {
-      console.error('Error adding product:', error);
-      toast.error("Error al agregar el producto", {
+      console.error('Error adding products:', error);
+      toast.error("Error al agregar productos", {
         description: "Por favor intenta nuevamente"
       });
     }
@@ -497,48 +495,52 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     );
   }
 
+  const paidAmount = order.total - order.remaining_amount;
+  const paymentProgress = order.total > 0 ? (paidAmount / order.total) * 100 : 0;
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Header compacto */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Orden de Venta</h1>
-            <p className="text-muted-foreground">#{order.id}</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Orden de Venta</h1>
+              {getStatusBadge(order.status)}
+            </div>
+            <p className="text-xs text-muted-foreground font-mono">#{order.id.slice(0, 8)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {getStatusBadge(order.status)}
-          <Button variant="outline" onClick={exportToPDF}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportToPDF}>
             <Download className="h-4 w-4 mr-2" />
             Exportar
           </Button>
           {order.status === 'OPEN' && (
-            <div className="flex items-center gap-2">
-              <Button onClick={() => updateOrderStatus('COMPLETED')}>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Completar Venta
+            <>
+              <Button size="sm" variant="outline" onClick={() => updateOrderStatus('PARTIAL')}>
+                <CreditCard className="h-4 w-4 mr-2" />
+                Enviar a Pagos
               </Button>
-              <Button onClick={() => updateOrderStatus('PARTIAL')}>
+              <Button size="sm" onClick={() => updateOrderStatus('COMPLETED')}>
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Mandar a Pagos
+                Completar
               </Button>
-            </div>
+            </>
           )}
           {order.status === 'PARTIAL' && (
-            <Button onClick={handlePaymentModalOpen}>
-              <Truck className="h-4 w-4 mr-2" />
+            <Button size="sm" onClick={handlePaymentModalOpen}>
+              <Wallet className="h-4 w-4 mr-2" />
               Abonar
             </Button>
           )}
           {order.status === 'COMPLETED' && (
-            <Button onClick={() => updateOrderStatus('ENDED')}>
+            <Button size="sm" onClick={() => updateOrderStatus('ENDED')}>
               <Truck className="h-4 w-4 mr-2" />
-              Finalizar Venta
+              Finalizar
             </Button>
           )}
         </div>
@@ -546,182 +548,174 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       {/* Stock Warnings */}
       {stockWarnings.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-orange-800">
-              <AlertTriangle className="h-5 w-5" />
-              Advertencias de Stock
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-1">
-              {stockWarnings.map((warning, index) => (
-                <li key={index} className="text-sm text-orange-700">• {warning}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-amber-600 font-medium mb-2">
+            <AlertTriangle className="h-4 w-4" />
+            Advertencias de Stock
+          </div>
+          <ul className="space-y-1 text-sm text-amber-700">
+            {stockWarnings.map((warning, index) => (
+              <li key={index}>• {warning}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      {/* Order Information */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Info Cards - Grid compacto */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Cliente */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Users className="h-5 w-5 text-blue-600" />
-              Cliente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="font-medium text-lg">
-                {order.customers?.name}
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Users className="h-4 w-4 text-blue-500" />
               </div>
-              {order.customers?.email && (
-                <div className="text-sm text-muted-foreground">
-                  📧 {order.customers.email}
-                </div>
-              )}
-              {order.customers?.phone && (
-                <div className="text-sm text-muted-foreground">
-                  📞 {order.customers.phone}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Building className="h-5 w-5 text-green-600" />
-              Almacén
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="font-medium text-lg">
-                {order.warehouses?.code} - {order.warehouses?.name}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cliente</p>
+                <p className="font-medium truncate">{order.customers?.name || 'Cliente general'}</p>
+                {order.customers?.email && (
+                  <p className="text-xs text-muted-foreground truncate">{order.customers.email}</p>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Almacén */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Calendar className="h-5 w-5 text-purple-600" />
-              Información
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-sm">
-                <span className="text-muted-foreground">Creada:</span>
-                <div className="font-medium">{formatDate(order.created_at)}</div>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10">
+                <Building className="h-4 w-4 text-emerald-500" />
               </div>
-              <div className="text-sm">
-                <span className="text-muted-foreground">Moneda:</span>
-                <div className="font-medium">{order.currency}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Almacén</p>
+                <p className="font-medium">{order.warehouses?.code || '-'}</p>
+                <p className="text-xs text-muted-foreground truncate">{order.warehouses?.name}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Fecha */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <Calendar className="h-4 w-4 text-purple-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Fecha</p>
+                <p className="font-medium">{formatDate(order.created_at)}</p>
+                <p className="text-xs text-muted-foreground">{order.currency}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Financial Summary */}
+      {/* Resumen Financiero - Diseño moderno */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-600" />
-            Resumen Financiero
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(order.subtotal, order.currency)}
-              </div>
-              <div className="text-sm text-muted-foreground">Subtotal</div>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <DollarSign className="h-4 w-4 text-emerald-500" />
+            <span className="font-medium">Resumen Financiero</span>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <p className="text-2xl font-bold">{formatCurrency(order.subtotal, order.currency)}</p>
+              <p className="text-xs text-muted-foreground">Subtotal</p>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {formatCurrency(order.tax, order.currency)}
-              </div>
-              <div className="text-sm text-muted-foreground">Impuestos</div>
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <p className="text-2xl font-bold">{formatCurrency(order.tax, order.currency)}</p>
+              <p className="text-xs text-muted-foreground">Impuestos</p>
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">
-                {formatCurrency(order.total, order.currency)}
-              </div>
-              <div className="text-sm text-muted-foreground">Total</div>
+            <div className="text-center p-3 rounded-lg bg-emerald-500/10">
+              <p className="text-2xl font-bold text-emerald-600">{formatCurrency(order.total, order.currency)}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {calculateProfitMargin().toFixed(1)}%
-              </div>
-              <div className="text-sm text-muted-foreground">Margen Est.</div>
+            <div className="text-center p-3 rounded-lg bg-purple-500/10">
+              <p className="text-2xl font-bold text-purple-600">{calculateProfitMargin().toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground">Margen Est.</p>
             </div>
           </div>
+
+          {/* Barra de progreso de pago */}
+          {order.status === 'PARTIAL' && (
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-muted-foreground">Progreso de pago</span>
+                <span className="font-medium">{paymentProgress.toFixed(0)}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-500 transition-all duration-300"
+                  style={{ width: `${paymentProgress}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <span>Pagado: {formatCurrency(paidAmount, order.currency)}</span>
+                <span>Pendiente: {formatCurrency(order.remaining_amount, order.currency)}</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Order Items */}
+      {/* Productos */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingBag className="h-5 w-5 text-blue-600" />
-              Productos ({items.length})
-            </CardTitle>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-blue-500" />
+              <span className="font-medium">Productos ({items.length})</span>
+            </div>
             {order.status === 'OPEN' && (
-              <Button onClick={() => setShowAddProduct(true)}>
+              <Button size="sm" onClick={() => setShowAddProduct(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Agregar Producto
+                Agregar
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
+
           {items.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay productos en esta orden</p>
+            <div className="text-center py-8">
+              <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                <ShoppingBag className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+              <p className="text-sm text-muted-foreground">No hay productos</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className="flex-1">
-                    <div className="font-medium">{item.products?.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      SKU: {item.products?.sku}
-                    </div>
+                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors group">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{item.products?.name}</p>
+                    <p className="text-xs text-muted-foreground">SKU: {item.products?.sku}</p>
                   </div>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-4 text-sm">
                     <div className="text-center">
-                      <div className="font-medium">{item.qty}</div>
-                      <div className="text-xs text-muted-foreground">Cantidad</div>
+                      <p className="font-medium">{item.qty}</p>
+                      <p className="text-[10px] text-muted-foreground">Cant.</p>
+                    </div>
+                    <div className="text-center hidden sm:block">
+                      <p className="font-medium">{formatCurrency(item.unit_price, order.currency)}</p>
+                      <p className="text-[10px] text-muted-foreground">P. Unit.</p>
                     </div>
                     <div className="text-center">
-                      <div className="font-medium">{formatCurrency(item.unit_price, order.currency)}</div>
-                      <div className="text-xs text-muted-foreground">Precio Unit.</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-bold text-green-600">{formatCurrency(item.total, order.currency)}</div>
-                      <div className="text-xs text-muted-foreground">Total</div>
+                      <p className="font-semibold text-emerald-600">{formatCurrency(item.total, order.currency)}</p>
+                      <p className="text-[10px] text-muted-foreground">Total</p>
                     </div>
                     {order.status === 'OPEN' && (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveClick(item.id, item.products?.name || 'Producto')}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                        onClick={() => handleRemoveClick(item.id, item.products?.name || 'Producto')}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -731,160 +725,81 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Notes */}
+      {/* Notas */}
       {order.notes && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-gray-600" />
-              Notas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">{order.notes}</p>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">Notas</span>
+            </div>
+            <p className="text-sm text-muted-foreground">{order.notes}</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Add Product Modal */}
-      {showAddProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-background border rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Agregar Producto</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowAddProduct(false);
-                  setSelectedProduct(null);
-                  setNewItemData({ quantity: 1, unit_price: 0 });
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+      {/* Modal Agregar Producto con Escáner */}
+      <AddProductModal
+        isOpen={showAddProduct}
+        onClose={() => setShowAddProduct(false)}
+        products={products}
+        currency={order.currency}
+        onAddProducts={addProductToOrder}
+        formatCurrency={formatCurrency}
+      />
 
-            <div className="space-y-4">
-              {/* Product Selection */}
-              <div>
-                <Label htmlFor="product">Producto</Label>
-                <select
-                  id="product"
-                  className="w-full mt-1 p-2 border rounded-md bg-background text-foreground"
-                  value={selectedProduct?.id || ''}
-                  onChange={(e) => {
-                    const product = products.find(p => p.id === e.target.value);
-                    setSelectedProduct(product || null);
-                    // Establecer precio automáticamente
-                    if (product?.price) {
-                      setNewItemData(prev => ({
-                        ...prev,
-                        unit_price: product.price || 0
-                      }));
-                    }
-                  }}
-                >
-                  <option value="">Seleccionar producto...</option>
-                  {products.map(product => (
-                    <option key={product.id} value={product.id}>
-                      {product.sku} - {product.name} - {formatCurrency(product.price || 0, order?.currency)}
-                    </option>
-                  ))}
-                </select>
+      {/* Modal de Pago */}
+      {showPaymentModal && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={handlePaymentModalClose} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="pointer-events-auto bg-background border rounded-xl shadow-2xl w-full max-w-sm animate-in zoom-in-95 fade-in duration-200">
+              <div className="flex items-center justify-between p-4 border-b">
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-emerald-500" />
+                  <h3 className="font-semibold">Registrar Abono</h3>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePaymentModalClose}>
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
 
-              {/* Quantity */}
-              <div>
-                <Label htmlFor="quantity">Cantidad</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  value={newItemData.quantity}
-                  onChange={(e) => setNewItemData(prev => ({
-                    ...prev,
-                    quantity: parseInt(e.target.value) || 1
-                  }))}
-                />
-              </div>
+              <form onSubmit={handlePaymentSubmit}>
+                <div className="p-4 space-y-4">
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <p className="text-xs text-muted-foreground">Saldo Pendiente</p>
+                    <p className="text-2xl font-bold text-amber-600">{formatCurrency(order.remaining_amount, order.currency)}</p>
+                  </div>
 
-              {/* Unit Price - Read Only */}
-              <div>
-                <Label htmlFor="unit_price">Precio Unitario</Label>
-                <Input
-                  id="unit_price"
-                  type="text"
-                  value={formatCurrency(newItemData.unit_price, order?.currency)}
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
-
-              {/* Total Preview */}
-              {selectedProduct && newItemData.quantity > 0 && (
-                <div className="p-3 bg-muted rounded-md">
-                  <div className="text-sm text-muted-foreground">Total:</div>
-                  <div className="text-lg font-semibold text-green-600">
-                    {formatCurrency(newItemData.quantity * newItemData.unit_price, order?.currency)}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Monto a Abonar</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      max={order.remaining_amount}
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="h-10 text-lg font-medium"
+                      placeholder="0.00"
+                    />
                   </div>
                 </div>
-              )}
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowAddProduct(false);
-                    setSelectedProduct(null);
-                    setNewItemData({ quantity: 1, unit_price: 0 });
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={addProductToOrder}
-                  disabled={!selectedProduct || newItemData.quantity <= 0}
-                >
-                  Agregar
-                </Button>
-              </div>
+                <div className="flex gap-2 p-4 border-t">
+                  <Button type="button" variant="outline" className="flex-1" onClick={resetPaymentForm}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="flex-1">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Abonar
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
-        </div>
+        </>
       )}
-
-      <Modal
-        isOpen={showPaymentModal}
-        onClose={handlePaymentModalClose}
-        title="Abonar"
-      >
-        <div>
-          <form onSubmit={handlePaymentSubmit}>
-            <div>
-              <Label htmlFor="amount">Monto</Label>
-              <Input
-                id="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder={`Máximo: $${order?.remaining_amount || 0}`}
-              />
-            </div>
-            <div className="flex gap-2 justify-end pt-4">
-              <Button type="button" variant="outline" onClick={resetPaymentForm}>
-                Cancelar
-              </Button>
-              <Button type="submit">Abonar</Button>
-            </div>
-          </form>
-        </div>
-      </Modal>
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog
