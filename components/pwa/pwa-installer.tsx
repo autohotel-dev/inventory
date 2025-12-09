@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, Smartphone, X } from "lucide-react";
+import { Download, Smartphone, X, Zap, Wifi, Bell, Share, Plus, MoreVertical } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -20,6 +18,7 @@ export function PWAInstaller() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -28,25 +27,21 @@ export function PWAInstaller() {
     const dismissedTime = localStorage.getItem('pwa-install-dismissed');
     if (dismissedTime) {
       const hoursSinceDismissed = (Date.now() - parseInt(dismissedTime)) / (1000 * 60 * 60);
-      setIsDismissed(hoursSinceDismissed < 24); // Solo considerar rechazado si hace menos de 24 horas
+      setIsDismissed(hoursSinceDismissed < 24);
     }
     
-    // Registrar service worker inmediatamente
+    // Registrar service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then((registration) => {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('SW registrado: ', registration);
-          }
-          // Forzar update check
           registration.update();
         })
-        .catch((registrationError) => {
-          console.error('SW registro falló: ', registrationError);
+        .catch((error) => {
+          console.error('SW registro falló: ', error);
         });
     }
 
-    // Detectar si ya está instalado (múltiples métodos)
+    // Detectar si ya está instalado
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isStandaloneIOS = (window.navigator as any).standalone === true;
     const isStandaloneChrome = window.matchMedia('(display-mode: minimal-ui)').matches;
@@ -60,9 +55,6 @@ export function PWAInstaller() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstallPrompt(true);
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Evento beforeinstallprompt detectado');
-      }
     };
 
     // Escuchar cuando se instala la app
@@ -71,18 +63,12 @@ export function PWAInstaller() {
       setShowInstallPrompt(false);
       setDeferredPrompt(null);
       localStorage.removeItem('pwa-install-dismissed');
-      if (process.env.NODE_ENV === 'development') {
-        console.log('PWA instalada exitosamente');
-      }
     };
 
-    // Forzar detección después de 2 segundos
+    // Mostrar después de 2 segundos
     const timer = setTimeout(() => {
-      if (!deferredPrompt && !isInstalled && !isDismissed) {
+      if (!isInstalled && !isDismissed) {
         setShowInstallPrompt(true);
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Mostrando prompt manual después de timeout');
-        }
       }
     }, 2000);
 
@@ -94,199 +80,221 @@ export function PWAInstaller() {
       window.removeEventListener('appinstalled', handleAppInstalled);
       clearTimeout(timer);
     };
-  }, [deferredPrompt, isInstalled, isDismissed]);
+  }, [isInstalled, isDismissed]);
 
   const handleInstallClick = async () => {
-    // Detectar si es iOS
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    
-    if (!deferredPrompt) {
-      // Si no hay prompt automático, mostrar instrucciones manuales
-      if (isIOS) {
-        alert(`Para instalar en iPhone/iPad:\n\n1. Toca el botón Compartir ⬆️ en la parte inferior de Safari\n2. Desliza hacia abajo y toca "Agregar a pantalla de inicio" ➕\n3. Toca "Agregar" en la esquina superior derecha\n\nLa app aparecerá en tu pantalla de inicio.`);
-      } else if (isAndroid) {
-        alert(`Para instalar en Android:\n\n1. Toca el menú ⋮ en la parte superior derecha de Chrome\n2. Selecciona "Instalar aplicación" o "Agregar a pantalla de inicio"\n3. Confirma la instalación\n\nLa app se instalará automáticamente.`);
-      } else {
-        // Para desktop
-        alert(`Para instalar en Desktop:\n\n1. En Chrome/Edge, busca el ícono de instalación ⬇️ en la barra de dirección\n2. Toca "Instalar"\n3. Confirma la instalación\n\nO usa Ctrl+Shift+I → Application → Manifest → Install.`);
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        setDeferredPrompt(null);
+        setShowInstallPrompt(false);
+      } catch (error) {
+        setShowInstructions(true);
       }
-      return;
-    }
-
-    try {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (process.env.NODE_ENV === 'development') {
-        if (outcome === 'accepted') {
-          console.log('Usuario aceptó instalar la PWA');
-        } else {
-          console.log('Usuario rechazó instalar la PWA');
-        }
-      }
-      
-      setDeferredPrompt(null);
-      setShowInstallPrompt(false);
-    } catch (error) {
-      console.error('Error durante la instalación:', error);
-      // Fallback a instrucciones manuales
-      alert('Error al instalar. Por favor, usa las instrucciones manuales para tu dispositivo.');
+    } else {
+      setShowInstructions(true);
     }
   };
 
   const handleDismiss = () => {
     setShowInstallPrompt(false);
     setIsDismissed(true);
-    localStorage.setItem('pwa-install-dismissed', 'true');
+    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   };
 
   // No renderizar en servidor
-  if (!isMounted) {
+  if (!isMounted || isInstalled || isDismissed || !showInstallPrompt) {
     return null;
   }
 
-  // Detectar si es móvil
-  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const isAndroid = /Android/i.test(navigator.userAgent);
-  
-  // No mostrar si ya está instalado
-  if (isInstalled) {
-    return null;
-  }
 
-  // Si es iOS, siempre mostrar instrucciones manuales (no soporta beforeinstallprompt)
-  if (isIOS && !isDismissed) {
+  // Modal de instrucciones
+  if (showInstructions) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-        <Card className="shadow-lg border-2 border-primary/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Smartphone className="h-5 w-5 text-primary" />
-                Instalar en iPhone/iPad
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismiss}
-                className="h-6 w-6 p-0"
+      <>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setShowInstructions(false)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          <div 
+            className="pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="relative px-5 py-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <Smartphone className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Instalar App</h3>
+                  <p className="text-xs text-white/60">
+                    {isIOS ? "iPhone / iPad" : isAndroid ? "Android" : "Desktop"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInstructions(false)}
+                className="absolute top-3 right-3 p-1.5 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <X className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                <strong>Paso 1:</strong> Toca el botón <strong>Compartir</strong> <span className="text-primary">⬆️</span> en la parte inferior del navegador
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Paso 2:</strong> Desliza hacia abajo y toca <strong>"Agregar a pantalla de inicio"</strong> <span className="text-primary">➕</span>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Paso 3:</strong> Toca <strong>"Agregar"</strong> en la esquina superior derecha
-              </p>
+
+            {/* Instrucciones */}
+            <div className="p-5 space-y-4">
+              {isIOS ? (
+                <>
+                  <Step number={1} icon={<Share className="h-4 w-4" />} color="blue">
+                    Toca el botón <strong>Compartir</strong> en la barra inferior
+                  </Step>
+                  <Step number={2} icon={<Plus className="h-4 w-4" />} color="purple">
+                    Selecciona <strong>"Agregar a inicio"</strong>
+                  </Step>
+                  <Step number={3} icon={<Download className="h-4 w-4" />} color="emerald">
+                    Toca <strong>"Agregar"</strong> para confirmar
+                  </Step>
+                </>
+              ) : isAndroid ? (
+                <>
+                  <Step number={1} icon={<MoreVertical className="h-4 w-4" />} color="blue">
+                    Toca el menú <strong>⋮</strong> en Chrome
+                  </Step>
+                  <Step number={2} icon={<Download className="h-4 w-4" />} color="purple">
+                    Selecciona <strong>"Instalar app"</strong>
+                  </Step>
+                  <Step number={3} icon={<Smartphone className="h-4 w-4" />} color="emerald">
+                    Confirma la instalación
+                  </Step>
+                </>
+              ) : (
+                <>
+                  <Step number={1} icon={<Download className="h-4 w-4" />} color="blue">
+                    Busca el ícono <strong>⊕</strong> en la barra de dirección
+                  </Step>
+                  <Step number={2} icon={<Smartphone className="h-4 w-4" />} color="purple">
+                    Haz clic en <strong>"Instalar"</strong>
+                  </Step>
+                  <Step number={3} icon={<Zap className="h-4 w-4" />} color="emerald">
+                    ¡Listo! La app se abrirá automáticamente
+                  </Step>
+                </>
+              )}
             </div>
-            <div className="mt-4 text-xs text-muted-foreground">
-              ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
+
+            {/* Footer */}
+            <div className="px-5 pb-5">
+              <button
+                onClick={() => setShowInstructions(false)}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white/80 text-sm font-medium transition-colors"
+              >
+                Entendido
+              </button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </>
     );
   }
 
-  // Si es Android y no hay prompt automático, mostrar instrucciones
-  if (isAndroid && !showInstallPrompt && !isDismissed) {
-    return (
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-        <Card className="shadow-lg border-2 border-primary/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Smartphone className="h-5 w-5 text-primary" />
-                Instalar App Android
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismiss}
-                className="h-6 w-6 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+  // Banner principal
+  return (
+    <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
+      <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-72 overflow-hidden">
+        {/* Header compacto */}
+        <div className="relative px-4 py-3 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <Download className="h-5 w-5 text-white" />
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground mb-4">
-              Para instalar: Toca el menú <strong>⋮</strong> → "Agregar a pantalla de inicio" o "Instalar aplicación"
-            </p>
-            <div className="text-xs text-muted-foreground">
-              ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
+            <div className="flex-1">
+              <h3 className="font-semibold text-white text-sm">Instalar App</h3>
+              <p className="text-[10px] text-white/50">Acceso rápido y offline</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+          </div>
+          <button
+            onClick={handleDismiss}
+            className="absolute top-2 right-2 p-1.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
-  // Para desktop o si hay prompt disponible, siempre mostrar botón de instalación
-  if (!isDismissed) {
-    return (
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-        <Card className="shadow-lg border-2 border-primary/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Smartphone className="h-5 w-5 text-primary" />
-                Instalar App
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismiss}
-                className="h-6 w-6 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground mb-4">
-              Instala nuestra app para acceso rápido y funcionalidad offline
-            </p>
-            
-            <div className="flex gap-2">
-              <Button
-                onClick={handleInstallClick}
-                className="flex-1"
-                size="sm"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Instalar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDismiss}
-                size="sm"
-              >
-                Después
-              </Button>
-            </div>
-            
-            <div className="mt-3 text-xs text-muted-foreground">
-              ✓ Acceso offline • ✓ Notificaciones • ✓ Acceso rápido
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+        {/* Features */}
+        <div className="px-4 py-3 space-y-2">
+          <div className="flex items-center gap-3">
+            <Feature icon={<Zap className="h-3.5 w-3.5" />} color="amber" label="Acceso instantáneo" />
+            <Feature icon={<Wifi className="h-3.5 w-3.5" />} color="emerald" label="Modo offline" />
+            <Feature icon={<Bell className="h-3.5 w-3.5" />} color="blue" label="Alertas" />
+          </div>
+        </div>
 
-  // No mostrar si fue descartado
-  return null;
+        {/* Botones */}
+        <div className="px-4 pb-4 flex gap-2">
+          <button
+            onClick={handleInstallClick}
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-sm font-medium transition-all shadow-lg shadow-purple-500/20"
+          >
+            Instalar
+          </button>
+          <button
+            onClick={handleDismiss}
+            className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 text-sm transition-colors"
+          >
+            Luego
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente de paso para instrucciones
+function Step({ number, icon, color, children }: { 
+  number: number; 
+  icon: React.ReactNode; 
+  color: "blue" | "purple" | "emerald";
+  children: React.ReactNode;
+}) {
+  const colors = {
+    blue: "from-blue-500 to-blue-600 shadow-blue-500/20",
+    purple: "from-purple-500 to-purple-600 shadow-purple-500/20",
+    emerald: "from-emerald-500 to-emerald-600 shadow-emerald-500/20",
+  };
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${colors[color]} flex items-center justify-center shadow-lg flex-shrink-0`}>
+        {icon}
+      </div>
+      <div className="flex-1 pt-1">
+        <p className="text-sm text-white/80">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+// Componente de feature
+function Feature({ icon, color, label }: { 
+  icon: React.ReactNode; 
+  color: "amber" | "emerald" | "blue";
+  label: string;
+}) {
+  const colors = {
+    amber: "text-amber-400 bg-amber-500/10",
+    emerald: "text-emerald-400 bg-emerald-500/10",
+    blue: "text-blue-400 bg-blue-500/10",
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`p-1 rounded ${colors[color]}`}>
+        {icon}
+      </div>
+      <span className="text-[10px] text-white/50">{label}</span>
+    </div>
+  );
 }
 
 // Hook para detectar si es PWA
