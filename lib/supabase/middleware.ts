@@ -7,6 +7,17 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  // Skip middleware for static PWA files
+  const pathname = request.nextUrl.pathname;
+  if (
+    pathname === '/sw.js' ||
+    pathname === '/manifest.json' ||
+    pathname === '/icon.svg' ||
+    pathname.startsWith('/icons/')
+  ) {
+    return supabaseResponse;
+  }
+
   // If the env vars are not set, skip middleware check. You can remove this
   // once you setup the project.
   if (!hasEnvVars) {

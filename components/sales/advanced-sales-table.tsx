@@ -136,8 +136,6 @@ export function AdvancedSalesTable() {
         );
       }
       
-      console.log("Data filtrada: ", filteredData);
-      
       setSales(filteredData);
       
       // Calcular estadísticas

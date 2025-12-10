@@ -1,8 +1,4 @@
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  const swContent = `
-const CACHE_NAME = 'inventario-pro-v1';
+const CACHE_NAME = 'inventario-pro-v2';
 const urlsToCache = [
   '/',
   '/dashboard',
@@ -16,7 +12,7 @@ const urlsToCache = [
   '/stock',
   '/kardex',
   '/customers',
-  '/api/manifest'
+  '/sales'
 ];
 
 // Instalar el service worker
@@ -24,13 +20,24 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        return cache.addAll(urlsToCache);
+        console.log('Cache abierto');
+        return cache.addAll(urlsToCache).catch((err) => {
+          console.log('Error cacheando URLs:', err);
+        });
       })
   );
+  // Activar inmediatamente
+  self.skipWaiting();
 });
 
 // Interceptar requests
 self.addEventListener('fetch', (event) => {
+  // Solo cachear requests GET
+  if (event.request.method !== 'GET') return;
+  
+  // No cachear requests de API
+  if (event.request.url.includes('/api/')) return;
+  
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -46,8 +53,8 @@ self.addEventListener('fetch', (event) => {
               return response;
             }
 
-            // IMPORTANTE: Clonar la respuesta
-            var responseToCache = response.clone();
+            // Clonar la respuesta
+            const responseToCache = response.clone();
 
             caches.open(CACHE_NAME)
               .then((cache) => {
@@ -56,7 +63,10 @@ self.addEventListener('fetch', (event) => {
 
             return response;
           }
-        );
+        ).catch(() => {
+          // Si falla el fetch, intentar devolver desde cache
+          return caches.match(event.request);
+        });
       })
   );
 });
@@ -70,15 +80,19 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
+            console.log('Eliminando cache antiguo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+  
+  // Tomar control inmediatamente
+  self.clients.claim();
 });
 
-// Manejar notificaciones push (opcional)
+// Manejar notificaciones push
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'Nueva notificación del sistema de inventario',
@@ -88,19 +102,7 @@ self.addEventListener('push', (event) => {
     data: {
       dateOfArrival: Date.now(),
       primaryKey: 1
-    },
-    actions: [
-      {
-        action: 'explore',
-        title: 'Ver detalles',
-        icon: '/icons/icon-192x192.svg'
-      },
-      {
-        action: 'close',
-        title: 'Cerrar',
-        icon: '/icons/icon-192x192.svg'
-      }
-    ]
+    }
   };
 
   event.waitUntil(
@@ -111,21 +113,7 @@ self.addEventListener('push', (event) => {
 // Manejar clicks en notificaciones
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
-  if (event.action === 'explore') {
-    // Abrir la aplicación
-    event.waitUntil(
-      clients.openWindow('/dashboard')
-    );
-  }
+  event.waitUntil(
+    clients.openWindow('/dashboard')
+  );
 });
-`;
-
-  return new NextResponse(swContent, {
-    headers: {
-      'Content-Type': 'application/javascript',
-      'Cache-Control': 'public, max-age=0, must-revalidate',
-      'Service-Worker-Allowed': '/'
-    }
-  });
-}

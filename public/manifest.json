@@ -1,101 +1,52 @@
 {
+  "id": "inventario-pro",
   "name": "Sistema de Inventario Profesional",
   "short_name": "Inventario Pro",
-  "description": "Sistema completo de gestión de inventario",
+  "description": "Sistema completo de gestión de inventario con analytics avanzados",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#0a0a0a",
   "theme_color": "#2563eb",
   "scope": "/",
-  "orientation": "portrait-primary",
-  "categories": ["business", "productivity", "utilities"],
+  "orientation": "any",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
   "icons": [
     {
-      "src": "/icons/icon-72x72.svg",
-      "sizes": "72x72",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-96x96.svg",
-      "sizes": "96x96",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-128x128.svg",
-      "sizes": "128x128",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-144x144.svg",
-      "sizes": "144x144",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-152x152.svg",
-      "sizes": "152x152",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-192x192.svg",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-384x384.svg",
-      "sizes": "384x384",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512x512.svg",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "description": "Ver dashboard principal",
-      "url": "/dashboard",
-      "icons": [{ "src": "/icons/icon-96x96.svg", "sizes": "96x96" }]
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "name": "Productos",
-      "short_name": "Productos",
-      "description": "Gestionar productos",
-      "url": "/products",
-      "icons": [{ "src": "/icons/icon-96x96.svg", "sizes": "96x96" }]
-    },
-    {
-      "name": "Stock",
-      "short_name": "Stock",
-      "description": "Ver stock actual",
-      "url": "/stock",
-      "icons": [{ "src": "/icons/icon-96x96.svg", "sizes": "96x96" }]
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/screenshots/desktop-dashboard.png",
-      "sizes": "1280x720",
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Dashboard del sistema de inventario"
+      "label": "Dashboard del sistema"
     },
     {
-      "src": "/screenshots/mobile-dashboard.png",
-      "sizes": "375x667",
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Dashboard móvil"
+      "label": "Vista móvil"
     }
   ]
 }

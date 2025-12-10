@@ -347,8 +347,66 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   };
 
   const exportToPDF = () => {
-    // Implementar exportación a PDF
-    console.log('Exportar a PDF');
+    if (!order) return;
+    
+    // Crear contenido para imprimir
+    const printContent = `
+      <html>
+        <head>
+          <title>Orden de Venta #${order.id.slice(0, 8)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { font-size: 24px; margin-bottom: 10px; }
+            .info { margin-bottom: 20px; }
+            .info p { margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            .total { font-weight: bold; font-size: 18px; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <h1>Orden de Venta #${order.id.slice(0, 8)}</h1>
+          <div class="info">
+            <p><strong>Fecha:</strong> ${formatDate(order.created_at)}</p>
+            <p><strong>Cliente:</strong> ${order.customers?.name || 'Cliente general'}</p>
+            <p><strong>Almacén:</strong> ${order.warehouses?.code} - ${order.warehouses?.name}</p>
+            <p><strong>Estado:</strong> ${order.status}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>SKU</th>
+                <th>Cantidad</th>
+                <th>Precio Unit.</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(item => `
+                <tr>
+                  <td>${item.products?.name || '-'}</td>
+                  <td>${item.products?.sku || '-'}</td>
+                  <td>${item.qty}</td>
+                  <td>${formatCurrency(item.unit_price, order.currency)}</td>
+                  <td>${formatCurrency(item.total, order.currency)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <p class="total">Total: ${formatCurrency(order.total, order.currency)}</p>
+          ${order.notes ? `<p><strong>Notas:</strong> ${order.notes}</p>` : ''}
+        </body>
+      </html>
+    `;
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
   };
 
   const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number }[]) => {
