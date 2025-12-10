@@ -8,7 +8,21 @@ import { ToastProvider } from "@/components/providers/toast-provider";
 import { DataDebug } from "@/components/debug/data-debug";
 import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
 
-const defaultUrl = String(process.env.NEXT_PUBLIC_SITE_URL);
+// Detectar URL base con fallbacks para diferentes entornos
+const getBaseUrl = () => {
+  // Vercel automáticamente provee VERCEL_URL en producción
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // Variable de entorno personalizada
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  // Fallback para desarrollo local
+  return 'http://localhost:3000';
+};
+
+const defaultUrl = getBaseUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
