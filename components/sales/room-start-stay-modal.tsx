@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RoomType } from "@/components/sales/room-types";
+import { Minus, Plus, Users } from "lucide-react";
 
 export interface RoomStartStayModalProps {
   isOpen: boolean;
@@ -10,7 +12,7 @@ export interface RoomStartStayModalProps {
   expectedCheckout: Date;
   actionLoading: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (initialPeople: number) => void;
 }
 
 function formatDateTime(date: Date) {
@@ -32,6 +34,22 @@ export function RoomStartStayModal({
   onClose,
   onConfirm,
 }: RoomStartStayModalProps) {
+  const [initialPeople, setInitialPeople] = useState(2);
+  const maxPeople = roomType?.max_people ?? 4;
+  const extraPersonPrice = roomType?.extra_person_price ?? 0;
+
+  // Calcular costo extra por personas adicionales
+  const extraPeopleCount = Math.max(0, initialPeople - 2);
+  const extraPeopleCost = extraPeopleCount * extraPersonPrice;
+  const totalPrice = (roomType?.base_price ?? 0) + extraPeopleCost;
+
+  // Reset al abrir
+  useEffect(() => {
+    if (isOpen) {
+      setInitialPeople(2);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -55,12 +73,58 @@ export function RoomStartStayModal({
               Hab. {roomNumber} – {roomType.name}
             </p>
           </div>
+
+          {/* Selector de personas */}
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Personas que entran
+            </p>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setInitialPeople(Math.max(1, initialPeople - 1))}
+                disabled={actionLoading || initialPeople <= 1}
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="text-2xl font-bold w-12 text-center">{initialPeople}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setInitialPeople(Math.min(maxPeople, initialPeople + 1))}
+                disabled={actionLoading || initialPeople >= maxPeople}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                (máx. {maxPeople})
+              </span>
+            </div>
+            {extraPeopleCount > 0 && (
+              <p className="text-sm text-amber-500">
+                +{extraPeopleCount} persona{extraPeopleCount > 1 ? 's' : ''} extra = +${extraPeopleCost.toFixed(2)} MXN
+              </p>
+            )}
+          </div>
+
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Precio base</p>
             <p className="text-base font-semibold">
               $ {roomType.base_price?.toFixed(2) ?? "0.00"} MXN
             </p>
           </div>
+
+          {extraPeopleCost > 0 && (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Total inicial</p>
+              <p className="text-lg font-bold text-emerald-500">
+                $ {totalPrice.toFixed(2)} MXN
+              </p>
+            </div>
+          )}
+
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Salida estimada</p>
             <p className="text-base font-medium">
@@ -79,7 +143,7 @@ export function RoomStartStayModal({
           >
             Cancelar
           </Button>
-          <Button onClick={onConfirm} disabled={actionLoading}>
+          <Button onClick={() => onConfirm(initialPeople)} disabled={actionLoading}>
             {actionLoading ? "Iniciando..." : "Iniciar estancia"}
           </Button>
         </div>

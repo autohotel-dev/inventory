@@ -10,6 +10,27 @@ export function getActiveStay(room: Room): RoomStay | null {
   return (room.room_stays || []).find((stay) => stay.status === "ACTIVA") || null;
 }
 
+// Constante para la tolerancia en milisegundos (1 hora)
+const TOLERANCE_MS = 60 * 60 * 1000; // 1 hora
+
+// Helper para verificar si la tolerancia ha expirado
+export function isToleranceExpired(toleranceStartedAt: string | null | undefined): boolean {
+  if (!toleranceStartedAt) return false;
+  const started = new Date(toleranceStartedAt);
+  const now = new Date();
+  return (now.getTime() - started.getTime()) >= TOLERANCE_MS;
+}
+
+// Helper para calcular minutos restantes de tolerancia
+export function getToleranceRemainingMinutes(toleranceStartedAt: string | null | undefined): number {
+  if (!toleranceStartedAt) return 60;
+  const started = new Date(toleranceStartedAt);
+  const now = new Date();
+  const elapsedMs = now.getTime() - started.getTime();
+  const remainingMs = Math.max(0, TOLERANCE_MS - elapsedMs);
+  return Math.ceil(remainingMs / 60000);
+}
+
 // Helper para actualizar totales de una orden de venta
 async function updateSalesOrderTotals(
   supabase: ReturnType<typeof createClient>,
@@ -54,7 +75,9 @@ async function updateSalesOrderTotals(
 
 export interface UseRoomActionsReturn {
   actionLoading: boolean;
-  handleChangePeople: (room: Room, delta: 1 | -1) => Promise<void>;
+  handleAddPerson: (room: Room) => Promise<void>; // Persona nueva entra (cobra extra si >2)
+  handleRemovePerson: (room: Room) => Promise<void>; // Persona sale definitivamente
+  handlePersonLeftReturning: (room: Room) => Promise<void>; // Persona salió pero regresa (tolerancia 1h)
   handleAddExtraHour: (room: Room) => Promise<void>;
   updateRoomStatus: (
     room: Room,
@@ -75,32 +98,24 @@ export interface UseRoomActionsReturn {
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
   const [actionLoading, setActionLoading] = useState(false);
 
-  const handleChangePeople = async (room: Room, delta: 1 | -1) => {
+  // Agregar persona nueva (siempre cobra extra si >2)
+  const handleAddPerson = async (room: Room) => {
     if (room.status !== "OCUPADA") return;
 
     const activeStay = getActiveStay(room);
     if (!activeStay) {
-      toast.error("No se encontró una estancia activa para esta habitación", {
-        description: "Revisa la tabla room_stays: no hay registro ACTIVA vinculado.",
-      });
+      toast.error("No se encontró una estancia activa para esta habitación");
       return;
     }
 
     if (!room.room_types) {
-      toast.error("No se encontró el tipo de habitación", {
-        description: "Verifica la relación room_type_id para esta habitación.",
-      });
+      toast.error("No se encontró el tipo de habitación");
       return;
     }
 
     const maxPeople = room.room_types.max_people ?? 2;
     const current = activeStay.current_people ?? 2;
-    const next = current + delta;
-
-    if (next < 1) {
-      toast.error("No puede haber menos de 1 persona en la habitación");
-      return;
-    }
+    const next = current + 1;
 
     if (next > maxPeople) {
       toast.error("Límite de personas excedido", {
@@ -116,48 +131,186 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       const newCurrentPeople = next;
       const newTotalPeople = Math.max(activeStay.total_people ?? current, newCurrentPeople);
 
-      const { error: stayError } = await supabase
+      // Si hay tolerancia activa y regresa la misma persona
+      if (activeStay.tolerance_started_at) {
+        const toleranceExpired = isToleranceExpired(activeStay.tolerance_started_at);
+        
+        if (toleranceExpired) {
+          // Tolerancia expiró - cobrar según tipo
+          if (activeStay.tolerance_type === 'ROOM_EMPTY') {
+            const basePrice = room.room_types.base_price ?? 0;
+            if (basePrice > 0) {
+              await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
+              toast.warning("Tolerancia expirada - Habitación cobrada", {
+                description: `Hab. ${room.number}: +$${basePrice.toFixed(2)} MXN`,
+              });
+            }
+          } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
+            const extraPrice = room.room_types.extra_person_price ?? 0;
+            if (extraPrice > 0) {
+              await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
+              toast.warning("Tolerancia expirada - Persona extra cobrada", {
+                description: `Hab. ${room.number}: +$${extraPrice.toFixed(2)} MXN`,
+              });
+            }
+          }
+        } else {
+          // Regresó a tiempo
+          const remainingMin = getToleranceRemainingMinutes(activeStay.tolerance_started_at);
+          toast.success("Regreso dentro de tolerancia", {
+            description: `Hab. ${room.number}: Regresó a tiempo (quedaban ${remainingMin} min)`,
+          });
+        }
+
+        // Limpiar tolerancia
+        await supabase
+          .from("room_stays")
+          .update({
+            current_people: newCurrentPeople,
+            total_people: newTotalPeople,
+            tolerance_started_at: null,
+            tolerance_type: null,
+          })
+          .eq("id", activeStay.id);
+      } else {
+        // Persona nueva entrando
+        // Cobrar extra si:
+        // 1. current_people > 2 (más de 2 personas actuales), O
+        // 2. total_people >= 2 (ya pasaron 2 personas diferentes, cualquier nueva es extra)
+        const previousTotalPeople = activeStay.total_people ?? current;
+        const shouldChargeExtra = newCurrentPeople > 2 || previousTotalPeople >= 2;
+
+        await supabase
+          .from("room_stays")
+          .update({
+            current_people: newCurrentPeople,
+            total_people: newTotalPeople,
+          })
+          .eq("id", activeStay.id);
+
+        if (shouldChargeExtra) {
+          const extraPrice = room.room_types.extra_person_price ?? 0;
+          if (extraPrice > 0) {
+            await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
+            toast.success("Persona extra registrada", {
+              description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +$${extraPrice.toFixed(2)} MXN`,
+            });
+          } else {
+            toast.warning("No se configuró precio de persona extra");
+          }
+        } else {
+          toast.success("Persona agregada", {
+            description: `Hab. ${room.number}: ${newCurrentPeople} personas`,
+          });
+        }
+      }
+
+      await onRefresh();
+    } catch (error) {
+      console.error("Error adding person:", error);
+      toast.error("Error al agregar persona");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Quitar persona (se fue definitivamente, sin tolerancia)
+  const handleRemovePerson = async (room: Room) => {
+    if (room.status !== "OCUPADA") return;
+
+    const activeStay = getActiveStay(room);
+    if (!activeStay) {
+      toast.error("No se encontró una estancia activa para esta habitación");
+      return;
+    }
+
+    const current = activeStay.current_people ?? 2;
+    if (current <= 1) {
+      toast.error("Debe haber al menos 1 persona en la habitación", {
+        description: "Usa 'Salida' para hacer checkout si no queda nadie.",
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      await supabase
+        .from("room_stays")
+        .update({ current_people: current - 1 })
+        .eq("id", activeStay.id);
+
+      toast.success("Persona removida", {
+        description: `Hab. ${room.number}: ${current - 1} personas`,
+      });
+
+      await onRefresh();
+    } catch (error) {
+      console.error("Error removing person:", error);
+      toast.error("Error al remover persona");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Persona salió pero va a regresar (inicia tolerancia de 1 hora, solo motel)
+  const handlePersonLeftReturning = async (room: Room) => {
+    if (room.status !== "OCUPADA") return;
+
+    const activeStay = getActiveStay(room);
+    if (!activeStay) {
+      toast.error("No se encontró una estancia activa para esta habitación");
+      return;
+    }
+
+    if (!room.room_types) {
+      toast.error("No se encontró el tipo de habitación");
+      return;
+    }
+
+    // No aplica para hotel/torre
+    if (room.room_types.is_hotel) {
+      toast.info("Esta función no aplica para habitaciones de hotel");
+      return;
+    }
+
+    const current = activeStay.current_people ?? 2;
+    if (current <= 0) {
+      toast.error("No hay personas en la habitación");
+      return;
+    }
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      const newCurrentPeople = current - 1;
+      const toleranceType = newCurrentPeople === 0 ? 'ROOM_EMPTY' : 'PERSON_LEFT';
+
+      await supabase
         .from("room_stays")
         .update({
           current_people: newCurrentPeople,
-          total_people: newTotalPeople,
+          tolerance_started_at: new Date().toISOString(),
+          tolerance_type: toleranceType,
         })
         .eq("id", activeStay.id);
 
-      if (stayError) {
-        console.error("Error updating people count:", stayError);
-        toast.error("No se pudo actualizar el número de personas");
-        return;
-      }
-
-      // Cobrar persona extra si aplica
-      if (delta === 1 && newCurrentPeople > 2) {
-        const extraPrice = room.room_types.extra_person_price ?? 0;
-
-        if (extraPrice <= 0) {
-          toast.warning("No se configuró el precio de persona extra", {
-            description: `Tipo: ${room.room_types.name}`,
-          });
-        } else {
-          const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
-          if (result.success) {
-            toast.success("Persona extra registrada", {
-              description: `Hab. ${room.number}: ${newCurrentPeople} personas. +${extraPrice.toFixed(2)} MXN`,
-            });
-          } else {
-            toast.error("No se pudo actualizar el saldo por persona extra");
-          }
-        }
+      if (newCurrentPeople === 0) {
+        toast.warning("Tolerancia iniciada - Habitación vacía", {
+          description: `Hab. ${room.number}: 1 hora para regresar. Después se cobra habitación completa.`,
+        });
       } else {
-        toast.success("Personas actualizadas", {
-          description: `Hab. ${room.number}: ${newCurrentPeople} personas.`,
+        toast.warning("Tolerancia iniciada - Persona salió", {
+          description: `Hab. ${room.number}: 1 hora para regresar. Después se cobra persona extra.`,
         });
       }
 
       await onRefresh();
     } catch (error) {
-      console.error("Error updating people:", error);
-      toast.error("Error al actualizar las personas");
+      console.error("Error starting tolerance:", error);
+      toast.error("Error al iniciar tolerancia");
     } finally {
       setActionLoading(false);
     }
@@ -374,7 +527,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
   return {
     actionLoading,
-    handleChangePeople,
+    handleAddPerson,
+    handleRemovePerson,
+    handlePersonLeftReturning,
     handleAddExtraHour,
     updateRoomStatus,
     prepareCheckout,

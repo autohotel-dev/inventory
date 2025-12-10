@@ -12,6 +12,7 @@ import { RoomInfoPopover } from "@/components/sales/room-info-popover";
 import { RoomActionsWheel } from "@/components/sales/room-actions-wheel";
 import { RoomStartStayModal } from "@/components/sales/room-start-stay-modal";
 import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
+import { RoomPayExtraModal } from "@/components/sales/room-pay-extra-modal";
 import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
 import {
   Room,
@@ -20,7 +21,7 @@ import {
   ROOM_STATUS_BG,
   ROOM_STATUS_ACCENT,
 } from "@/components/sales/room-types";
-import { useRoomActions, getActiveStay } from "@/hooks/use-room-actions";
+import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
 import { toast } from "sonner";
 
 export function RoomsBoard() {
@@ -34,6 +35,13 @@ export function RoomsBoard() {
   const [checkoutInfo, setCheckoutInfo] = useState<{
     salesOrderId: string;
     remainingAmount: number;
+  } | null>(null);
+  // Estados para pagar extras
+  const [showPayExtraModal, setShowPayExtraModal] = useState(false);
+  const [payExtraAmount, setPayExtraAmount] = useState<number>(0);
+  const [payExtraInfo, setPayExtraInfo] = useState<{
+    salesOrderId: string;
+    extraAmount: number;
   } | null>(null);
   const [reminderNotifiedStayIds20, setReminderNotifiedStayIds20] = useState<string[]>([]);
   const [reminderNotifiedStayIds5, setReminderNotifiedStayIds5] = useState<string[]>([]);
@@ -56,7 +64,7 @@ export function RoomsBoard() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, expected_check_out_at, current_people, total_people, sales_orders ( remaining_amount ) )`
+          `id, number, status, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, sales_orders ( remaining_amount ) )`
         )
         .order("number", { ascending: true });
 
@@ -78,7 +86,9 @@ export function RoomsBoard() {
   // Hook de acciones de habitación
   const {
     actionLoading,
-    handleChangePeople,
+    handleAddPerson,
+    handleRemovePerson,
+    handlePersonLeftReturning,
     handleAddExtraHour,
     updateRoomStatus,
     prepareCheckout,
@@ -115,6 +125,91 @@ export function RoomsBoard() {
       setCheckoutInfo(null);
       setCheckoutAmount(0);
     }
+  };
+
+  // Abrir modal de pagar extras
+  const openPayExtraModal = async (room: Room) => {
+    const info = await prepareCheckout(room);
+    if (info && info.remainingAmount > 0) {
+      setPayExtraInfo({
+        salesOrderId: info.salesOrderId,
+        extraAmount: info.remainingAmount,
+      });
+      setPayExtraAmount(info.remainingAmount);
+      setSelectedRoom(room);
+      setShowPayExtraModal(true);
+    } else {
+      toast.info("Sin cargos pendientes", {
+        description: "No hay cargos extra por pagar en esta habitación.",
+      });
+    }
+  };
+
+  // Cerrar modal de pagar extras
+  const handleClosePayExtraModal = () => {
+    if (actionLoading) return;
+    setShowPayExtraModal(false);
+    setSelectedRoom(null);
+    setPayExtraInfo(null);
+    setPayExtraAmount(0);
+  };
+
+  // Procesar pago de extras (sin checkout)
+  const handlePayExtra = async () => {
+    if (!payExtraInfo || !selectedRoom || payExtraAmount <= 0) return;
+    
+    const supabase = createClient();
+    
+    try {
+      // Obtener la orden actual
+      const { data: order, error: orderError } = await supabase
+        .from("sales_orders")
+        .select("paid_amount, remaining_amount")
+        .eq("id", payExtraInfo.salesOrderId)
+        .single();
+
+      if (orderError || !order) {
+        toast.error("Error al obtener la orden");
+        return;
+      }
+
+      // Actualizar montos pagados
+      const newPaidAmount = (order.paid_amount || 0) + payExtraAmount;
+      const newRemainingAmount = Math.max(0, (order.remaining_amount || 0) - payExtraAmount);
+
+      const { error: updateError } = await supabase
+        .from("sales_orders")
+        .update({
+          paid_amount: newPaidAmount,
+          remaining_amount: newRemainingAmount,
+        })
+        .eq("id", payExtraInfo.salesOrderId);
+
+      if (updateError) {
+        toast.error("Error al procesar el pago");
+        return;
+      }
+
+      toast.success("Pago registrado", {
+        description: `Se pagaron $${payExtraAmount.toFixed(2)} MXN de extras. La habitación sigue ocupada.`,
+      });
+
+      setShowPayExtraModal(false);
+      setSelectedRoom(null);
+      setPayExtraInfo(null);
+      setPayExtraAmount(0);
+      await fetchRooms();
+    } catch (error) {
+      console.error("Error paying extra:", error);
+      toast.error("Error al procesar el pago");
+    }
+  };
+
+  // Verificar si una habitación tiene cargos extra pendientes
+  const hasExtraCharges = (room: Room): boolean => {
+    const activeStay = getActiveStay(room);
+    if (!activeStay?.sales_orders) return false;
+    return (activeStay.sales_orders.remaining_amount || 0) > 0;
   };
 
   // Cargar habitaciones al montar
@@ -179,6 +274,88 @@ export function RoomsBoard() {
 
     return () => clearInterval(interval);
   }, [rooms, reminderNotifiedStayIds20, reminderNotifiedStayIds5]);
+
+  // Verificar tolerancias expiradas y cobrar automáticamente (solo motel)
+  useEffect(() => {
+    const checkTolerances = async () => {
+      const supabase = createClient();
+      
+      for (const room of rooms) {
+        if (room.status !== "OCUPADA") continue;
+        if (room.room_types?.is_hotel) continue; // No aplica para hotel/torre
+        
+        const activeStay = getActiveStay(room);
+        if (!activeStay?.tolerance_started_at || !activeStay.tolerance_type) continue;
+        
+        // Verificar si la tolerancia expiró
+        if (isToleranceExpired(activeStay.tolerance_started_at)) {
+          try {
+            let chargeAmount = 0;
+            let chargeDescription = "";
+            
+            if (activeStay.tolerance_type === 'ROOM_EMPTY') {
+              // Cobrar habitación completa
+              chargeAmount = room.room_types?.base_price ?? 0;
+              chargeDescription = "Tolerancia expirada - Habitación cobrada";
+            } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
+              // Cobrar persona extra
+              chargeAmount = room.room_types?.extra_person_price ?? 0;
+              chargeDescription = "Tolerancia expirada - Persona extra cobrada";
+            }
+            
+            if (chargeAmount > 0) {
+              // Actualizar orden de venta
+              const { data: orderData } = await supabase
+                .from("sales_orders")
+                .select("subtotal, tax, paid_amount")
+                .eq("id", activeStay.sales_order_id)
+                .single();
+              
+              if (orderData) {
+                const newSubtotal = (Number(orderData.subtotal) || 0) + chargeAmount;
+                const newTotal = newSubtotal + (Number(orderData.tax) || 0);
+                const newRemaining = Math.max(newTotal - (Number(orderData.paid_amount) || 0), 0);
+                
+                await supabase
+                  .from("sales_orders")
+                  .update({
+                    subtotal: newSubtotal,
+                    total: newTotal,
+                    remaining_amount: newRemaining,
+                  })
+                  .eq("id", activeStay.sales_order_id);
+                
+                toast.warning(chargeDescription, {
+                  description: `Hab. ${room.number}: +$${chargeAmount.toFixed(2)} MXN`,
+                });
+              }
+            }
+            
+            // Limpiar tolerancia
+            await supabase
+              .from("room_stays")
+              .update({
+                tolerance_started_at: null,
+                tolerance_type: null,
+              })
+              .eq("id", activeStay.id);
+            
+            // Refrescar datos
+            await fetchRooms();
+          } catch (error) {
+            console.error("Error processing expired tolerance:", error);
+          }
+        }
+      }
+    };
+    
+    // Verificar cada minuto
+    const interval = setInterval(checkTolerances, 60000);
+    // También verificar al cargar
+    checkTolerances();
+    
+    return () => clearInterval(interval);
+  }, [rooms, fetchRooms]);
 
   const calculateExpectedCheckout = (roomType: RoomType) => {
     const now = new Date();
@@ -278,7 +455,7 @@ export function RoomsBoard() {
     setSelectedRoom(null);
   };
 
-  const handleStartStay = async () => {
+  const handleStartStay = async (initialPeople: number) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
     setStartStayLoading(true);
@@ -290,6 +467,12 @@ export function RoomsBoard() {
       const expectedCheckout = calculateExpectedCheckout(roomType);
 
       const basePrice = roomType.base_price ?? 0;
+      const extraPersonPrice = roomType.extra_person_price ?? 0;
+      
+      // Calcular costo extra por personas adicionales (más de 2)
+      const extraPeopleCount = Math.max(0, initialPeople - 2);
+      const extraPeopleCost = extraPeopleCount * extraPersonPrice;
+      const totalPrice = basePrice + extraPeopleCost;
 
       // Obtener almacén específico para ventas de recepción (ALM002-R)
       const { data: defaultWarehouse, error: warehouseError } = await supabase
@@ -320,13 +503,13 @@ export function RoomsBoard() {
           customer_id: null,
           warehouse_id: defaultWarehouse.id,
           currency: "MXN",
-          notes: `Estancia ${roomType.name} Hab. ${selectedRoom.number}`,
-          subtotal: basePrice,
+          notes: `Estancia ${roomType.name} Hab. ${selectedRoom.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ''}`,
+          subtotal: totalPrice,
           tax: 0,
-          total: basePrice,
+          total: totalPrice,
           status: "OPEN",
           remaining_amount: 0,
-          paid_amount: basePrice,
+          paid_amount: totalPrice,
           created_by: user?.id ?? null,
         })
         .select("id")
@@ -340,12 +523,14 @@ export function RoomsBoard() {
         return;
       }
 
-      // Registrar la estancia de habitación
+      // Registrar la estancia de habitación con personas iniciales
       const { error: stayError } = await supabase.from("room_stays").insert({
         room_id: selectedRoom.id,
         sales_order_id: salesOrder.id,
         check_in_at: now.toISOString(),
         expected_check_out_at: expectedCheckout.toISOString(),
+        current_people: initialPeople,
+        total_people: initialPeople,
       });
 
       if (stayError) {
@@ -371,9 +556,9 @@ export function RoomsBoard() {
       }
 
       toast.success("Estancia iniciada", {
-        description: `Hab. ${selectedRoom.number} - ${roomType.name} hasta ${formatDateTime(
+        description: `Hab. ${selectedRoom.number} - ${roomType.name} (${initialPeople} persona${initialPeople > 1 ? 's' : ''}) hasta ${formatDateTime(
           expectedCheckout
-        )}`,
+        )}${extraPeopleCost > 0 ? ` - Total: $${totalPrice.toFixed(2)}` : ''}`,
       });
 
       setShowStartStayModal(false);
@@ -588,6 +773,8 @@ export function RoomsBoard() {
         isVisible={actionsDockVisible}
         actionLoading={actionLoading}
         statusBadge={selectedRoom ? renderStatusBadge(selectedRoom.status) : null}
+        hasExtraCharges={selectedRoom ? hasExtraCharges(selectedRoom) : false}
+        isHotelRoom={selectedRoom?.room_types?.is_hotel === true}
         onClose={closeActionsDock}
         onStartStay={() => {
           setShowActionsModal(false);
@@ -596,6 +783,12 @@ export function RoomsBoard() {
         onCheckout={() => {
           if (selectedRoom) {
             openCheckoutModal(selectedRoom);
+            setShowActionsModal(false);
+          }
+        }}
+        onPayExtra={() => {
+          if (selectedRoom) {
+            openPayExtraModal(selectedRoom);
             setShowActionsModal(false);
           }
         }}
@@ -609,7 +802,13 @@ export function RoomsBoard() {
           router.push(`/sales/${activeStay.sales_order_id}`);
         }}
         onAddPerson={() => {
-          if (selectedRoom) handleChangePeople(selectedRoom, 1);
+          if (selectedRoom) handleAddPerson(selectedRoom);
+        }}
+        onRemovePerson={() => {
+          if (selectedRoom) handleRemovePerson(selectedRoom);
+        }}
+        onPersonLeftReturning={() => {
+          if (selectedRoom) handlePersonLeftReturning(selectedRoom);
         }}
         onAddHour={() => {
           if (selectedRoom) handleAddExtraHour(selectedRoom);
@@ -644,6 +843,17 @@ export function RoomsBoard() {
             setShowActionsModal(false);
           }
         }}
+      />
+      <RoomPayExtraModal
+        isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
+        roomNumber={selectedRoom?.number || ""}
+        roomTypeName={selectedRoom?.room_types?.name || ""}
+        extraAmount={payExtraInfo?.extraAmount || 0}
+        payAmount={payExtraAmount}
+        actionLoading={actionLoading}
+        onAmountChange={setPayExtraAmount}
+        onClose={handleClosePayExtraModal}
+        onConfirm={handlePayExtra}
       />
       <RoomReminderAlert
         isOpen={!!reminderAlert}

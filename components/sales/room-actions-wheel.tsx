@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -11,34 +11,49 @@ export interface RoomActionsWheelProps {
   isVisible: boolean;
   actionLoading: boolean;
   statusBadge: ReactNode;
+  hasExtraCharges?: boolean; // Indica si hay cargos extra pendientes
+  isHotelRoom?: boolean; // Si es habitación de hotel/torre (sin tolerancia)
   onClose: () => void;
   onStartStay: () => void;
   onCheckout: () => void;
+  onPayExtra: () => void; // Pagar solo extras sin checkout
   onViewSale: () => void;
-  onAddPerson: () => void;
+  onAddPerson: () => void; // Entra persona nueva (siempre cobra extra si >2)
+  onRemovePerson: () => void; // Sale persona (sin tolerancia, se fue definitivamente)
+  onPersonLeftReturning: () => void; // Salió pero va a regresar (inicia tolerancia 1h, solo motel)
   onAddHour: () => void;
   onMarkClean: () => void;
   onBlock: () => void;
   onUnblock: () => void;
 }
 
-// Configuración de acciones por estado
-const ACTIONS_BY_STATUS: Record<string, Array<{
+// Tipo para las acciones
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock';
+
+interface ActionConfig {
   id: string;
   label: string;
   icon: ReactNode;
   color: string;
   hoverBg: string;
-  action: keyof Pick<RoomActionsWheelProps, 'onStartStay' | 'onCheckout' | 'onViewSale' | 'onAddPerson' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock'>;
-}>> = {
+  action: ActionKey;
+  showOnlyWithExtra?: boolean; // Solo mostrar si hay cargos extra
+  hideForHotel?: boolean; // Ocultar para habitaciones de hotel/torre
+}
+
+// Configuración de acciones por estado
+const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   LIBRE: [
     { id: "start", label: "Entrada", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onStartStay" },
     { id: "block", label: "Bloquear", icon: <Lock className="h-5 w-5" />, color: "text-amber-400", hoverBg: "hover:bg-amber-500/30", action: "onBlock" },
   ],
   OCUPADA: [
-    { id: "checkout", label: "Cobrar", icon: <DollarSign className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
+    { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
+    { id: "payextra", label: "Pagar", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "sale", label: "Venta", icon: <FileText className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onViewSale" },
-    { id: "person", label: "Persona", icon: <UserPlus className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onAddPerson" },
+    { id: "addperson", label: "+Persona", icon: <UserPlus className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onAddPerson" },
+    { id: "removeperson", label: "-Persona", icon: <UserMinus className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onRemovePerson" },
+    { id: "leftreturning", label: "Regresa", icon: <UserCheck className="h-5 w-5" />, color: "text-teal-400", hoverBg: "hover:bg-teal-500/30", action: "onPersonLeftReturning", hideForHotel: true },
     { id: "hour", label: "+Hora", icon: <Clock className="h-5 w-5" />, color: "text-pink-400", hoverBg: "hover:bg-pink-500/30", action: "onAddHour" },
   ],
   SUCIA: [
@@ -107,11 +122,16 @@ export function RoomActionsWheel({
   isVisible,
   actionLoading,
   statusBadge,
+  hasExtraCharges = false,
+  isHotelRoom = false,
   onClose,
   onStartStay,
   onCheckout,
+  onPayExtra,
   onViewSale,
   onAddPerson,
+  onRemovePerson,
+  onPersonLeftReturning,
   onAddHour,
   onMarkClean,
   onBlock,
@@ -119,7 +139,15 @@ export function RoomActionsWheel({
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
-  const actions = ACTIONS_BY_STATUS[room.status] || [];
+  // Filtrar acciones según condiciones
+  const allActions = ACTIONS_BY_STATUS[room.status] || [];
+  const actions = allActions.filter(action => {
+    // Mostrar "Pagar" solo si hay cargos extra pendientes
+    if (action.showOnlyWithExtra && !hasExtraCharges) return false;
+    // Ocultar acciones marcadas como hideForHotel si es hotel
+    if (action.hideForHotel && isHotelRoom) return false;
+    return true;
+  });
   const actionCount = actions.length;
 
   // Dimensiones del SVG
@@ -133,8 +161,11 @@ export function RoomActionsWheel({
   const callbacks: Record<string, () => void> = {
     onStartStay,
     onCheckout,
+    onPayExtra,
     onViewSale,
     onAddPerson,
+    onRemovePerson,
+    onPersonLeftReturning,
     onAddHour,
     onMarkClean,
     onBlock,
