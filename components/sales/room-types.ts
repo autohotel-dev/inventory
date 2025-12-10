@@ -76,3 +76,12 @@ export interface TimeInfo {
   remaining: string;
   minutesToCheckout?: number;
 }
+
+// Métodos de pago disponibles
+export type PaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+
+export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
+  { value: 'EFECTIVO', label: 'Efectivo', icon: '💵' },
+  { value: 'TARJETA', label: 'Tarjeta', icon: '💳' },
+  { value: 'TRANSFERENCIA', label: 'Transferencia', icon: '🏦' },
+];

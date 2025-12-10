@@ -21,6 +21,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
+
 interface Product {
   id: string;
   name: string;
@@ -65,6 +67,7 @@ interface SalesFormData {
   total: number;
   remaining_amount: number;
   paid_amount: number;
+  payment_method: PaymentMethod;
 }
 
 export function AdvancedSalesForm() {
@@ -89,7 +92,8 @@ export function AdvancedSalesForm() {
     discount_amount: 0,
     total: 0,
     remaining_amount: 0,
-    paid_amount: 0
+    paid_amount: 0,
+    payment_method: "EFECTIVO"
   });
   const [includeTax, setIncludeTax] = useState(false);
 
@@ -247,6 +251,7 @@ export function AdvancedSalesForm() {
           status: "OPEN",
           remaining_amount: formData.total,
           paid_amount: 0,
+          payment_method: formData.payment_method,
           created_by: user?.id || null
         })
         .select("id")
@@ -397,6 +402,24 @@ export function AdvancedSalesForm() {
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 placeholder="Notas adicionales sobre la venta..."
               />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>Método de Pago</Label>
+              <div className="flex gap-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <Button
+                    key={method.value}
+                    type="button"
+                    variant={formData.payment_method === method.value ? "default" : "outline"}
+                    onClick={() => setFormData(prev => ({ ...prev, payment_method: method.value }))}
+                    className="flex-1"
+                  >
+                    <span className="mr-2">{method.icon}</span>
+                    {method.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

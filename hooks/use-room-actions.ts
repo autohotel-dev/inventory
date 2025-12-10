@@ -91,7 +91,8 @@ export interface UseRoomActionsReturn {
   processCheckout: (
     room: Room,
     checkoutInfo: { salesOrderId: string; remainingAmount: number },
-    amount: number
+    amount: number,
+    paymentMethod?: string
   ) => Promise<boolean>;
 }
 
@@ -442,7 +443,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   const processCheckout = async (
     room: Room,
     checkoutInfo: { salesOrderId: string; remainingAmount: number },
-    amount: number
+    amount: number,
+    paymentMethod?: string
   ): Promise<boolean> => {
     setActionLoading(true);
     const supabase = createClient();
@@ -465,9 +467,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           .update({ status: "SUCIA" })
           .eq("id", room.id);
 
+        const updateData: Record<string, any> = { status: "ENDED" };
+        if (paymentMethod) {
+          updateData.payment_method = paymentMethod;
+        }
         await supabase
           .from("sales_orders")
-          .update({ status: "ENDED" })
+          .update(updateData)
           .eq("id", checkoutInfo.salesOrderId);
       };
 
@@ -477,6 +483,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           description: `Hab. ${room.number} → SUCIA`,
         });
       } else {
+        // Actualizar método de pago antes de procesar
+        if (paymentMethod) {
+          await supabase
+            .from("sales_orders")
+            .update({ payment_method: paymentMethod })
+            .eq("id", checkoutInfo.salesOrderId);
+        }
+
         const { data, error } = await supabase.rpc("process_payment", {
           order_id: checkoutInfo.salesOrderId,
           payment_amount: amount,

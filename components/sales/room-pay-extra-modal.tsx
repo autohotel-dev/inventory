@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CreditCard } from "lucide-react";
+import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
 
 export interface RoomPayExtraModalProps {
   isOpen: boolean;
@@ -12,7 +14,7 @@ export interface RoomPayExtraModalProps {
   actionLoading: boolean;
   onAmountChange: (amount: number) => void;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (paymentMethod: PaymentMethod) => void;
 }
 
 export function RoomPayExtraModal({
@@ -26,6 +28,15 @@ export function RoomPayExtraModal({
   onClose,
   onConfirm,
 }: RoomPayExtraModalProps) {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO');
+
+  // Reset al abrir
+  useEffect(() => {
+    if (isOpen) {
+      setPaymentMethod('EFECTIVO');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -84,6 +95,27 @@ export function RoomPayExtraModal({
               </p>
             )}
           </div>
+
+          {/* Selector de método de pago */}
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Método de pago</p>
+            <div className="flex gap-2">
+              {PAYMENT_METHODS.map((method) => (
+                <Button
+                  key={method.value}
+                  type="button"
+                  variant={paymentMethod === method.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPaymentMethod(method.value)}
+                  disabled={actionLoading}
+                  className="flex-1"
+                >
+                  <span className="mr-1">{method.icon}</span>
+                  {method.label}
+                </Button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="px-6 py-4 border-t flex justify-end gap-2">
           <Button
@@ -94,7 +126,7 @@ export function RoomPayExtraModal({
             Cancelar
           </Button>
           <Button 
-            onClick={onConfirm} 
+            onClick={() => onConfirm(paymentMethod)} 
             disabled={actionLoading || payAmount <= 0}
             className="bg-yellow-600 hover:bg-yellow-700"
           >

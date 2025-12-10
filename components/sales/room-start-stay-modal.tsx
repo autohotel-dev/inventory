@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { RoomType } from "@/components/sales/room-types";
+import { RoomType, PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
 import { Minus, Plus, Users } from "lucide-react";
 
 export interface RoomStartStayModalProps {
@@ -12,7 +12,7 @@ export interface RoomStartStayModalProps {
   expectedCheckout: Date;
   actionLoading: boolean;
   onClose: () => void;
-  onConfirm: (initialPeople: number) => void;
+  onConfirm: (initialPeople: number, paymentMethod: PaymentMethod) => void;
 }
 
 function formatDateTime(date: Date) {
@@ -35,6 +35,7 @@ export function RoomStartStayModal({
   onConfirm,
 }: RoomStartStayModalProps) {
   const [initialPeople, setInitialPeople] = useState(2);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO');
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
 
@@ -47,6 +48,7 @@ export function RoomStartStayModal({
   useEffect(() => {
     if (isOpen) {
       setInitialPeople(2);
+      setPaymentMethod('EFECTIVO');
     }
   }, [isOpen]);
 
@@ -131,6 +133,28 @@ export function RoomStartStayModal({
               {formatDateTime(expectedCheckout)}
             </p>
           </div>
+
+          {/* Selector de método de pago */}
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Método de pago</p>
+            <div className="flex gap-2">
+              {PAYMENT_METHODS.map((method) => (
+                <Button
+                  key={method.value}
+                  type="button"
+                  variant={paymentMethod === method.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPaymentMethod(method.value)}
+                  disabled={actionLoading}
+                  className="flex-1"
+                >
+                  <span className="mr-1">{method.icon}</span>
+                  {method.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           <p className="text-xs text-muted-foreground">
             Se creará una orden de venta en estado "Abierta" vinculada a esta habitación.
           </p>
@@ -143,7 +167,7 @@ export function RoomStartStayModal({
           >
             Cancelar
           </Button>
-          <Button onClick={() => onConfirm(initialPeople)} disabled={actionLoading}>
+          <Button onClick={() => onConfirm(initialPeople, paymentMethod)} disabled={actionLoading}>
             {actionLoading ? "Iniciando..." : "Iniciar estancia"}
           </Button>
         </div>

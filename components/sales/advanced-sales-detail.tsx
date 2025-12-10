@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Customer } from "@/lib/types/inventory";
 import { AddProductModal } from "@/components/sales/add-product-modal";
+import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
 
 interface SalesOrderDetail {
   id: string;
@@ -56,6 +57,7 @@ interface SalesOrderItem {
   qty: number;
   unit_price: number;
   total: number;
+  payment_method?: string | null;
   products: { name: string; sku: string } | null;
 }
 
@@ -86,6 +88,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   });
 
   const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
 
   useEffect(() => {
     fetchOrderDetail();
@@ -116,6 +119,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const resetPaymentForm = () => {
     setShowPaymentModal(false);
     setPaymentAmount("");
+    setPaymentMethod("EFECTIVO");
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -130,6 +134,13 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
     try {
       const supabase = createClient();
+      
+      // Actualizar método de pago en la orden
+      await supabase
+        .from("sales_orders")
+        .update({ payment_method: paymentMethod })
+        .eq("id", orderId);
+
       const { data, error } = await supabase
         .rpc("process_payment", {
           order_id: orderId,
@@ -145,7 +156,9 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       const result = data[0] as any;
 
       if (result.success === true) {
-        toast.success('Pago creado exitosamente');
+        toast.success('Pago creado exitosamente', {
+          description: `${amount.toFixed(2)} MXN - ${paymentMethod}`
+        });
         fetchOrderDetail();
         resetPaymentForm();
       } else {
@@ -217,6 +230,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           qty,
           unit_price,
           total,
+          payment_method,
           products:product_id(name, sku)
         `)
         .eq("sales_order_id", orderId);
@@ -409,18 +423,19 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     }
   };
 
-  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number }[]) => {
+  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number; payment_method: PaymentMethod }[]) => {
     if (!order || items.length === 0) return;
 
     const supabase = createClient();
 
     try {
-      // Insertar todos los productos
+      // Insertar todos los productos con su método de pago
       const insertData = items.map(item => ({
         sales_order_id: orderId,
         product_id: item.product.id,
         qty: item.quantity,
-        unit_price: item.unit_price
+        unit_price: item.unit_price,
+        payment_method: item.payment_method
       }));
 
       const { error } = await supabase
@@ -439,8 +454,9 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       setShowAddProduct(false);
 
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+      const paymentMethods = [...new Set(items.map(i => i.payment_method))].join(', ');
       toast.success(`${totalItems} producto(s) agregado(s)`, {
-        description: `Se agregaron ${items.length} línea(s) a la orden`
+        description: `Se agregaron ${items.length} línea(s) - Pago: ${paymentMethods}`
       });
 
     } catch (error) {
@@ -765,6 +781,15 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                       <p className="font-semibold text-emerald-600">{formatCurrency(item.total, order.currency)}</p>
                       <p className="text-[10px] text-muted-foreground">Total</p>
                     </div>
+                    <div className="text-center hidden sm:block min-w-[80px]">
+                      <p className="font-medium text-xs">
+                        {item.payment_method === 'EFECTIVO' && '💵'}
+                        {item.payment_method === 'TARJETA' && '💳'}
+                        {item.payment_method === 'TRANSFERENCIA' && '🏦'}
+                        {!item.payment_method && '—'}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{item.payment_method || 'Sin pago'}</p>
+                    </div>
                     {order.status === 'OPEN' && (
                       <Button
                         variant="ghost"
@@ -841,6 +866,25 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                       className="h-10 text-lg font-medium"
                       placeholder="0.00"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Método de Pago</Label>
+                    <div className="flex gap-2">
+                      {PAYMENT_METHODS.map((method) => (
+                        <Button
+                          key={method.value}
+                          type="button"
+                          variant={paymentMethod === method.value ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setPaymentMethod(method.value)}
+                          className="flex-1"
+                        >
+                          <span className="mr-1">{method.icon}</span>
+                          {method.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

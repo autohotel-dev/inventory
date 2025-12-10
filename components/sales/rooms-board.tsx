@@ -20,6 +20,7 @@ import {
   STATUS_CONFIG,
   ROOM_STATUS_BG,
   ROOM_STATUS_ACCENT,
+  PaymentMethod,
 } from "@/components/sales/room-types";
 import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
 import { toast } from "sonner";
@@ -116,9 +117,9 @@ export function RoomsBoard() {
   };
 
   // Procesar checkout usando el hook
-  const handleCheckout = async () => {
+  const handleCheckout = async (paymentMethod: PaymentMethod) => {
     if (!checkoutInfo || !selectedRoom) return;
-    const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount);
+    const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount, paymentMethod);
     if (success) {
       setShowCheckoutModal(false);
       setSelectedRoom(null);
@@ -155,7 +156,7 @@ export function RoomsBoard() {
   };
 
   // Procesar pago de extras (sin checkout)
-  const handlePayExtra = async () => {
+  const handlePayExtra = async (paymentMethod: PaymentMethod) => {
     if (!payExtraInfo || !selectedRoom || payExtraAmount <= 0) return;
     
     const supabase = createClient();
@@ -173,7 +174,7 @@ export function RoomsBoard() {
         return;
       }
 
-      // Actualizar montos pagados
+      // Actualizar montos pagados y método de pago
       const newPaidAmount = (order.paid_amount || 0) + payExtraAmount;
       const newRemainingAmount = Math.max(0, (order.remaining_amount || 0) - payExtraAmount);
 
@@ -182,6 +183,7 @@ export function RoomsBoard() {
         .update({
           paid_amount: newPaidAmount,
           remaining_amount: newRemainingAmount,
+          payment_method: paymentMethod,
         })
         .eq("id", payExtraInfo.salesOrderId);
 
@@ -191,7 +193,7 @@ export function RoomsBoard() {
       }
 
       toast.success("Pago registrado", {
-        description: `Se pagaron $${payExtraAmount.toFixed(2)} MXN de extras. La habitación sigue ocupada.`,
+        description: `Se pagaron $${payExtraAmount.toFixed(2)} MXN (${paymentMethod}) de extras. La habitación sigue ocupada.`,
       });
 
       setShowPayExtraModal(false);
@@ -455,7 +457,7 @@ export function RoomsBoard() {
     setSelectedRoom(null);
   };
 
-  const handleStartStay = async (initialPeople: number) => {
+  const handleStartStay = async (initialPeople: number, paymentMethod: PaymentMethod) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
     setStartStayLoading(true);
@@ -503,13 +505,14 @@ export function RoomsBoard() {
           customer_id: null,
           warehouse_id: defaultWarehouse.id,
           currency: "MXN",
-          notes: `Estancia ${roomType.name} Hab. ${selectedRoom.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ''}`,
+          notes: `Estancia ${roomType.name} Hab. ${selectedRoom.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ''} - Pago: ${paymentMethod}`,
           subtotal: totalPrice,
           tax: 0,
           total: totalPrice,
           status: "OPEN",
           remaining_amount: 0,
           paid_amount: totalPrice,
+          payment_method: paymentMethod,
           created_by: user?.id ?? null,
         })
         .select("id")

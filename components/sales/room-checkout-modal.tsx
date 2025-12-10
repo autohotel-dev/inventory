@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
 
 export interface RoomCheckoutModalProps {
   isOpen: boolean;
@@ -11,7 +13,7 @@ export interface RoomCheckoutModalProps {
   actionLoading: boolean;
   onAmountChange: (amount: number) => void;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (paymentMethod: PaymentMethod) => void;
 }
 
 export function RoomCheckoutModal({
@@ -25,6 +27,15 @@ export function RoomCheckoutModal({
   onClose,
   onConfirm,
 }: RoomCheckoutModalProps) {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO');
+
+  // Reset al abrir
+  useEffect(() => {
+    if (isOpen) {
+      setPaymentMethod('EFECTIVO');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -55,20 +66,43 @@ export function RoomCheckoutModal({
             </p>
           </div>
           {remainingAmount > 0 && (
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Monto a cobrar ahora</p>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={checkoutAmount}
-                onChange={(e) => onAmountChange(parseFloat(e.target.value) || 0)}
-                className="w-full border rounded px-3 py-2 bg-background"
-              />
-              <p className="text-xs text-muted-foreground">
-                Deja el monto igual al saldo pendiente para hacer el check-out completo.
-              </p>
-            </div>
+            <>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Monto a cobrar ahora</p>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={checkoutAmount}
+                  onChange={(e) => onAmountChange(parseFloat(e.target.value) || 0)}
+                  className="w-full border rounded px-3 py-2 bg-background"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Deja el monto igual al saldo pendiente para hacer el check-out completo.
+                </p>
+              </div>
+
+              {/* Selector de método de pago */}
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Método de pago</p>
+                <div className="flex gap-2">
+                  {PAYMENT_METHODS.map((method) => (
+                    <Button
+                      key={method.value}
+                      type="button"
+                      variant={paymentMethod === method.value ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPaymentMethod(method.value)}
+                      disabled={actionLoading}
+                      className="flex-1"
+                    >
+                      <span className="mr-1">{method.icon}</span>
+                      {method.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
         <div className="px-6 py-4 border-t flex justify-end gap-2">
@@ -79,7 +113,7 @@ export function RoomCheckoutModal({
           >
             Cancelar
           </Button>
-          <Button onClick={onConfirm} disabled={actionLoading}>
+          <Button onClick={() => onConfirm(paymentMethod)} disabled={actionLoading}>
             {actionLoading
               ? "Procesando..."
               : remainingAmount <= 0

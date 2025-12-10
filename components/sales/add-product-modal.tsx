@@ -18,6 +18,7 @@ import {
   Check,
   Scan
 } from "lucide-react";
+import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
 
 interface Product {
   id: string;
@@ -30,6 +31,7 @@ interface CartItem {
   product: Product;
   quantity: number;
   unit_price: number;
+  payment_method: PaymentMethod;
 }
 
 interface AddProductModalProps {
@@ -53,6 +55,7 @@ export function AddProductModal({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scanBuffer = useRef<string>("");
   const scanTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -71,6 +74,7 @@ export function AddProductModal({
       setCart([]);
       setSearchTerm("");
       setLastScanned(null);
+      setSelectedPaymentMethod("EFECTIVO");
     }
   }, [isOpen]);
 
@@ -122,29 +126,29 @@ export function AddProductModal({
   // Agregar producto al carrito
   const addToCart = (product: Product) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find((item) => item.product.id === product.id && item.payment_method === selectedPaymentMethod);
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.product.id === product.id && item.payment_method === selectedPaymentMethod
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
       return [
         ...prev,
-        { product, quantity: 1, unit_price: product.price || 0 },
+        { product, quantity: 1, unit_price: product.price || 0, payment_method: selectedPaymentMethod },
       ];
     });
     setSearchTerm("");
     searchInputRef.current?.focus();
   };
 
-  // Actualizar cantidad
-  const updateQuantity = (productId: string, delta: number) => {
+  // Actualizar cantidad (usando índice para identificar item único)
+  const updateQuantity = (index: number, delta: number) => {
     setCart((prev) =>
       prev
-        .map((item) =>
-          item.product.id === productId
+        .map((item, i) =>
+          i === index
             ? { ...item, quantity: Math.max(0, item.quantity + delta) }
             : item
         )
@@ -152,9 +156,9 @@ export function AddProductModal({
     );
   };
 
-  // Eliminar del carrito
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  // Eliminar del carrito (usando índice)
+  const removeFromCart = (index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Calcular total del carrito
@@ -223,6 +227,26 @@ export function AddProductModal({
 
           {/* Búsqueda / Escaneo */}
           <div className="p-4 border-b border-neutral-800 bg-neutral-900/50 space-y-3">
+            {/* Selector de método de pago */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-neutral-400">Método de Pago</Label>
+              <div className="flex gap-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <Button
+                    key={method.value}
+                    type="button"
+                    variant={selectedPaymentMethod === method.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedPaymentMethod(method.value)}
+                    className={`flex-1 ${selectedPaymentMethod === method.value ? 'bg-blue-600 hover:bg-blue-500' : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+                  >
+                    <span className="mr-1">{method.icon}</span>
+                    {method.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             {/* Input de escaneo */}
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 bg-violet-500/10 rounded-lg border border-violet-500/20">
@@ -321,7 +345,7 @@ export function AddProductModal({
                   Productos en carrito ({cart.length})
                 </Label>
                 {cart.map((item, index) => (
-                  <Card key={item.product.id} className="overflow-hidden border-neutral-800 bg-neutral-900">
+                  <Card key={`${item.product.id}-${item.payment_method}-${index}`} className="overflow-hidden border-neutral-800 bg-neutral-900">
                     <CardContent className="p-0">
                       <div className="flex items-center gap-3 p-3">
                         {/* Número de línea */}
@@ -338,6 +362,8 @@ export function AddProductModal({
                             <span className="font-mono">{item.product.sku}</span>
                             <span>•</span>
                             <span>{formatCurrency(item.unit_price, currency)} c/u</span>
+                            <span>•</span>
+                            <span className="text-blue-400">{PAYMENT_METHODS.find(m => m.value === item.payment_method)?.icon} {item.payment_method}</span>
                           </div>
                         </div>
 
@@ -347,7 +373,7 @@ export function AddProductModal({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700"
-                            onClick={() => updateQuantity(item.product.id, -1)}
+                            onClick={() => updateQuantity(index, -1)}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
@@ -358,7 +384,7 @@ export function AddProductModal({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700"
-                            onClick={() => updateQuantity(item.product.id, 1)}
+                            onClick={() => updateQuantity(index, 1)}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
@@ -376,7 +402,7 @@ export function AddProductModal({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                          onClick={() => removeFromCart(item.product.id)}
+                          onClick={() => removeFromCart(index)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
