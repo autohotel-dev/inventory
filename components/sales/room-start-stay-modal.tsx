@@ -2,8 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { RoomType, PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
-import { Minus, Plus, Users } from "lucide-react";
+import { RoomType } from "@/components/sales/room-types";
+import { Minus, Plus, Users, Car } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
+
+export interface VehicleInfo {
+  plate: string;
+  brand: string;
+  model: string;
+}
 
 export interface RoomStartStayModalProps {
   isOpen: boolean;
@@ -12,7 +20,7 @@ export interface RoomStartStayModalProps {
   expectedCheckout: Date;
   actionLoading: boolean;
   onClose: () => void;
-  onConfirm: (initialPeople: number, paymentMethod: PaymentMethod) => void;
+  onConfirm: (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => void;
 }
 
 function formatDateTime(date: Date) {
@@ -35,7 +43,8 @@ export function RoomStartStayModal({
   onConfirm,
 }: RoomStartStayModalProps) {
   const [initialPeople, setInitialPeople] = useState(2);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO');
+  const [payments, setPayments] = useState<PaymentEntry[]>([]);
+  const [vehicle, setVehicle] = useState<VehicleInfo>({ plate: "", brand: "", model: "" });
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
 
@@ -44,20 +53,31 @@ export function RoomStartStayModal({
   const extraPeopleCost = extraPeopleCount * extraPersonPrice;
   const totalPrice = (roomType?.base_price ?? 0) + extraPeopleCost;
 
-  // Reset al abrir
+  // Reset al abrir y actualizar pagos cuando cambia el total
   useEffect(() => {
     if (isOpen) {
       setInitialPeople(2);
-      setPaymentMethod('EFECTIVO');
+      setPayments(createInitialPayment(roomType?.base_price ?? 0));
+      setVehicle({ plate: "", brand: "", model: "" });
     }
   }, [isOpen]);
+
+  // Actualizar monto de pago cuando cambia el total
+  useEffect(() => {
+    if (isOpen && payments.length > 0) {
+      const currentTotal = payments.reduce((s, p) => s + p.amount, 0);
+      if (currentTotal !== totalPrice && payments.length === 1) {
+        setPayments(createInitialPayment(totalPrice));
+      }
+    }
+  }, [totalPrice]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4">
-        <div className="px-6 py-4 border-b flex items-center justify-between">
+      <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
+        <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
           <h2 className="text-lg font-semibold">Iniciar estancia</h2>
           <Button
             variant="ghost"
@@ -68,7 +88,7 @@ export function RoomStartStayModal({
             ✕
           </Button>
         </div>
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Habitación</p>
             <p className="text-base font-semibold">
@@ -134,32 +154,49 @@ export function RoomStartStayModal({
             </p>
           </div>
 
-          {/* Selector de método de pago */}
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Método de pago</p>
-            <div className="flex gap-2">
-              {PAYMENT_METHODS.map((method) => (
-                <Button
-                  key={method.value}
-                  type="button"
-                  variant={paymentMethod === method.value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setPaymentMethod(method.value)}
+          {/* Información del vehículo */}
+          <div className="space-y-3 pt-2 border-t">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Car className="h-4 w-4" />
+              Datos del vehículo (opcional)
+            </p>
+            <div className="grid grid-cols-1 gap-3">
+              <Input
+                placeholder="Placas (ej: ABC-123)"
+                value={vehicle.plate}
+                onChange={(e) => setVehicle({ ...vehicle, plate: e.target.value.toUpperCase() })}
+                disabled={actionLoading}
+                className="uppercase"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Marca (ej: Toyota)"
+                  value={vehicle.brand}
+                  onChange={(e) => setVehicle({ ...vehicle, brand: e.target.value })}
                   disabled={actionLoading}
-                  className="flex-1"
-                >
-                  <span className="mr-1">{method.icon}</span>
-                  {method.label}
-                </Button>
-              ))}
+                />
+                <Input
+                  placeholder="Modelo (ej: Corolla)"
+                  value={vehicle.model}
+                  onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
+                  disabled={actionLoading}
+                />
+              </div>
             </div>
           </div>
+
+          <MultiPaymentInput
+            totalAmount={totalPrice}
+            payments={payments}
+            onPaymentsChange={setPayments}
+            disabled={actionLoading}
+          />
 
           <p className="text-xs text-muted-foreground">
             Se creará una orden de venta en estado "Abierta" vinculada a esta habitación.
           </p>
         </div>
-        <div className="px-6 py-4 border-t flex justify-end gap-2">
+        <div className="px-6 py-4 border-t flex justify-end gap-2 flex-shrink-0">
           <Button
             variant="outline"
             onClick={onClose}
@@ -167,7 +204,7 @@ export function RoomStartStayModal({
           >
             Cancelar
           </Button>
-          <Button onClick={() => onConfirm(initialPeople, paymentMethod)} disabled={actionLoading}>
+          <Button onClick={() => onConfirm(initialPeople, payments, vehicle)} disabled={actionLoading}>
             {actionLoading ? "Iniciando..." : "Iniciar estancia"}
           </Button>
         </div>

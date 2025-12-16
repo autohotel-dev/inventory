@@ -18,7 +18,8 @@ import {
   Check,
   Scan
 } from "lucide-react";
-import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
+import { PAYMENT_METHODS } from "@/components/sales/room-types";
+import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 
 interface Product {
   id: string;
@@ -31,7 +32,7 @@ interface CartItem {
   product: Product;
   quantity: number;
   unit_price: number;
-  payment_method: PaymentMethod;
+  payments: PaymentEntry[];
 }
 
 interface AddProductModalProps {
@@ -55,7 +56,7 @@ export function AddProductModal({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
+  const [expandedItem, setExpandedItem] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scanBuffer = useRef<string>("");
   const scanTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -74,7 +75,7 @@ export function AddProductModal({
       setCart([]);
       setSearchTerm("");
       setLastScanned(null);
-      setSelectedPaymentMethod("EFECTIVO");
+      setExpandedItem(null);
     }
   }, [isOpen]);
 
@@ -125,33 +126,52 @@ export function AddProductModal({
 
   // Agregar producto al carrito
   const addToCart = (product: Product) => {
+    const itemPrice = product.price || 0;
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id && item.payment_method === selectedPaymentMethod);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id && item.payment_method === selectedPaymentMethod
-            ? { ...item, quantity: item.quantity + 1 }
+      const existingIndex = prev.findIndex((item) => item.product.id === product.id);
+      if (existingIndex >= 0) {
+        return prev.map((item, i) =>
+          i === existingIndex
+            ? { 
+                ...item, 
+                quantity: item.quantity + 1,
+                payments: createInitialPayment((item.quantity + 1) * item.unit_price)
+              }
             : item
         );
       }
       return [
         ...prev,
-        { product, quantity: 1, unit_price: product.price || 0, payment_method: selectedPaymentMethod },
+        { product, quantity: 1, unit_price: itemPrice, payments: createInitialPayment(itemPrice) },
       ];
     });
     setSearchTerm("");
     searchInputRef.current?.focus();
   };
 
+  // Actualizar pagos de un item
+  const updateItemPayments = (index: number, payments: PaymentEntry[]) => {
+    setCart((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, payments } : item
+      )
+    );
+  };
+
   // Actualizar cantidad (usando índice para identificar item único)
   const updateQuantity = (index: number, delta: number) => {
     setCart((prev) =>
       prev
-        .map((item, i) =>
-          i === index
-            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-            : item
-        )
+        .map((item, i) => {
+          if (i !== index) return item;
+          const newQty = Math.max(0, item.quantity + delta);
+          const newTotal = newQty * item.unit_price;
+          return { 
+            ...item, 
+            quantity: newQty,
+            payments: createInitialPayment(newTotal)
+          };
+        })
         .filter((item) => item.quantity > 0)
     );
   };
@@ -227,26 +247,6 @@ export function AddProductModal({
 
           {/* Búsqueda / Escaneo */}
           <div className="p-4 border-b border-neutral-800 bg-neutral-900/50 space-y-3">
-            {/* Selector de método de pago */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-neutral-400">Método de Pago</Label>
-              <div className="flex gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <Button
-                    key={method.value}
-                    type="button"
-                    variant={selectedPaymentMethod === method.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedPaymentMethod(method.value)}
-                    className={`flex-1 ${selectedPaymentMethod === method.value ? 'bg-blue-600 hover:bg-blue-500' : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
-                  >
-                    <span className="mr-1">{method.icon}</span>
-                    {method.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
             {/* Input de escaneo */}
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 bg-violet-500/10 rounded-lg border border-violet-500/20">
@@ -345,7 +345,7 @@ export function AddProductModal({
                   Productos en carrito ({cart.length})
                 </Label>
                 {cart.map((item, index) => (
-                  <Card key={`${item.product.id}-${item.payment_method}-${index}`} className="overflow-hidden border-neutral-800 bg-neutral-900">
+                  <Card key={`${item.product.id}-${index}`} className="overflow-hidden border-neutral-800 bg-neutral-900">
                     <CardContent className="p-0">
                       <div className="flex items-center gap-3 p-3">
                         {/* Número de línea */}
@@ -362,8 +362,6 @@ export function AddProductModal({
                             <span className="font-mono">{item.product.sku}</span>
                             <span>•</span>
                             <span>{formatCurrency(item.unit_price, currency)} c/u</span>
-                            <span>•</span>
-                            <span className="text-blue-400">{PAYMENT_METHODS.find(m => m.value === item.payment_method)?.icon} {item.payment_method}</span>
                           </div>
                         </div>
 
@@ -397,6 +395,16 @@ export function AddProductModal({
                           </p>
                         </div>
 
+                        {/* Expandir/Colapsar pagos */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                          onClick={() => setExpandedItem(expandedItem === index ? null : index)}
+                        >
+                          {expandedItem === index ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        </Button>
+
                         {/* Eliminar */}
                         <Button
                           variant="ghost"
@@ -407,6 +415,18 @@ export function AddProductModal({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+
+                      {/* Panel de multipagos expandible */}
+                      {expandedItem === index && (
+                        <div className="p-3 border-t border-neutral-800 bg-neutral-950">
+                          <MultiPaymentInput
+                            totalAmount={item.quantity * item.unit_price}
+                            payments={item.payments}
+                            onPaymentsChange={(payments) => updateItemPayments(index, payments)}
+                            showReference={true}
+                          />
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

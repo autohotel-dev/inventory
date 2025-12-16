@@ -1,9 +1,11 @@
-import { AdvancedCustomersTable } from "@/components/customers/advanced-customers-table";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { AdvancedCustomersTable } from "@/components/customers/advanced-customers-table";
+import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function CustomersPage() {
   return (
+    <RoleGuard requireAdmin>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -16,5 +18,6 @@ export default function CustomersPage() {
 
       <AdvancedCustomersTable />
     </div>
+    </RoleGuard>
   );
 }

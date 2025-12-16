@@ -77,11 +77,18 @@ export interface TimeInfo {
   minutesToCheckout?: number;
 }
 
-// Métodos de pago disponibles
-export type PaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+// Métodos de pago disponibles (sin transferencia)
+export type PaymentMethod = 'EFECTIVO' | 'TARJETA';
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
   { value: 'EFECTIVO', label: 'Efectivo', icon: '💵' },
   { value: 'TARJETA', label: 'Tarjeta', icon: '💳' },
-  { value: 'TRANSFERENCIA', label: 'Transferencia', icon: '🏦' },
+];
+
+// Terminales de pago para tarjetas
+export type PaymentTerminal = 'BBVA' | 'GETNET';
+
+export const PAYMENT_TERMINALS: { value: PaymentTerminal; label: string; color: string }[] = [
+  { value: 'BBVA', label: 'BBVA', color: 'bg-blue-600' },
+  { value: 'GETNET', label: 'GETNET', color: 'bg-red-600' },
 ];

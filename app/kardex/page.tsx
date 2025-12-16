@@ -1,9 +1,11 @@
-import { AdvancedKardexView } from "@/components/kardex/advanced-kardex-view";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { AdvancedKardexView } from "@/components/kardex/advanced-kardex-view";
+import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function KardexPage() {
   return (
+    <RoleGuard requireAdmin>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -16,5 +18,6 @@ export default function KardexPage() {
 
       <AdvancedKardexView />
     </div>
+    </RoleGuard>
   );
 }

@@ -4,6 +4,14 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
+import { PaymentEntry } from "@/components/sales/multi-payment-input";
+
+// Generar referencia única para pagos
+function generatePaymentReference(prefix: string = "PAY"): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
 
 // Helper para obtener la estancia activa
 export function getActiveStay(room: Room): RoomStay | null {
@@ -39,7 +47,7 @@ async function updateSalesOrderTotals(
 ): Promise<{ success: boolean; newRemaining?: number }> {
   const { data: orderData, error: orderError } = await supabase
     .from("sales_orders")
-    .select("subtotal, tax, paid_amount")
+    .select("subtotal, tax, paid_amount, remaining_amount")
     .eq("id", salesOrderId)
     .single();
 
@@ -51,10 +59,12 @@ async function updateSalesOrderTotals(
   const subtotal = Number(orderData.subtotal) || 0;
   const tax = Number(orderData.tax) || 0;
   const paidAmount = Number(orderData.paid_amount) || 0;
+  const currentRemaining = Number(orderData.remaining_amount) || 0;
 
   const newSubtotal = subtotal + additionalAmount;
   const newTotal = newSubtotal + tax;
-  const newRemaining = Math.max(newTotal - paidAmount, 0);
+  // El remaining debe ser el actual + el cargo adicional (no recalcular desde paid_amount)
+  const newRemaining = currentRemaining + additionalAmount;
 
   const { error: updateError } = await supabase
     .from("sales_orders")
@@ -92,7 +102,7 @@ export interface UseRoomActionsReturn {
     room: Room,
     checkoutInfo: { salesOrderId: string; remainingAmount: number },
     amount: number,
-    paymentMethod?: string
+    payments?: PaymentEntry[]
   ) => Promise<boolean>;
 }
 
@@ -142,16 +152,40 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             const basePrice = room.room_types.base_price ?? 0;
             if (basePrice > 0) {
               await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
+              
+              // Registrar cargo por tolerancia expirada (habitación vacía)
+              await supabase.from("payments").insert({
+                sales_order_id: activeStay.sales_order_id,
+                amount: basePrice,
+                payment_method: "PENDIENTE",
+                reference: generatePaymentReference("TOL"),
+                concept: "TOLERANCIA_EXPIRADA",
+                status: "PENDIENTE",
+                payment_type: "COMPLETO",
+              });
+
               toast.warning("Tolerancia expirada - Habitación cobrada", {
-                description: `Hab. ${room.number}: +$${basePrice.toFixed(2)} MXN`,
+                description: `Hab. ${room.number}: +$${basePrice.toFixed(2)} MXN (pendiente)`,
               });
             }
           } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
             const extraPrice = room.room_types.extra_person_price ?? 0;
             if (extraPrice > 0) {
               await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
+              
+              // Registrar cargo por persona extra (tolerancia expirada)
+              await supabase.from("payments").insert({
+                sales_order_id: activeStay.sales_order_id,
+                amount: extraPrice,
+                payment_method: "PENDIENTE",
+                reference: generatePaymentReference("PEX"),
+                concept: "PERSONA_EXTRA",
+                status: "PENDIENTE",
+                payment_type: "COMPLETO",
+              });
+
               toast.warning("Tolerancia expirada - Persona extra cobrada", {
-                description: `Hab. ${room.number}: +$${extraPrice.toFixed(2)} MXN`,
+                description: `Hab. ${room.number}: +$${extraPrice.toFixed(2)} MXN (pendiente)`,
               });
             }
           }
@@ -192,9 +226,26 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         if (shouldChargeExtra) {
           const extraPrice = room.room_types.extra_person_price ?? 0;
           if (extraPrice > 0) {
-            await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
+            const updateResult = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
+            console.log("updateSalesOrderTotals result:", updateResult);
+            
+            // Registrar el cargo como pago pendiente con concepto PERSONA_EXTRA
+            const { error: paymentError } = await supabase.from("payments").insert({
+              sales_order_id: activeStay.sales_order_id,
+              amount: extraPrice,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("PEX"),
+              concept: "PERSONA_EXTRA",
+              status: "PENDIENTE",
+              payment_type: "COMPLETO",
+            });
+            
+            if (paymentError) {
+              console.error("Error inserting pending payment:", paymentError);
+            }
+
             toast.success("Persona extra registrada", {
-              description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +$${extraPrice.toFixed(2)} MXN`,
+              description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +$${extraPrice.toFixed(2)} MXN (pendiente)`,
             });
           } else {
             toast.warning("No se configuró precio de persona extra");
@@ -339,8 +390,19 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraHourPrice);
 
       if (result.success) {
+        // Registrar el cargo pendiente con concepto HORA_EXTRA
+        await supabase.from("payments").insert({
+          sales_order_id: activeStay.sales_order_id,
+          amount: extraHourPrice,
+          payment_method: "PENDIENTE",
+          reference: generatePaymentReference("HEX"),
+          concept: "HORA_EXTRA",
+          status: "PENDIENTE",
+          payment_type: "COMPLETO",
+        });
+
         toast.success("Hora extra agregada", {
-          description: `Hab. ${room.number}: +${extraHourPrice.toFixed(2)} MXN`,
+          description: `Hab. ${room.number}: +$${extraHourPrice.toFixed(2)} MXN (pendiente de pago)`,
         });
         await onRefresh();
       } else {
@@ -444,10 +506,11 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     room: Room,
     checkoutInfo: { salesOrderId: string; remainingAmount: number },
     amount: number,
-    paymentMethod?: string
+    payments?: PaymentEntry[]
   ): Promise<boolean> => {
     setActionLoading(true);
     const supabase = createClient();
+    const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
     try {
       const finalizeStay = async () => {
@@ -467,33 +530,89 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           .update({ status: "SUCIA" })
           .eq("id", room.id);
 
-        const updateData: Record<string, any> = { status: "ENDED" };
-        if (paymentMethod) {
-          updateData.payment_method = paymentMethod;
-        }
         await supabase
           .from("sales_orders")
-          .update(updateData)
+          .update({ status: "ENDED" })
           .eq("id", checkoutInfo.salesOrderId);
       };
 
-      if (checkoutInfo.remainingAmount <= 0 || amount <= 0) {
+      // Insertar pagos en la tabla payments
+      if (payments && payments.length > 0) {
+        const validPayments = payments.filter(p => p.amount > 0);
+        const isMultipago = validPayments.length > 1;
+
+        if (isMultipago) {
+          // MULTIPAGO: Crear cargo principal + subpagos
+          const { data: mainPayment, error: mainError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: checkoutInfo.salesOrderId,
+              amount: totalPaid,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("CHK"),
+              concept: "CHECKOUT",
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+            })
+            .select("id")
+            .single();
+
+          if (mainError) {
+            console.error("Error inserting main payment:", mainError);
+          } else if (mainPayment) {
+            const subpayments = validPayments.map(p => ({
+              sales_order_id: checkoutInfo.salesOrderId,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("SUB"),
+              concept: "CHECKOUT",
+              status: "PAGADO",
+              payment_type: "PARCIAL",
+              parent_payment_id: mainPayment.id,
+              // Agregar terminal si es pago con tarjeta
+              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+            }));
+
+            const { error: subError } = await supabase
+              .from("payments")
+              .insert(subpayments);
+
+            if (subError) {
+              console.error("Error inserting subpayments:", subError);
+            }
+          }
+        } else if (validPayments.length === 1) {
+          // PAGO ÚNICO
+          const p = validPayments[0];
+          const { error: paymentsError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: checkoutInfo.salesOrderId,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("CHK"),
+              concept: "CHECKOUT",
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+              // Agregar terminal si es pago con tarjeta
+              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+            });
+
+          if (paymentsError) {
+            console.error("Error inserting payment:", paymentsError);
+          }
+        }
+      }
+
+      if (checkoutInfo.remainingAmount <= 0 || totalPaid <= 0) {
         await finalizeStay();
         toast.success("Check-out completado", {
           description: `Hab. ${room.number} → SUCIA`,
         });
       } else {
-        // Actualizar método de pago antes de procesar
-        if (paymentMethod) {
-          await supabase
-            .from("sales_orders")
-            .update({ payment_method: paymentMethod })
-            .eq("id", checkoutInfo.salesOrderId);
-        }
-
         const { data, error } = await supabase.rpc("process_payment", {
           order_id: checkoutInfo.salesOrderId,
-          payment_amount: amount,
+          payment_amount: totalPaid,
         });
 
         if (error) {
@@ -522,8 +641,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             description: `Hab. ${room.number} → SUCIA`,
           });
         } else {
+          const methodsSummary = payments?.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ') || '';
           toast.success("Pago registrado", {
-            description: `Saldo restante: ${remaining.toFixed(2)} MXN`,
+            description: `Pagado: $${totalPaid.toFixed(2)} (${methodsSummary}). Saldo: $${remaining.toFixed(2)}`,
           });
         }
       }

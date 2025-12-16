@@ -22,6 +22,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
+import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
+
+// Generar referencia única para pagos
+function generatePaymentReference(prefix: string = "PAY"): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
 
 interface Product {
   id: string;
@@ -96,6 +104,7 @@ export function AdvancedSalesForm() {
     payment_method: "EFECTIVO"
   });
   const [includeTax, setIncludeTax] = useState(false);
+  const [payments, setPayments] = useState<PaymentEntry[]>([]);
 
   useEffect(() => {
     fetchInitialData();
@@ -237,6 +246,10 @@ export function AdvancedSalesForm() {
       // Obtener el usuario actual
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Calcular total pagado de los multipagos
+      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+      const remainingAmount = Math.max(0, formData.total - totalPaid);
+
       // Crear la orden de venta
       const { data: salesOrder, error: orderError } = await supabase
         .from("sales_orders")
@@ -249,15 +262,82 @@ export function AdvancedSalesForm() {
           tax: formData.tax_amount,
           total: formData.total,
           status: "OPEN",
-          remaining_amount: formData.total,
-          paid_amount: 0,
-          payment_method: formData.payment_method,
+          remaining_amount: remainingAmount,
+          paid_amount: totalPaid,
           created_by: user?.id || null
         })
         .select("id")
         .single();
 
       if (orderError) throw orderError;
+
+      // Insertar pagos en la tabla payments
+      if (payments.length > 0) {
+        const validPayments = payments.filter(p => p.amount > 0);
+        const isMultipago = validPayments.length > 1;
+        const totalPaidAmount = validPayments.reduce((sum, p) => sum + p.amount, 0);
+
+        if (isMultipago) {
+          // MULTIPAGO: Crear cargo principal + subpagos
+          const { data: mainPayment, error: mainError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: salesOrder.id,
+              amount: totalPaidAmount,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("VTA"),
+              concept: "VENTA",
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+              created_by: user?.id || null,
+            })
+            .select("id")
+            .single();
+
+          if (mainError) {
+            console.error("Error inserting main payment:", mainError);
+          } else if (mainPayment) {
+            const subpayments = validPayments.map(p => ({
+              sales_order_id: salesOrder.id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("SUB"),
+              concept: "VENTA",
+              status: "PAGADO",
+              payment_type: "PARCIAL",
+              parent_payment_id: mainPayment.id,
+              created_by: user?.id || null,
+            }));
+
+            const { error: subError } = await supabase
+              .from("payments")
+              .insert(subpayments);
+
+            if (subError) {
+              console.error("Error inserting subpayments:", subError);
+            }
+          }
+        } else if (validPayments.length === 1) {
+          // PAGO ÚNICO
+          const p = validPayments[0];
+          const { error: paymentsError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: salesOrder.id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("VTA"),
+              concept: "VENTA",
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+              created_by: user?.id || null,
+            });
+
+          if (paymentsError) {
+            console.error("Error inserting payment:", paymentsError);
+          }
+        }
+      }
 
       // Crear los items de la orden
       const itemsToInsert = formData.items.map(item => ({
@@ -273,8 +353,11 @@ export function AdvancedSalesForm() {
 
       if (itemsError) throw itemsError;
 
+      const methodsSummary = payments.length > 0 
+        ? payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ')
+        : 'Sin pago inicial';
       toast.success("¡Orden de venta creada exitosamente!", {
-        description: `Orden #${salesOrder.id.slice(0, 8)} creada correctamente`
+        description: `Orden #${salesOrder.id.slice(0, 8)} - ${methodsSummary}`
       });
       router.push(`/sales/${salesOrder.id}`);
     } catch (error) {
@@ -405,21 +488,13 @@ export function AdvancedSalesForm() {
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label>Método de Pago</Label>
-              <div className="flex gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <Button
-                    key={method.value}
-                    type="button"
-                    variant={formData.payment_method === method.value ? "default" : "outline"}
-                    onClick={() => setFormData(prev => ({ ...prev, payment_method: method.value }))}
-                    className="flex-1"
-                  >
-                    <span className="mr-2">{method.icon}</span>
-                    {method.label}
-                  </Button>
-                ))}
-              </div>
+              <Label>Pagos (opcional - puede pagar después)</Label>
+              <MultiPaymentInput
+                totalAmount={formData.total}
+                payments={payments}
+                onPaymentsChange={setPayments}
+                showReference={true}
+              />
             </div>
           </CardContent>
         </Card>

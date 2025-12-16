@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -18,6 +18,7 @@ export interface RoomActionsWheelProps {
   onCheckout: () => void;
   onPayExtra: () => void; // Pagar solo extras sin checkout
   onViewSale: () => void;
+  onViewDetails: () => void; // Ver detalles de pagos y consumos
   onAddPerson: () => void; // Entra persona nueva (siempre cobra extra si >2)
   onRemovePerson: () => void; // Sale persona (sin tolerancia, se fue definitivamente)
   onPersonLeftReturning: () => void; // Salió pero va a regresar (inicia tolerancia 1h, solo motel)
@@ -28,7 +29,7 @@ export interface RoomActionsWheelProps {
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock';
 
 interface ActionConfig {
   id: string;
@@ -50,6 +51,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   OCUPADA: [
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
     { id: "payextra", label: "Pagar", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
+    { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
     { id: "sale", label: "Venta", icon: <FileText className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onViewSale" },
     { id: "addperson", label: "+Persona", icon: <UserPlus className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onAddPerson" },
     { id: "removeperson", label: "-Persona", icon: <UserMinus className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onRemovePerson" },
@@ -129,6 +131,7 @@ export function RoomActionsWheel({
   onCheckout,
   onPayExtra,
   onViewSale,
+  onViewDetails,
   onAddPerson,
   onRemovePerson,
   onPersonLeftReturning,
@@ -163,6 +166,7 @@ export function RoomActionsWheel({
     onCheckout,
     onPayExtra,
     onViewSale,
+    onViewDetails,
     onAddPerson,
     onRemovePerson,
     onPersonLeftReturning,

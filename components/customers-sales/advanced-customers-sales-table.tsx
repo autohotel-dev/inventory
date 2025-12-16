@@ -28,11 +28,19 @@ import {
     AlertTriangle
 } from "lucide-react";
 import { Customer, CustomerSales } from "@/lib/types/inventory";
+
+// Generar referencia única para pagos
+function generatePaymentReference(prefix: string = "PAY"): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
 import { getCustomer, getCustomerSales } from "@/lib/functions/customer";
 import { Modal } from "@/components/ui/modal";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
+import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -47,45 +55,104 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
     const [statusFilter, setStatusFilter] = useState("");
     const [warehouseFilter, setWarehouseFilter] = useState("");
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [paymentAmount, setPaymentAmount] = useState(0);
+    const [payments, setPayments] = useState<PaymentEntry[]>([]);
     const [order, setOrder] = useState<CustomerSales | null>(null);
-    const [paymentError, setPaymentError] = useState<string>("");
     const { success, error: showError } = useToast();
 
     useEffect(() => {
         fetchCustomers();
     }, []);
 
-    // Función de validación
-    const validatePaymentAmount = (amount: number) => {
-        if (amount > (order?.remaining_amount || 0)) {
-            setPaymentError(`El monto no puede exceder $${order?.remaining_amount?.toFixed(2)}`);
-            return false;
-        } else {
-            setPaymentError("");
-            return true;
-        }
-    };
-
     const resetPaymentForm = () => {
         setShowPaymentModal(false);
-        setPaymentAmount(0);
+        setPayments([]);
+    };
+
+    const openPaymentModal = (sale: CustomerSales) => {
+        setOrder(sale);
+        setPayments(createInitialPayment(sale.remaining_amount || 0));
+        setShowPaymentModal(true);
     };
 
     const handlePaymentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!paymentAmount || paymentAmount <= 0) {
+        const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+
+        if (totalAmount <= 0) {
             toast.error('El monto debe ser mayor a 0');
             return;
         }
 
         try {
             const supabase = createClient();
+
+            // Insertar pagos de cliente
+            const validPayments = payments.filter(p => p.amount > 0);
+            const isMultipago = validPayments.length > 1;
+
+            if (isMultipago) {
+                // MULTIPAGO: Crear cargo principal + subpagos
+                const { data: mainPayment, error: mainError } = await supabase
+                    .from("payments")
+                    .insert({
+                        sales_order_id: order?.id,
+                        amount: totalAmount,
+                        payment_method: "PENDIENTE",
+                        reference: generatePaymentReference("CLI"),
+                        concept: "ABONO_CLIENTE",
+                        status: "PAGADO",
+                        payment_type: "COMPLETO",
+                    })
+                    .select("id")
+                    .single();
+
+                if (mainError) {
+                    console.error("Error inserting main payment:", mainError);
+                } else if (mainPayment) {
+                    const subpayments = validPayments.map(p => ({
+                        sales_order_id: order?.id,
+                        amount: p.amount,
+                        payment_method: p.method,
+                        reference: p.reference || generatePaymentReference("SUB"),
+                        concept: "ABONO_CLIENTE",
+                        status: "PAGADO",
+                        payment_type: "PARCIAL",
+                        parent_payment_id: mainPayment.id,
+                    }));
+
+                    const { error: subError } = await supabase
+                        .from("payments")
+                        .insert(subpayments);
+
+                    if (subError) {
+                        console.error("Error inserting subpayments:", subError);
+                    }
+                }
+            } else if (validPayments.length === 1) {
+                // PAGO ÚNICO
+                const p = validPayments[0];
+                const { error: paymentsError } = await supabase
+                    .from("payments")
+                    .insert({
+                        sales_order_id: order?.id,
+                        amount: p.amount,
+                        payment_method: p.method,
+                        reference: p.reference || generatePaymentReference("CLI"),
+                        concept: "ABONO_CLIENTE",
+                        status: "PAGADO",
+                        payment_type: "COMPLETO",
+                    });
+
+                if (paymentsError) {
+                    console.error("Error inserting payment:", paymentsError);
+                }
+            }
+
             const { data, error } = await supabase
                 .rpc("process_payment", {
                     order_id: order?.id,
-                    payment_amount: paymentAmount
+                    payment_amount: totalAmount
                 });
 
             if (error) {
@@ -97,7 +164,10 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
             const result = data[0] as any;
 
             if (result.success === true) {
-                toast.success('Pago creado exitosamente');
+                const methodsSummary = payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ');
+                toast.success('Pago creado exitosamente', {
+                    description: `Total: $${totalAmount.toFixed(2)} (${methodsSummary})`
+                });
                 fetchCustomers();
                 resetPaymentForm();
             } else {
@@ -435,10 +505,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                                         <Button
                                             variant="outline"
                                             className="ml-2"
-                                            onClick={() => {
-                                                setOrder(customerSale);
-                                                setShowPaymentModal(true);
-                                            }}
+                                            onClick={() => openPaymentModal(customerSale)}
                                         >
                                             Abonar
                                         </Button>
@@ -506,38 +573,25 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
             <Modal
                 isOpen={showPaymentModal}
                 onClose={() => setShowPaymentModal(false)}
-                title="Editar Venta"
+                title="Registrar Pago"
                 size="lg"
             >
                 <form onSubmit={handlePaymentSubmit}>
-                    <div>
-                        <Label htmlFor="amount">Monto</Label>
-                        <Input
-                            id="amount"
-                            type="number"
-                            min="0"
-                            max={order?.remaining_amount || 0}
-                            step="0.01"
-                            value={paymentAmount}
-                            onChange={(e) => {
-                                const value = parseFloat(e.target.value) || 0;
-                                setPaymentAmount(value);
-                                validatePaymentAmount(value);
-                            }}
-                            placeholder={`Máximo: $${order?.remaining_amount?.toFixed(2) || 0}`}
-                            className={paymentError ? "border-red-500 focus:border-red-500" : ""}
+                    <div className="space-y-4">
+                        <MultiPaymentInput
+                            totalAmount={order?.remaining_amount || 0}
+                            payments={payments}
+                            onPaymentsChange={setPayments}
+                            showReference={true}
                         />
-                        {paymentError && (
-                            <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
-                                <AlertTriangle className="h-4 w-4" />
-                                {paymentError}
-                            </p>
-                        )}                    </div>
+                    </div>
                     <div className="flex gap-2 justify-end pt-4">
                         <Button type="button" variant="outline" onClick={resetPaymentForm}>
                             Cancelar
                         </Button>
-                        <Button type="submit">Abonar</Button>
+                        <Button type="submit" disabled={payments.reduce((s, p) => s + p.amount, 0) <= 0}>
+                            Abonar
+                        </Button>
                     </div>
                 </form>
 

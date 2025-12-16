@@ -10,18 +10,26 @@ import { RefreshCw } from "lucide-react";
 import { RoomCard } from "@/components/sales/room-card";
 import { RoomInfoPopover } from "@/components/sales/room-info-popover";
 import { RoomActionsWheel } from "@/components/sales/room-actions-wheel";
-import { RoomStartStayModal } from "@/components/sales/room-start-stay-modal";
+import { RoomStartStayModal, VehicleInfo } from "@/components/sales/room-start-stay-modal";
 import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
 import { RoomPayExtraModal } from "@/components/sales/room-pay-extra-modal";
 import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
+import { RoomDetailsModal } from "@/components/sales/room-details-modal";
 import {
   Room,
   RoomType,
   STATUS_CONFIG,
   ROOM_STATUS_BG,
   ROOM_STATUS_ACCENT,
-  PaymentMethod,
 } from "@/components/sales/room-types";
+import { PaymentEntry } from "@/components/sales/multi-payment-input";
+
+// Generar referencia única para pagos
+function generatePaymentReference(prefix: string = "PAY"): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
 import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
 import { toast } from "sonner";
 
@@ -53,12 +61,23 @@ export function RoomsBoard() {
   } | null>(null);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [actionsDockVisible, setActionsDockVisible] = useState(false);
   const [startStayLoading, setStartStayLoading] = useState(false);
 
-  // Función para recargar habitaciones
-  const fetchRooms = useCallback(async () => {
-    setLoading(true);
+  // Actualizar selectedRoom cuando rooms cambie (después de fetchRooms)
+  useEffect(() => {
+    if (selectedRoom && rooms.length > 0) {
+      const updatedRoom = rooms.find(r => r.id === selectedRoom.id);
+      if (updatedRoom) {
+        setSelectedRoom(updatedRoom);
+      }
+    }
+  }, [rooms]);
+
+  // Función para recargar habitaciones (silent = true para refresh sin parpadeo)
+  const fetchRooms = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const supabase = createClient();
 
     try {
@@ -71,16 +90,16 @@ export function RoomsBoard() {
 
       if (error) {
         console.error("Error loading rooms:", error);
-        setRooms([]);
+        if (!silent) setRooms([]);
         return;
       }
 
       setRooms((data as any) || []);
     } catch (err) {
       console.error("Error fetching rooms:", err);
-      setRooms([]);
+      if (!silent) setRooms([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -94,7 +113,7 @@ export function RoomsBoard() {
     updateRoomStatus,
     prepareCheckout,
     processCheckout,
-  } = useRoomActions(fetchRooms);
+  } = useRoomActions(() => fetchRooms(true));
 
   // Abrir modal de checkout usando el hook
   const openCheckoutModal = async (room: Room) => {
@@ -117,9 +136,9 @@ export function RoomsBoard() {
   };
 
   // Procesar checkout usando el hook
-  const handleCheckout = async (paymentMethod: PaymentMethod) => {
+  const handleCheckout = async (payments: PaymentEntry[]) => {
     if (!checkoutInfo || !selectedRoom) return;
-    const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount, paymentMethod);
+    const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount, payments);
     if (success) {
       setShowCheckoutModal(false);
       setSelectedRoom(null);
@@ -156,10 +175,11 @@ export function RoomsBoard() {
   };
 
   // Procesar pago de extras (sin checkout)
-  const handlePayExtra = async (paymentMethod: PaymentMethod) => {
-    if (!payExtraInfo || !selectedRoom || payExtraAmount <= 0) return;
+  const handlePayExtra = async (payments: PaymentEntry[]) => {
+    if (!payExtraInfo || !selectedRoom || payments.length === 0) return;
     
     const supabase = createClient();
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
     
     try {
       // Obtener la orden actual
@@ -174,16 +194,131 @@ export function RoomsBoard() {
         return;
       }
 
-      // Actualizar montos pagados y método de pago
-      const newPaidAmount = (order.paid_amount || 0) + payExtraAmount;
-      const newRemainingAmount = Math.max(0, (order.remaining_amount || 0) - payExtraAmount);
+      // Buscar pagos pendientes existentes para esta orden
+      const { data: pendingPayments, error: pendingError } = await supabase
+        .from("payments")
+        .select("id, amount, concept")
+        .eq("sales_order_id", payExtraInfo.salesOrderId)
+        .eq("status", "PENDIENTE")
+        .is("parent_payment_id", null)
+        .order("created_at", { ascending: true });
+
+      if (pendingError) {
+        console.error("Error fetching pending payments:", pendingError);
+      }
+
+      const validPayments = payments.filter(p => p.amount > 0);
+      const isMultipago = validPayments.length > 1;
+      let remainingToPay = totalPaid;
+
+      // Actualizar pagos pendientes existentes
+      if (pendingPayments && pendingPayments.length > 0) {
+        for (const pending of pendingPayments) {
+          if (remainingToPay <= 0) break;
+
+          const amountForThis = Math.min(pending.amount, remainingToPay);
+          remainingToPay -= amountForThis;
+
+          if (isMultipago) {
+            // Actualizar el pago pendiente a PAGADO y agregar subpagos
+            await supabase
+              .from("payments")
+              .update({
+                status: "PAGADO",
+                payment_method: "PENDIENTE",
+              })
+              .eq("id", pending.id);
+
+            // Crear subpagos proporcionales para este pago pendiente
+            const proportion = amountForThis / totalPaid;
+            const subpayments = validPayments.map(p => ({
+              sales_order_id: payExtraInfo.salesOrderId,
+              amount: Math.round(p.amount * proportion * 100) / 100,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("SUB"),
+              concept: pending.concept,
+              status: "PAGADO",
+              payment_type: "PARCIAL",
+              parent_payment_id: pending.id,
+            }));
+
+            const { error: subError } = await supabase
+              .from("payments")
+              .insert(subpayments);
+
+            if (subError) {
+              console.error("Error inserting subpayments:", subError);
+            }
+          } else {
+            // Pago único - actualizar el pago pendiente directamente
+            const p = validPayments[0];
+            await supabase
+              .from("payments")
+              .update({
+                status: "PAGADO",
+                payment_method: p.method,
+                reference: p.reference || generatePaymentReference("PAG"),
+              })
+              .eq("id", pending.id);
+          }
+        }
+      }
+
+      // Si sobra monto (no había suficientes pagos pendientes), crear pago nuevo genérico
+      if (remainingToPay > 0) {
+        if (isMultipago) {
+          const { data: mainPayment, error: mainError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: payExtraInfo.salesOrderId,
+              amount: remainingToPay,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("EXT"),
+              concept: "PAGO_EXTRA",
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+            })
+            .select("id")
+            .single();
+
+          if (!mainError && mainPayment) {
+            const proportion = remainingToPay / totalPaid;
+            const subpayments = validPayments.map(p => ({
+              sales_order_id: payExtraInfo.salesOrderId,
+              amount: Math.round(p.amount * proportion * 100) / 100,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("SUB"),
+              concept: "PAGO_EXTRA",
+              status: "PAGADO",
+              payment_type: "PARCIAL",
+              parent_payment_id: mainPayment.id,
+            }));
+
+            await supabase.from("payments").insert(subpayments);
+          }
+        } else {
+          const p = validPayments[0];
+          await supabase.from("payments").insert({
+            sales_order_id: payExtraInfo.salesOrderId,
+            amount: remainingToPay,
+            payment_method: p.method,
+            reference: p.reference || generatePaymentReference("EXT"),
+            concept: "PAGO_EXTRA",
+            status: "PAGADO",
+            payment_type: "COMPLETO",
+          });
+        }
+      }
+
+      // Actualizar montos pagados
+      const newPaidAmount = (order.paid_amount || 0) + totalPaid;
+      const newRemainingAmount = Math.max(0, (order.remaining_amount || 0) - totalPaid);
 
       const { error: updateError } = await supabase
         .from("sales_orders")
         .update({
           paid_amount: newPaidAmount,
           remaining_amount: newRemainingAmount,
-          payment_method: paymentMethod,
         })
         .eq("id", payExtraInfo.salesOrderId);
 
@@ -192,15 +327,16 @@ export function RoomsBoard() {
         return;
       }
 
+      const methodsSummary = payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ');
       toast.success("Pago registrado", {
-        description: `Se pagaron $${payExtraAmount.toFixed(2)} MXN (${paymentMethod}) de extras. La habitación sigue ocupada.`,
+        description: `Se pagaron $${totalPaid.toFixed(2)} MXN (${methodsSummary}). La habitación sigue ocupada.`,
       });
 
       setShowPayExtraModal(false);
       setSelectedRoom(null);
       setPayExtraInfo(null);
       setPayExtraAmount(0);
-      await fetchRooms();
+      await fetchRooms(true);
     } catch (error) {
       console.error("Error paying extra:", error);
       toast.error("Error al procesar el pago");
@@ -343,7 +479,7 @@ export function RoomsBoard() {
               .eq("id", activeStay.id);
             
             // Refrescar datos
-            await fetchRooms();
+            await fetchRooms(true);
           } catch (error) {
             console.error("Error processing expired tolerance:", error);
           }
@@ -457,11 +593,13 @@ export function RoomsBoard() {
     setSelectedRoom(null);
   };
 
-  const handleStartStay = async (initialPeople: number, paymentMethod: PaymentMethod) => {
+  const handleStartStay = async (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
     setStartStayLoading(true);
     const supabase = createClient();
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const methodsSummary = payments.map(p => p.method).join(', ');
 
     try {
       const roomType = selectedRoom.room_types;
@@ -505,14 +643,13 @@ export function RoomsBoard() {
           customer_id: null,
           warehouse_id: defaultWarehouse.id,
           currency: "MXN",
-          notes: `Estancia ${roomType.name} Hab. ${selectedRoom.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ''} - Pago: ${paymentMethod}`,
+          notes: `Estancia ${roomType.name} Hab. ${selectedRoom.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ''} - Pago: ${methodsSummary}`,
           subtotal: totalPrice,
           tax: 0,
           total: totalPrice,
           status: "OPEN",
-          remaining_amount: 0,
-          paid_amount: totalPrice,
-          payment_method: paymentMethod,
+          remaining_amount: Math.max(0, totalPrice - totalPaid),
+          paid_amount: totalPaid,
           created_by: user?.id ?? null,
         })
         .select("id")
@@ -526,7 +663,77 @@ export function RoomsBoard() {
         return;
       }
 
-      // Registrar la estancia de habitación con personas iniciales
+      // Insertar cargo principal y subpagos si es multipago
+      if (payments.length > 0) {
+        const totalPaidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+        const validPayments = payments.filter(p => p.amount > 0);
+        const isMultipago = validPayments.length > 1;
+        const isPagado = totalPaidAmount >= basePrice;
+
+        if (isMultipago) {
+          // MULTIPAGO: Crear cargo principal + subpagos
+          const { data: mainPayment, error: mainError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: salesOrder.id,
+              amount: basePrice,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("EST"),
+              concept: "ESTANCIA",
+              status: isPagado ? "PAGADO" : "PENDIENTE",
+              payment_type: "COMPLETO",
+              created_by: user?.id ?? null,
+            })
+            .select("id")
+            .single();
+
+          if (mainError) {
+            console.error("Error inserting main payment:", mainError);
+          } else if (mainPayment) {
+            // Crear subpagos (pagos parciales) vinculados al cargo principal
+            const subpayments = validPayments.map(p => ({
+              sales_order_id: salesOrder.id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("SUB"),
+              concept: "ESTANCIA",
+              status: "PAGADO",
+              payment_type: "PARCIAL",
+              parent_payment_id: mainPayment.id,
+              created_by: user?.id ?? null,
+            }));
+
+            const { error: subError } = await supabase
+              .from("payments")
+              .insert(subpayments);
+
+            if (subError) {
+              console.error("Error inserting subpayments:", subError);
+            }
+          }
+        } else if (validPayments.length === 1) {
+          // PAGO ÚNICO: Un solo registro sin subpagos
+          const p = validPayments[0];
+          const { error: paymentsError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: salesOrder.id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("EST"),
+              concept: "ESTANCIA",
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+              created_by: user?.id ?? null,
+            });
+
+          if (paymentsError) {
+            console.error("Error inserting payment:", paymentsError);
+          }
+        }
+      }
+
+      // Registrar la estancia de habitación con personas iniciales y datos del vehículo
       const { error: stayError } = await supabase.from("room_stays").insert({
         room_id: selectedRoom.id,
         sales_order_id: salesOrder.id,
@@ -534,6 +741,9 @@ export function RoomsBoard() {
         expected_check_out_at: expectedCheckout.toISOString(),
         current_people: initialPeople,
         total_people: initialPeople,
+        vehicle_plate: vehicle.plate.trim() || null,
+        vehicle_brand: vehicle.brand.trim() || null,
+        vehicle_model: vehicle.model.trim() || null,
       });
 
       if (stayError) {
@@ -566,7 +776,7 @@ export function RoomsBoard() {
 
       setShowStartStayModal(false);
       setSelectedRoom(null);
-      await fetchRooms();
+      await fetchRooms(true);
     } catch (error) {
       console.error("Error starting stay:", error);
       toast.error("Error al iniciar la estancia", {
@@ -610,7 +820,7 @@ export function RoomsBoard() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Tablero de Habitaciones</h1>
-          <Button variant="outline" size="sm" onClick={fetchRooms}>
+          <Button variant="outline" size="sm" onClick={() => fetchRooms()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Recargar
           </Button>
@@ -635,7 +845,7 @@ export function RoomsBoard() {
             Vista general de todas las habitaciones como tablero físico.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchRooms}>
+        <Button variant="outline" size="sm" onClick={() => fetchRooms()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Recargar
         </Button>
@@ -804,6 +1014,12 @@ export function RoomsBoard() {
           }
           router.push(`/sales/${activeStay.sales_order_id}`);
         }}
+        onViewDetails={() => {
+          if (selectedRoom) {
+            setShowActionsModal(false);
+            setShowDetailsModal(true);
+          }
+        }}
         onAddPerson={() => {
           if (selectedRoom) handleAddPerson(selectedRoom);
         }}
@@ -864,6 +1080,14 @@ export function RoomsBoard() {
         minutes={reminderAlert?.minutes || 0}
         level={reminderAlert?.level || "20"}
         onClose={() => setReminderAlert(null)}
+      />
+      <RoomDetailsModal
+        isOpen={showDetailsModal && !!selectedRoom}
+        room={selectedRoom}
+        activeStay={selectedRoom ? getActiveStay(selectedRoom) : null}
+        onClose={() => {
+          setShowDetailsModal(false);
+        }}
       />
     </div>
   );

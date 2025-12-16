@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp, CreditCard, Receipt, Banknote, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Room, RoomStay, STATUS_CONFIG } from "@/components/sales/room-types";
+import { createClient } from "@/lib/supabase/client";
+
+interface Payment {
+  id: string;
+  amount: number;
+  payment_method: string;
+  reference: string | null;
+  created_at: string;
+}
 
 interface RoomInfoPopoverProps {
   room: Room | null;
@@ -24,6 +33,49 @@ export function RoomInfoPopover({
   getExtraHoursLabel,
 }: RoomInfoPopoverProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
+  // Cargar pagos cuando se expande la sección
+  useEffect(() => {
+    if (showPayments && room?.status === "OCUPADA") {
+      const activeStay = getActiveStay(room);
+      if (activeStay?.sales_order_id) {
+        fetchPayments(activeStay.sales_order_id);
+      }
+    }
+  }, [showPayments, room]);
+
+  const fetchPayments = async (salesOrderId: string) => {
+    setLoadingPayments(true);
+    const supabase = createClient();
+    
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("sales_order_id", salesOrderId)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setPayments(data);
+    }
+    setLoadingPayments(false);
+  };
+
+  const getPaymentIcon = (method: string) => {
+    switch (method) {
+      case "EFECTIVO": return <Banknote className="h-3 w-3 text-green-400" />;
+      case "TARJETA": return <CreditCard className="h-3 w-3 text-blue-400" />;
+      case "TRANSFERENCIA": return <Building2 className="h-3 w-3 text-purple-400" />;
+      default: return <Receipt className="h-3 w-3 text-gray-400" />;
+    }
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  };
 
   if (!isOpen || !room) return null;
 
@@ -182,6 +234,58 @@ export function RoomInfoPopover({
                       <span className="text-white/50">Precio base</span>
                       <span className="text-white/80">${room.room_types?.base_price?.toFixed(2) || "0.00"} MXN</span>
                     </div>
+                  </div>
+                )}
+
+                {/* Historial de pagos */}
+                <button
+                  onClick={() => setShowPayments(!showPayments)}
+                  className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 transition-colors border-t border-white/5 mt-2"
+                >
+                  <Receipt className="h-3 w-3" />
+                  {showPayments ? "Ocultar pagos" : "Ver historial de pagos"}
+                  {showPayments ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+
+                {showPayments && (
+                  <div className="bg-slate-800/50 rounded-lg p-2 space-y-2 animate-in slide-in-from-top-2 duration-200 max-h-40 overflow-y-auto">
+                    {loadingPayments ? (
+                      <div className="text-center py-2">
+                        <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mx-auto" />
+                        <p className="text-[10px] text-white/50 mt-1">Cargando...</p>
+                      </div>
+                    ) : payments.length === 0 ? (
+                      <div className="text-center py-2">
+                        <Receipt className="h-5 w-5 mx-auto text-white/20 mb-1" />
+                        <p className="text-[10px] text-white/50">Sin pagos registrados</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center pb-1 border-b border-white/10">
+                          <span className="text-[10px] text-white/50">Total cobrado</span>
+                          <span className="text-sm font-bold text-emerald-400">
+                            ${payments.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {payments.map((payment) => (
+                          <div key={payment.id} className="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
+                            <div className="flex items-center gap-2">
+                              {getPaymentIcon(payment.payment_method)}
+                              <div>
+                                <p className="text-[10px] text-white/80">{payment.payment_method}</p>
+                                <p className="text-[9px] text-white/40">{formatTime(payment.created_at)}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-medium text-white">${Number(payment.amount).toFixed(2)}</p>
+                              {payment.reference && (
+                                <p className="text-[9px] text-white/40">Ref: {payment.reference}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </>

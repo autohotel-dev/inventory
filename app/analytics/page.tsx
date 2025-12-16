@@ -1,9 +1,11 @@
-import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
+import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function AnalyticsPage() {
   return (
+    <RoleGuard requireAdmin>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -16,5 +18,6 @@ export default function AnalyticsPage() {
 
       <AnalyticsDashboard />
     </div>
+    </RoleGuard>
   );
 }

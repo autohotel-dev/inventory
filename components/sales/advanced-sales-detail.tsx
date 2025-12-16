@@ -28,12 +28,20 @@ import {
   Wallet
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+
+// Generar referencia única para pagos
+function generatePaymentReference(prefix: string = "PAY"): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Customer } from "@/lib/types/inventory";
 import { AddProductModal } from "@/components/sales/add-product-modal";
 import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
+import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 
 interface SalesOrderDetail {
   id: string;
@@ -87,8 +95,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     itemName: ''
   });
 
-  const [paymentAmount, setPaymentAmount] = useState<string>("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
+  const [payments, setPayments] = useState<PaymentEntry[]>([]);
 
   useEffect(() => {
     fetchOrderDetail();
@@ -111,23 +118,22 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       return;
     }
 
-    // Pre-cargar el monto con el saldo pendiente para facilitar el flujo
-    setPaymentAmount(String(order.remaining_amount));
+    // Pre-cargar con el saldo pendiente
+    setPayments(createInitialPayment(order.remaining_amount));
     setShowPaymentModal(true);
   };
 
   const resetPaymentForm = () => {
     setShowPaymentModal(false);
-    setPaymentAmount("");
-    setPaymentMethod("EFECTIVO");
+    setPayments([]);
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const amount = parseFloat(paymentAmount || "0");
+    const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
 
-    if (!amount || amount <= 0) {
+    if (totalAmount <= 0) {
       toast.error('El monto debe ser mayor a 0');
       return;
     }
@@ -135,16 +141,72 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     try {
       const supabase = createClient();
       
-      // Actualizar método de pago en la orden
-      await supabase
-        .from("sales_orders")
-        .update({ payment_method: paymentMethod })
-        .eq("id", orderId);
+      // Insertar pagos de abono
+      const validPayments = payments.filter(p => p.amount > 0);
+      const isMultipago = validPayments.length > 1;
+
+      if (isMultipago) {
+        // MULTIPAGO: Crear cargo principal + subpagos
+        const { data: mainPayment, error: mainError } = await supabase
+          .from("payments")
+          .insert({
+            sales_order_id: orderId,
+            amount: totalAmount,
+            payment_method: "PENDIENTE",
+            reference: generatePaymentReference("ABN"),
+            concept: "ABONO",
+            status: "PAGADO",
+            payment_type: "COMPLETO",
+          })
+          .select("id")
+          .single();
+
+        if (mainError) {
+          console.error("Error inserting main payment:", mainError);
+        } else if (mainPayment) {
+          const subpayments = validPayments.map(p => ({
+            sales_order_id: orderId,
+            amount: p.amount,
+            payment_method: p.method,
+            reference: p.reference || generatePaymentReference("SUB"),
+            concept: "ABONO",
+            status: "PAGADO",
+            payment_type: "PARCIAL",
+            parent_payment_id: mainPayment.id,
+          }));
+
+          const { error: subError } = await supabase
+            .from("payments")
+            .insert(subpayments);
+
+          if (subError) {
+            console.error("Error inserting subpayments:", subError);
+          }
+        }
+      } else if (validPayments.length === 1) {
+        // PAGO ÚNICO
+        const p = validPayments[0];
+        const { error: paymentsError } = await supabase
+          .from("payments")
+          .insert({
+            sales_order_id: orderId,
+            amount: p.amount,
+            payment_method: p.method,
+            reference: p.reference || generatePaymentReference("ABN"),
+            concept: "ABONO",
+            status: "PAGADO",
+            payment_type: "COMPLETO",
+          });
+
+        if (paymentsError) {
+          console.error("Error inserting payment:", paymentsError);
+        }
+      }
 
       const { data, error } = await supabase
         .rpc("process_payment", {
           order_id: orderId,
-          payment_amount: amount
+          payment_amount: totalAmount
         });
 
       if (error) {
@@ -156,8 +218,9 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       const result = data[0] as any;
 
       if (result.success === true) {
+        const methodsSummary = payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ');
         toast.success('Pago creado exitosamente', {
-          description: `${amount.toFixed(2)} MXN - ${paymentMethod}`
+          description: `Total: $${totalAmount.toFixed(2)} MXN (${methodsSummary})`
         });
         fetchOrderDetail();
         resetPaymentForm();
@@ -423,19 +486,29 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     }
   };
 
-  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number; payment_method: PaymentMethod }[]) => {
+  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number; payments: PaymentEntry[] }[]) => {
     if (!order || items.length === 0) return;
 
     const supabase = createClient();
 
     try {
-      // Insertar todos los productos con su método de pago
+      // Calcular el total de los nuevos items
+      const newItemsTotal = items.reduce(
+        (sum, item) => sum + (item.quantity * item.unit_price), 
+        0
+      );
+
+      // Crear descripción de los productos para las notas del pago
+      const productosNota = items
+        .map(item => `${item.quantity}x ${item.product.name}`)
+        .join(", ");
+
+      // Insertar todos los productos
       const insertData = items.map(item => ({
         sales_order_id: orderId,
         product_id: item.product.id,
         qty: item.quantity,
         unit_price: item.unit_price,
-        payment_method: item.payment_method
       }));
 
       const { error } = await supabase
@@ -444,8 +517,35 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       if (error) throw error;
 
-      // Recalcular totales de la orden
-      await recalculateOrderTotals();
+      // Crear pago PENDIENTE para estos consumos específicos
+      await supabase.from("payments").insert({
+        sales_order_id: orderId,
+        amount: newItemsTotal,
+        payment_method: "PENDIENTE",
+        reference: generatePaymentReference("CON"),
+        concept: "CONSUMO",
+        status: "PENDIENTE",
+        payment_type: "COMPLETO",
+        notes: productosNota,
+      });
+
+      // Actualizar totales de la orden sumando el nuevo monto (no recalcular todo)
+      const currentSubtotal = Number(order.subtotal) || 0;
+      const currentTotal = Number(order.total) || 0;
+      const currentRemaining = Number(order.remaining_amount) || 0;
+
+      const newSubtotal = currentSubtotal + newItemsTotal;
+      const newTotal = currentTotal + newItemsTotal;
+      const newRemaining = currentRemaining + newItemsTotal;
+
+      await supabase
+        .from("sales_orders")
+        .update({
+          subtotal: newSubtotal,
+          total: newTotal,
+          remaining_amount: newRemaining,
+        })
+        .eq("id", orderId);
 
       // Refrescar datos
       await fetchOrderDetail();
@@ -454,9 +554,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       setShowAddProduct(false);
 
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-      const paymentMethods = [...new Set(items.map(i => i.payment_method))].join(', ');
       toast.success(`${totalItems} producto(s) agregado(s)`, {
-        description: `Se agregaron ${items.length} línea(s) - Pago: ${paymentMethods}`
+        description: `${productosNota} - Total: $${newItemsTotal.toFixed(2)} (pendiente de pago)`
       });
 
     } catch (error) {
@@ -471,26 +570,47 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     const supabase = createClient();
 
     try {
+      // Obtener datos actuales de la orden (incluye estancia, horas extra, personas extra)
+      const { data: orderData } = await supabase
+        .from("sales_orders")
+        .select("subtotal, tax, total, paid_amount, remaining_amount")
+        .eq("id", orderId)
+        .single();
+
+      if (!orderData) return;
+
+      // Obtener suma de items (consumos)
       const { data: itemsData } = await supabase
         .from("sales_order_items")
         .select("qty, unit_price")
         .eq("sales_order_id", orderId);
 
-      const subtotal =
+      const itemsSubtotal =
         itemsData?.reduce(
           (sum, item: any) => sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0),
           0
         ) || 0;
-      const tax = 0; // Simplificado por ahora
-      const total = subtotal + tax;
-      // Obtener monto ya pagado para recalcular saldo pendiente
-      const { data: orderData } = await supabase
-        .from("sales_orders")
-        .select("paid_amount")
-        .eq("id", orderId)
-        .single();
 
-      const paid_amount = Number(orderData?.paid_amount) || 0;
+      // Obtener suma de pagos principales (para saber el total real de cargos)
+      const { data: paymentsData } = await supabase
+        .from("payments")
+        .select("amount, concept")
+        .eq("sales_order_id", orderId)
+        .is("parent_payment_id", null);
+
+      // Sumar cargos que NO son consumos (estancia, hora extra, persona extra)
+      const nonItemCharges = paymentsData?.reduce((sum, p: any) => {
+        if (p.concept !== "CONSUMO") {
+          return sum + (Number(p.amount) || 0);
+        }
+        return sum;
+      }, 0) || 0;
+
+      // El subtotal real es: cargos no-items + items
+      const subtotal = nonItemCharges + itemsSubtotal;
+      const tax = Number(orderData.tax) || 0;
+      const total = subtotal + tax;
+      const paid_amount = Number(orderData.paid_amount) || 0;
       const remaining_amount = Math.max(total - paid_amount, 0);
 
       await supabase
@@ -849,50 +969,19 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
               <form onSubmit={handlePaymentSubmit}>
                 <div className="p-4 space-y-4">
-                  <div className="p-3 rounded-lg bg-muted/50 text-center">
-                    <p className="text-xs text-muted-foreground">Saldo Pendiente</p>
-                    <p className="text-2xl font-bold text-amber-600">{formatCurrency(order.remaining_amount, order.currency)}</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Monto a Abonar</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      max={order.remaining_amount}
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="h-10 text-lg font-medium"
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Método de Pago</Label>
-                    <div className="flex gap-2">
-                      {PAYMENT_METHODS.map((method) => (
-                        <Button
-                          key={method.value}
-                          type="button"
-                          variant={paymentMethod === method.value ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setPaymentMethod(method.value)}
-                          className="flex-1"
-                        >
-                          <span className="mr-1">{method.icon}</span>
-                          {method.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+                  <MultiPaymentInput
+                    totalAmount={order.remaining_amount}
+                    payments={payments}
+                    onPaymentsChange={setPayments}
+                    showReference={true}
+                  />
                 </div>
 
                 <div className="flex gap-2 p-4 border-t">
                   <Button type="button" variant="outline" className="flex-1" onClick={resetPaymentForm}>
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1">
+                  <Button type="submit" className="flex-1" disabled={payments.reduce((s, p) => s + p.amount, 0) <= 0}>
                     <CreditCard className="h-4 w-4 mr-2" />
                     Abonar
                   </Button>

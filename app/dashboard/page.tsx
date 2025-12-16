@@ -11,6 +11,8 @@ import {
   Plus,
   ArrowRight
 } from "lucide-react";
+import { ShiftIndicatorWrapper } from "@/components/employees/shift-indicator-wrapper";
+import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 
 export const dynamic = "force-dynamic";
 
@@ -75,9 +77,13 @@ export default async function Home() {
     { href: "/movements", label: "Movimientos", icon: "📊" },
     { href: "/stock", label: "Stock", icon: "📦" },
     { href: "/analytics", label: "Analytics", icon: "📈" },
+    { href: "/employees", label: "Empleados", icon: "👤" },
+    { href: "/employees/schedules", label: "Horarios", icon: "📅" },
+    { href: "/employees/closings", label: "Cortes", icon: "💰" },
   ];
 
   return (
+    <DashboardWrapper>
     <div className="space-y-8 p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -97,6 +103,9 @@ export default async function Home() {
           </Link>
         </div>
       </div>
+
+      {/* Indicador de Turno Actual */}
+      <ShiftIndicatorWrapper />
 
       {/* KPIs principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -246,5 +255,6 @@ export default async function Home() {
         </CardContent>
       </Card>
     </div>
+    </DashboardWrapper>
   );
 }

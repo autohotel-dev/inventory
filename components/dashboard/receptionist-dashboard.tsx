@@ -1,0 +1,489 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+import { useUserRole } from "@/hooks/use-user-role";
+import { ShiftClosingModal } from "@/components/employees/shift-closing";
+import { ShiftSession } from "@/components/employees/types";
+import {
+  DollarSign,
+  ShoppingBag,
+  Clock,
+  CreditCard,
+  Banknote,
+  TrendingUp,
+  User,
+  RefreshCw,
+  Building2,
+  LogOut,
+  AlertCircle
+} from "lucide-react";
+import Link from "next/link";
+
+interface ShiftSummary {
+  totalSales: number;
+  totalAmount: number;
+  cashAmount: number;
+  cardBBVA: number;
+  cardGetnet: number;
+  openRooms: number;
+  completedCheckouts: number;
+}
+
+export function ReceptionistDashboard() {
+  const { employeeName, userId, employeeId, isLoading: roleLoading } = useUserRole();
+  const [summary, setSummary] = useState<ShiftSummary>({
+    totalSales: 0,
+    totalAmount: 0,
+    cashAmount: 0,
+    cardBBVA: 0,
+    cardGetnet: 0,
+    openRooms: 0,
+    completedCheckouts: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
+  const [showClosingModal, setShowClosingModal] = useState(false);
+
+  // Actualizar reloj cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Cargar sesión de turno activa
+  const fetchActiveSession = async () => {
+    if (!employeeId) return;
+    
+    const supabase = createClient();
+    const { data: session } = await supabase
+      .from("shift_sessions")
+      .select(`
+        *,
+        employees(*),
+        shift_definitions(*)
+      `)
+      .eq("employee_id", employeeId)
+      .eq("status", "active")
+      .order("clock_in_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    setActiveSession(session || null);
+  };
+
+  // Cargar resumen del turno
+  const fetchShiftSummary = async () => {
+    if (!userId) return;
+    
+    setLoading(true);
+    const supabase = createClient();
+
+    try {
+      // Obtener inicio del día actual (o del turno si hay sesión activa)
+      let startDate: string;
+      if (activeSession) {
+        startDate = activeSession.clock_in_at;
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        startDate = today.toISOString();
+      }
+
+      // Ventas del usuario desde inicio del turno
+      const { data: sales } = await supabase
+        .from("sales_orders")
+        .select("id, total, status")
+        .eq("created_by", userId)
+        .gte("created_at", startDate);
+
+      // Pagos del usuario desde inicio del turno
+      const { data: payments } = await supabase
+        .from("payments")
+        .select("amount, payment_method")
+        .eq("created_by", userId)
+        .gte("created_at", startDate)
+        .eq("status", "PAGADO");
+
+      // Habitaciones ocupadas actualmente
+      const { count: openRooms } = await supabase
+        .from("rooms")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "OCUPADA");
+
+      // Calcular totales
+      const totalSales = sales?.length || 0;
+      const totalAmount = sales?.reduce((sum, s) => sum + (s.total || 0), 0) || 0;
+      
+      let cashAmount = 0;
+      let cardBBVA = 0;
+      let cardGetnet = 0;
+
+      payments?.forEach(p => {
+        if (p.payment_method === "EFECTIVO") {
+          cashAmount += p.amount || 0;
+        } else if (p.payment_method === "TARJETA_BBVA") {
+          cardBBVA += p.amount || 0;
+        } else if (p.payment_method === "TARJETA_GETNET") {
+          cardGetnet += p.amount || 0;
+        }
+      });
+
+      const completedCheckouts = sales?.filter(s => s.status === "COMPLETED" || s.status === "ENDED").length || 0;
+
+      setSummary({
+        totalSales,
+        totalAmount,
+        cashAmount,
+        cardBBVA,
+        cardGetnet,
+        openRooms: openRooms || 0,
+        completedCheckouts
+      });
+    } catch (error) {
+      console.error("Error fetching shift summary:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manejar cierre de turno completado
+  const handleClosingComplete = () => {
+    setShowClosingModal(false);
+    setActiveSession(null);
+    fetchShiftSummary();
+  };
+
+  useEffect(() => {
+    if (employeeId) {
+      fetchActiveSession();
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchShiftSummary();
+    }
+  }, [userId, activeSession]);
+
+  if (roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN"
+    }).format(amount);
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("es-MX", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("es-MX", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+  };
+
+  // Calcular tiempo restante del turno
+  const getTimeRemaining = () => {
+    if (!activeSession?.shift_definitions?.end_time) return null;
+
+    const now = currentTime;
+    const endTime = activeSession.shift_definitions.end_time; // formato "HH:MM:SS"
+    const crossesMidnight = activeSession.shift_definitions.crosses_midnight;
+
+    // Crear fecha de fin del turno
+    const [endHours, endMinutes] = endTime.split(":").map(Number);
+    const endDate = new Date(now);
+    endDate.setHours(endHours, endMinutes, 0, 0);
+
+    // Si cruza medianoche y la hora actual es después de medianoche, el fin es hoy
+    // Si cruza medianoche y la hora actual es antes de medianoche, el fin es mañana
+    if (crossesMidnight) {
+      if (now.getHours() < 12) {
+        // Estamos en la madrugada, el turno termina hoy
+      } else {
+        // Estamos en la noche, el turno termina mañana
+        endDate.setDate(endDate.getDate() + 1);
+      }
+    }
+
+    const diff = endDate.getTime() - now.getTime();
+
+    if (diff <= 0) {
+      return { hours: 0, minutes: 0, seconds: 0, isOvertime: true };
+    }
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    return { hours, minutes, seconds, isOvertime: false };
+  };
+
+  const timeRemaining = getTimeRemaining();
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header con saludo */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <User className="h-6 w-6" />
+            ¡Hola, {employeeName || "Recepcionista"}!
+          </h1>
+          <p className="text-muted-foreground capitalize">
+            {formatDate(currentTime)} • {formatTime(currentTime)}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchShiftSummary} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+          {activeSession && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => setShowClosingModal(true)}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Cerrar Turno
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Indicador de turno activo con tiempo restante llamativo */}
+      {activeSession && (
+        <Card className={`overflow-hidden ${timeRemaining?.isOvertime ? 'border-red-500 bg-gradient-to-r from-red-500/10 to-red-600/5' : 'border-emerald-500 bg-gradient-to-r from-emerald-500/10 to-teal-500/5'}`}>
+          <CardContent className="p-0">
+            <div className="flex flex-col md:flex-row">
+              {/* Info del turno */}
+              <div className="flex-1 p-4 flex items-center gap-4">
+                <div className={`h-12 w-12 rounded-full flex items-center justify-center ${timeRemaining?.isOvertime ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
+                  <div className={`h-4 w-4 rounded-full animate-pulse ${timeRemaining?.isOvertime ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className={`text-lg font-semibold ${timeRemaining?.isOvertime ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                      {activeSession.shift_definitions?.name}
+                    </p>
+                    <Badge className={`${timeRemaining?.isOvertime ? 'bg-red-500' : 'bg-emerald-500'} text-white`}>
+                      {timeRemaining?.isOvertime ? '⚠️ Extendido' : '✓ Activo'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Iniciado: {new Date(activeSession.clock_in_at).toLocaleString("es-MX")}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Tiempo restante - Sección llamativa */}
+              {timeRemaining && (
+                <div className={`px-6 py-4 flex flex-col items-center justify-center min-w-[200px] ${
+                  timeRemaining.isOvertime 
+                    ? 'bg-gradient-to-br from-red-500 to-red-600' 
+                    : 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                }`}>
+                  {timeRemaining.isOvertime ? (
+                    <div className="text-center text-white">
+                      <p className="text-xs font-medium opacity-90 uppercase tracking-wider">Tiempo excedido</p>
+                      <p className="text-2xl font-bold mt-1">¡Cerrar turno!</p>
+                    </div>
+                  ) : (
+                    <div className="text-center text-white">
+                      <p className="text-xs font-medium opacity-90 uppercase tracking-wider">Tiempo restante</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <div className="flex flex-col items-center">
+                          <span className="text-3xl font-bold font-mono tabular-nums leading-none">
+                            {String(timeRemaining.hours).padStart(2, '0')}
+                          </span>
+                          <span className="text-[10px] opacity-75 uppercase">hrs</span>
+                        </div>
+                        <span className="text-3xl font-bold animate-pulse">:</span>
+                        <div className="flex flex-col items-center">
+                          <span className="text-3xl font-bold font-mono tabular-nums leading-none">
+                            {String(timeRemaining.minutes).padStart(2, '0')}
+                          </span>
+                          <span className="text-[10px] opacity-75 uppercase">min</span>
+                        </div>
+                        <span className="text-3xl font-bold animate-pulse">:</span>
+                        <div className="flex flex-col items-center">
+                          <span className="text-3xl font-bold font-mono tabular-nums leading-none">
+                            {String(timeRemaining.seconds).padStart(2, '0')}
+                          </span>
+                          <span className="text-[10px] opacity-75 uppercase">seg</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alerta si no hay turno activo */}
+      {!activeSession && !loading && (
+        <Card className="border-amber-500/50 bg-amber-500/10">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              <div>
+                <p className="font-medium text-amber-700 dark:text-amber-400">
+                  No tienes un turno activo
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Contacta a tu supervisor para iniciar turno o ve a la sección de empleados
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Resumen del turno */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Resumen de tu Turno (Hoy)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-background rounded-lg border">
+              <ShoppingBag className="h-8 w-8 mx-auto mb-2 text-blue-500" />
+              <p className="text-2xl font-bold">{summary.totalSales}</p>
+              <p className="text-xs text-muted-foreground">Ventas Realizadas</p>
+            </div>
+            <div className="text-center p-4 bg-background rounded-lg border">
+              <DollarSign className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
+              <p className="text-2xl font-bold">{formatCurrency(summary.totalAmount)}</p>
+              <p className="text-xs text-muted-foreground">Total Vendido</p>
+            </div>
+            <div className="text-center p-4 bg-background rounded-lg border">
+              <Building2 className="h-8 w-8 mx-auto mb-2 text-amber-500" />
+              <p className="text-2xl font-bold">{summary.openRooms}</p>
+              <p className="text-xs text-muted-foreground">Habitaciones Ocupadas</p>
+            </div>
+            <div className="text-center p-4 bg-background rounded-lg border">
+              <TrendingUp className="h-8 w-8 mx-auto mb-2 text-purple-500" />
+              <p className="text-2xl font-bold">{summary.completedCheckouts}</p>
+              <p className="text-xs text-muted-foreground">Checkouts Completados</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Desglose de pagos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Efectivo</CardTitle>
+            <Banknote className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.cashAmount)}</div>
+            <p className="text-xs text-muted-foreground">Cobrado en efectivo</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tarjeta BBVA</CardTitle>
+            <CreditCard className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.cardBBVA)}</div>
+            <p className="text-xs text-muted-foreground">Terminal BBVA</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tarjeta Getnet</CardTitle>
+            <CreditCard className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.cardGetnet)}</div>
+            <p className="text-xs text-muted-foreground">Terminal Getnet</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Acciones rápidas para recepcionista */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Link
+              href="/sales/pos"
+              className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <span className="text-3xl">🏨</span>
+              <span className="text-sm font-medium">Habitaciones</span>
+            </Link>
+            <Link
+              href="/sales"
+              className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <span className="text-3xl">📋</span>
+              <span className="text-sm font-medium">Mis Ventas</span>
+            </Link>
+            <Link
+              href="/sales/new"
+              className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <span className="text-3xl">💰</span>
+              <span className="text-sm font-medium">Nueva Venta</span>
+            </Link>
+            <button
+              onClick={() => activeSession ? setShowClosingModal(true) : null}
+              disabled={!activeSession}
+              className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${
+                activeSession 
+                  ? "hover:bg-muted cursor-pointer" 
+                  : "opacity-50 cursor-not-allowed"
+              }`}
+            >
+              <span className="text-3xl">🧾</span>
+              <span className="text-sm font-medium">Cerrar Turno</span>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modal de cierre de turno */}
+      {showClosingModal && activeSession && (
+        <ShiftClosingModal
+          session={activeSession}
+          onClose={() => setShowClosingModal(false)}
+          onComplete={handleClosingComplete}
+        />
+      )}
+    </div>
+  );
+}

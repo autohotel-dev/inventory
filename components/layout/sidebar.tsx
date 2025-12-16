@@ -5,6 +5,7 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
+import { useUserRole } from "@/hooks/use-user-role";
 
 // Constants
 const SIDEBAR_WIDTHS = { COMPACT: 72, EXPANDED: 256 } as const;
@@ -50,26 +51,32 @@ function useResponsiveClasses(compact: boolean) {
 }
 
 // Navigation link type
-type NavLink = { href: string; label: string; icon: string } | { divider: true };
+type NavLink = { href: string; label: string; icon: string; adminOnly?: boolean } | { divider: true; adminOnly?: boolean };
 
-const links: readonly NavLink[] = [
+// Links para administradores/managers
+const adminLinks: readonly NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: "home" },
-  { href: "/products", label: "Productos", icon: "box" },
-  { href: "/categories", label: "Categorías", icon: "arrows" },
-  { href: "/warehouses", label: "Almacenes", icon: "building" },
-  { href: "/suppliers", label: "Proveedores", icon: "truck" },
-  { href: "/customers", label: "Clientes", icon: "users" },
-  { divider: true },
-  { href: "/movements", label: "Movimientos", icon: "activity" },
-  { href: "/stock", label: "Stock", icon: "box" },
-  { href: "/kardex", label: "Kardex", icon: "activity" },
-  { divider: true },
-  { href: "/analytics", label: "Analytics", icon: "chart" },
-  { href: "/export", label: "Exportar", icon: "download" },
-  { divider: true },
-  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart" },
-  { href: "/purchases", label: "Compras", icon: "cart" },
+  { href: "/products", label: "Productos", icon: "box", adminOnly: true },
+  { href: "/categories", label: "Categorías", icon: "arrows", adminOnly: true },
+  { href: "/warehouses", label: "Almacenes", icon: "building", adminOnly: true },
+  { href: "/suppliers", label: "Proveedores", icon: "truck", adminOnly: true },
+  { href: "/customers", label: "Clientes", icon: "users", adminOnly: true },
+  { divider: true, adminOnly: true },
+  { href: "/movements", label: "Movimientos", icon: "activity", adminOnly: true },
+  { href: "/stock", label: "Stock", icon: "box", adminOnly: true },
+  { href: "/kardex", label: "Kardex", icon: "activity", adminOnly: true },
+  { divider: true, adminOnly: true },
+  { href: "/analytics", label: "Analytics", icon: "chart", adminOnly: true },
+  { href: "/export", label: "Exportar", icon: "download", adminOnly: true },
+  { divider: true, adminOnly: true },
+  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", adminOnly: true },
+  { href: "/purchases", label: "Compras", icon: "cart", adminOnly: true },
   { href: "/sales", label: "Ventas", icon: "cart" },
+  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building" },
+  { divider: true, adminOnly: true },
+  { href: "/employees", label: "Empleados", icon: "users", adminOnly: true },
+  { href: "/employees/schedules", label: "Horarios", icon: "activity", adminOnly: true },
+  { href: "/employees/closings", label: "Cortes de Caja", icon: "bag" },
 ] as const;
 
 // Reusable components
@@ -200,6 +207,18 @@ export function Sidebar() {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const classes = useResponsiveClasses(compact);
+  const { canAccessAdmin, isLoading: roleLoading } = useUserRole();
+
+  // Filtrar links según el rol del usuario
+  const visibleLinks = React.useMemo(() => {
+    if (roleLoading) return [];
+    return adminLinks.filter(link => {
+      if ("adminOnly" in link && link.adminOnly) {
+        return canAccessAdmin;
+      }
+      return true;
+    });
+  }, [canAccessAdmin, roleLoading]);
 
   React.useEffect(() => {
     setMounted(true);
@@ -229,6 +248,36 @@ export function Sidebar() {
     router.push("/auth/login");
   }, [router]);
 
+  // Evitar hydration mismatch - no renderizar hasta que esté montado
+  if (!mounted) {
+    return (
+      <>
+        <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
+            <button
+              type="button"
+              aria-label="Toggle sidebar"
+              className="border rounded px-3 py-2 text-sm hover:bg-muted transition-colors"
+            >
+              ☰ Menu
+            </button>
+          </div>
+        </div>
+        <aside
+          className="fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none -translate-x-full md:translate-x-0"
+          style={{ width: SIDEBAR_WIDTHS.EXPANDED }}
+        >
+          <div className="h-full p-3 md:p-4 space-y-4 overflow-auto scrollbar-hide">
+            <div className="px-1 hidden md:block">
+              <Link href="/dashboard" className="font-semibold text-lg block">📦 Inventory</Link>
+            </div>
+          </div>
+        </aside>
+      </>
+    );
+  }
+
   return (
     <>
       <MobileHeader open={open} setOpen={setOpen} />
@@ -256,7 +305,7 @@ export function Sidebar() {
           </div>
 
           <nav className="grid gap-1 text-sm" role="navigation" aria-label="Main navigation">
-            {links.map((link, idx) =>
+            {visibleLinks.map((link: NavLink, idx: number) =>
               ("divider" in link) ? (
                 <div key={`divider-${idx}`} className="h-px bg-border my-2" role="separator" />
               ) : (

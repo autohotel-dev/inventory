@@ -22,10 +22,19 @@ import {
   Archive,
   TrendingUp,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Users
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useUserRole } from "@/hooks/use-user-role";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SalesOrder {
   id: string;
@@ -35,9 +44,18 @@ interface SalesOrder {
   subtotal: number;
   tax: number;
   total: number;
+  created_by: string | null;
   customers: { name: string } | null;
   warehouses: { code: string; name: string } | null;
+  employees: { first_name: string; last_name: string } | null;
   notes?: string;
+}
+
+interface Employee {
+  id: string;
+  first_name: string;
+  last_name: string;
+  auth_user_id?: string | null;
 }
 
 interface Filters {
@@ -47,19 +65,23 @@ interface Filters {
   dateTo: string;
   minAmount: string;
   maxAmount: string;
+  employeeId: string;
 }
 
 export function AdvancedSalesTable() {
   const [sales, setSales] = useState<SalesOrder[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const { canAccessAdmin, userId, employeeId } = useUserRole();
   const [filters, setFilters] = useState<Filters>({
     search: '',
     status: 'ALL',
     dateFrom: '',
     dateTo: '',
     minAmount: '',
-    maxAmount: ''
+    maxAmount: '',
+    employeeId: 'ALL'
   });
   const [stats, setStats] = useState({
     total: 0,
@@ -70,6 +92,18 @@ export function AdvancedSalesTable() {
     open: 0,
     ended: 0
   });
+
+  // Cargar lista de empleados (para mostrar nombres y filtrar)
+  const fetchEmployees = async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("employees")
+      .select("id, first_name, last_name, auth_user_id")
+      .eq("is_active", true)
+      .order("first_name");
+    
+    setEmployees(data || []);
+  };
 
   const fetchSales = async () => {
     setLoading(true);
@@ -87,10 +121,25 @@ export function AdvancedSalesTable() {
           tax,
           total,
           notes,
+          created_by,
           customers!customer_id(name),
           warehouses!warehouse_id(code, name)
         `)
         .order("created_at", { ascending: false });
+
+      // FILTRO POR ROL: Recepcionistas solo ven sus propias ventas
+      if (!canAccessAdmin && userId) {
+        query = query.eq('created_by', userId);
+      }
+
+      // Filtro por empleado específico (solo para admins)
+      if (canAccessAdmin && filters.employeeId !== 'ALL') {
+        // Buscar el auth_user_id del empleado seleccionado
+        const selectedEmployee = employees.find(e => e.id === filters.employeeId);
+        if (selectedEmployee?.auth_user_id) {
+          query = query.eq('created_by', selectedEmployee.auth_user_id);
+        }
+      }
 
       // Aplicar filtros
       if (filters.status !== 'ALL') {
@@ -118,11 +167,16 @@ export function AdvancedSalesTable() {
       if (error) throw error;
       
       // Transformar datos de Supabase al formato esperado
-      const transformedData: SalesOrder[] = (data as any || []).map((item: any) => ({
-        ...item,
-        customers: item.customers || null,
-        warehouses: item.warehouses || null
-      }));
+      const transformedData: SalesOrder[] = (data as any || []).map((item: any) => {
+        // Buscar empleado por auth_user_id
+        const employee = employees.find(e => e.auth_user_id === item.created_by);
+        return {
+          ...item,
+          customers: item.customers || null,
+          warehouses: item.warehouses || null,
+          employees: employee ? { first_name: employee.first_name, last_name: employee.last_name } : null
+        };
+      });
       
       let filteredData = transformedData;
       
@@ -132,7 +186,9 @@ export function AdvancedSalesTable() {
         filteredData = filteredData.filter(sale => 
           sale.customers?.name?.toLowerCase().includes(searchLower) ||
           sale.id.toLowerCase().includes(searchLower) ||
-          sale.notes?.toLowerCase().includes(searchLower)
+          sale.notes?.toLowerCase().includes(searchLower) ||
+          sale.employees?.first_name?.toLowerCase().includes(searchLower) ||
+          sale.employees?.last_name?.toLowerCase().includes(searchLower)
         );
       }
       
@@ -164,8 +220,14 @@ export function AdvancedSalesTable() {
   };
 
   useEffect(() => {
-    fetchSales();
-  }, [filters]);
+    fetchEmployees();
+  }, []);
+
+  useEffect(() => {
+    if (employees.length > 0 || !canAccessAdmin) {
+      fetchSales();
+    }
+  }, [filters, userId, canAccessAdmin, employees]);
 
   const handleFilterChange = (key: keyof Filters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -178,7 +240,8 @@ export function AdvancedSalesTable() {
       dateFrom: '',
       dateTo: '',
       minAmount: '',
-      maxAmount: ''
+      maxAmount: '',
+      employeeId: 'ALL'
     });
   };
 
@@ -402,6 +465,14 @@ export function AdvancedSalesTable() {
                   </button>
                 </Badge>
               )}
+              {filters.employeeId !== 'ALL' && (
+                <Badge variant="secondary" className="gap-1 pr-1">
+                  Empleado: {employees.find(e => e.id === filters.employeeId)?.first_name || filters.employeeId}
+                  <button onClick={() => handleFilterChange('employeeId', 'ALL')} className="ml-1 hover:bg-muted rounded">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-6 text-xs">
                 Limpiar todo
               </Button>
@@ -410,7 +481,7 @@ export function AdvancedSalesTable() {
 
           {/* Advanced Filters - Expandible */}
           {showFilters && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t animate-in slide-in-from-top-2 duration-200">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t animate-in slide-in-from-top-2 duration-200">
               <div className="space-y-1.5">
                 <Label className="text-xs">Estado</Label>
                 <select
@@ -426,6 +497,29 @@ export function AdvancedSalesTable() {
                   <option value="CANCELLED">Cancelada</option>
                 </select>
               </div>
+
+              {/* Filtro por empleado - solo visible para admins */}
+              {canAccessAdmin && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    Empleado
+                  </Label>
+                  <select
+                    value={filters.employeeId}
+                    onChange={(e) => handleFilterChange('employeeId', e.target.value)}
+                    className="w-full h-9 border rounded-md px-3 text-sm bg-background"
+                  >
+                    <option value="ALL">Todos</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label className="text-xs">Fecha Desde</Label>
                 <Input
@@ -509,6 +603,9 @@ export function AdvancedSalesTable() {
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Fecha</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Cliente</th>
+                    {canAccessAdmin && (
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Vendedor</th>
+                    )}
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Almacén</th>
                     <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado</th>
                     <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
@@ -530,6 +627,16 @@ export function AdvancedSalesTable() {
                           <div className="text-xs text-muted-foreground truncate max-w-[200px]">{sale.notes}</div>
                         )}
                       </td>
+                      {canAccessAdmin && (
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          <div className="text-sm text-muted-foreground">
+                            {sale.employees 
+                              ? `${sale.employees.first_name} ${sale.employees.last_name}`
+                              : '-'
+                            }
+                          </div>
+                        </td>
+                      )}
                       <td className="px-4 py-3 hidden md:table-cell">
                         <div className="text-sm text-muted-foreground">
                           {sale.warehouses ? `${sale.warehouses.code}` : '-'}
