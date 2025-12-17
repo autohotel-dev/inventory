@@ -15,6 +15,8 @@ import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
 import { RoomPayExtraModal } from "@/components/sales/room-pay-extra-modal";
 import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
 import { RoomDetailsModal } from "@/components/sales/room-details-modal";
+import { GranularPaymentModal } from "@/components/sales/granular-payment-modal";
+import { AddConsumptionModal } from "@/components/sales/add-consumption-modal";
 import {
   Room,
   RoomType,
@@ -44,6 +46,7 @@ export function RoomsBoard() {
   const [checkoutInfo, setCheckoutInfo] = useState<{
     salesOrderId: string;
     remainingAmount: number;
+    pendingItems?: { concept_type: string; total: number; count: number }[];
   } | null>(null);
   // Estados para pagar extras
   const [showPayExtraModal, setShowPayExtraModal] = useState(false);
@@ -62,6 +65,10 @@ export function RoomsBoard() {
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showGranularPaymentModal, setShowGranularPaymentModal] = useState(false);
+  const [granularPaymentOrderId, setGranularPaymentOrderId] = useState<string | null>(null);
+  const [showConsumptionModal, setShowConsumptionModal] = useState(false);
+  const [consumptionOrderId, setConsumptionOrderId] = useState<string | null>(null);
   const [actionsDockVisible, setActionsDockVisible] = useState(false);
   const [startStayLoading, setStartStayLoading] = useState(false);
 
@@ -119,7 +126,35 @@ export function RoomsBoard() {
   const openCheckoutModal = async (room: Room) => {
     const info = await prepareCheckout(room);
     if (info) {
-      setCheckoutInfo(info);
+      // Obtener items pendientes por concepto
+      const supabase = createClient();
+      const { data: itemsData } = await supabase
+        .from("sales_order_items")
+        .select("concept_type, total, is_paid")
+        .eq("sales_order_id", info.salesOrderId);
+
+      // Agrupar por concepto los items no pagados
+      const pendingByType: Record<string, { total: number; count: number }> = {};
+      if (itemsData) {
+        itemsData.forEach((item: any) => {
+          if (!item.is_paid) {
+            const type = item.concept_type || "PRODUCT";
+            if (!pendingByType[type]) {
+              pendingByType[type] = { total: 0, count: 0 };
+            }
+            pendingByType[type].total += item.total || 0;
+            pendingByType[type].count += 1;
+          }
+        });
+      }
+
+      const pendingItems = Object.entries(pendingByType).map(([concept_type, data]) => ({
+        concept_type,
+        total: data.total,
+        count: data.count,
+      }));
+
+      setCheckoutInfo({ ...info, pendingItems });
       setCheckoutAmount(info.remainingAmount);
       setSelectedRoom(room);
       setShowCheckoutModal(true);
@@ -163,6 +198,56 @@ export function RoomsBoard() {
         description: "No hay cargos extra por pagar en esta habitación.",
       });
     }
+  };
+
+  // Abrir modal de cobro granular (por concepto)
+  const openGranularPaymentModal = async (room: Room) => {
+    const activeStay = getActiveStay(room);
+    if (!activeStay?.sales_order_id) {
+      toast.error("No se encontró una orden activa");
+      return;
+    }
+    setGranularPaymentOrderId(activeStay.sales_order_id);
+    setSelectedRoom(room);
+    setShowGranularPaymentModal(true);
+  };
+
+  // Cerrar modal de cobro granular
+  const handleCloseGranularPaymentModal = () => {
+    setShowGranularPaymentModal(false);
+    setGranularPaymentOrderId(null);
+  };
+
+  // Completar cobro granular
+  const handleGranularPaymentComplete = () => {
+    setShowGranularPaymentModal(false);
+    setGranularPaymentOrderId(null);
+    fetchRooms(true);
+  };
+
+  // Abrir modal de agregar consumo
+  const openConsumptionModal = async (room: Room) => {
+    const activeStay = getActiveStay(room);
+    if (!activeStay?.sales_order_id) {
+      toast.error("No se encontró una orden activa");
+      return;
+    }
+    setConsumptionOrderId(activeStay.sales_order_id);
+    setSelectedRoom(room);
+    setShowConsumptionModal(true);
+  };
+
+  // Cerrar modal de consumo
+  const handleCloseConsumptionModal = () => {
+    setShowConsumptionModal(false);
+    setConsumptionOrderId(null);
+  };
+
+  // Completar agregar consumo
+  const handleConsumptionComplete = () => {
+    setShowConsumptionModal(false);
+    setConsumptionOrderId(null);
+    fetchRooms(true);
   };
 
   // Cerrar modal de pagar extras
@@ -663,6 +748,88 @@ export function RoomsBoard() {
         return;
       }
 
+      // Insertar items en sales_order_items para cobro granular
+      // Nota: 'total' es columna generada, no se incluye en el insert
+      // Primero buscar o crear un producto "servicio" para habitaciones
+      let serviceProductId: string | null = null;
+      
+      const { data: serviceProducts } = await supabase
+        .from("products")
+        .select("id")
+        .eq("sku", "SVC-ROOM")
+        .limit(1);
+      
+      if (serviceProducts && serviceProducts.length > 0) {
+        serviceProductId = serviceProducts[0].id;
+      } else {
+        // Crear producto de servicio si no existe
+        const { data: newProduct, error: productError } = await supabase
+          .from("products")
+          .insert({
+            name: "Servicio de Habitación",
+            sku: "SVC-ROOM",
+            description: "Servicios de habitación (estancia, horas extra, personas extra)",
+            price: 0,
+            cost: 0,
+            unit: "SVC",
+            min_stock: 0,
+            is_active: true,
+          })
+          .select("id")
+          .single();
+        
+        if (productError) {
+          console.error("Error creating service product:", productError);
+          // Continuar sin items granulares
+        } else if (newProduct) {
+          serviceProductId = newProduct.id;
+        }
+      }
+
+      // Solo insertar items si tenemos un product_id válido
+      if (serviceProductId) {
+        const orderItems = [];
+        
+        // Item de habitación base
+        orderItems.push({
+          sales_order_id: salesOrder.id,
+          product_id: serviceProductId,
+          qty: 1,
+          unit_price: basePrice,
+          concept_type: "ROOM_BASE",
+          is_paid: totalPaid >= basePrice,
+          paid_at: totalPaid >= basePrice ? new Date().toISOString() : null,
+          payment_method: totalPaid >= basePrice ? (payments.length === 1 ? payments[0].method : "MIXTO") : null,
+        });
+
+        // Items de personas extra (si aplica)
+        if (extraPeopleCount > 0 && extraPersonPrice > 0) {
+          for (let i = 0; i < extraPeopleCount; i++) {
+            const itemTotal = basePrice + (i + 1) * extraPersonPrice;
+            const isPaidUpToThis = totalPaid >= itemTotal;
+            orderItems.push({
+              sales_order_id: salesOrder.id,
+              product_id: serviceProductId,
+              qty: 1,
+              unit_price: extraPersonPrice,
+              concept_type: "EXTRA_PERSON",
+              is_paid: isPaidUpToThis,
+              paid_at: isPaidUpToThis ? new Date().toISOString() : null,
+              payment_method: isPaidUpToThis ? (payments.length === 1 ? payments[0].method : "MIXTO") : null,
+            });
+          }
+        }
+
+        const { error: itemsError } = await supabase
+          .from("sales_order_items")
+          .insert(orderItems);
+
+        if (itemsError) {
+          console.error("Error inserting order items:", itemsError);
+          // No es crítico, continuar
+        }
+      }
+
       // Insertar cargo principal y subpagos si es multipago
       if (payments.length > 0) {
         const totalPaidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -976,6 +1143,7 @@ export function RoomsBoard() {
         remainingAmount={checkoutInfo?.remainingAmount || 0}
         checkoutAmount={checkoutAmount}
         actionLoading={actionLoading}
+        pendingItems={checkoutInfo?.pendingItems}
         onAmountChange={setCheckoutAmount}
         onClose={handleCloseCheckoutModal}
         onConfirm={handleCheckout}
@@ -1018,6 +1186,18 @@ export function RoomsBoard() {
           if (selectedRoom) {
             setShowActionsModal(false);
             setShowDetailsModal(true);
+          }
+        }}
+        onGranularPayment={() => {
+          if (selectedRoom) {
+            openGranularPaymentModal(selectedRoom);
+            setShowActionsModal(false);
+          }
+        }}
+        onAddConsumption={() => {
+          if (selectedRoom) {
+            openConsumptionModal(selectedRoom);
+            setShowActionsModal(false);
           }
         }}
         onAddPerson={() => {
@@ -1088,6 +1268,20 @@ export function RoomsBoard() {
         onClose={() => {
           setShowDetailsModal(false);
         }}
+      />
+      <GranularPaymentModal
+        isOpen={showGranularPaymentModal && !!granularPaymentOrderId}
+        salesOrderId={granularPaymentOrderId || ""}
+        roomNumber={selectedRoom?.number}
+        onClose={handleCloseGranularPaymentModal}
+        onComplete={handleGranularPaymentComplete}
+      />
+      <AddConsumptionModal
+        isOpen={showConsumptionModal && !!consumptionOrderId}
+        salesOrderId={consumptionOrderId || ""}
+        roomNumber={selectedRoom?.number}
+        onClose={handleCloseConsumptionModal}
+        onComplete={handleConsumptionComplete}
       />
     </div>
   );

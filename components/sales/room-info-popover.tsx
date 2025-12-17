@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp, CreditCard, Receipt, Banknote, Building2 } from "lucide-react";
+import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp, CreditCard, Receipt, Banknote, Building2, Bed, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Room, RoomStay, STATUS_CONFIG } from "@/components/sales/room-types";
@@ -13,6 +13,13 @@ interface Payment {
   payment_method: string;
   reference: string | null;
   created_at: string;
+}
+
+interface ConceptSummary {
+  concept_type: string;
+  total: number;
+  count: number;
+  paid: number;
 }
 
 interface RoomInfoPopoverProps {
@@ -36,6 +43,17 @@ export function RoomInfoPopover({
   const [showPayments, setShowPayments] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [conceptSummary, setConceptSummary] = useState<ConceptSummary[]>([]);
+
+  // Cargar resumen de conceptos al abrir
+  useEffect(() => {
+    if (isOpen && room?.status === "OCUPADA") {
+      const activeStay = getActiveStay(room);
+      if (activeStay?.sales_order_id) {
+        fetchConceptSummary(activeStay.sales_order_id);
+      }
+    }
+  }, [isOpen, room]);
 
   // Cargar pagos cuando se expande la sección
   useEffect(() => {
@@ -46,6 +64,32 @@ export function RoomInfoPopover({
       }
     }
   }, [showPayments, room]);
+
+  const fetchConceptSummary = async (salesOrderId: string) => {
+    const supabase = createClient();
+    
+    const { data, error } = await supabase
+      .from("sales_order_items")
+      .select("concept_type, total, is_paid")
+      .eq("sales_order_id", salesOrderId);
+
+    if (!error && data) {
+      // Agrupar por concepto
+      const summary: Record<string, ConceptSummary> = {};
+      data.forEach((item: any) => {
+        const type = item.concept_type || "PRODUCT";
+        if (!summary[type]) {
+          summary[type] = { concept_type: type, total: 0, count: 0, paid: 0 };
+        }
+        summary[type].total += item.total || 0;
+        summary[type].count += 1;
+        if (item.is_paid) {
+          summary[type].paid += item.total || 0;
+        }
+      });
+      setConceptSummary(Object.values(summary));
+    }
+  };
 
   const fetchPayments = async (salesOrderId: string) => {
     setLoadingPayments(true);
@@ -202,6 +246,43 @@ export function RoomInfoPopover({
                         <span className="text-[10px] text-pink-300">Horas extra</span>
                       </div>
                       <span className="text-lg font-bold text-pink-400">+{extraHours}h</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resumen de conceptos pendientes */}
+                {conceptSummary.length > 0 && conceptSummary.some(c => c.total - c.paid > 0) && (
+                  <div className="bg-slate-800/50 rounded-lg p-2 space-y-1.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Receipt className="h-3 w-3 text-white/50" />
+                      <span className="text-[10px] text-white/50">Desglose pendiente</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {conceptSummary.map((concept) => {
+                        const pending = concept.total - concept.paid;
+                        if (pending <= 0) return null;
+                        
+                        const conceptConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+                          ROOM_BASE: { label: "Hab", icon: <Bed className="h-2.5 w-2.5" />, color: "text-blue-400 bg-blue-500/20 border-blue-500/30" },
+                          EXTRA_HOUR: { label: "Hora", icon: <Clock className="h-2.5 w-2.5" />, color: "text-amber-400 bg-amber-500/20 border-amber-500/30" },
+                          EXTRA_PERSON: { label: "Pers", icon: <Users className="h-2.5 w-2.5" />, color: "text-purple-400 bg-purple-500/20 border-purple-500/30" },
+                          CONSUMPTION: { label: "Cons", icon: <ShoppingBag className="h-2.5 w-2.5" />, color: "text-green-400 bg-green-500/20 border-green-500/30" },
+                          PRODUCT: { label: "Prod", icon: <ShoppingBag className="h-2.5 w-2.5" />, color: "text-slate-400 bg-slate-500/20 border-slate-500/30" },
+                        };
+                        const config = conceptConfig[concept.concept_type] || conceptConfig.PRODUCT;
+
+                        return (
+                          <Badge 
+                            key={concept.concept_type}
+                            variant="outline"
+                            className={`text-[9px] px-1.5 py-0.5 ${config.color}`}
+                          >
+                            {config.icon}
+                            <span className="ml-0.5">{config.label}</span>
+                            <span className="ml-1 font-bold">${pending.toFixed(0)}</span>
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

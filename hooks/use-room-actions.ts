@@ -229,6 +229,25 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             const updateResult = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
             console.log("updateSalesOrderTotals result:", updateResult);
             
+            // Buscar producto de servicio para habitaciones
+            const { data: serviceProducts } = await supabase
+              .from("products")
+              .select("id")
+              .eq("sku", "SVC-ROOM")
+              .limit(1);
+
+            if (serviceProducts && serviceProducts.length > 0) {
+              // Insertar item en sales_order_items para cobro granular
+              await supabase.from("sales_order_items").insert({
+                sales_order_id: activeStay.sales_order_id,
+                product_id: serviceProducts[0].id,
+                qty: 1,
+                unit_price: extraPrice,
+                concept_type: "EXTRA_PERSON",
+                is_paid: false,
+              });
+            }
+
             // Registrar el cargo como pago pendiente con concepto PERSONA_EXTRA
             const { error: paymentError } = await supabase.from("payments").insert({
               sales_order_id: activeStay.sales_order_id,
@@ -390,6 +409,25 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraHourPrice);
 
       if (result.success) {
+        // Buscar producto de servicio para habitaciones
+        const { data: serviceProducts } = await supabase
+          .from("products")
+          .select("id")
+          .eq("sku", "SVC-ROOM")
+          .limit(1);
+
+        if (serviceProducts && serviceProducts.length > 0) {
+          // Insertar item en sales_order_items para cobro granular
+          await supabase.from("sales_order_items").insert({
+            sales_order_id: activeStay.sales_order_id,
+            product_id: serviceProducts[0].id,
+            qty: 1,
+            unit_price: extraHourPrice,
+            concept_type: "EXTRA_HOUR",
+            is_paid: false,
+          });
+        }
+
         // Registrar el cargo pendiente con concepto HORA_EXTRA
         await supabase.from("payments").insert({
           sales_order_id: activeStay.sales_order_id,

@@ -25,7 +25,12 @@ import {
   X,
   CreditCard,
   Receipt,
-  Wallet
+  Wallet,
+  ChevronDown,
+  ChevronUp,
+  Bed,
+  Banknote,
+  Building2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -42,6 +47,9 @@ import { Customer } from "@/lib/types/inventory";
 import { AddProductModal } from "@/components/sales/add-product-modal";
 import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
+import { GranularPaymentModal } from "@/components/sales/granular-payment-modal";
+import { ReceiptGenerator } from "@/components/sales/receipt-generator";
+import { ListChecks } from "lucide-react";
 
 interface SalesOrderDetail {
   id: string;
@@ -66,6 +74,9 @@ interface SalesOrderItem {
   unit_price: number;
   total: number;
   payment_method?: string | null;
+  is_paid?: boolean;
+  paid_at?: string | null;
+  concept_type?: string | null;
   products: { name: string; sku: string } | null;
 }
 
@@ -83,6 +94,7 @@ interface AdvancedSalesDetailProps {
 export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const router = useRouter();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showGranularPaymentModal, setShowGranularPaymentModal] = useState(false);
   const [order, setOrder] = useState<SalesOrderDetail | null>(null);
   const [items, setItems] = useState<SalesOrderItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,6 +108,26 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   });
 
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [paymentHistory, setPaymentHistory] = useState<{
+    id: string;
+    amount: number;
+    payment_method: string;
+    reference: string;
+    concept: string;
+    status: string;
+    created_at: string;
+  }[]>([]);
+
+  const toggleItemExpand = (itemId: string) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedItems(newExpanded);
+  };
 
   useEffect(() => {
     fetchOrderDetail();
@@ -294,6 +326,9 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           unit_price,
           total,
           payment_method,
+          is_paid,
+          paid_at,
+          concept_type,
           products:product_id(name, sku)
         `)
         .eq("sales_order_id", orderId);
@@ -310,12 +345,20 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         .eq("is_active", true)
         .order("name");
 
+      // Fetch payment history
+      const { data: paymentsData } = await supabase
+        .from("payments")
+        .select("id, amount, payment_method, reference, concept, status, created_at")
+        .eq("sales_order_id", orderId)
+        .order("created_at", { ascending: false });
+
       // Simplified: no stock warnings for now
       const warnings: string[] = [];
 
       setOrder(enrichedOrderData as any);
       setItems(itemsData as any || []);
       setProducts(productsData || []);
+      setPaymentHistory(paymentsData || []);
       setStockWarnings(warnings);
     } catch (error) {
       console.error('Error fetching order detail:', error);
@@ -709,6 +752,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ReceiptGenerator orderId={order.id} />
           <Button variant="outline" size="sm" onClick={exportToPDF}>
             <Download className="h-4 w-4 mr-2" />
             Exportar
@@ -726,10 +770,16 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
             </>
           )}
           {order.status === 'PARTIAL' && (
-            <Button size="sm" onClick={handlePaymentModalOpen}>
-              <Wallet className="h-4 w-4 mr-2" />
-              Abonar
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={() => setShowGranularPaymentModal(true)}>
+                <ListChecks className="h-4 w-4 mr-2" />
+                Por Concepto
+              </Button>
+              <Button size="sm" onClick={handlePaymentModalOpen}>
+                <Wallet className="h-4 w-4 mr-2" />
+                Abonar Todo
+              </Button>
+            </>
           )}
           {order.status === 'COMPLETED' && (
             <Button size="sm" onClick={() => updateOrderStatus('ENDED')}>
@@ -817,26 +867,26 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 rounded-lg bg-muted/50">
-              <p className="text-2xl font-bold">{formatCurrency(order.subtotal, order.currency)}</p>
-              <p className="text-xs text-muted-foreground">Subtotal</p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-muted/50">
-              <p className="text-2xl font-bold">{formatCurrency(order.tax, order.currency)}</p>
-              <p className="text-xs text-muted-foreground">Impuestos</p>
-            </div>
             <div className="text-center p-3 rounded-lg bg-emerald-500/10">
               <p className="text-2xl font-bold text-emerald-600">{formatCurrency(order.total, order.currency)}</p>
               <p className="text-xs text-muted-foreground">Total</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-purple-500/10">
-              <p className="text-2xl font-bold text-purple-600">{calculateProfitMargin().toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground">Margen Est.</p>
+            <div className="text-center p-3 rounded-lg bg-green-500/10">
+              <p className="text-2xl font-bold text-green-600">{formatCurrency(paidAmount, order.currency)}</p>
+              <p className="text-xs text-muted-foreground">Pagado</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-amber-500/10">
+              <p className="text-2xl font-bold text-amber-600">{formatCurrency(order.remaining_amount, order.currency)}</p>
+              <p className="text-xs text-muted-foreground">Pendiente</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-blue-500/10">
+              <p className="text-2xl font-bold text-blue-600">{paymentProgress.toFixed(0)}%</p>
+              <p className="text-xs text-muted-foreground">Progreso</p>
             </div>
           </div>
 
           {/* Barra de progreso de pago */}
-          {order.status === 'PARTIAL' && (
+          {order.remaining_amount > 0 && (
             <div className="mt-4 pt-4 border-t">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">Progreso de pago</span>
@@ -848,14 +898,119 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                   style={{ width: `${paymentProgress}%` }}
                 />
               </div>
-              <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                <span>Pagado: {formatCurrency(paidAmount, order.currency)}</span>
-                <span>Pendiente: {formatCurrency(order.remaining_amount, order.currency)}</span>
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Desglose por Concepto */}
+      {items.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Receipt className="h-4 w-4 text-blue-500" />
+              <span className="font-medium">Desglose por Concepto</span>
+            </div>
+            
+            {(() => {
+              // Calcular totales por tipo de concepto
+              const conceptTotals = items.reduce((acc, item) => {
+                const type = item.concept_type || 'PRODUCT';
+                if (!acc[type]) {
+                  acc[type] = { total: 0, paid: 0, count: 0 };
+                }
+                acc[type].total += item.total;
+                acc[type].count += 1;
+                if (item.is_paid) {
+                  acc[type].paid += item.total;
+                }
+                return acc;
+              }, {} as Record<string, { total: number; paid: number; count: number }>);
+
+              const conceptConfig: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
+                ROOM_BASE: { 
+                  label: "Habitación Base", 
+                  icon: <Bed className="h-4 w-4" />, 
+                  color: "text-blue-600",
+                  bgColor: "bg-blue-500/10"
+                },
+                EXTRA_HOUR: { 
+                  label: "Horas Extra", 
+                  icon: <Clock className="h-4 w-4" />, 
+                  color: "text-amber-600",
+                  bgColor: "bg-amber-500/10"
+                },
+                EXTRA_PERSON: { 
+                  label: "Personas Extra", 
+                  icon: <Users className="h-4 w-4" />, 
+                  color: "text-purple-600",
+                  bgColor: "bg-purple-500/10"
+                },
+                CONSUMPTION: { 
+                  label: "Consumos", 
+                  icon: <ShoppingBag className="h-4 w-4" />, 
+                  color: "text-green-600",
+                  bgColor: "bg-green-500/10"
+                },
+                PRODUCT: { 
+                  label: "Productos", 
+                  icon: <ShoppingBag className="h-4 w-4" />, 
+                  color: "text-slate-600",
+                  bgColor: "bg-slate-500/10"
+                },
+                OTHER: { 
+                  label: "Otros", 
+                  icon: <Receipt className="h-4 w-4" />, 
+                  color: "text-slate-600",
+                  bgColor: "bg-slate-500/10"
+                },
+              };
+
+              const orderedTypes = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'CONSUMPTION', 'PRODUCT', 'OTHER'];
+              const existingTypes = orderedTypes.filter(type => conceptTotals[type]);
+
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {existingTypes.map(type => {
+                    const config = conceptConfig[type];
+                    const data = conceptTotals[type];
+                    const paidPercentage = data.total > 0 ? (data.paid / data.total) * 100 : 0;
+
+                    return (
+                      <div key={type} className={`p-3 rounded-lg ${config.bgColor} space-y-2`}>
+                        <div className="flex items-center gap-2">
+                          <span className={config.color}>{config.icon}</span>
+                          <span className="text-xs font-medium truncate">{config.label}</span>
+                          <Badge variant="outline" className="text-[10px] ml-auto">
+                            {data.count}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className={`text-lg font-bold ${config.color}`}>
+                            {formatCurrency(data.total, order.currency)}
+                          </p>
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <span className="text-green-600">{formatCurrency(data.paid, order.currency)} pagado</span>
+                            <span>•</span>
+                            <span className="text-amber-600">{formatCurrency(data.total - data.paid, order.currency)} pend.</span>
+                          </div>
+                        </div>
+                        {/* Mini barra de progreso */}
+                        <div className="h-1 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-green-500 transition-all duration-300"
+                            style={{ width: `${paidPercentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Productos */}
       <Card>
@@ -882,51 +1037,266 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors group">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{item.products?.name}</p>
-                    <p className="text-xs text-muted-foreground">SKU: {item.products?.sku}</p>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="text-center">
-                      <p className="font-medium">{item.qty}</p>
-                      <p className="text-[10px] text-muted-foreground">Cant.</p>
+              {items.map((item) => {
+                const isExpanded = expandedItems.has(item.id);
+                const conceptLabels: Record<string, string> = {
+                  ROOM_BASE: "Habitación Base",
+                  EXTRA_HOUR: "Hora Extra",
+                  EXTRA_PERSON: "Persona Extra",
+                  CONSUMPTION: "Consumo",
+                  PRODUCT: "Producto",
+                  OTHER: "Otro",
+                };
+                const conceptIcons: Record<string, React.ReactNode> = {
+                  ROOM_BASE: <Bed className="h-3 w-3" />,
+                  EXTRA_HOUR: <Clock className="h-3 w-3" />,
+                  EXTRA_PERSON: <Users className="h-3 w-3" />,
+                  CONSUMPTION: <ShoppingBag className="h-3 w-3" />,
+                  PRODUCT: <ShoppingBag className="h-3 w-3" />,
+                  OTHER: <Receipt className="h-3 w-3" />,
+                };
+                const paymentIcons: Record<string, React.ReactNode> = {
+                  EFECTIVO: <Banknote className="h-3 w-3 text-green-500" />,
+                  TARJETA: <CreditCard className="h-3 w-3 text-blue-500" />,
+                  TRANSFERENCIA: <Building2 className="h-3 w-3 text-purple-500" />,
+                  MIXTO: <Wallet className="h-3 w-3 text-amber-500" />,
+                };
+
+                return (
+                  <div key={item.id} className="rounded-lg border overflow-hidden">
+                    {/* Item principal */}
+                    <div 
+                      className={`flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group cursor-pointer ${
+                        item.is_paid ? 'bg-green-500/5' : ''
+                      }`}
+                      onClick={() => toggleItemExpand(item.id)}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {/* Indicador de estado de pago */}
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${item.is_paid ? 'bg-green-500' : 'bg-amber-500'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">
+                              {item.concept_type && item.concept_type !== 'PRODUCT' 
+                                ? conceptLabels[item.concept_type] 
+                                : item.products?.name || 'Producto'}
+                            </p>
+                            {item.concept_type && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                {conceptIcons[item.concept_type]}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {item.products?.sku !== 'SVC-ROOM' ? `SKU: ${item.products?.sku}` : 'Servicio de habitación'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="text-center">
+                          <p className="font-medium">{item.qty}</p>
+                          <p className="text-[10px] text-muted-foreground">Cant.</p>
+                        </div>
+                        <div className="text-center hidden sm:block">
+                          <p className="font-medium">{formatCurrency(item.unit_price, order.currency)}</p>
+                          <p className="text-[10px] text-muted-foreground">P. Unit.</p>
+                        </div>
+                        <div className="text-center">
+                          <p className={`font-semibold ${item.is_paid ? 'text-green-600' : 'text-amber-600'}`}>
+                            {formatCurrency(item.total, order.currency)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">Total</p>
+                        </div>
+                        <div className="text-center min-w-[60px]">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-[10px] ${item.is_paid ? 'bg-green-500/10 text-green-600 border-green-500/30' : 'bg-amber-500/10 text-amber-600 border-amber-500/30'}`}
+                          >
+                            {item.is_paid ? 'Pagado' : 'Pendiente'}
+                          </Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleItemExpand(item.id);
+                          }}
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                        {order.status === 'OPEN' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveClick(item.id, item.products?.name || 'Producto');
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-center hidden sm:block">
-                      <p className="font-medium">{formatCurrency(item.unit_price, order.currency)}</p>
-                      <p className="text-[10px] text-muted-foreground">P. Unit.</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-emerald-600">{formatCurrency(item.total, order.currency)}</p>
-                      <p className="text-[10px] text-muted-foreground">Total</p>
-                    </div>
-                    <div className="text-center hidden sm:block min-w-[80px]">
-                      <p className="font-medium text-xs">
-                        {item.payment_method === 'EFECTIVO' && '💵'}
-                        {item.payment_method === 'TARJETA' && '💳'}
-                        {item.payment_method === 'TRANSFERENCIA' && '🏦'}
-                        {!item.payment_method && '—'}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">{item.payment_method || 'Sin pago'}</p>
-                    </div>
-                    {order.status === 'OPEN' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                        onClick={() => handleRemoveClick(item.id, item.products?.name || 'Producto')}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+
+                    {/* Dropdown expandible con detalles de pago */}
+                    {isExpanded && (
+                      <div className="px-4 py-3 bg-muted/30 border-t space-y-3 animate-in slide-in-from-top-2 duration-200">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                          {/* Tipo de concepto */}
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Concepto</p>
+                            <div className="flex items-center gap-1.5">
+                              {item.concept_type && conceptIcons[item.concept_type]}
+                              <span className="font-medium">
+                                {item.concept_type && item.concept_type !== 'PRODUCT'
+                                  ? conceptLabels[item.concept_type]
+                                  : item.products?.name || 'Producto'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Estado de pago */}
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Estado</p>
+                            <div className="flex items-center gap-1.5">
+                              {item.is_paid ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-amber-500" />
+                              )}
+                              <span className={`font-medium ${item.is_paid ? 'text-green-600' : 'text-amber-600'}`}>
+                                {item.is_paid ? 'Pagado' : 'Pendiente'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Método de pago */}
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Método</p>
+                            <div className="flex items-center gap-1.5">
+                              {item.payment_method && paymentIcons[item.payment_method]}
+                              <span className="font-medium">
+                                {item.payment_method || '—'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Fecha de pago */}
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fecha de pago</p>
+                            <span className="font-medium">
+                              {item.paid_at 
+                                ? new Date(item.paid_at).toLocaleString('es-MX', { 
+                                    day: '2-digit', 
+                                    month: 'short', 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })
+                                : '—'
+                              }
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Resumen de pago */}
+                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                          <span className="text-sm text-muted-foreground">
+                            {item.is_paid 
+                              ? `Cobrado: ${formatCurrency(item.total, order.currency)} con ${item.payment_method || 'método no especificado'}`
+                              : `Pendiente de cobro: ${formatCurrency(item.total, order.currency)}`
+                            }
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Historial de Pagos */}
+      {paymentHistory.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Wallet className="h-4 w-4 text-green-500" />
+              <span className="font-medium">Historial de Pagos ({paymentHistory.length})</span>
+            </div>
+            <div className="space-y-2">
+              {paymentHistory.map((payment) => {
+                const paymentIcons: Record<string, React.ReactNode> = {
+                  EFECTIVO: <Banknote className="h-4 w-4 text-green-500" />,
+                  TARJETA: <CreditCard className="h-4 w-4 text-blue-500" />,
+                  TRANSFERENCIA: <Building2 className="h-4 w-4 text-purple-500" />,
+                  MIXTO: <Wallet className="h-4 w-4 text-amber-500" />,
+                  PENDIENTE: <Clock className="h-4 w-4 text-gray-500" />,
+                };
+                const conceptLabels: Record<string, string> = {
+                  CHECKOUT: "Checkout",
+                  EXTRA_HOUR: "Hora Extra",
+                  EXTRA_PERSON: "Persona Extra",
+                  CONSUMPTION: "Consumo",
+                  PARTIAL: "Pago Parcial",
+                  GRANULAR: "Cobro Granular",
+                };
+
+                return (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-green-500/10">
+                        {paymentIcons[payment.payment_method] || <Wallet className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{payment.payment_method}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {conceptLabels[payment.concept] || payment.concept}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(payment.created_at).toLocaleString('es-MX', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                          {payment.reference && ` • Ref: ${payment.reference}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">
+                        +{formatCurrency(payment.amount, order.currency)}
+                      </p>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-[10px] ${
+                          payment.status === 'PAGADO' 
+                            ? 'bg-green-500/10 text-green-600 border-green-500/30' 
+                            : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+                        }`}
+                      >
+                        {payment.status}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notas */}
       {order.notes && (
@@ -1002,6 +1372,17 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="destructive"
+      />
+
+      {/* Modal de Cobro Granular */}
+      <GranularPaymentModal
+        isOpen={showGranularPaymentModal}
+        salesOrderId={orderId}
+        onClose={() => setShowGranularPaymentModal(false)}
+        onComplete={() => {
+          setShowGranularPaymentModal(false);
+          fetchOrderDetail();
+        }}
       />
     </div>
   );

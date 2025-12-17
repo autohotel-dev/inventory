@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftClosingModal } from "@/components/employees/shift-closing";
-import { ShiftSession } from "@/components/employees/types";
+import { ShiftSession, ShiftDefinition } from "@/components/employees/types";
+import { useToast } from "@/hooks/use-toast";
 import {
   DollarSign,
   ShoppingBag,
@@ -19,7 +21,14 @@ import {
   RefreshCw,
   Building2,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  LogIn,
+  Sun,
+  Sunset,
+  Moon,
+  KeyRound,
+  Loader2,
+  CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
 
@@ -31,10 +40,31 @@ interface ShiftSummary {
   cardGetnet: number;
   openRooms: number;
   completedCheckouts: number;
+  conceptBreakdown: {
+    ROOM_BASE: number;
+    EXTRA_HOUR: number;
+    EXTRA_PERSON: number;
+    CONSUMPTION: number;
+    PRODUCT: number;
+  };
 }
+
+// Iconos por turno
+const SHIFT_ICONS: Record<string, React.ReactNode> = {
+  MORNING: <Sun className="h-8 w-8" />,
+  AFTERNOON: <Sunset className="h-8 w-8" />,
+  NIGHT: <Moon className="h-8 w-8" />,
+};
+
+const SHIFT_COLORS: Record<string, string> = {
+  MORNING: "from-amber-500 to-orange-500",
+  AFTERNOON: "from-blue-500 to-indigo-500",
+  NIGHT: "from-purple-500 to-violet-600",
+};
 
 export function ReceptionistDashboard() {
   const { employeeName, userId, employeeId, isLoading: roleLoading } = useUserRole();
+  const { success, error: showError } = useToast();
   const [summary, setSummary] = useState<ShiftSummary>({
     totalSales: 0,
     totalAmount: 0,
@@ -42,12 +72,26 @@ export function ReceptionistDashboard() {
     cardBBVA: 0,
     cardGetnet: 0,
     openRooms: 0,
-    completedCheckouts: 0
+    completedCheckouts: 0,
+    conceptBreakdown: {
+      ROOM_BASE: 0,
+      EXTRA_HOUR: 0,
+      EXTRA_PERSON: 0,
+      CONSUMPTION: 0,
+      PRODUCT: 0,
+    }
   });
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
   const [showClosingModal, setShowClosingModal] = useState(false);
+  
+  // Estados para inicio de turno
+  const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
+  const [pinCode, setPinCode] = useState("");
+  const [showPinInput, setShowPinInput] = useState(false);
+  const [startingShift, setStartingShift] = useState(false);
+  const [employeePin, setEmployeePin] = useState<string | null>(null);
 
   // Actualizar reloj cada segundo
   useEffect(() => {
@@ -55,12 +99,58 @@ export function ReceptionistDashboard() {
     return () => clearInterval(timer);
   }, []);
 
+  // Cargar turno actual según la hora
+  const fetchCurrentShift = async () => {
+    const supabase = createClient();
+    const { data: shifts } = await supabase
+      .from("shift_definitions")
+      .select("*")
+      .eq("is_active", true)
+      .order("start_time");
+
+    if (!shifts?.length) return;
+
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 8);
+
+    for (const shift of shifts) {
+      const start = shift.start_time;
+      const end = shift.end_time;
+
+      if (shift.crosses_midnight) {
+        if (currentTime >= start || currentTime < end) {
+          setCurrentShift(shift);
+          return;
+        }
+      } else {
+        if (currentTime >= start && currentTime < end) {
+          setCurrentShift(shift);
+          return;
+        }
+      }
+    }
+  };
+
+  // Cargar PIN del empleado
+  const fetchEmployeePin = async () => {
+    if (!employeeId) return;
+    
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("employees")
+      .select("pin_code")
+      .eq("id", employeeId)
+      .single();
+
+    setEmployeePin(data?.pin_code || null);
+  };
+
   // Cargar sesión de turno activa
   const fetchActiveSession = async () => {
     if (!employeeId) return;
     
     const supabase = createClient();
-    const { data: session } = await supabase
+    const { data: sessions } = await supabase
       .from("shift_sessions")
       .select(`
         *,
@@ -70,10 +160,48 @@ export function ReceptionistDashboard() {
       .eq("employee_id", employeeId)
       .eq("status", "active")
       .order("clock_in_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
 
-    setActiveSession(session || null);
+    setActiveSession(sessions?.[0] || null);
+  };
+
+  // Iniciar turno
+  const handleStartShift = async () => {
+    if (!employeeId || !currentShift) return;
+
+    // Si tiene PIN configurado, verificar
+    if (employeePin && pinCode !== employeePin) {
+      showError("PIN incorrecto", "El PIN ingresado no es válido");
+      setPinCode("");
+      return;
+    }
+
+    setStartingShift(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("shift_sessions")
+        .insert({
+          employee_id: employeeId,
+          shift_definition_id: currentShift.id,
+          clock_in_at: new Date().toISOString(),
+          status: "active",
+        })
+        .select("*, employees(*), shift_definitions(*)")
+        .single();
+
+      if (error) throw error;
+
+      success("¡Turno iniciado!", `Bienvenido al turno de ${currentShift.name}`);
+      setActiveSession(data);
+      setShowPinInput(false);
+      setPinCode("");
+    } catch (err: any) {
+      console.error("Error starting shift:", err);
+      showError("Error", err.message || "No se pudo iniciar el turno");
+    } finally {
+      setStartingShift(false);
+    }
   };
 
   // Cargar resumen del turno
@@ -135,6 +263,31 @@ export function ReceptionistDashboard() {
 
       const completedCheckouts = sales?.filter(s => s.status === "COMPLETED" || s.status === "ENDED").length || 0;
 
+      // Obtener desglose por concepto de items pagados
+      const salesIds = sales?.map(s => s.id) || [];
+      let conceptBreakdown = {
+        ROOM_BASE: 0,
+        EXTRA_HOUR: 0,
+        EXTRA_PERSON: 0,
+        CONSUMPTION: 0,
+        PRODUCT: 0,
+      };
+
+      if (salesIds.length > 0) {
+        const { data: paidItems } = await supabase
+          .from("sales_order_items")
+          .select("concept_type, total")
+          .in("sales_order_id", salesIds)
+          .eq("is_paid", true);
+
+        paidItems?.forEach((item: any) => {
+          const type = item.concept_type || "PRODUCT";
+          if (type in conceptBreakdown) {
+            conceptBreakdown[type as keyof typeof conceptBreakdown] += item.total || 0;
+          }
+        });
+      }
+
       setSummary({
         totalSales,
         totalAmount,
@@ -142,7 +295,8 @@ export function ReceptionistDashboard() {
         cardBBVA,
         cardGetnet,
         openRooms: openRooms || 0,
-        completedCheckouts
+        completedCheckouts,
+        conceptBreakdown
       });
     } catch (error) {
       console.error("Error fetching shift summary:", error);
@@ -159,8 +313,13 @@ export function ReceptionistDashboard() {
   };
 
   useEffect(() => {
+    fetchCurrentShift();
+  }, []);
+
+  useEffect(() => {
     if (employeeId) {
       fetchActiveSession();
+      fetchEmployeePin();
     }
   }, [employeeId]);
 
@@ -343,18 +502,117 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
-      {/* Alerta si no hay turno activo */}
-      {!activeSession && !loading && (
+      {/* Pantalla de inicio de turno si no hay sesión activa */}
+      {!activeSession && !loading && currentShift && (
+        <Card className={`overflow-hidden border-2 ${SHIFT_COLORS[currentShift.code] ? 'border-primary' : 'border-muted'}`}>
+          <div className={`bg-gradient-to-r ${SHIFT_COLORS[currentShift.code] || 'from-gray-500 to-gray-600'} p-6 text-white`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center">
+                  {SHIFT_ICONS[currentShift.code] || <Clock className="h-8 w-8" />}
+                </div>
+                <div>
+                  <p className="text-sm opacity-90">Turno disponible</p>
+                  <h2 className="text-2xl font-bold">{currentShift.name}</h2>
+                  <p className="text-sm opacity-90">
+                    {currentShift.start_time.slice(0, 5)} - {currentShift.end_time.slice(0, 5)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm opacity-90">Hora actual</p>
+                <p className="text-3xl font-bold font-mono">{formatTime(currentTime)}</p>
+              </div>
+            </div>
+          </div>
+          
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <User className="h-5 w-5" />
+                <span className="text-lg">{employeeName}</span>
+              </div>
+              
+              {!showPinInput ? (
+                <div className="space-y-3">
+                  <p className="text-muted-foreground">
+                    ¿Listo para comenzar tu turno?
+                  </p>
+                  <Button 
+                    size="lg" 
+                    className={`w-full max-w-xs bg-gradient-to-r ${SHIFT_COLORS[currentShift.code] || 'from-primary to-primary'} hover:opacity-90 text-white`}
+                    onClick={() => employeePin ? setShowPinInput(true) : handleStartShift()}
+                    disabled={startingShift}
+                  >
+                    {startingShift ? (
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    ) : (
+                      <LogIn className="h-5 w-5 mr-2" />
+                    )}
+                    Iniciar Turno
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4 max-w-xs mx-auto">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <KeyRound className="h-5 w-5" />
+                    <span>Ingresa tu PIN de seguridad</span>
+                  </div>
+                  <Input
+                    type="password"
+                    placeholder="••••"
+                    value={pinCode}
+                    onChange={(e) => setPinCode(e.target.value)}
+                    className="text-center text-2xl tracking-widest"
+                    maxLength={6}
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleStartShift()}
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => {
+                        setShowPinInput(false);
+                        setPinCode("");
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      className={`flex-1 bg-gradient-to-r ${SHIFT_COLORS[currentShift.code] || 'from-primary to-primary'}`}
+                      onClick={handleStartShift}
+                      disabled={startingShift || !pinCode}
+                    >
+                      {startingShift ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                      )}
+                      Confirmar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alerta si no hay turno definido para esta hora */}
+      {!activeSession && !loading && !currentShift && (
         <Card className="border-amber-500/50 bg-amber-500/10">
-          <CardContent className="py-3">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-500" />
+          <CardContent className="py-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-amber-500" />
+              </div>
               <div>
                 <p className="font-medium text-amber-700 dark:text-amber-400">
-                  No tienes un turno activo
+                  No hay turno definido para esta hora
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Contacta a tu supervisor para iniciar turno o ve a la sección de empleados
+                <p className="text-sm text-muted-foreground">
+                  Contacta a tu supervisor si crees que esto es un error
                 </p>
               </div>
             </div>
@@ -362,12 +620,13 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
-      {/* Resumen del turno */}
+      {/* Resumen del turno - Solo mostrar si hay sesión activa */}
+      {activeSession && (
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Resumen de tu Turno (Hoy)
+            Resumen de tu Turno
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -395,8 +654,10 @@ export function ReceptionistDashboard() {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Desglose de pagos */}
+      {/* Desglose de pagos - Solo mostrar si hay sesión activa */}
+      {activeSession && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -431,6 +692,58 @@ export function ReceptionistDashboard() {
           </CardContent>
         </Card>
       </div>
+      )}
+
+      {/* Desglose por Concepto - Solo mostrar si hay sesión activa */}
+      {activeSession && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5" />
+              Cobrado por Concepto
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Building2 className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs text-blue-400">Habitación</span>
+                </div>
+                <p className="text-lg font-bold text-blue-600">{formatCurrency(summary.conceptBreakdown.ROOM_BASE)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs text-amber-400">Horas Extra</span>
+                </div>
+                <p className="text-lg font-bold text-amber-600">{formatCurrency(summary.conceptBreakdown.EXTRA_HOUR)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="h-4 w-4 text-purple-500" />
+                  <span className="text-xs text-purple-400">Personas Extra</span>
+                </div>
+                <p className="text-lg font-bold text-purple-600">{formatCurrency(summary.conceptBreakdown.EXTRA_PERSON)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShoppingBag className="h-4 w-4 text-green-500" />
+                  <span className="text-xs text-green-400">Consumos</span>
+                </div>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(summary.conceptBreakdown.CONSUMPTION)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-500/10 border border-slate-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShoppingBag className="h-4 w-4 text-slate-500" />
+                  <span className="text-xs text-slate-400">Productos</span>
+                </div>
+                <p className="text-lg font-bold text-slate-600">{formatCurrency(summary.conceptBreakdown.PRODUCT)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Acciones rápidas para recepcionista */}
       <Card>
