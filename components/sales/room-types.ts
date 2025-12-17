@@ -74,6 +74,7 @@ export interface Room {
   status: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
   room_types: RoomType | null;
   room_stays?: RoomStay[];
+  notes?: string | null;
 }
 
 export interface TimeInfo {

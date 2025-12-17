@@ -22,6 +22,7 @@ import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
 import { ChangeRoomModal } from "@/components/sales/change-room-modal";
 import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
 import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
+import { RoomStatusNoteModal } from "@/components/sales/room-status-note-modal";
 import {
   Room,
   RoomType,
@@ -81,6 +82,8 @@ export function RoomsBoard() {
   const [showChangeRoomModal, setShowChangeRoomModal] = useState(false);
   const [showCancelStayModal, setShowCancelStayModal] = useState(false);
   const [showManagePeopleModal, setShowManagePeopleModal] = useState(false);
+  const [showStatusNoteModal, setShowStatusNoteModal] = useState(false);
+  const [statusNoteAction, setStatusNoteAction] = useState<"BLOCK" | "DIRTY" | null>(null);
 
   // Actualizar selectedRoom cuando rooms cambie (después de fetchRooms)
   useEffect(() => {
@@ -101,7 +104,7 @@ export function RoomsBoard() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, sales_orders ( remaining_amount ) )`
+          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, sales_orders ( remaining_amount ) )`
         )
         .order("number", { ascending: true });
 
@@ -687,6 +690,36 @@ export function RoomsBoard() {
     setShowStartStayModal(false);
     setSelectedRoom(null);
   };
+
+  // Abrir modal para bloquear con nota
+  const handleOpenBlockModal = (room: Room) => {
+    setSelectedRoom(room);
+    setStatusNoteAction("BLOCK");
+    setShowStatusNoteModal(true);
+  };
+
+  // Abrir modal para marcar sucia con nota
+  const handleOpenDirtyModal = (room: Room) => {
+    setSelectedRoom(room);
+    setStatusNoteAction("DIRTY");
+    setShowStatusNoteModal(true);
+  };
+
+  // Confirmar cambio de estado con nota
+  const handleConfirmStatusChange = async (note: string) => {
+    if (!selectedRoom || !statusNoteAction) return;
+
+    if (statusNoteAction === "BLOCK") {
+      await updateRoomStatus(selectedRoom, "BLOQUEADA", "Habitación bloqueada", note);
+    } else if (statusNoteAction === "DIRTY") {
+      await updateRoomStatus(selectedRoom, "SUCIA", "Habitación marcada como sucia/mantenimiento", note);
+    }
+
+    setShowStatusNoteModal(false);
+    setStatusNoteAction(null);
+    setSelectedRoom(null);
+  };
+
 
   const handleStartStay = async (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
@@ -1323,6 +1356,7 @@ export function RoomsBoard() {
                   statusBadge={renderStatusBadge(status)}
                   hasPendingPayment={hasPendingPayment}
                   roomTypeName={room.room_types?.name}
+                  notes={room.notes}
                   onInfo={() => {
                     setSelectedRoom(room);
                     setShowInfoModal(true);
@@ -1430,35 +1464,19 @@ export function RoomsBoard() {
         onAddHour={() => {
           if (selectedRoom) handleAddExtraHour(selectedRoom);
         }}
-        onMarkClean={() => {
-          if (selectedRoom) {
-            updateRoomStatus(
-              selectedRoom,
-              "LIBRE",
-              `La habitación ${selectedRoom.number} ha sido marcada como limpia`
-            );
-            setShowActionsModal(false);
-          }
-        }}
+        onMarkClean={() => selectedRoom && updateRoomStatus(selectedRoom, "LIBRE", "Habitación limpia")}
         onBlock={() => {
-          if (selectedRoom) {
-            updateRoomStatus(
-              selectedRoom,
-              "BLOQUEADA",
-              `La habitación ${selectedRoom.number} fue bloqueada por mantenimiento`
-            );
-            setShowActionsModal(false);
-          }
+          closeActionsDock();
+          setTimeout(() => {
+            if (selectedRoom) handleOpenBlockModal(selectedRoom);
+          }, 200);
         }}
-        onUnblock={() => {
-          if (selectedRoom) {
-            updateRoomStatus(
-              selectedRoom,
-              "LIBRE",
-              `La habitación ${selectedRoom.number} fue liberada`
-            );
-            setShowActionsModal(false);
-          }
+        onUnblock={() => selectedRoom && updateRoomStatus(selectedRoom, "LIBRE", "Habitación desbloqueada")}
+        onMarkDirty={() => {
+          closeActionsDock();
+          setTimeout(() => {
+            if (selectedRoom) handleOpenDirtyModal(selectedRoom);
+          }, 200);
         }}
         onQuickCheckin={() => {
           setShowActionsModal(false);
@@ -1786,6 +1804,23 @@ export function RoomsBoard() {
             setShowManagePeopleModal(false);
           }
         }}
+      />
+
+      <RoomStatusNoteModal
+        isOpen={showStatusNoteModal}
+        onClose={() => {
+          setShowStatusNoteModal(false);
+          setStatusNoteAction(null);
+          setSelectedRoom(null);
+        }}
+        onConfirm={handleConfirmStatusChange}
+        title={statusNoteAction === "BLOCK" ? "Bloquear Habitación" : "Marcar como Sucia / Mantenimiento"}
+        description={statusNoteAction === "BLOCK"
+          ? "Indica el motivo por el cual se bloqueará la habitación."
+          : "Indica el motivo de mantenimiento o limpieza especial."}
+        confirmLabel={statusNoteAction === "BLOCK" ? "Bloquear" : "Marcar Sucia"}
+        loading={actionLoading}
+        initialNote={selectedRoom?.notes || ""}
       />
     </div>
   );

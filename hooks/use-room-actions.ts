@@ -208,7 +208,8 @@ export interface UseRoomActionsReturn {
   updateRoomStatus: (
     room: Room,
     newStatus: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA",
-    successMessage: string
+    successMessage: string,
+    notes?: string
   ) => Promise<void>;
   prepareCheckout: (room: Room) => Promise<{
     salesOrderId: string;
@@ -661,15 +662,24 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   const updateRoomStatus = async (
     room: Room,
     newStatus: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA",
-    successMessage: string
+    successMessage: string,
+    notes?: string
   ) => {
     setActionLoading(true);
     const supabase = createClient();
 
     try {
+      const updateData: any = { status: newStatus };
+      if (notes !== undefined) {
+        updateData.notes = notes;
+      } else if (newStatus === "LIBRE") {
+        // Limpiar notas si se libera la habitación
+        updateData.notes = null;
+      }
+
       const { error } = await supabase
         .from("rooms")
-        .update({ status: newStatus })
+        .update(updateData)
         .eq("id", room.id);
 
       if (error) {

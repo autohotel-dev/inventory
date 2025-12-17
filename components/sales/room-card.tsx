@@ -22,12 +22,12 @@ const ROOM_TYPE_CONFIG: Record<string, { abbr: string; color: string }> = {
 // Obtener config de tipo de habitación (con fallback inteligente)
 function getRoomTypeConfig(typeName: string | undefined): { abbr: string; color: string } {
   if (!typeName) return { abbr: "---", color: "bg-slate-600" };
-  
+
   // Buscar coincidencia exacta
   if (ROOM_TYPE_CONFIG[typeName]) {
     return ROOM_TYPE_CONFIG[typeName];
   }
-  
+
   // Buscar coincidencia parcial (ej: "Habitación Sencilla" -> "Sencilla")
   const lowerName = typeName.toLowerCase();
   for (const [key, config] of Object.entries(ROOM_TYPE_CONFIG)) {
@@ -35,11 +35,11 @@ function getRoomTypeConfig(typeName: string | undefined): { abbr: string; color:
       return config;
     }
   }
-  
+
   // Fallback: usar primeras 3 letras
-  return { 
-    abbr: typeName.substring(0, 3).toUpperCase(), 
-    color: "bg-slate-600" 
+  return {
+    abbr: typeName.substring(0, 3).toUpperCase(),
+    color: "bg-slate-600"
   };
 }
 
@@ -52,6 +52,7 @@ export interface RoomCardProps {
   statusBadge: ReactNode;
   hasPendingPayment?: boolean; // Indica si tiene pago pendiente
   roomTypeName?: string; // Nombre del tipo de habitación (Sencilla, Jacuzzi, etc)
+  notes?: string | null; // Notas de mantenimiento o bloqueo
   onInfo: () => void;
   onActions: () => void;
 }
@@ -64,14 +65,14 @@ export function RoomCard({
   statusBadge,
   hasPendingPayment,
   roomTypeName,
+  notes,
   onInfo,
   onActions,
 }: RoomCardProps) {
   return (
     <div
-      className={`relative border border-white/5 rounded-lg p-2 text-sm flex flex-col h-[72px] cursor-pointer shadow-sm hover:shadow-md hover:border-white/20 backdrop-blur-sm transition-colors ${
-        bgClass || "bg-slate-900/80"
-      } ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : ""}`}
+      className={`relative border border-white/5 rounded-lg p-2 text-sm flex flex-col h-[72px] cursor-pointer shadow-sm hover:shadow-md hover:border-white/20 backdrop-blur-sm transition-colors ${bgClass || "bg-slate-900/80"
+        } ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : ""}`}
     >
       {/* Indicador de pago pendiente */}
       {hasPendingPayment && (
@@ -79,18 +80,18 @@ export function RoomCard({
           <AlertCircle className="h-3 w-3 text-white" />
         </div>
       )}
-      
+
       {/* Fila superior: Número + Estado */}
       <div className="flex items-center justify-between">
         <span className="font-bold text-lg leading-none">{number}</span>
         {statusBadge}
       </div>
-      
+
       {/* Fila inferior: Tipo + Botones */}
       <div className="flex items-center justify-between mt-auto">
         {/* Badge de tipo de habitación */}
         {roomTypeName ? (
-          <span 
+          <span
             className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${getRoomTypeConfig(roomTypeName).color} text-white`}
             title={roomTypeName}
           >
@@ -99,7 +100,16 @@ export function RoomCard({
         ) : (
           <span />
         )}
-        
+
+        {/* Indicador de notas */}
+        {notes && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 group" title={notes}>
+            <div className="bg-yellow-500/20 text-yellow-200 text-[10px] px-1.5 py-0.5 rounded border border-yellow-500/30 max-w-[120px] truncate cursor-help">
+              {notes}
+            </div>
+          </div>
+        )}
+
         {/* Botones de acción */}
         <div className="flex items-center gap-0.5">
           <Button

@@ -33,10 +33,11 @@ export interface RoomActionsWheelProps {
   onChangeRoom: () => void; // Cambiar de habitación
   onCancelStay: () => void; // Cancelar estancia
   onManagePeople: () => void; // Gestión de personas (modal unificado)
+  onMarkDirty: () => void; // Marcar como sucia/mantenimiento
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddConsumption' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddConsumption' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty';
 
 interface ActionConfig {
   id: string;
@@ -55,6 +56,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "start", label: "Entrada", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onStartStay" },
     { id: "quickcheckin", label: "Rápida", icon: <Zap className="h-5 w-5" />, color: "text-amber-400", hoverBg: "hover:bg-amber-500/30", action: "onQuickCheckin" },
     { id: "block", label: "Bloquear", icon: <Lock className="h-5 w-5" />, color: "text-gray-400", hoverBg: "hover:bg-gray-500/30", action: "onBlock" },
+    { id: "dirty", label: "Mantenimiento", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },
   ],
   OCUPADA: [
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
@@ -73,6 +75,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   ],
   BLOQUEADA: [
     { id: "unblock", label: "Liberar", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onUnblock" },
+    { id: "dirty", label: "Mantenimiento", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },
   ],
 };
 
@@ -156,6 +159,7 @@ export function RoomActionsWheel({
   onChangeRoom,
   onCancelStay,
   onManagePeople,
+  onMarkDirty,
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -198,6 +202,7 @@ export function RoomActionsWheel({
     onChangeRoom,
     onCancelStay,
     onManagePeople,
+    onMarkDirty,
   };
 
   return (
@@ -206,9 +211,8 @@ export function RoomActionsWheel({
       onClick={onClose}
     >
       <div
-        className={`relative transform transition-all duration-300 ease-out ${
-          isVisible ? "scale-100 opacity-100" : "scale-75 opacity-0"
-        }`}
+        className={`relative transform transition-all duration-300 ease-out ${isVisible ? "scale-100 opacity-100" : "scale-75 opacity-0"
+          }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* SVG de la rueda */}
@@ -245,11 +249,11 @@ export function RoomActionsWheel({
                   const action = actions[0];
                   (e.target as SVGCircleElement).style.stroke = action.hoverBg.includes('blue') ? 'rgba(59, 130, 246, 0.3)' :
                     action.hoverBg.includes('emerald') ? 'rgba(16, 185, 129, 0.3)' :
-                    action.hoverBg.includes('cyan') ? 'rgba(6, 182, 212, 0.3)' :
-                    action.hoverBg.includes('purple') ? 'rgba(168, 85, 247, 0.3)' :
-                    action.hoverBg.includes('pink') ? 'rgba(236, 72, 153, 0.3)' :
-                    action.hoverBg.includes('amber') ? 'rgba(245, 158, 11, 0.3)' :
-                    'rgba(255, 255, 255, 0.1)';
+                      action.hoverBg.includes('cyan') ? 'rgba(6, 182, 212, 0.3)' :
+                        action.hoverBg.includes('purple') ? 'rgba(168, 85, 247, 0.3)' :
+                          action.hoverBg.includes('pink') ? 'rgba(236, 72, 153, 0.3)' :
+                            action.hoverBg.includes('amber') ? 'rgba(245, 158, 11, 0.3)' :
+                              'rgba(255, 255, 255, 0.1)';
                 }}
                 onMouseLeave={(e) => {
                   (e.target as SVGCircleElement).style.stroke = 'transparent';
@@ -295,11 +299,11 @@ export function RoomActionsWheel({
                     onMouseEnter={(e) => {
                       (e.target as SVGPathElement).style.fill = action.hoverBg.includes('blue') ? 'rgba(59, 130, 246, 0.3)' :
                         action.hoverBg.includes('emerald') ? 'rgba(16, 185, 129, 0.3)' :
-                        action.hoverBg.includes('cyan') ? 'rgba(6, 182, 212, 0.3)' :
-                        action.hoverBg.includes('purple') ? 'rgba(168, 85, 247, 0.3)' :
-                        action.hoverBg.includes('pink') ? 'rgba(236, 72, 153, 0.3)' :
-                        action.hoverBg.includes('amber') ? 'rgba(245, 158, 11, 0.3)' :
-                        'rgba(255, 255, 255, 0.1)';
+                          action.hoverBg.includes('cyan') ? 'rgba(6, 182, 212, 0.3)' :
+                            action.hoverBg.includes('purple') ? 'rgba(168, 85, 247, 0.3)' :
+                              action.hoverBg.includes('pink') ? 'rgba(236, 72, 153, 0.3)' :
+                                action.hoverBg.includes('amber') ? 'rgba(245, 158, 11, 0.3)' :
+                                  'rgba(255, 255, 255, 0.1)';
                     }}
                     onMouseLeave={(e) => {
                       (e.target as SVGPathElement).style.fill = 'transparent';
