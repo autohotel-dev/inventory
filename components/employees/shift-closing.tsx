@@ -361,23 +361,21 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                   <p className="text-lg font-bold">{formatCurrency(countedCash)}</p>
                 </div>
                 <div
-                  className={`rounded-lg p-3 ${
-                    cashDifference === 0
+                  className={`rounded-lg p-3 ${cashDifference === 0
                       ? "bg-green-500/10"
                       : cashDifference > 0
-                      ? "bg-blue-500/10"
-                      : "bg-red-500/10"
-                  }`}
+                        ? "bg-blue-500/10"
+                        : "bg-red-500/10"
+                    }`}
                 >
                   <p className="text-sm text-muted-foreground">Diferencia</p>
                   <p
-                    className={`text-lg font-bold flex items-center gap-1 ${
-                      cashDifference === 0
+                    className={`text-lg font-bold flex items-center gap-1 ${cashDifference === 0
                         ? "text-green-600"
                         : cashDifference > 0
-                        ? "text-blue-600"
-                        : "text-red-600"
-                    }`}
+                          ? "text-blue-600"
+                          : "text-red-600"
+                      }`}
                   >
                     {cashDifference === 0 ? (
                       <CheckCircle className="h-4 w-4" />
@@ -392,8 +390,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                     {cashDifference === 0
                       ? "Cuadra perfectamente"
                       : cashDifference > 0
-                      ? "Sobrante"
-                      : "Faltante"}
+                        ? "Sobrante"
+                        : "Faltante"}
                   </p>
                 </div>
               </div>
@@ -415,16 +413,16 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                   <div className="divide-y">
                     {summary.payments.map((payment, index) => {
                       const salesOrder = payment.sales_orders;
-                      const paymentMethod = payment.payment_method === "TARJETA_BBVA" 
-                        ? "TARJETA" 
-                        : payment.payment_method === "TARJETA_GETNET" 
-                          ? "TARJETA" 
+                      const paymentMethod = payment.payment_method === "TARJETA_BBVA"
+                        ? "TARJETA"
+                        : payment.payment_method === "TARJETA_GETNET"
+                          ? "TARJETA"
                           : payment.payment_method;
-                      
-                      const terminalCode = payment.payment_method === "TARJETA_BBVA" 
-                        ? "BBVA" 
-                        : payment.payment_method === "TARJETA_GETNET" 
-                          ? "GETNET" 
+
+                      const terminalCode = payment.payment_method === "TARJETA_BBVA"
+                        ? "BBVA"
+                        : payment.payment_method === "TARJETA_GETNET"
+                          ? "GETNET"
                           : payment.terminal_code || payment.payment_terminals?.code;
 
                       const conceptLabels: Record<string, string> = {
@@ -433,7 +431,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                         ABONO: "Abono",
                         ANTICIPO: "Anticipo",
                       };
-                      const conceptLabel = payment.concept 
+                      const conceptLabel = payment.concept
                         ? (conceptLabels[payment.concept] || payment.concept.replace(/_/g, " "))
                         : "Pago";
 
@@ -453,7 +451,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                                   })}
                                 </span>
                               </div>
-                              
+
                               <div className="flex flex-wrap items-center gap-2 text-xs">
                                 <Badge variant={paymentMethod === "EFECTIVO" ? "default" : "secondary"}>
                                   {paymentMethod === "EFECTIVO" ? "💵" : "💳"} {paymentMethod}
@@ -509,7 +507,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                       const room = roomStay?.rooms;
                       const roomType = room?.room_types;
                       const items = order.sales_order_items || [];
-                      
+
                       // Agrupar items por concepto
                       const conceptLabels: Record<string, string> = {
                         ROOM_BASE: "Habitación",
@@ -541,7 +539,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                               {roomType && (
                                 <span className="text-xs text-muted-foreground">({roomType.name})</span>
                               )}
-                              <Badge 
+                              <Badge
                                 variant={order.status === "COMPLETED" || order.status === "ENDED" ? "default" : "secondary"}
                                 className="text-xs"
                               >
@@ -572,15 +570,14 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                                       <span className="text-xs text-muted-foreground w-5">
                                         {itemIndex + 1}.
                                       </span>
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-[10px] px-1.5 ${
-                                          conceptType === "ROOM_BASE" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
-                                          conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
-                                          conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
-                                          conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
-                                          "bg-slate-500/10 text-slate-400 border-slate-500/30"
-                                        }`}
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-[10px] px-1.5 ${conceptType === "ROOM_BASE" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
+                                            conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                                              conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
+                                                conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
+                                                  "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                                          }`}
                                       >
                                         {conceptLabels[conceptType] || "Prod"}
                                       </Badge>
@@ -673,7 +670,7 @@ export function ShiftClosingHistory() {
     setLoading(true);
     // Obtener usuario actual
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       setLoading(false);
       return;
@@ -689,10 +686,10 @@ export function ShiftClosingHistory() {
     const employeeData = employee?.[0];
     const employeeId = employeeData?.id;
     const userIsAdmin = employeeData?.role === "admin" || employeeData?.role === "manager";
-    
+
     // Debug: mostrar en consola el rol del usuario
     console.log("Usuario actual:", { employeeId, role: employeeData?.role, isAdmin: userIsAdmin });
-    
+
     setCurrentEmployeeId(employeeId);
     setIsAdmin(userIsAdmin);
 
@@ -730,7 +727,7 @@ export function ShiftClosingHistory() {
   // Cargar detalles del corte seleccionado
   const loadClosingDetails = async (closingId: string, periodStart: string, periodEnd: string) => {
     setLoadingDetails(true);
-    
+
     // Obtener detalles con información completa de pagos y órdenes
     const { data, error } = await supabase
       .from("shift_closing_details")
@@ -784,7 +781,7 @@ export function ShiftClosingHistory() {
       .select("*, employees(first_name, last_name)")
       .eq("shift_closing_id", closingId)
       .order("created_at", { ascending: false });
-    
+
     setClosingReviews(data || []);
   };
 
@@ -813,11 +810,11 @@ export function ShiftClosingHistory() {
   // Aprobar corte
   const approveClosing = async (closingId: string) => {
     setProcessingAction(true);
-    
+
     // Actualizar estado del corte
     const { error } = await supabase
       .from("shift_closings")
-      .update({ 
+      .update({
         status: "approved",
         reviewed_by: currentEmployeeId,
         reviewed_at: new Date().toISOString()
@@ -850,11 +847,11 @@ export function ShiftClosingHistory() {
     }
 
     setProcessingAction(true);
-    
+
     // Actualizar estado del corte con motivo
     const { error } = await supabase
       .from("shift_closings")
-      .update({ 
+      .update({
         status: "rejected",
         reviewed_by: currentEmployeeId,
         reviewed_at: new Date().toISOString(),
@@ -906,6 +903,7 @@ export function ShiftClosingHistory() {
         .from("shift_closings")
         .insert({
           employee_id: currentEmployeeId,
+          shift_session_id: correctionClosing.shift_session_id,
           shift_definition_id: correctionClosing.shift_definition_id,
           period_start: correctionClosing.period_start,
           period_end: correctionClosing.period_end,
@@ -1052,12 +1050,12 @@ export function ShiftClosingHistory() {
         </div>
 
         <div class="status ${closing.cash_difference === 0 ? 'ok' : (closing.cash_difference || 0) > 0 ? 'over' : 'under'}">
-          ${closing.cash_difference === 0 
-            ? '✓ CAJA CUADRADA' 
-            : (closing.cash_difference || 0) > 0 
-              ? '↑ SOBRANTE: $' + Math.abs(closing.cash_difference || 0).toFixed(2)
-              : '↓ FALTANTE: $' + Math.abs(closing.cash_difference || 0).toFixed(2)
-          }
+          ${closing.cash_difference === 0
+        ? '✓ CAJA CUADRADA'
+        : (closing.cash_difference || 0) > 0
+          ? '↑ SOBRANTE: $' + Math.abs(closing.cash_difference || 0).toFixed(2)
+          : '↓ FALTANTE: $' + Math.abs(closing.cash_difference || 0).toFixed(2)
+      }
         </div>
 
         ${closing.notes ? `
@@ -1112,8 +1110,8 @@ export function ShiftClosingHistory() {
   }
 
   // Contar cortes rechazados del empleado actual
-  const rejectedClosings = closings.filter(c => 
-    c.status?.toLowerCase() === "rejected" && 
+  const rejectedClosings = closings.filter(c =>
+    c.status?.toLowerCase() === "rejected" &&
     c.employee_id === currentEmployeeId
   );
 
@@ -1217,9 +1215,8 @@ export function ShiftClosingHistory() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      className={`${
-                        SHIFT_COLORS[closing.shift_definitions?.code || ""] || "bg-gray-500"
-                      } text-white`}
+                      className={`${SHIFT_COLORS[closing.shift_definitions?.code || ""] || "bg-gray-500"
+                        } text-white`}
                     >
                       {closing.shift_definitions?.name}
                     </Badge>
@@ -1235,13 +1232,12 @@ export function ShiftClosingHistory() {
                   </TableCell>
                   <TableCell className="text-right">
                     <span
-                      className={`font-medium ${
-                        closing.cash_difference === 0
+                      className={`font-medium ${closing.cash_difference === 0
                           ? "text-green-600"
                           : (closing.cash_difference || 0) > 0
-                          ? "text-blue-600"
-                          : "text-red-600"
-                      }`}
+                            ? "text-blue-600"
+                            : "text-red-600"
+                        }`}
                     >
                       {closing.cash_difference === 0 ? "✓" : (closing.cash_difference || 0) > 0 ? "+" : ""}
                       {formatCurrency(closing.cash_difference || 0)}
@@ -1286,8 +1282,8 @@ export function ShiftClosingHistory() {
             <DialogDescription>
               {selectedClosing && (
                 <>
-                  {new Date(selectedClosing.period_start).toLocaleDateString("es-MX", { 
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                  {new Date(selectedClosing.period_start).toLocaleDateString("es-MX", {
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
                   })}
                   {" • "}
                   {selectedClosing.employees?.first_name} {selectedClosing.employees?.last_name}
@@ -1319,40 +1315,38 @@ export function ShiftClosingHistory() {
               </div>
 
               {/* Arqueo */}
-              <div className={`p-4 rounded-lg border ${
-                selectedClosing.cash_difference === 0 
-                  ? "bg-green-500/10 border-green-500/30" 
-                  : (selectedClosing.cash_difference || 0) > 0 
+              <div className={`p-4 rounded-lg border ${selectedClosing.cash_difference === 0
+                  ? "bg-green-500/10 border-green-500/30"
+                  : (selectedClosing.cash_difference || 0) > 0
                     ? "bg-blue-500/10 border-blue-500/30"
                     : "bg-red-500/10 border-red-500/30"
-              }`}>
+                }`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">Arqueo de Caja</p>
                     <p className="text-xs text-muted-foreground">
-                      Esperado: {formatCurrency(selectedClosing.total_cash || 0)} • 
+                      Esperado: {formatCurrency(selectedClosing.total_cash || 0)} •
                       Contado: {formatCurrency(selectedClosing.counted_cash || 0)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-2xl font-bold ${
-                      selectedClosing.cash_difference === 0 
-                        ? "text-green-600" 
-                        : (selectedClosing.cash_difference || 0) > 0 
+                    <p className={`text-2xl font-bold ${selectedClosing.cash_difference === 0
+                        ? "text-green-600"
+                        : (selectedClosing.cash_difference || 0) > 0
                           ? "text-blue-600"
                           : "text-red-600"
-                    }`}>
-                      {selectedClosing.cash_difference === 0 
-                        ? "✓ Cuadra" 
-                        : (selectedClosing.cash_difference || 0) > 0 
+                      }`}>
+                      {selectedClosing.cash_difference === 0
+                        ? "✓ Cuadra"
+                        : (selectedClosing.cash_difference || 0) > 0
                           ? `+${formatCurrency(selectedClosing.cash_difference || 0)}`
                           : formatCurrency(selectedClosing.cash_difference || 0)
                       }
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {selectedClosing.cash_difference === 0 
-                        ? "Sin diferencia" 
-                        : (selectedClosing.cash_difference || 0) > 0 
+                      {selectedClosing.cash_difference === 0
+                        ? "Sin diferencia"
+                        : (selectedClosing.cash_difference || 0) > 0
                           ? "Sobrante"
                           : "Faltante"
                       }
@@ -1390,18 +1384,18 @@ export function ShiftClosingHistory() {
                         const roomStay = salesOrder?.room_stays?.[0];
                         const room = roomStay?.rooms;
                         const roomType = room?.room_types;
-                        
+
                         // Determinar el método de pago para mostrar
-                        const paymentMethod = detail.payment_method === "TARJETA_BBVA" 
-                          ? "TARJETA" 
-                          : detail.payment_method === "TARJETA_GETNET" 
-                            ? "TARJETA" 
+                        const paymentMethod = detail.payment_method === "TARJETA_BBVA"
+                          ? "TARJETA"
+                          : detail.payment_method === "TARJETA_GETNET"
+                            ? "TARJETA"
                             : detail.payment_method;
-                        
-                        const terminalCode = detail.payment_method === "TARJETA_BBVA" 
-                          ? "BBVA" 
-                          : detail.payment_method === "TARJETA_GETNET" 
-                            ? "GETNET" 
+
+                        const terminalCode = detail.payment_method === "TARJETA_BBVA"
+                          ? "BBVA"
+                          : detail.payment_method === "TARJETA_GETNET"
+                            ? "GETNET"
                             : detail.terminal_code || payment?.terminal_code;
 
                         // Concepto legible
@@ -1411,7 +1405,7 @@ export function ShiftClosingHistory() {
                           ABONO: "Abono",
                           ANTICIPO: "Anticipo",
                         };
-                        const conceptLabel = payment?.concept 
+                        const conceptLabel = payment?.concept
                           ? (conceptLabels[payment.concept] || payment.concept.replace(/_/g, " "))
                           : "Pago";
 
@@ -1425,12 +1419,12 @@ export function ShiftClosingHistory() {
                                     #{(index + 1).toString().padStart(2, '0')}
                                   </span>
                                   <span className="text-sm font-medium">
-                                    {payment?.created_at 
-                                      ? new Date(payment.created_at).toLocaleTimeString("es-MX", { 
-                                          hour: '2-digit', 
-                                          minute: '2-digit',
-                                          second: '2-digit'
-                                        })
+                                    {payment?.created_at
+                                      ? new Date(payment.created_at).toLocaleTimeString("es-MX", {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        second: '2-digit'
+                                      })
                                       : "-"
                                     }
                                   </span>
@@ -1440,7 +1434,7 @@ export function ShiftClosingHistory() {
                                     </Badge>
                                   )}
                                 </div>
-                                
+
                                 <div className="flex flex-wrap items-center gap-2 text-xs">
                                   <Badge variant={paymentMethod === "EFECTIVO" ? "default" : "secondary"}>
                                     {paymentMethod === "EFECTIVO" ? "💵" : "💳"} {paymentMethod}
@@ -1471,11 +1465,10 @@ export function ShiftClosingHistory() {
                                     <p>
                                       <span className="font-medium">Orden:</span> #{salesOrder.id.slice(0, 8).toUpperCase()}
                                       {salesOrder.status && (
-                                        <span className={`ml-2 ${
-                                          salesOrder.status === "COMPLETED" || salesOrder.status === "ENDED" 
-                                            ? "text-green-500" 
+                                        <span className={`ml-2 ${salesOrder.status === "COMPLETED" || salesOrder.status === "ENDED"
+                                            ? "text-green-500"
                                             : "text-amber-500"
-                                        }`}>
+                                          }`}>
                                           ({salesOrder.status})
                                         </span>
                                       )}
@@ -1494,9 +1487,8 @@ export function ShiftClosingHistory() {
                                 <p className="text-lg font-bold text-primary">
                                   {formatCurrency(detail.amount)}
                                 </p>
-                                <p className={`text-xs ${
-                                  payment?.status === "PAGADO" ? "text-green-500" : "text-amber-500"
-                                }`}>
+                                <p className={`text-xs ${payment?.status === "PAGADO" ? "text-green-500" : "text-amber-500"
+                                  }`}>
                                   {payment?.status || "PAGADO"}
                                 </p>
                               </div>
@@ -1528,7 +1520,7 @@ export function ShiftClosingHistory() {
                         const room = roomStay?.rooms;
                         const roomType = room?.room_types;
                         const items = order.sales_order_items || [];
-                        
+
                         const conceptLabels: Record<string, string> = {
                           ROOM_BASE: "Habitación",
                           EXTRA_HOUR: "Hora Extra",
@@ -1558,7 +1550,7 @@ export function ShiftClosingHistory() {
                                 {roomType && (
                                   <span className="text-xs text-muted-foreground">({roomType.name})</span>
                                 )}
-                                <Badge 
+                                <Badge
                                   variant={order.status === "COMPLETED" || order.status === "ENDED" ? "default" : "secondary"}
                                   className="text-xs"
                                 >
@@ -1588,15 +1580,14 @@ export function ShiftClosingHistory() {
                                         <span className="text-xs text-muted-foreground w-5">
                                           {itemIndex + 1}.
                                         </span>
-                                        <Badge 
-                                          variant="outline" 
-                                          className={`text-[10px] px-1.5 ${
-                                            conceptType === "ROOM_BASE" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
-                                            conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
-                                            conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
-                                            conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
-                                            "bg-slate-500/10 text-slate-400 border-slate-500/30"
-                                          }`}
+                                        <Badge
+                                          variant="outline"
+                                          className={`text-[10px] px-1.5 ${conceptType === "ROOM_BASE" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
+                                              conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                                                conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
+                                                  conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
+                                                    "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                                            }`}
                                         >
                                           {conceptLabels[conceptType] || "Prod"}
                                         </Badge>
@@ -1654,7 +1645,7 @@ export function ShiftClosingHistory() {
                     <div className="flex-1">
                       <h4 className="font-medium text-red-500 mb-1">Motivo del Rechazo</h4>
                       <p className="text-sm">{(selectedClosing as any).rejection_reason || "No se especificó motivo"}</p>
-                      
+
                       {/* Verificar si ya existe una corrección */}
                       {!(selectedClosing as any).is_correction && selectedClosing.employee_id === currentEmployeeId && (
                         <div className="mt-3 pt-3 border-t border-red-500/20">
@@ -1672,7 +1663,7 @@ export function ShiftClosingHistory() {
                           </Button>
                         </div>
                       )}
-                      
+
                       {(selectedClosing as any).has_correction && (
                         <p className="text-xs text-green-500 mt-2">
                           ✓ Ya existe un corte corregido para este período.
@@ -1698,7 +1689,7 @@ export function ShiftClosingHistory() {
                         <div key={review.id} className="p-3 text-sm">
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              <Badge 
+                              <Badge
                                 variant={review.action === "approved" ? "default" : review.action === "rejected" ? "destructive" : "secondary"}
                                 className="text-xs"
                               >
@@ -1739,15 +1730,15 @@ export function ShiftClosingHistory() {
             {/* Botones de aprobar/rechazar solo para admin y si está pendiente */}
             {isAdmin && selectedClosing?.status?.toLowerCase() === "pending" && (
               <>
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={openRejectModal}
                   disabled={processingAction}
                 >
                   {processingAction ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
                   Rechazar
                 </Button>
-                <Button 
+                <Button
                   onClick={() => approveClosing(selectedClosing.id)}
                   disabled={processingAction}
                 >
@@ -1772,7 +1763,7 @@ export function ShiftClosingHistory() {
               Por favor, proporcione el motivo del rechazo. Esta información será visible para el empleado.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="rejection-reason">Motivo del rechazo *</Label>
@@ -1807,14 +1798,14 @@ export function ShiftClosingHistory() {
           </div>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowRejectModal(false)}
               disabled={processingAction}
             >
               Cancelar
             </Button>
-            <Button 
+            <Button
               variant="destructive"
               onClick={confirmRejectClosing}
               disabled={processingAction || !rejectionReason.trim()}
@@ -1896,13 +1887,12 @@ export function ShiftClosingHistory() {
                   <span className="text-muted-foreground">Nuevo arqueo:</span>
                   <span className="text-right font-medium">{formatCurrency(calculateCorrectionCashTotal())}</span>
                   <span className="text-muted-foreground">Nueva diferencia:</span>
-                  <span className={`text-right font-bold ${
-                    calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) === 0 
-                      ? "text-green-500" 
-                      : calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) > 0 
-                        ? "text-blue-500" 
+                  <span className={`text-right font-bold ${calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) === 0
+                      ? "text-green-500"
+                      : calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) > 0
+                        ? "text-blue-500"
                         : "text-red-500"
-                  }`}>
+                    }`}>
                     {formatCurrency(calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0))}
                     {calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) === 0 && " ✓"}
                   </span>
