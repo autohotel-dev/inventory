@@ -20,8 +20,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static files
+     * Match all request paths except:
+     * - Next.js internals (_next)
+     * - Static files (images, fonts, etc.)
+     * - API routes
      */
-    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.json|manifest.webmanifest|icon.svg|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|json)$).*)",
+    "/((?!_next|api|favicon.ico|sw.js|manifest.json|manifest.webmanifest|icon.svg|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|json|woff|woff2|ttf|otf)$).*)",
   ],
 };

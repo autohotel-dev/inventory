@@ -150,7 +150,7 @@ export function GranularPaymentModal({
   // Calcular totales con descuentos
   const pendingItems = items.filter(item => !item.is_paid);
   const paidItems = items.filter(item => item.is_paid);
-  
+
   const getItemTotal = (item: OrderItem) => {
     const discount = discounts[item.id] || 0;
     return Math.max(0, item.total - discount);
@@ -166,10 +166,10 @@ export function GranularPaymentModal({
   const applyDiscount = (itemId: string, discountAmount: number) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return;
-    
+
     const maxDiscount = item.total;
     const validDiscount = Math.min(Math.max(0, discountAmount), maxDiscount);
-    
+
     setDiscounts(prev => ({
       ...prev,
       [itemId]: validDiscount
@@ -221,7 +221,7 @@ export function GranularPaymentModal({
   // Procesar el pago
   const processPayment = async () => {
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-    
+
     if (totalPaid < selectedTotal) {
       toast.error("El monto pagado es menor al total seleccionado");
       return;
@@ -253,53 +253,128 @@ export function GranularPaymentModal({
           .eq("id", itemId);
       }
 
-      // 2. Insertar registro de pago
-      const isMultipago = validPayments.length > 1;
+      // 2. Buscar y actualiz ar pagos pendientes relacionados
+      const selectedItemsData = items.filter(item => itemIds.includes(item.id));
+      const conceptTypes = [...new Set(selectedItemsData.map(item => item.concept_type))];
 
-      if (isMultipago) {
-        // MULTIPAGO: Crear cargo principal + subpagos
-        const { data: mainPayment, error: mainError } = await supabase
+      // Mapear concept_type a payment concept
+      const conceptMapping: Record<string, string> = {
+        'EXTRA_PERSON': 'PERSONA_EXTRA',
+        'EXTRA_HOUR': 'HORA_EXTRA',
+        'ROOM_BASE': 'ESTANCIA',
+        'TOLERANCE_EXPIRED': 'TOLERANCIA_EXPIRADA',
+      };
+
+      const paymentConcepts = conceptTypes
+        .map(ct => conceptMapping[ct] || ct)
+        .filter(Boolean);
+
+      let hasPendingPayments = false;
+
+      // Si hay conceptos mapeados, buscar pagos pendientes
+      if (paymentConcepts.length > 0) {
+        const { data: pendingPayments } = await supabase
           .from("payments")
-          .insert({
-            sales_order_id: salesOrderId,
-            amount: totalPaid,
-            payment_method: "MIXTO",
-            reference: generatePaymentReference("GRN"),
-            concept: `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
-            status: "PAGADO",
-            payment_type: "COMPLETO",
-          })
-          .select("id")
-          .single();
+          .select("id, amount, concept")
+          .eq("sales_order_id", salesOrderId)
+          .eq("status", "PENDIENTE")
+          .in("concept", paymentConcepts)
+          .is("parent_payment_id", null);
 
-        if (mainError) throw mainError;
+        if (pendingPayments && pendingPayments.length > 0) {
+          hasPendingPayments = true;
+          const isMultipago = validPayments.length > 1;
 
-        if (mainPayment) {
-          const subpayments = validPayments.map(p => ({
+          // Actualizar cada pago pendiente
+          for (const pending of pendingPayments) {
+            if (isMultipago) {
+              // Multipago: Actualizar a PAGADO y crear subpagos
+              await supabase
+                .from("payments")
+                .update({
+                  status: "PAGADO",
+                  payment_method: "MIXTO",
+                })
+                .eq("id", pending.id);
+
+              // Crear subpagos proporcionales
+              const subpayments = validPayments.map(p => ({
+                sales_order_id: salesOrderId,
+                amount: p.amount,
+                payment_method: p.method,
+                reference: p.reference || generatePaymentReference("SUB"),
+                concept: pending.concept,
+                status: "PAGADO",
+                payment_type: "PARCIAL",
+                parent_payment_id: pending.id,
+              }));
+
+              await supabase.from("payments").insert(subpayments);
+            } else {
+              // Pago único: actualizar directamente
+              const p = validPayments[0];
+              await supabase
+                .from("payments")
+                .update({
+                  status: "PAGADO",
+                  payment_method: p.method,
+                  reference: p.reference || generatePaymentReference("GRN"),
+                })
+                .eq("id", pending.id);
+            }
+          }
+        }
+      }
+
+      // 3. Solo crear nuevo pago si NO había pagos pendientes
+      if (!hasPendingPayments) {
+        const isMultipago = validPayments.length > 1;
+
+        if (isMultipago) {
+          // MULTIPAGO: Crear cargo principal + subpagos
+          const { data: mainPayment, error: mainError } = await supabase
+            .from("payments")
+            .insert({
+              sales_order_id: salesOrderId,
+              amount: totalPaid,
+              payment_method: "MIXTO",
+              reference: generatePaymentReference("GRN"),
+              concept: `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
+              status: "PAGADO",
+              payment_type: "COMPLETO",
+            })
+            .select("id")
+            .single();
+
+          if (mainError) throw mainError;
+
+          if (mainPayment) {
+            const subpayments = validPayments.map(p => ({
+              sales_order_id: salesOrderId,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("SUB"),
+              concept: "PAGO_GRANULAR",
+              status: "PAGADO",
+              payment_type: "PARCIAL",
+              parent_payment_id: mainPayment.id,
+            }));
+
+            await supabase.from("payments").insert(subpayments);
+          }
+        } else if (validPayments.length === 1) {
+          // PAGO ÚNICO
+          const p = validPayments[0];
+          await supabase.from("payments").insert({
             sales_order_id: salesOrderId,
             amount: p.amount,
             payment_method: p.method,
-            reference: p.reference || generatePaymentReference("SUB"),
-            concept: "PAGO_GRANULAR",
+            reference: p.reference || generatePaymentReference("GRN"),
+            concept: `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
             status: "PAGADO",
-            payment_type: "PARCIAL",
-            parent_payment_id: mainPayment.id,
-          }));
-
-          await supabase.from("payments").insert(subpayments);
+            payment_type: "COMPLETO",
+          });
         }
-      } else if (validPayments.length === 1) {
-        // PAGO ÚNICO
-        const p = validPayments[0];
-        await supabase.from("payments").insert({
-          sales_order_id: salesOrderId,
-          amount: p.amount,
-          payment_method: p.method,
-          reference: p.reference || generatePaymentReference("GRN"),
-          concept: `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
-          status: "PAGADO",
-          payment_type: "COMPLETO",
-        });
       }
 
       // 3. Recalcular remaining_amount
@@ -416,17 +491,16 @@ export function GranularPaymentModal({
                     {pendingItems.map((item) => {
                       const itemDiscount = discounts[item.id] || 0;
                       const finalTotal = getItemTotal(item);
-                      
+
                       return (
                         <div
                           key={item.id}
-                          className={`p-3 border rounded-lg transition-all ${
-                            selectedItems.has(item.id)
-                              ? "border-primary bg-primary/10"
-                              : "border-border hover:bg-muted/50"
-                          }`}
+                          className={`p-3 border rounded-lg transition-all ${selectedItems.has(item.id)
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:bg-muted/50"
+                            }`}
                         >
-                          <div 
+                          <div
                             className="flex items-center gap-3 cursor-pointer"
                             onClick={() => toggleItem(item.id)}
                           >
@@ -460,7 +534,7 @@ export function GranularPaymentModal({
                               )}
                             </div>
                           </div>
-                          
+
                           {/* Controles de descuento */}
                           <div className="mt-2 pt-2 border-t border-border/50 flex items-center gap-2">
                             {showDiscountInput === item.id ? (
@@ -508,8 +582,8 @@ export function GranularPaymentModal({
                             ) : (
                               <>
                                 {itemDiscount > 0 ? (
-                                  <Badge 
-                                    variant="outline" 
+                                  <Badge
+                                    variant="outline"
                                     className="text-xs bg-green-500/10 text-green-500 border-green-500/30 cursor-pointer"
                                     onClick={(e) => {
                                       e.stopPropagation();

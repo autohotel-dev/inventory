@@ -18,7 +18,8 @@ interface ManagePeopleModalProps {
   isHotelRoom: boolean;
   actionLoading: boolean;
   onClose: () => void;
-  onAddPerson: () => void;
+  onAddPersonNew: () => void;
+  onAddPersonReturning: () => void;
   onRemovePerson: (willReturn: boolean) => void;
 }
 
@@ -34,16 +35,19 @@ export function ManagePeopleModal({
   isHotelRoom,
   actionLoading,
   onClose,
-  onAddPerson,
+  onAddPersonNew,
+  onAddPersonReturning,
   onRemovePerson,
 }: ManagePeopleModalProps) {
   const [action, setAction] = useState<"add" | "remove" | null>(null);
+  const [addType, setAddType] = useState<"new" | "returning" | null>(null);
   const [willReturn, setWillReturn] = useState<boolean>(false);
 
   // Reset al abrir
   useEffect(() => {
     if (isOpen) {
       setAction(null);
+      setAddType(null);
       setWillReturn(false);
     }
   }, [isOpen]);
@@ -53,9 +57,16 @@ export function ManagePeopleModal({
   // Calcular si se cobrará extra al agregar persona
   const willChargeExtra = currentPeople >= 2 || totalPeople >= 2;
 
+  // Calcular si la tolerancia expiró
+  const isToleranceExpired = hasActiveTolerance && (toleranceMinutesLeft ?? 0) <= 0;
+
   const handleConfirm = () => {
     if (action === "add") {
-      onAddPerson();
+      if (addType === "new") {
+        onAddPersonNew();
+      } else if (addType === "returning") {
+        onAddPersonReturning();
+      }
     } else if (action === "remove") {
       onRemovePerson(willReturn);
     }
@@ -121,13 +132,12 @@ export function ManagePeopleModal({
         {/* Selección de acción */}
         <div className="space-y-4">
           <Label className="text-muted-foreground">¿Qué deseas hacer?</Label>
-          
+
           <RadioGroup value={action || ""} onValueChange={(v: string) => setAction(v as "add" | "remove")}>
             <div className="space-y-3">
               {/* Opción: Agregar persona */}
-              <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                action === "add" ? "border-purple-500 bg-purple-500/10" : "hover:border-purple-500/50"
-              } ${currentPeople >= maxPeople ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${action === "add" ? "border-purple-500 bg-purple-500/10" : "hover:border-purple-500/50"
+                } ${currentPeople >= maxPeople ? "opacity-50 cursor-not-allowed" : ""}`}>
                 <RadioGroupItem value="add" id="add" disabled={currentPeople >= maxPeople} className="mt-0.5" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -148,9 +158,8 @@ export function ManagePeopleModal({
               </label>
 
               {/* Opción: Quitar persona */}
-              <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                action === "remove" ? "border-orange-500 bg-orange-500/10" : "hover:border-orange-500/50"
-              } ${currentPeople <= 0 ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${action === "remove" ? "border-orange-500 bg-orange-500/10" : "hover:border-orange-500/50"
+                } ${currentPeople <= 0 ? "opacity-50 cursor-not-allowed" : ""}`}>
                 <RadioGroupItem value="remove" id="remove" disabled={currentPeople <= 0} className="mt-0.5" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -158,14 +167,78 @@ export function ManagePeopleModal({
                     <span className="font-medium">Sale una persona</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {currentPeople === 1 
-                      ? "La habitación quedará vacía" 
+                    {currentPeople === 1
+                      ? "La habitación quedará vacía"
                       : `Quedarán ${currentPeople - 1} persona(s)`}
                   </p>
                 </div>
               </label>
             </div>
           </RadioGroup>
+
+          {/* Sub-opción: Tipo de entrada (solo para "add") */}
+          {action === "add" && (
+            <div className="ml-6 p-3 bg-muted/30 rounded-lg border-l-2 border-purple-500/50">
+              <Label className="text-sm text-muted-foreground mb-2 block">
+                ¿Qué tipo de persona entra?
+              </Label>
+              <RadioGroup value={addType || ""} onValueChange={(v: string) => setAddType(v as "new" | "returning")}>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="new" id="new-person" />
+                    <div>
+                      <span className="text-sm font-medium">Persona Nueva</span>
+                      {willChargeExtra && extraPersonPrice > 0 && (
+                        <p className="text-xs text-amber-400">
+                          Se cobrará extra: +${extraPersonPrice.toFixed(2)} MXN
+                        </p>
+                      )}
+                      {(!willChargeExtra || extraPersonPrice === 0) && (
+                        <p className="text-xs text-muted-foreground">
+                          Sin cargo adicional
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                  <label className={`flex items-center gap-2 ${!hasActiveTolerance ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <RadioGroupItem
+                      value="returning"
+                      id="returning-person"
+                      disabled={!hasActiveTolerance || isToleranceExpired}
+                    />
+                    <div>
+                      <span className="text-sm font-medium">Regresa Persona que Salió</span>
+                      {hasActiveTolerance && !isToleranceExpired && (
+                        <p className="text-xs text-teal-400">
+                          Cancela la tolerancia activa ({toleranceMinutesLeft} min restantes)
+                        </p>
+                      )}
+                      {isToleranceExpired && (
+                        <p className="text-xs text-red-400">
+                          Tolerancia expirada. Se cobrará como persona nueva.
+                        </p>
+                      )}
+                      {!hasActiveTolerance && !isToleranceExpired && (
+                        <p className="text-xs text-muted-foreground">
+                          No hay tolerancia activa (nadie ha salido)
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </RadioGroup>
+
+              {/* Advertencia: Persona nueva con tolerancia activa */}
+              {addType === "new" && hasActiveTolerance && !isToleranceExpired && (
+                <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded">
+                  <p className="text-xs text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Hay tolerancia activa ({toleranceMinutesLeft} min). ¿Seguro que es una persona nueva y no la que salió?
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Sub-opción: ¿Va a regresar? (solo para "remove" y si no es hotel) */}
           {action === "remove" && !isHotelRoom && (
@@ -190,6 +263,16 @@ export function ManagePeopleModal({
                   </label>
                 </div>
               </RadioGroup>
+
+              {/* Advertencia: Quitar última persona */}
+              {currentPeople === 1 && (
+                <div className="mt-2 p-2 bg-orange-500/10 border border-orange-500/30 rounded">
+                  <p className="text-xs text-orange-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Es la última persona. Considera hacer checkout en lugar de quitarla.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -201,8 +284,11 @@ export function ManagePeopleModal({
               {action === "add" ? (
                 <>
                   <span className="font-medium">Resultado:</span> {currentPeople} → {currentPeople + 1} personas
-                  {willChargeExtra && extraPersonPrice > 0 && (
+                  {addType === "new" && willChargeExtra && extraPersonPrice > 0 && (
                     <span className="text-amber-400 ml-2">(+${extraPersonPrice.toFixed(2)})</span>
+                  )}
+                  {addType === "returning" && hasActiveTolerance && (
+                    <span className="text-teal-400 ml-2">(cancela tolerancia)</span>
                   )}
                 </>
               ) : (
@@ -228,12 +314,11 @@ export function ManagePeopleModal({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={actionLoading || !action}
-            className={`flex-1 ${
-              action === "add" 
-                ? "bg-purple-600 hover:bg-purple-700" 
-                : "bg-orange-600 hover:bg-orange-700"
-            } text-white`}
+            disabled={actionLoading || !action || (action === "add" && !addType)}
+            className={`flex-1 ${action === "add"
+              ? "bg-purple-600 hover:bg-purple-700"
+              : "bg-orange-600 hover:bg-orange-700"
+              } text-white`}
           >
             {actionLoading ? (
               "Procesando..."

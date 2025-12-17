@@ -272,10 +272,10 @@ export function RoomsBoard() {
   // Procesar pago de extras (sin checkout)
   const handlePayExtra = async (payments: PaymentEntry[]) => {
     if (!payExtraInfo || !selectedRoom || payments.length === 0) return;
-    
+
     const supabase = createClient();
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-    
+
     try {
       // Obtener la orden actual
       const { data: order, error: orderError } = await supabase
@@ -512,20 +512,20 @@ export function RoomsBoard() {
   useEffect(() => {
     const checkTolerances = async () => {
       const supabase = createClient();
-      
+
       for (const room of rooms) {
         if (room.status !== "OCUPADA") continue;
         if (room.room_types?.is_hotel) continue; // No aplica para hotel/torre
-        
+
         const activeStay = getActiveStay(room);
         if (!activeStay?.tolerance_started_at || !activeStay.tolerance_type) continue;
-        
+
         // Verificar si la tolerancia expiró
         if (isToleranceExpired(activeStay.tolerance_started_at)) {
           try {
             let chargeAmount = 0;
             let chargeDescription = "";
-            
+
             if (activeStay.tolerance_type === 'ROOM_EMPTY') {
               // Cobrar habitación completa
               chargeAmount = room.room_types?.base_price ?? 0;
@@ -535,7 +535,7 @@ export function RoomsBoard() {
               chargeAmount = room.room_types?.extra_person_price ?? 0;
               chargeDescription = "Tolerancia expirada - Persona extra cobrada";
             }
-            
+
             if (chargeAmount > 0) {
               // Actualizar orden de venta
               const { data: orderData } = await supabase
@@ -543,12 +543,12 @@ export function RoomsBoard() {
                 .select("subtotal, tax, paid_amount")
                 .eq("id", activeStay.sales_order_id)
                 .single();
-              
+
               if (orderData) {
                 const newSubtotal = (Number(orderData.subtotal) || 0) + chargeAmount;
                 const newTotal = newSubtotal + (Number(orderData.tax) || 0);
                 const newRemaining = Math.max(newTotal - (Number(orderData.paid_amount) || 0), 0);
-                
+
                 await supabase
                   .from("sales_orders")
                   .update({
@@ -557,13 +557,13 @@ export function RoomsBoard() {
                     remaining_amount: newRemaining,
                   })
                   .eq("id", activeStay.sales_order_id);
-                
+
                 toast.warning(chargeDescription, {
                   description: `Hab. ${room.number}: +$${chargeAmount.toFixed(2)} MXN`,
                 });
               }
             }
-            
+
             // Limpiar tolerancia
             await supabase
               .from("room_stays")
@@ -572,7 +572,7 @@ export function RoomsBoard() {
                 tolerance_type: null,
               })
               .eq("id", activeStay.id);
-            
+
             // Refrescar datos
             await fetchRooms(true);
           } catch (error) {
@@ -581,12 +581,12 @@ export function RoomsBoard() {
         }
       }
     };
-    
+
     // Verificar cada minuto
     const interval = setInterval(checkTolerances, 60000);
     // También verificar al cargar
     checkTolerances();
-    
+
     return () => clearInterval(interval);
   }, [rooms, fetchRooms]);
 
@@ -703,7 +703,7 @@ export function RoomsBoard() {
 
       const basePrice = roomType.base_price ?? 0;
       const extraPersonPrice = roomType.extra_person_price ?? 0;
-      
+
       // Calcular costo extra por personas adicionales (más de 2)
       const extraPeopleCount = Math.max(0, initialPeople - 2);
       const extraPeopleCost = extraPeopleCount * extraPersonPrice;
@@ -762,13 +762,13 @@ export function RoomsBoard() {
       // Nota: 'total' es columna generada, no se incluye en el insert
       // Primero buscar o crear un producto "servicio" para habitaciones
       let serviceProductId: string | null = null;
-      
+
       const { data: serviceProducts } = await supabase
         .from("products")
         .select("id")
         .eq("sku", "SVC-ROOM")
         .limit(1);
-      
+
       if (serviceProducts && serviceProducts.length > 0) {
         serviceProductId = serviceProducts[0].id;
       } else {
@@ -787,7 +787,7 @@ export function RoomsBoard() {
           })
           .select("id")
           .single();
-        
+
         if (productError) {
           console.error("Error creating service product:", productError);
           // Continuar sin items granulares
@@ -799,7 +799,7 @@ export function RoomsBoard() {
       // Solo insertar items si tenemos un product_id válido
       if (serviceProductId) {
         const orderItems = [];
-        
+
         // Item de habitación base
         orderItems.push({
           sales_order_id: salesOrder.id,
@@ -978,11 +978,11 @@ export function RoomsBoard() {
     try {
       const roomType = selectedRoom.room_types;
       const entryTime = data.actualEntryTime;
-      
+
       // Calcular hora de salida basada en la hora REAL de entrada
       const isWeekend = entryTime.getDay() === 0 || entryTime.getDay() === 6;
-      const hours = isWeekend 
-        ? (roomType.weekend_hours ?? 4) 
+      const hours = isWeekend
+        ? (roomType.weekend_hours ?? 4)
         : (roomType.weekday_hours ?? 4);
       const expectedCheckout = new Date(entryTime);
       expectedCheckout.setHours(expectedCheckout.getHours() + hours);
@@ -1040,7 +1040,7 @@ export function RoomsBoard() {
         .select("id")
         .eq("sku", "SVC-ROOM")
         .limit(1);
-      
+
       if (serviceProducts && serviceProducts.length > 0) {
         serviceProductId = serviceProducts[0].id;
       }
@@ -1048,7 +1048,7 @@ export function RoomsBoard() {
       // Insertar items de la orden (todos sin pagar)
       if (serviceProductId) {
         const orderItems = [];
-        
+
         // Item de habitación base
         orderItems.push({
           sales_order_id: salesOrder.id,
@@ -1118,7 +1118,7 @@ export function RoomsBoard() {
         .eq("id", selectedRoom.id);
 
       const timeDiff = Math.round((new Date().getTime() - entryTime.getTime()) / 60000);
-      
+
       toast.success("⚡ Entrada rápida registrada", {
         description: `Hab. ${selectedRoom.number} - Entrada: ${entryTime.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}${timeDiff > 0 ? ` (hace ${timeDiff} min)` : ''} - PAGO PENDIENTE: $${totalPrice.toFixed(2)}`,
       });
@@ -1309,9 +1309,9 @@ export function RoomsBoard() {
               const status = room.status || "OTRO";
               // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)
               const activeStay = getActiveStay(room);
-              const hasPendingPayment = status === "OCUPADA" && 
+              const hasPendingPayment = status === "OCUPADA" &&
                 Number(activeStay?.sales_orders?.remaining_amount || 0) > 0;
-              
+
               return (
                 <RoomCard
                   key={room.id}
@@ -1416,7 +1416,10 @@ export function RoomsBoard() {
           }
         }}
         onAddPerson={() => {
-          if (selectedRoom) handleAddPerson(selectedRoom);
+          if (selectedRoom) {
+            setShowManagePeopleModal(true);
+            setShowActionsModal(false);
+          }
         }}
         onRemovePerson={() => {
           if (selectedRoom) handleRemovePerson(selectedRoom);
@@ -1548,7 +1551,7 @@ export function RoomsBoard() {
             toast.error("No se encontró una estancia activa");
             return;
           }
-          
+
           const supabase = createClient();
           const { error } = await supabase
             .from("room_stays")
@@ -1558,13 +1561,13 @@ export function RoomsBoard() {
               vehicle_model: vehicle.model.trim() || null,
             })
             .eq("id", activeStay.id);
-          
+
           if (error) {
             console.error("Error updating vehicle:", error);
             toast.error("Error al actualizar datos del vehículo");
             return;
           }
-          
+
           toast.success("Vehículo actualizado", {
             description: vehicle.plate ? `Placas: ${vehicle.plate}` : "Datos guardados",
           });
@@ -1596,14 +1599,14 @@ export function RoomsBoard() {
           if (!selectedRoom) return;
           const activeStay = getActiveStay(selectedRoom);
           if (!activeStay) return;
-          
+
           setStartStayLoading(true);
           const supabase = createClient();
-          
+
           try {
             const newRoom = rooms.find(r => r.id === data.newRoomId);
             if (!newRoom) throw new Error("Habitación no encontrada");
-            
+
             // Calcular nueva hora de salida
             let newExpectedCheckout: string;
             if (data.keepTime) {
@@ -1619,7 +1622,7 @@ export function RoomsBoard() {
               checkout.setHours(checkout.getHours() + hours);
               newExpectedCheckout = checkout.toISOString();
             }
-            
+
             // Actualizar la estancia con la nueva habitación
             const { error: stayError } = await supabase
               .from("room_stays")
@@ -1629,39 +1632,39 @@ export function RoomsBoard() {
                 ...(data.keepTime ? {} : { check_in_at: new Date().toISOString() }),
               })
               .eq("id", activeStay.id);
-            
+
             if (stayError) throw stayError;
-            
+
             // Marcar habitación original como SUCIA
             await supabase
               .from("rooms")
               .update({ status: "SUCIA" })
               .eq("id", selectedRoom.id);
-            
+
             // Marcar nueva habitación como OCUPADA
             await supabase
               .from("rooms")
               .update({ status: "OCUPADA" })
               .eq("id", data.newRoomId);
-            
+
             // Actualizar notas de la orden con el motivo del cambio
             const { data: orderData } = await supabase
               .from("sales_orders")
               .select("notes")
               .eq("id", activeStay.sales_order_id)
               .single();
-            
+
             const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}`;
-            
+
             await supabase
               .from("sales_orders")
               .update({ notes: newNotes.trim() })
               .eq("id", activeStay.sales_order_id);
-            
+
             toast.success("Habitación cambiada", {
               description: `${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"})`,
             });
-            
+
             setShowChangeRoomModal(false);
             setSelectedRoom(null);
             await fetchRooms(true);
@@ -1698,10 +1701,10 @@ export function RoomsBoard() {
           if (!selectedRoom) return;
           const activeStay = getActiveStay(selectedRoom);
           if (!activeStay) return;
-          
+
           setStartStayLoading(true);
           const supabase = createClient();
-          
+
           try {
             // Finalizar la estancia como CANCELADA
             await supabase
@@ -1711,13 +1714,13 @@ export function RoomsBoard() {
                 actual_check_out_at: new Date().toISOString(),
               })
               .eq("id", activeStay.id);
-            
+
             // Marcar habitación como SUCIA
             await supabase
               .from("rooms")
               .update({ status: "SUCIA" })
               .eq("id", selectedRoom.id);
-            
+
             // Actualizar orden de venta
             await supabase
               .from("sales_orders")
@@ -1726,11 +1729,11 @@ export function RoomsBoard() {
                 notes: `❌ CANCELADA: ${data.reason}. Reembolso: ${data.refundType === "full" ? "Total" : data.refundType === "partial" ? `Parcial $${data.refundAmount}` : "Sin reembolso"}`,
               })
               .eq("id", activeStay.sales_order_id);
-            
+
             toast.success("Estancia cancelada", {
               description: `Hab. ${selectedRoom.number} - ${data.refundType !== "none" ? `Reembolso: $${data.refundAmount.toFixed(2)}` : "Sin reembolso"}`,
             });
-            
+
             setShowCancelStayModal(false);
             setSelectedRoom(null);
             await fetchRooms(true);
@@ -1761,9 +1764,15 @@ export function RoomsBoard() {
         isHotelRoom={selectedRoom?.room_types?.is_hotel || false}
         actionLoading={actionLoading}
         onClose={() => setShowManagePeopleModal(false)}
-        onAddPerson={() => {
+        onAddPersonNew={() => {
           if (selectedRoom) {
             handleAddPerson(selectedRoom);
+            setShowManagePeopleModal(false);
+          }
+        }}
+        onAddPersonReturning={() => {
+          if (selectedRoom) {
+            handlePersonLeftReturning(selectedRoom);
             setShowManagePeopleModal(false);
           }
         }}
