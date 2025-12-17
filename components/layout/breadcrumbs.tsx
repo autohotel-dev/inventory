@@ -1,6 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 
 function toTitle(segment: string) {
   if (!segment) return "";
@@ -24,21 +25,27 @@ export function Breadcrumbs() {
 
   return (
     <div className="space-y-2">
-      <nav className="text-xs text-muted-foreground overflow-x-auto">
-        <div className="flex items-center whitespace-nowrap">
-          {items.map((it, idx) => (
-            <span key={it.href} className="flex items-center">
-              {idx > 0 && <span className="mx-1 text-muted-foreground/50">/</span>}
-              {idx < items.length - 1 ? (
-                <Link href={it.href} className="hover:underline hover:text-foreground transition-colors">{it.label}</Link>
-              ) : (
-                <span className="text-foreground font-medium">{it.label}</span>
-              )}
-            </span>
-          ))}
-        </div>
-      </nav>
+      <div className="flex items-center justify-between">
+        <nav className="text-xs text-muted-foreground overflow-x-auto">
+          <div className="flex items-center whitespace-nowrap">
+            {items.map((it, idx) => (
+              <span key={it.href} className="flex items-center">
+                {idx > 0 && <span className="mx-1 text-muted-foreground/50">/</span>}
+                {idx < items.length - 1 ? (
+                  <Link href={it.href} className="hover:underline hover:text-foreground transition-colors">{it.label}</Link>
+                ) : (
+                  <span className="text-foreground font-medium">{it.label}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        </nav>
+
+        {/* Notification Center */}
+        <NotificationCenter />
+      </div>
       <h1 className="text-lg md:text-xl font-semibold">{title}</h1>
     </div>
   );
 }
+
