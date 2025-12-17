@@ -52,12 +52,17 @@ export interface RoomStay {
   id: string;
   sales_order_id: string;
   status: string;
+  check_in_at?: string | null;
   expected_check_out_at?: string | null;
   current_people?: number;
   total_people?: number;
   // Campos para tolerancia de salida (solo motel, no torre/hotel)
   tolerance_started_at?: string | null; // Cuando inició la tolerancia de 1 hora
   tolerance_type?: 'PERSON_LEFT' | 'ROOM_EMPTY' | null; // Tipo de tolerancia activa
+  // Datos del vehículo
+  vehicle_plate?: string | null;
+  vehicle_brand?: string | null;
+  vehicle_model?: string | null;
   sales_orders?: {
     remaining_amount?: number;
   } | null;

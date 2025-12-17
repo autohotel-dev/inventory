@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -28,10 +28,15 @@ export interface RoomActionsWheelProps {
   onMarkClean: () => void;
   onBlock: () => void;
   onUnblock: () => void;
+  onQuickCheckin: () => void; // Entrada rápida sin pago
+  onEditVehicle: () => void; // Editar datos del vehículo
+  onChangeRoom: () => void; // Cambiar de habitación
+  onCancelStay: () => void; // Cancelar estancia
+  onManagePeople: () => void; // Gestión de personas (modal unificado)
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddConsumption' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddConsumption' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople';
 
 interface ActionConfig {
   id: string;
@@ -48,7 +53,8 @@ interface ActionConfig {
 const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   LIBRE: [
     { id: "start", label: "Entrada", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onStartStay" },
-    { id: "block", label: "Bloquear", icon: <Lock className="h-5 w-5" />, color: "text-amber-400", hoverBg: "hover:bg-amber-500/30", action: "onBlock" },
+    { id: "quickcheckin", label: "Rápida", icon: <Zap className="h-5 w-5" />, color: "text-amber-400", hoverBg: "hover:bg-amber-500/30", action: "onQuickCheckin" },
+    { id: "block", label: "Bloquear", icon: <Lock className="h-5 w-5" />, color: "text-gray-400", hoverBg: "hover:bg-gray-500/30", action: "onBlock" },
   ],
   OCUPADA: [
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
@@ -56,11 +62,11 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "consumption", label: "Consumo", icon: <ShoppingBag className="h-5 w-5" />, color: "text-green-400", hoverBg: "hover:bg-green-500/30", action: "onAddConsumption" },
     { id: "payextra", label: "Pagar Todo", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
-    { id: "sale", label: "Venta", icon: <FileText className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onViewSale" },
-    { id: "addperson", label: "+Persona", icon: <UserPlus className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onAddPerson" },
-    { id: "removeperson", label: "-Persona", icon: <UserMinus className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onRemovePerson" },
-    { id: "leftreturning", label: "Regresa", icon: <UserCheck className="h-5 w-5" />, color: "text-teal-400", hoverBg: "hover:bg-teal-500/30", action: "onPersonLeftReturning", hideForHotel: true },
+    { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
+    { id: "changeroom", label: "Cambiar", icon: <ArrowRightLeft className="h-5 w-5" />, color: "text-indigo-400", hoverBg: "hover:bg-indigo-500/30", action: "onChangeRoom" },
+    { id: "managePeople", label: "Personas", icon: <Users className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onManagePeople" },
     { id: "hour", label: "+Hora", icon: <Clock className="h-5 w-5" />, color: "text-pink-400", hoverBg: "hover:bg-pink-500/30", action: "onAddHour" },
+    { id: "cancelstay", label: "Cancelar", icon: <XCircle className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onCancelStay" },
   ],
   SUCIA: [
     { id: "clean", label: "Limpiar", icon: <Sparkles className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onMarkClean" },
@@ -145,6 +151,11 @@ export function RoomActionsWheel({
   onMarkClean,
   onBlock,
   onUnblock,
+  onQuickCheckin,
+  onEditVehicle,
+  onChangeRoom,
+  onCancelStay,
+  onManagePeople,
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -182,6 +193,11 @@ export function RoomActionsWheel({
     onMarkClean,
     onBlock,
     onUnblock,
+    onQuickCheckin,
+    onEditVehicle,
+    onChangeRoom,
+    onCancelStay,
+    onManagePeople,
   };
 
   return (

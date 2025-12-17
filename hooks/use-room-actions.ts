@@ -229,7 +229,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             const updateResult = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraPrice);
             console.log("updateSalesOrderTotals result:", updateResult);
             
-            // Buscar producto de servicio para habitaciones
+            // Buscar o crear producto de servicio para habitaciones
+            let serviceProductId: string | null = null;
+            
             const { data: serviceProducts } = await supabase
               .from("products")
               .select("id")
@@ -237,15 +239,43 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               .limit(1);
 
             if (serviceProducts && serviceProducts.length > 0) {
+              serviceProductId = serviceProducts[0].id;
+            } else {
+              // Crear producto de servicio si no existe
+              const { data: newProduct } = await supabase
+                .from("products")
+                .insert({
+                  name: "Servicio de Habitación",
+                  sku: "SVC-ROOM",
+                  description: "Servicios de habitación (estancia, horas extra, personas extra)",
+                  price: 0,
+                  cost: 0,
+                  unit: "SVC",
+                  min_stock: 0,
+                  is_active: true,
+                })
+                .select("id")
+                .single();
+              
+              if (newProduct) {
+                serviceProductId = newProduct.id;
+              }
+            }
+
+            if (serviceProductId) {
               // Insertar item en sales_order_items para cobro granular
-              await supabase.from("sales_order_items").insert({
+              const { error: itemError } = await supabase.from("sales_order_items").insert({
                 sales_order_id: activeStay.sales_order_id,
-                product_id: serviceProducts[0].id,
+                product_id: serviceProductId,
                 qty: 1,
                 unit_price: extraPrice,
                 concept_type: "EXTRA_PERSON",
                 is_paid: false,
               });
+              
+              if (itemError) {
+                console.error("Error inserting extra person item:", itemError);
+              }
             }
 
             // Registrar el cargo como pago pendiente con concepto PERSONA_EXTRA
@@ -409,7 +439,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraHourPrice);
 
       if (result.success) {
-        // Buscar producto de servicio para habitaciones
+        // Buscar o crear producto de servicio para habitaciones
+        let serviceProductId: string | null = null;
+        
         const { data: serviceProducts } = await supabase
           .from("products")
           .select("id")
@@ -417,15 +449,43 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           .limit(1);
 
         if (serviceProducts && serviceProducts.length > 0) {
+          serviceProductId = serviceProducts[0].id;
+        } else {
+          // Crear producto de servicio si no existe
+          const { data: newProduct } = await supabase
+            .from("products")
+            .insert({
+              name: "Servicio de Habitación",
+              sku: "SVC-ROOM",
+              description: "Servicios de habitación (estancia, horas extra, personas extra)",
+              price: 0,
+              cost: 0,
+              unit: "SVC",
+              min_stock: 0,
+              is_active: true,
+            })
+            .select("id")
+            .single();
+          
+          if (newProduct) {
+            serviceProductId = newProduct.id;
+          }
+        }
+
+        if (serviceProductId) {
           // Insertar item en sales_order_items para cobro granular
-          await supabase.from("sales_order_items").insert({
+          const { error: itemError } = await supabase.from("sales_order_items").insert({
             sales_order_id: activeStay.sales_order_id,
-            product_id: serviceProducts[0].id,
+            product_id: serviceProductId,
             qty: 1,
             unit_price: extraHourPrice,
             concept_type: "EXTRA_HOUR",
             is_paid: false,
           });
+          
+          if (itemError) {
+            console.error("Error inserting extra hour item:", itemError);
+          }
         }
 
         // Registrar el cargo pendiente con concepto HORA_EXTRA

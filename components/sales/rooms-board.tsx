@@ -17,6 +17,11 @@ import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
 import { RoomDetailsModal } from "@/components/sales/room-details-modal";
 import { GranularPaymentModal } from "@/components/sales/granular-payment-modal";
 import { AddConsumptionModal } from "@/components/sales/add-consumption-modal";
+import { QuickCheckinModal } from "@/components/sales/quick-checkin-modal";
+import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
+import { ChangeRoomModal } from "@/components/sales/change-room-modal";
+import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
+import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
 import {
   Room,
   RoomType,
@@ -71,6 +76,11 @@ export function RoomsBoard() {
   const [consumptionOrderId, setConsumptionOrderId] = useState<string | null>(null);
   const [actionsDockVisible, setActionsDockVisible] = useState(false);
   const [startStayLoading, setStartStayLoading] = useState(false);
+  const [showQuickCheckinModal, setShowQuickCheckinModal] = useState(false);
+  const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
+  const [showChangeRoomModal, setShowChangeRoomModal] = useState(false);
+  const [showCancelStayModal, setShowCancelStayModal] = useState(false);
+  const [showManagePeopleModal, setShowManagePeopleModal] = useState(false);
 
   // Actualizar selectedRoom cuando rooms cambie (después de fetchRooms)
   useEffect(() => {
@@ -91,7 +101,7 @@ export function RoomsBoard() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, sales_orders ( remaining_amount ) )`
+          `id, number, status, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, sales_orders ( remaining_amount ) )`
         )
         .order("number", { ascending: true });
 
@@ -954,6 +964,176 @@ export function RoomsBoard() {
     }
   };
 
+  // Entrada rápida sin pago (para cuando el cochero aún no llega con el dinero)
+  const handleQuickCheckin = async (data: {
+    initialPeople: number;
+    vehicle: { plate: string; brand: string; model: string };
+    actualEntryTime: Date;
+  }) => {
+    if (!selectedRoom || !selectedRoom.room_types) return;
+
+    setStartStayLoading(true);
+    const supabase = createClient();
+
+    try {
+      const roomType = selectedRoom.room_types;
+      const entryTime = data.actualEntryTime;
+      
+      // Calcular hora de salida basada en la hora REAL de entrada
+      const isWeekend = entryTime.getDay() === 0 || entryTime.getDay() === 6;
+      const hours = isWeekend 
+        ? (roomType.weekend_hours ?? 4) 
+        : (roomType.weekday_hours ?? 4);
+      const expectedCheckout = new Date(entryTime);
+      expectedCheckout.setHours(expectedCheckout.getHours() + hours);
+
+      const basePrice = roomType.base_price ?? 0;
+      const extraPersonPrice = roomType.extra_person_price ?? 0;
+      const extraPeopleCount = Math.max(0, data.initialPeople - 2);
+      const extraPeopleCost = extraPeopleCount * extraPersonPrice;
+      const totalPrice = basePrice + extraPeopleCost;
+
+      // Obtener almacén de recepción
+      const { data: defaultWarehouse, error: warehouseError } = await supabase
+        .from("warehouses")
+        .select("id, code, is_active")
+        .eq("code", "ALM002-R")
+        .eq("is_active", true)
+        .single();
+
+      if (warehouseError || !defaultWarehouse) {
+        toast.error("No se encontró el almacén de recepción");
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Crear orden de venta con pago PENDIENTE
+      const { data: salesOrder, error: orderError } = await supabase
+        .from("sales_orders")
+        .insert({
+          customer_id: null,
+          warehouse_id: defaultWarehouse.id,
+          currency: "MXN",
+          notes: `⚡ ENTRADA RÁPIDA - Hab. ${selectedRoom.number} ${roomType.name}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ''} - PAGO PENDIENTE`,
+          subtotal: totalPrice,
+          tax: 0,
+          total: totalPrice,
+          status: "OPEN",
+          remaining_amount: totalPrice, // Todo pendiente
+          paid_amount: 0,
+          created_by: user?.id ?? null,
+        })
+        .select("id")
+        .single();
+
+      if (orderError) {
+        console.error("Error creating sales order:", orderError);
+        toast.error("Error al iniciar la estancia");
+        return;
+      }
+
+      // Buscar o crear producto de servicio
+      let serviceProductId: string | null = null;
+      const { data: serviceProducts } = await supabase
+        .from("products")
+        .select("id")
+        .eq("sku", "SVC-ROOM")
+        .limit(1);
+      
+      if (serviceProducts && serviceProducts.length > 0) {
+        serviceProductId = serviceProducts[0].id;
+      }
+
+      // Insertar items de la orden (todos sin pagar)
+      if (serviceProductId) {
+        const orderItems = [];
+        
+        // Item de habitación base
+        orderItems.push({
+          sales_order_id: salesOrder.id,
+          product_id: serviceProductId,
+          qty: 1,
+          unit_price: basePrice,
+          concept_type: "ROOM_BASE",
+          is_paid: false,
+          paid_at: null,
+          payment_method: null,
+        });
+
+        // Items de personas extra
+        if (extraPeopleCount > 0 && extraPersonPrice > 0) {
+          for (let i = 0; i < extraPeopleCount; i++) {
+            orderItems.push({
+              sales_order_id: salesOrder.id,
+              product_id: serviceProductId,
+              qty: 1,
+              unit_price: extraPersonPrice,
+              concept_type: "EXTRA_PERSON",
+              is_paid: false,
+              paid_at: null,
+              payment_method: null,
+            });
+          }
+        }
+
+        await supabase.from("sales_order_items").insert(orderItems);
+      }
+
+      // Crear pago pendiente (para que aparezca en el cobro granular)
+      await supabase.from("payments").insert({
+        sales_order_id: salesOrder.id,
+        amount: totalPrice,
+        payment_method: "PENDIENTE",
+        reference: generatePaymentReference("QCK"),
+        concept: "ESTANCIA",
+        status: "PENDIENTE",
+        payment_type: "COMPLETO",
+        created_by: user?.id ?? null,
+      });
+
+      // Registrar la estancia con la hora REAL de entrada
+      const { error: stayError } = await supabase.from("room_stays").insert({
+        room_id: selectedRoom.id,
+        sales_order_id: salesOrder.id,
+        check_in_at: entryTime.toISOString(), // Hora real de entrada
+        expected_check_out_at: expectedCheckout.toISOString(),
+        current_people: data.initialPeople,
+        total_people: data.initialPeople,
+        vehicle_plate: data.vehicle.plate.trim() || null,
+        vehicle_brand: data.vehicle.brand.trim() || null,
+        vehicle_model: data.vehicle.model.trim() || null,
+      });
+
+      if (stayError) {
+        console.error("Error creating room stay:", stayError);
+        toast.error("Error al registrar la estancia");
+        return;
+      }
+
+      // Actualizar estado de la habitación a OCUPADA
+      await supabase
+        .from("rooms")
+        .update({ status: "OCUPADA" })
+        .eq("id", selectedRoom.id);
+
+      const timeDiff = Math.round((new Date().getTime() - entryTime.getTime()) / 60000);
+      
+      toast.success("⚡ Entrada rápida registrada", {
+        description: `Hab. ${selectedRoom.number} - Entrada: ${entryTime.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}${timeDiff > 0 ? ` (hace ${timeDiff} min)` : ''} - PAGO PENDIENTE: $${totalPrice.toFixed(2)}`,
+      });
+
+      setShowQuickCheckinModal(false);
+      setSelectedRoom(null);
+      await fetchRooms(true);
+    } catch (error) {
+      console.error("Error in quick checkin:", error);
+      toast.error("Error al registrar la entrada rápida");
+    } finally {
+      setStartStayLoading(false);
+    }
+  };
+
   const renderStatusBadge = (status: string) => {
     const config = STATUS_CONFIG[status] || {
       label: status,
@@ -1054,23 +1234,51 @@ export function RoomsBoard() {
         </Card>
       </div>
 
-      {/* Leyenda de colores */}
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-sm bg-blue-500" />
-          <span>Libre</span>
+      {/* Leyenda de estados y tipos */}
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
+        {/* Estados */}
+        <div className="flex items-center gap-3">
+          <span className="text-white/50 font-medium">Estados:</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-blue-500" />
+            <span>Libre</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-red-500" />
+            <span>Ocupada</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-purple-500" />
+            <span>Sucia</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-green-500" />
+            <span>Bloqueada</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-sm bg-red-500" />
-          <span>Ocupada</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-sm bg-purple-500" />
-          <span>Sucia</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-sm bg-green-500" />
-          <span>Bloqueada</span>
+        {/* Tipos de habitación */}
+        <div className="flex items-center gap-3">
+          <span className="text-white/50 font-medium">Tipos:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-slate-500 text-white">SEN</span>
+            <span>Sencilla</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-blue-500 text-white">DBL</span>
+            <span>Doble</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-pink-500 text-white">JAC</span>
+            <span>Jacuzzi</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-amber-500 text-white">STE</span>
+            <span>Suite</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-cyan-500 text-white">TRE</span>
+            <span>Torre</span>
+          </div>
         </div>
         {/* Botones de prueba para alertas - ELIMINAR EN PRODUCCIÓN */}
         <div className="ml-auto flex gap-2">
@@ -1099,6 +1307,11 @@ export function RoomsBoard() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             {rooms.map((room) => {
               const status = room.status || "OTRO";
+              // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)
+              const activeStay = getActiveStay(room);
+              const hasPendingPayment = status === "OCUPADA" && 
+                Number(activeStay?.sales_orders?.remaining_amount || 0) > 0;
+              
               return (
                 <RoomCard
                   key={room.id}
@@ -1108,6 +1321,8 @@ export function RoomsBoard() {
                   bgClass={ROOM_STATUS_BG[status] || "bg-slate-900/80"}
                   accentClass={ROOM_STATUS_ACCENT[status] || ""}
                   statusBadge={renderStatusBadge(status)}
+                  hasPendingPayment={hasPendingPayment}
+                  roomTypeName={room.room_types?.name}
                   onInfo={() => {
                     setSelectedRoom(room);
                     setShowInfoModal(true);
@@ -1242,6 +1457,26 @@ export function RoomsBoard() {
             setShowActionsModal(false);
           }
         }}
+        onQuickCheckin={() => {
+          setShowActionsModal(false);
+          setShowQuickCheckinModal(true);
+        }}
+        onEditVehicle={() => {
+          setShowActionsModal(false);
+          setShowEditVehicleModal(true);
+        }}
+        onChangeRoom={() => {
+          setShowActionsModal(false);
+          setShowChangeRoomModal(true);
+        }}
+        onCancelStay={() => {
+          setShowActionsModal(false);
+          setShowCancelStayModal(true);
+        }}
+        onManagePeople={() => {
+          setShowActionsModal(false);
+          setShowManagePeopleModal(true);
+        }}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
@@ -1282,6 +1517,266 @@ export function RoomsBoard() {
         roomNumber={selectedRoom?.number}
         onClose={handleCloseConsumptionModal}
         onComplete={handleConsumptionComplete}
+      />
+      <QuickCheckinModal
+        isOpen={showQuickCheckinModal && !!selectedRoom}
+        roomNumber={selectedRoom?.number || ""}
+        roomType={selectedRoom?.room_types || { id: "", name: "", base_price: 0 }}
+        actionLoading={startStayLoading}
+        onClose={() => {
+          setShowQuickCheckinModal(false);
+          setSelectedRoom(null);
+        }}
+        onConfirm={handleQuickCheckin}
+      />
+      <EditVehicleModal
+        isOpen={showEditVehicleModal && !!selectedRoom}
+        roomNumber={selectedRoom?.number || ""}
+        currentVehicle={{
+          plate: selectedRoom ? getActiveStay(selectedRoom)?.vehicle_plate || null : null,
+          brand: selectedRoom ? getActiveStay(selectedRoom)?.vehicle_brand || null : null,
+          model: selectedRoom ? getActiveStay(selectedRoom)?.vehicle_model || null : null,
+        }}
+        actionLoading={actionLoading}
+        onClose={() => {
+          setShowEditVehicleModal(false);
+        }}
+        onSave={async (vehicle) => {
+          if (!selectedRoom) return;
+          const activeStay = getActiveStay(selectedRoom);
+          if (!activeStay) {
+            toast.error("No se encontró una estancia activa");
+            return;
+          }
+          
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("room_stays")
+            .update({
+              vehicle_plate: vehicle.plate.trim() || null,
+              vehicle_brand: vehicle.brand.trim() || null,
+              vehicle_model: vehicle.model.trim() || null,
+            })
+            .eq("id", activeStay.id);
+          
+          if (error) {
+            console.error("Error updating vehicle:", error);
+            toast.error("Error al actualizar datos del vehículo");
+            return;
+          }
+          
+          toast.success("Vehículo actualizado", {
+            description: vehicle.plate ? `Placas: ${vehicle.plate}` : "Datos guardados",
+          });
+          setShowEditVehicleModal(false);
+          await fetchRooms(true);
+        }}
+      />
+      <ChangeRoomModal
+        isOpen={showChangeRoomModal && !!selectedRoom}
+        currentRoom={selectedRoom}
+        currentStay={selectedRoom ? (() => {
+          const stay = getActiveStay(selectedRoom);
+          if (!stay) return null;
+          return {
+            id: stay.id,
+            check_in_at: stay.check_in_at || new Date().toISOString(),
+            expected_check_out_at: stay.expected_check_out_at || new Date().toISOString(),
+            current_people: stay.current_people || 2,
+            vehicle_plate: stay.vehicle_plate,
+            vehicle_brand: stay.vehicle_brand,
+            vehicle_model: stay.vehicle_model,
+            sales_order_id: stay.sales_order_id,
+          };
+        })() : null}
+        availableRooms={rooms.filter(r => r.status === "LIBRE")}
+        actionLoading={actionLoading}
+        onClose={() => setShowChangeRoomModal(false)}
+        onConfirm={async (data) => {
+          if (!selectedRoom) return;
+          const activeStay = getActiveStay(selectedRoom);
+          if (!activeStay) return;
+          
+          setStartStayLoading(true);
+          const supabase = createClient();
+          
+          try {
+            const newRoom = rooms.find(r => r.id === data.newRoomId);
+            if (!newRoom) throw new Error("Habitación no encontrada");
+            
+            // Calcular nueva hora de salida
+            let newExpectedCheckout: string;
+            if (data.keepTime) {
+              // Mantener la hora de salida original
+              newExpectedCheckout = activeStay.expected_check_out_at || new Date().toISOString();
+            } else {
+              // Reiniciar tiempo desde ahora
+              const now = new Date();
+              const roomType = newRoom.room_types;
+              const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+              const hours = isWeekend ? (roomType?.weekend_hours ?? 4) : (roomType?.weekday_hours ?? 4);
+              const checkout = new Date(now);
+              checkout.setHours(checkout.getHours() + hours);
+              newExpectedCheckout = checkout.toISOString();
+            }
+            
+            // Actualizar la estancia con la nueva habitación
+            const { error: stayError } = await supabase
+              .from("room_stays")
+              .update({
+                room_id: data.newRoomId,
+                expected_check_out_at: newExpectedCheckout,
+                ...(data.keepTime ? {} : { check_in_at: new Date().toISOString() }),
+              })
+              .eq("id", activeStay.id);
+            
+            if (stayError) throw stayError;
+            
+            // Marcar habitación original como SUCIA
+            await supabase
+              .from("rooms")
+              .update({ status: "SUCIA" })
+              .eq("id", selectedRoom.id);
+            
+            // Marcar nueva habitación como OCUPADA
+            await supabase
+              .from("rooms")
+              .update({ status: "OCUPADA" })
+              .eq("id", data.newRoomId);
+            
+            // Actualizar notas de la orden con el motivo del cambio
+            const { data: orderData } = await supabase
+              .from("sales_orders")
+              .select("notes")
+              .eq("id", activeStay.sales_order_id)
+              .single();
+            
+            const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}`;
+            
+            await supabase
+              .from("sales_orders")
+              .update({ notes: newNotes.trim() })
+              .eq("id", activeStay.sales_order_id);
+            
+            toast.success("Habitación cambiada", {
+              description: `${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"})`,
+            });
+            
+            setShowChangeRoomModal(false);
+            setSelectedRoom(null);
+            await fetchRooms(true);
+          } catch (error) {
+            console.error("Error changing room:", error);
+            toast.error("Error al cambiar habitación");
+          } finally {
+            setStartStayLoading(false);
+          }
+        }}
+      />
+      <CancelStayModal
+        isOpen={showCancelStayModal && !!selectedRoom}
+        roomNumber={selectedRoom?.number || ""}
+        roomTypeName={selectedRoom?.room_types?.name || ""}
+        totalPaid={(() => {
+          if (!selectedRoom) return 0;
+          const stay = getActiveStay(selectedRoom);
+          if (!stay?.sales_orders) return 0;
+          const total = Number(stay.sales_orders.remaining_amount) || 0;
+          // Total pagado = total - remaining
+          return 0; // Por ahora simplificado, se puede mejorar
+        })()}
+        elapsedMinutes={(() => {
+          if (!selectedRoom) return 0;
+          const stay = getActiveStay(selectedRoom);
+          if (!stay?.check_in_at) return 0;
+          const checkIn = new Date(stay.check_in_at);
+          return Math.floor((new Date().getTime() - checkIn.getTime()) / 60000);
+        })()}
+        actionLoading={actionLoading}
+        onClose={() => setShowCancelStayModal(false)}
+        onConfirm={async (data) => {
+          if (!selectedRoom) return;
+          const activeStay = getActiveStay(selectedRoom);
+          if (!activeStay) return;
+          
+          setStartStayLoading(true);
+          const supabase = createClient();
+          
+          try {
+            // Finalizar la estancia como CANCELADA
+            await supabase
+              .from("room_stays")
+              .update({
+                status: "CANCELADA",
+                actual_check_out_at: new Date().toISOString(),
+              })
+              .eq("id", activeStay.id);
+            
+            // Marcar habitación como SUCIA
+            await supabase
+              .from("rooms")
+              .update({ status: "SUCIA" })
+              .eq("id", selectedRoom.id);
+            
+            // Actualizar orden de venta
+            await supabase
+              .from("sales_orders")
+              .update({
+                status: "CANCELLED",
+                notes: `❌ CANCELADA: ${data.reason}. Reembolso: ${data.refundType === "full" ? "Total" : data.refundType === "partial" ? `Parcial $${data.refundAmount}` : "Sin reembolso"}`,
+              })
+              .eq("id", activeStay.sales_order_id);
+            
+            toast.success("Estancia cancelada", {
+              description: `Hab. ${selectedRoom.number} - ${data.refundType !== "none" ? `Reembolso: $${data.refundAmount.toFixed(2)}` : "Sin reembolso"}`,
+            });
+            
+            setShowCancelStayModal(false);
+            setSelectedRoom(null);
+            await fetchRooms(true);
+          } catch (error) {
+            console.error("Error cancelling stay:", error);
+            toast.error("Error al cancelar estancia");
+          } finally {
+            setStartStayLoading(false);
+          }
+        }}
+      />
+      <ManagePeopleModal
+        isOpen={showManagePeopleModal && !!selectedRoom}
+        roomNumber={selectedRoom?.number || ""}
+        currentPeople={selectedRoom ? (getActiveStay(selectedRoom)?.current_people || 2) : 2}
+        totalPeople={selectedRoom ? (getActiveStay(selectedRoom)?.total_people || 2) : 2}
+        maxPeople={selectedRoom?.room_types?.max_people || 4}
+        hasActiveTolerance={selectedRoom ? !!(getActiveStay(selectedRoom)?.tolerance_started_at) : false}
+        toleranceMinutesLeft={(() => {
+          if (!selectedRoom) return 0;
+          const stay = getActiveStay(selectedRoom);
+          if (!stay?.tolerance_started_at) return 0;
+          const started = new Date(stay.tolerance_started_at);
+          const elapsed = Math.floor((new Date().getTime() - started.getTime()) / 60000);
+          return Math.max(0, 60 - elapsed);
+        })()}
+        extraPersonPrice={selectedRoom?.room_types?.extra_person_price || 0}
+        isHotelRoom={selectedRoom?.room_types?.is_hotel || false}
+        actionLoading={actionLoading}
+        onClose={() => setShowManagePeopleModal(false)}
+        onAddPerson={() => {
+          if (selectedRoom) {
+            handleAddPerson(selectedRoom);
+            setShowManagePeopleModal(false);
+          }
+        }}
+        onRemovePerson={(willReturn) => {
+          if (selectedRoom) {
+            if (willReturn) {
+              handlePersonLeftReturning(selectedRoom);
+            } else {
+              handleRemovePerson(selectedRoom);
+            }
+            setShowManagePeopleModal(false);
+          }
+        }}
       />
     </div>
   );

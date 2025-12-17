@@ -248,7 +248,6 @@ export function GranularPaymentModal({
             is_paid: true,
             paid_at: new Date().toISOString(),
             payment_method: validPayments.length === 1 ? validPayments[0].method : "MIXTO",
-            total: finalTotal,
             unit_price: item.qty > 0 ? finalTotal / item.qty : finalTotal,
           })
           .eq("id", itemId);
