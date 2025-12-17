@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RoomType } from "@/components/sales/room-types";
-import { 
-  Minus, 
-  Plus, 
-  Users, 
-  Car, 
-  Clock, 
+import {
+  Minus,
+  Plus,
+  Users,
+  Car,
+  Clock,
   Zap,
   AlertTriangle,
   DollarSign
@@ -66,7 +66,7 @@ export function QuickCheckinModal({
   const [useCustomTime, setUseCustomTime] = useState(false);
   const [customHour, setCustomHour] = useState("");
   const [customMinute, setCustomMinute] = useState("");
-  
+
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
   const extraPeopleCount = Math.max(0, initialPeople - 2);
@@ -76,8 +76,8 @@ export function QuickCheckinModal({
   // Calcular hora de salida estimada
   const getExpectedCheckout = (entryTime: Date) => {
     const isWeekend = entryTime.getDay() === 0 || entryTime.getDay() === 6;
-    const hours = isWeekend 
-      ? (roomType?.weekend_hours ?? 4) 
+    const hours = isWeekend
+      ? (roomType?.weekend_hours ?? 4)
       : (roomType?.weekday_hours ?? 4);
     const checkout = new Date(entryTime);
     checkout.setHours(checkout.getHours() + hours);
@@ -89,19 +89,19 @@ export function QuickCheckinModal({
     if (!useCustomTime) {
       return new Date();
     }
-    
+
     const now = new Date();
     const hour = parseInt(customHour) || now.getHours();
     const minute = parseInt(customMinute) || now.getMinutes();
-    
+
     const entryTime = new Date();
     entryTime.setHours(hour, minute, 0, 0);
-    
+
     // Si la hora es mayor que ahora, asumir que fue ayer
     if (entryTime > now) {
       entryTime.setDate(entryTime.getDate() - 1);
     }
-    
+
     return entryTime;
   };
 
@@ -133,7 +133,7 @@ export function QuickCheckinModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
+      <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-amber-500" />
@@ -143,7 +143,7 @@ export function QuickCheckinModal({
             Pago pendiente
           </Badge>
         </div>
-        
+
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
           {/* Alerta informativa */}
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
@@ -152,7 +152,7 @@ export function QuickCheckinModal({
               <div className="text-sm">
                 <p className="font-medium text-amber-500">Entrada sin pago</p>
                 <p className="text-muted-foreground text-xs mt-1">
-                  La habitación quedará ocupada con pago pendiente. 
+                  La habitación quedará ocupada con pago pendiente.
                   Podrás registrar el pago cuando el cochero llegue con el dinero.
                 </p>
               </div>
@@ -182,7 +182,7 @@ export function QuickCheckinModal({
                 {useCustomTime ? "Usar hora actual" : "Ajustar hora"}
               </Button>
             </div>
-            
+
             {useCustomTime ? (
               <div className="flex items-center gap-2">
                 <Input
@@ -312,8 +312,8 @@ export function QuickCheckinModal({
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={handleConfirm} 
+          <Button
+            onClick={handleConfirm}
             disabled={actionLoading}
             className="bg-amber-500 hover:bg-amber-600"
           >

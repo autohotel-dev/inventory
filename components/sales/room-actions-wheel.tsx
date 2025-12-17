@@ -55,8 +55,8 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   LIBRE: [
     { id: "start", label: "Entrada", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onStartStay" },
     { id: "quickcheckin", label: "Rápida", icon: <Zap className="h-5 w-5" />, color: "text-amber-400", hoverBg: "hover:bg-amber-500/30", action: "onQuickCheckin" },
-    { id: "block", label: "Bloquear", icon: <Lock className="h-5 w-5" />, color: "text-gray-400", hoverBg: "hover:bg-gray-500/30", action: "onBlock" },
-    { id: "dirty", label: "Mantenimiento", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },
+    { id: "block", label: "Mantenimiento", icon: <Lock className="h-5 w-5" />, color: "text-gray-400", hoverBg: "hover:bg-gray-500/30", action: "onBlock" },
+    { id: "dirty", label: "Sucia", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },
   ],
   OCUPADA: [
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
@@ -72,10 +72,11 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   ],
   SUCIA: [
     { id: "clean", label: "Limpiar", icon: <Sparkles className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onMarkClean" },
+    { id: "block", label: "Mantenimiento", icon: <Lock className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onBlock" },
   ],
   BLOQUEADA: [
     { id: "unblock", label: "Liberar", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onUnblock" },
-    { id: "dirty", label: "Mantenimiento", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },
+    { id: "dirty", label: "Sucia", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },
   ],
 };
 
