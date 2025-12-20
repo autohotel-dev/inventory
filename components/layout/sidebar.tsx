@@ -73,6 +73,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/purchases", label: "Compras", icon: "cart", adminOnly: true },
   { href: "/sales", label: "Ventas", icon: "cart" },
   { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building" },
+  { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", adminOnly: true },
   { divider: true, adminOnly: true },
   { href: "/employees", label: "Empleados", icon: "users", adminOnly: true },
   { href: "/employees/schedules", label: "Horarios", icon: "activity", adminOnly: true },
