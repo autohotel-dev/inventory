@@ -39,7 +39,9 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   return `${prefix}-${timestamp}-${random}`;
 }
 import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
+import { useSensors } from "@/hooks/use-sensors";
 import { toast } from "sonner";
+import { useRef } from "react";
 
 export function RoomsBoard() {
   const router = useRouter();
@@ -84,6 +86,37 @@ export function RoomsBoard() {
   const [showManagePeopleModal, setShowManagePeopleModal] = useState(false);
   const [showStatusNoteModal, setShowStatusNoteModal] = useState(false);
   const [statusNoteAction, setStatusNoteAction] = useState<"BLOCK" | "DIRTY" | null>(null);
+
+  // Sensores
+  const { sensors } = useSensors();
+  const prevSensorsRef = useRef<Map<string, boolean>>(new Map());
+
+  // Detectar cambios en sensores para alertas
+  useEffect(() => {
+    sensors.forEach((sensor) => {
+      const wasOpen = prevSensorsRef.current.get(sensor.id);
+
+      // Si se abre y no estaba abierta
+      if (sensor.is_open && wasOpen === false) {
+        const room = rooms.find((r) => r.id === sensor.room_id);
+        const roomNumber = room ? room.number : "Desconocida";
+
+        toast.error(`¡Puerta Abierta! Habitación ${roomNumber}`, {
+          duration: 5000,
+          description: "La puerta ha sido abierta.",
+        });
+
+        try {
+          const audio = new Audio("/room-alert.mp3");
+          audio.play().catch(() => { });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      // Actualizar ref
+      prevSensorsRef.current.set(sensor.id, sensor.is_open);
+    });
+  }, [sensors, rooms]);
 
   // Actualizar selectedRoom cuando rooms cambie (después de fetchRooms)
   useEffect(() => {
@@ -1357,6 +1390,11 @@ export function RoomsBoard() {
                   hasPendingPayment={hasPendingPayment}
                   roomTypeName={room.room_types?.name}
                   notes={room.notes}
+                  sensorStatus={(() => {
+                    const s = sensors.find(sen => sen.room_id === room.id);
+                    if (!s) return null;
+                    return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
+                  })()}
                   onInfo={() => {
                     setSelectedRoom(room);
                     setShowInfoModal(true);

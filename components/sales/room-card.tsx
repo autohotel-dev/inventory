@@ -53,6 +53,7 @@ export interface RoomCardProps {
   hasPendingPayment?: boolean; // Indica si tiene pago pendiente
   roomTypeName?: string; // Nombre del tipo de habitación (Sencilla, Jacuzzi, etc)
   notes?: string | null; // Notas de mantenimiento o bloqueo
+  sensorStatus?: { isOpen: boolean; batteryLevel?: number; isOnline: boolean } | null;
   onInfo: () => void;
   onActions: () => void;
 }
@@ -66,6 +67,7 @@ export function RoomCard({
   hasPendingPayment,
   roomTypeName,
   notes,
+  sensorStatus,
   onInfo,
   onActions,
 }: RoomCardProps) {
@@ -78,6 +80,14 @@ export function RoomCard({
       {hasPendingPayment && (
         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse" title="Pago pendiente">
           <AlertCircle className="h-3 w-3 text-white" />
+        </div>
+      )}
+
+      {/* Indicador de Sensor (Puerta Abierta) */}
+      {sensorStatus?.isOpen && (
+        <div className="absolute -top-1.5 -left-1.5 bg-red-500 rounded-full p-0.5 animate-bounce shadow-lg z-10" title="Puerta Abierta">
+          {/* Fallback to text or simple SVG if lucide icon not imported yet */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M13 4h3a2 2 0 0 1 2 2v14" /><path d="M2 20h3" /><path d="M13 20h9" /><path d="M10 12v.01" /><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1a2 2 0 0 1 2.485 1.94Z" /></svg>
         </div>
       )}
 
