@@ -7,7 +7,8 @@
     "lint": "next lint",
     "pre-build": "node scripts/pre-build-check.js",
     "build:production": "npm run pre-build && npm run build",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "sensors": "node scripts/tuya-poll.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -23,6 +24,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@tuya/tuya-connector-nodejs": "^2.1.2",
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
     "class-variance-authority": "^0.7.1",

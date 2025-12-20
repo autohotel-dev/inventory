@@ -71,23 +71,28 @@ export function RoomCard({
   onInfo,
   onActions,
 }: RoomCardProps) {
+  const isDoorOpen = sensorStatus?.isOpen;
+
+  // Clases dinámicas para alerta de puerta abierta
+  const containerClasses = isDoorOpen
+    ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-all duration-300"
+    : `${bgClass || "bg-slate-900/80"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : "border-white/5 hover:border-white/20"}`;
+
   return (
     <div
-      className={`relative border border-white/5 rounded-lg p-2 text-sm flex flex-col h-[72px] cursor-pointer shadow-sm hover:shadow-md hover:border-white/20 backdrop-blur-sm transition-colors ${bgClass || "bg-slate-900/80"
-        } ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : ""}`}
+      className={`relative rounded-lg p-2 text-sm flex flex-col h-[72px] cursor-pointer backdrop-blur-sm shadow-sm hover:shadow-md border transition-all ${containerClasses}`}
     >
-      {/* Indicador de pago pendiente */}
-      {hasPendingPayment && (
+      {/* Indicador de pago pendiente (Solo si NO está la puerta abierta para no saturar) */}
+      {hasPendingPayment && !isDoorOpen && (
         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse" title="Pago pendiente">
           <AlertCircle className="h-3 w-3 text-white" />
         </div>
       )}
 
       {/* Indicador de Sensor (Puerta Abierta) */}
-      {sensorStatus?.isOpen && (
-        <div className="absolute -top-1.5 -left-1.5 bg-red-500 rounded-full p-0.5 animate-bounce shadow-lg z-10" title="Puerta Abierta">
-          {/* Fallback to text or simple SVG if lucide icon not imported yet */}
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M13 4h3a2 2 0 0 1 2 2v14" /><path d="M2 20h3" /><path d="M13 20h9" /><path d="M10 12v.01" /><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1a2 2 0 0 1 2.485 1.94Z" /></svg>
+      {isDoorOpen && (
+        <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-30 animate-bounce">
+          ¡PUERTA ABIERTA!
         </div>
       )}
 
@@ -120,8 +125,8 @@ export function RoomCard({
           </div>
         )}
 
-        {/* Botones de acción */}
-        <div className="flex items-center gap-0.5">
+        {/* Botones de acción (ocultos si hay alerta para limpieza visual, o mantenidos con z-index alto) */}
+        <div className="flex items-center gap-0.5 z-20">
           <Button
             type="button"
             size="sm"
