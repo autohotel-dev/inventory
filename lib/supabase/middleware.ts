@@ -53,24 +53,9 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getClaims(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  // IMPORTANT: If you remove getClaims() and you use server-side rendering
+  // IMPORTANT: If you remove getUser() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
-  const { data } = await supabase.auth.getClaims();
-  const user = data?.claims;
-
-  // Debug para OAuth
-  if (request.nextUrl.pathname.startsWith("/dashboard")) {
-    console.log('🔍 Middleware Debug for Dashboard:');
-    console.log('- Path:', request.nextUrl.pathname);
-    console.log('- User found:', !!user);
-    console.log('- User claims:', user);
-  }
-
-  // Permitir acceso completo al dashboard temporalmente para debug
-  if (request.nextUrl.pathname.startsWith("/dashboard")) {
-    console.log('- Allowing dashboard access');
-    return supabaseResponse;
-  }
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (
     request.nextUrl.pathname !== "/" &&
