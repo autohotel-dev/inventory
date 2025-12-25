@@ -172,7 +172,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
     try {
       const supabase = createClient();
-      
+
       // Insertar pagos de abono
       const validPayments = payments.filter(p => p.amount > 0);
       const isMultipago = validPayments.length > 1;
@@ -409,26 +409,44 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
     try {
       // Create inventory movements for completed/shipped orders
+      // IMPORTANTE: Solo crear movimientos si no existen previamente
       if ((newStatus === 'COMPLETED' || newStatus === 'PARTIAL') && order) {
-        const movements = items.map(item => ({
-          product_id: item.product_id,
-          warehouse_id: order.warehouse_id,
-          quantity: item.qty, // Positive quantity, movement_type determines direction
-          movement_type: 'OUT',
-          reason_id: 6, // ID 6 = SALE in movement_reasons table
-          reason: 'SALE',
-          notes: `Vendido en orden ${orderId}`,
-          reference_table: 'sales_orders',
-          reference_id: orderId
-        }));
-
-        const { error: movError } = await supabase
+        // Verificar si ya existen movimientos para esta orden
+        const { data: existingMovements, error: checkError } = await supabase
           .from("inventory_movements")
-          .insert(movements);
+          .select("id")
+          .eq("reference_id", orderId)
+          .eq("reference_table", "sales_orders")
+          .limit(1);
 
-        if (movError) {
-          console.error('Error creating inventory movements:', movError);
-          // No fallar la actualización de estado por error de movimientos
+        if (checkError) {
+          console.error('Error checking existing movements:', checkError);
+        }
+
+        // Solo crear movimientos si NO existen aún
+        if (!existingMovements || existingMovements.length === 0) {
+          const movements = items.map(item => ({
+            product_id: item.product_id,
+            warehouse_id: order.warehouse_id,
+            quantity: item.qty, // Positive quantity, movement_type determines direction
+            movement_type: 'OUT',
+            reason_id: 6, // ID 6 = SALE in movement_reasons table
+            reason: 'SALE',
+            notes: `Vendido en orden ${orderId}`,
+            reference_table: 'sales_orders',
+            reference_id: orderId
+          }));
+
+          const { error: movError } = await supabase
+            .from("inventory_movements")
+            .insert(movements);
+
+          if (movError) {
+            console.error('Error creating inventory movements:', movError);
+            // No fallar la actualización de estado por error de movimientos
+          }
+        } else {
+          console.log('Movimientos de inventario ya existen para esta orden, omitiendo duplicados');
         }
       }
 
@@ -468,7 +486,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
   const exportToPDF = () => {
     if (!order) return;
-    
+
     // Crear contenido para imprimir
     const printContent = `
       <html>
@@ -520,7 +538,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         </body>
       </html>
     `;
-    
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(printContent);
@@ -535,9 +553,39 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     const supabase = createClient();
 
     try {
+      // Validar que exista warehouse_id
+      if (!order.warehouse_id) {
+        toast.error("Error de configuración", {
+          description: "La orden no tiene almacén asignado"
+        });
+        return;
+      }
+
+      // NUEVO: Validar stock disponible
+      const { validateStockAvailability } = await import("@/lib/utils/stock-helpers");
+
+      const itemsToValidate = items.map(item => ({
+        product_id: item.product.id,
+        product_name: item.product.name,
+        quantity: item.quantity
+      }));
+
+      const stockErrors = await validateStockAvailability(
+        itemsToValidate,
+        order.warehouse_id
+      );
+
+      if (stockErrors.length > 0) {
+        toast.error("Stock insuficiente", {
+          description: stockErrors.join(" | "),
+          duration: 5000
+        });
+        return; // Abortar la operación
+      }
+
       // Calcular el total de los nuevos items
       const newItemsTotal = items.reduce(
-        (sum, item) => sum + (item.quantity * item.unit_price), 
+        (sum, item) => sum + (item.quantity * item.unit_price),
         0
       );
 
@@ -559,6 +607,32 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         .insert(insertData);
 
       if (error) throw error;
+
+      // Crear movimientos de inventario para descontar el stock
+      if (order.warehouse_id) {
+        const movements = items.map(item => ({
+          product_id: item.product.id,
+          warehouse_id: order.warehouse_id,
+          quantity: item.quantity,
+          movement_type: 'OUT',
+          reason_id: 6, // ID 6 = SALE in movement_reasons table
+          reason: 'SALE',
+          notes: `Consumo vendido en orden ${orderId}`,
+          reference_table: 'sales_orders',
+          reference_id: orderId
+        }));
+
+        const { error: movError } = await supabase
+          .from("inventory_movements")
+          .insert(movements);
+
+        if (movError) {
+          console.error('Error creating inventory movements:', movError);
+          toast.error("Advertencia", {
+            description: "Productos agregados pero hubo un error al actualizar el inventario"
+          });
+        }
+      }
 
       // Crear pago PENDIENTE para estos consumos específicos
       await supabase.from("payments").insert({
@@ -865,7 +939,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
             <DollarSign className="h-4 w-4 text-emerald-500" />
             <span className="font-medium">Resumen Financiero</span>
           </div>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-lg bg-emerald-500/10">
               <p className="text-2xl font-bold text-emerald-600">{formatCurrency(order.total, order.currency)}</p>
@@ -893,7 +967,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                 <span className="font-medium">{paymentProgress.toFixed(0)}%</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-emerald-500 transition-all duration-300"
                   style={{ width: `${paymentProgress}%` }}
                 />
@@ -911,7 +985,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
               <Receipt className="h-4 w-4 text-blue-500" />
               <span className="font-medium">Desglose por Concepto</span>
             </div>
-            
+
             {(() => {
               // Calcular totales por tipo de concepto
               const conceptTotals = items.reduce((acc, item) => {
@@ -928,39 +1002,39 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
               }, {} as Record<string, { total: number; paid: number; count: number }>);
 
               const conceptConfig: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
-                ROOM_BASE: { 
-                  label: "Habitación Base", 
-                  icon: <Bed className="h-4 w-4" />, 
+                ROOM_BASE: {
+                  label: "Habitación Base",
+                  icon: <Bed className="h-4 w-4" />,
                   color: "text-blue-600",
                   bgColor: "bg-blue-500/10"
                 },
-                EXTRA_HOUR: { 
-                  label: "Horas Extra", 
-                  icon: <Clock className="h-4 w-4" />, 
+                EXTRA_HOUR: {
+                  label: "Horas Extra",
+                  icon: <Clock className="h-4 w-4" />,
                   color: "text-amber-600",
                   bgColor: "bg-amber-500/10"
                 },
-                EXTRA_PERSON: { 
-                  label: "Personas Extra", 
-                  icon: <Users className="h-4 w-4" />, 
+                EXTRA_PERSON: {
+                  label: "Personas Extra",
+                  icon: <Users className="h-4 w-4" />,
                   color: "text-purple-600",
                   bgColor: "bg-purple-500/10"
                 },
-                CONSUMPTION: { 
-                  label: "Consumos", 
-                  icon: <ShoppingBag className="h-4 w-4" />, 
+                CONSUMPTION: {
+                  label: "Consumos",
+                  icon: <ShoppingBag className="h-4 w-4" />,
                   color: "text-green-600",
                   bgColor: "bg-green-500/10"
                 },
-                PRODUCT: { 
-                  label: "Productos", 
-                  icon: <ShoppingBag className="h-4 w-4" />, 
+                PRODUCT: {
+                  label: "Productos",
+                  icon: <ShoppingBag className="h-4 w-4" />,
                   color: "text-slate-600",
                   bgColor: "bg-slate-500/10"
                 },
-                OTHER: { 
-                  label: "Otros", 
-                  icon: <Receipt className="h-4 w-4" />, 
+                OTHER: {
+                  label: "Otros",
+                  icon: <Receipt className="h-4 w-4" />,
                   color: "text-slate-600",
                   bgColor: "bg-slate-500/10"
                 },
@@ -997,7 +1071,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                         </div>
                         {/* Mini barra de progreso */}
                         <div className="h-1 bg-muted rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-green-500 transition-all duration-300"
                             style={{ width: `${paidPercentage}%` }}
                           />
@@ -1065,10 +1139,9 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                 return (
                   <div key={item.id} className="rounded-lg border overflow-hidden">
                     {/* Item principal */}
-                    <div 
-                      className={`flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group cursor-pointer ${
-                        item.is_paid ? 'bg-green-500/5' : ''
-                      }`}
+                    <div
+                      className={`flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group cursor-pointer ${item.is_paid ? 'bg-green-500/5' : ''
+                        }`}
                       onClick={() => toggleItemExpand(item.id)}
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1077,8 +1150,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">
-                              {item.concept_type && item.concept_type !== 'PRODUCT' 
-                                ? conceptLabels[item.concept_type] 
+                              {item.concept_type && item.concept_type !== 'PRODUCT'
+                                ? conceptLabels[item.concept_type]
                                 : item.products?.name || 'Producto'}
                             </p>
                             {item.concept_type && (
@@ -1108,8 +1181,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                           <p className="text-[10px] text-muted-foreground">Total</p>
                         </div>
                         <div className="text-center min-w-[60px]">
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className={`text-[10px] ${item.is_paid ? 'bg-green-500/10 text-green-600 border-green-500/30' : 'bg-amber-500/10 text-amber-600 border-amber-500/30'}`}
                           >
                             {item.is_paid ? 'Pagado' : 'Pendiente'}
@@ -1189,13 +1262,13 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                           <div className="space-y-1">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fecha de pago</p>
                             <span className="font-medium">
-                              {item.paid_at 
-                                ? new Date(item.paid_at).toLocaleString('es-MX', { 
-                                    day: '2-digit', 
-                                    month: 'short', 
-                                    hour: '2-digit', 
-                                    minute: '2-digit' 
-                                  })
+                              {item.paid_at
+                                ? new Date(item.paid_at).toLocaleString('es-MX', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
                                 : '—'
                               }
                             </span>
@@ -1205,7 +1278,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                         {/* Resumen de pago */}
                         <div className="flex items-center justify-between pt-2 border-t border-border/50">
                           <span className="text-sm text-muted-foreground">
-                            {item.is_paid 
+                            {item.is_paid
                               ? `Cobrado: ${formatCurrency(item.total, order.currency)} con ${item.payment_method || 'método no especificado'}`
                               : `Pendiente de cobro: ${formatCurrency(item.total, order.currency)}`
                             }
@@ -1279,13 +1352,12 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
                       <p className="font-bold text-green-600">
                         +{formatCurrency(payment.amount, order.currency)}
                       </p>
-                      <Badge 
-                        variant="outline" 
-                        className={`text-[10px] ${
-                          payment.status === 'PAGADO' 
-                            ? 'bg-green-500/10 text-green-600 border-green-500/30' 
-                            : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
-                        }`}
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${payment.status === 'PAGADO'
+                          ? 'bg-green-500/10 text-green-600 border-green-500/30'
+                          : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+                          }`}
                       >
                         {payment.status}
                       </Badge>

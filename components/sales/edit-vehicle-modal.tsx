@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Car, X, Save } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
+import { Car, X, Save, Search } from "lucide-react";
 
 interface EditVehicleModalProps {
   isOpen: boolean;
@@ -30,6 +32,8 @@ export function EditVehicleModal({
   const [plate, setPlate] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   // Sincronizar con datos actuales cuando se abre el modal
   useEffect(() => {
@@ -37,6 +41,8 @@ export function EditVehicleModal({
       setPlate(currentVehicle.plate || "");
       setBrand(currentVehicle.brand || "");
       setModel(currentVehicle.model || "");
+      setVehicleSearch("");
+      setShowSearchResults(false);
     }
   }, [isOpen, currentVehicle]);
 
@@ -46,7 +52,7 @@ export function EditVehicleModal({
     onSave({ plate, brand, model });
   };
 
-  const hasChanges = 
+  const hasChanges =
     plate !== (currentVehicle.plate || "") ||
     brand !== (currentVehicle.brand || "") ||
     model !== (currentVehicle.model || "");
@@ -93,15 +99,68 @@ export function EditVehicleModal({
             />
           </div>
 
+          {/* Búsqueda rápida por modelo */}
+          <div>
+            <Label className="text-muted-foreground">
+              Buscar por modelo
+            </Label>
+            <div className="relative">
+              <div className="flex items-center gap-2 border rounded px-3 py-2 mt-1">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <input
+                  className="outline-none flex-1 bg-transparent text-sm"
+                  placeholder="Ej: Corolla, Versa, Civic..."
+                  value={vehicleSearch}
+                  onChange={(e) => {
+                    setVehicleSearch(e.target.value);
+                    setShowSearchResults(e.target.value.length >= 2);
+                  }}
+                  onFocus={() => vehicleSearch.length >= 2 && setShowSearchResults(true)}
+                />
+              </div>
+
+              {showSearchResults && vehicleSearch.length >= 2 && (
+                <div className="absolute z-10 w-full mt-1 border rounded bg-background max-h-48 overflow-auto shadow-lg">
+                  {searchVehicles(vehicleSearch).map((result, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                      onClick={() => {
+                        setBrand(result.brand.value);
+                        setModel(result.model);
+                        setVehicleSearch(`${result.brand.label} ${result.model}`);
+                        setShowSearchResults(false);
+                      }}
+                    >
+                      <span className="font-medium text-blue-500">{result.brand.label}</span>
+                      <span className="text-muted-foreground">{result.model}</span>
+                    </button>
+                  ))}
+                  {searchVehicles(vehicleSearch).length === 0 && (
+                    <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                      No se encontraron resultados
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="brand" className="text-muted-foreground">
               Marca
             </Label>
-            <Input
+            <SearchableSelect
               id="brand"
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              placeholder="Toyota, Honda, etc."
+              name="brand"
+              options={getBrandOptions()}
+              defaultValue={brand}
+              onChange={(value) => {
+                setBrand(value);
+                setModel(""); // Limpiar modelo al cambiar marca
+              }}
+              placeholder="O selecciona marca..."
               className="mt-1"
             />
           </div>
@@ -110,13 +169,25 @@ export function EditVehicleModal({
             <Label htmlFor="model" className="text-muted-foreground">
               Modelo / Color
             </Label>
-            <Input
-              id="model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Corolla Rojo, Civic Azul, etc."
-              className="mt-1"
-            />
+            {brand ? (
+              <SearchableSelect
+                id="model"
+                name="model"
+                options={getModelsForBrand(brand).map(m => ({ value: m, label: m }))}
+                defaultValue={model}
+                onChange={(value) => setModel(value)}
+                placeholder="Seleccionar modelo..."
+                className="mt-1"
+              />
+            ) : (
+              <Input
+                id="model"
+                value=""
+                placeholder="Primero selecciona una marca"
+                disabled
+                className="mt-1 bg-muted"
+              />
+            )}
           </div>
         </div>
 
@@ -124,7 +195,7 @@ export function EditVehicleModal({
         {!currentVehicle.plate && !currentVehicle.brand && !currentVehicle.model && (
           <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
             <p className="text-sm text-amber-400">
-              ⚡ Esta habitación fue registrada con entrada rápida. 
+              ⚡ Esta habitación fue registrada con entrada rápida.
               Agrega los datos del vehículo cuando el cochero llegue.
             </p>
           </div>

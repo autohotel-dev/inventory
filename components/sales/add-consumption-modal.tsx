@@ -157,6 +157,42 @@ export function AddConsumptionModal({
     try {
       const totalAmount = getTotalAmount();
 
+      // Obtener warehouse_id de la orden de venta
+      const { data: orderInfo } = await supabase
+        .from("sales_orders")
+        .select("warehouse_id")
+        .eq("id", salesOrderId)
+        .single();
+
+      if (!orderInfo?.warehouse_id) {
+        toast.error("Error de configuración", {
+          description: "La orden no tiene almacén asignado"
+        });
+        return;
+      }
+
+      // NUEVO: Validar stock disponible para cada producto
+      const { validateStockAvailability } = await import("@/lib/utils/stock-helpers");
+
+      const itemsToValidate = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
+        product_id: product.id,
+        product_name: product.name,
+        quantity: qty
+      }));
+
+      const stockErrors = await validateStockAvailability(
+        itemsToValidate,
+        orderInfo.warehouse_id
+      );
+
+      if (stockErrors.length > 0) {
+        toast.error("Stock insuficiente", {
+          description: stockErrors.join("\n"),
+          duration: 5000
+        });
+        return; // Abortar la operación
+      }
+
       // Insertar items en sales_order_items
       const itemsToInsert = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
         sales_order_id: salesOrderId,
@@ -172,6 +208,32 @@ export function AddConsumptionModal({
         .insert(itemsToInsert);
 
       if (itemsError) throw itemsError;
+
+      // Crear movimientos de inventario para descontar el stock
+      if (orderInfo?.warehouse_id) {
+        const movements = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
+          product_id: product.id,
+          warehouse_id: orderInfo.warehouse_id,
+          quantity: qty,
+          movement_type: 'OUT',
+          reason_id: 6, // ID 6 = SALE in movement_reasons table
+          reason: 'SALE',
+          notes: `Consumo vendido - Habitación ${roomNumber || 'N/A'}`,
+          reference_table: 'sales_orders',
+          reference_id: salesOrderId
+        }));
+
+        const { error: movError } = await supabase
+          .from("inventory_movements")
+          .insert(movements);
+
+        if (movError) {
+          console.error('Error creating inventory movements:', movError);
+          toast.error("Advertencia", {
+            description: "Consumo agregado pero hubo un error al actualizar el inventario"
+          });
+        }
+      }
 
       // Actualizar totales de la orden
       const { data: orderData } = await supabase
@@ -274,11 +336,10 @@ export function AddConsumptionModal({
                 return (
                   <div
                     key={product.id}
-                    className={`p-3 rounded-lg border transition-all cursor-pointer ${
-                      qty > 0
-                        ? "border-green-500 bg-green-500/10"
-                        : "border-border hover:bg-muted/50"
-                    }`}
+                    className={`p-3 rounded-lg border transition-all cursor-pointer ${qty > 0
+                      ? "border-green-500 bg-green-500/10"
+                      : "border-border hover:bg-muted/50"
+                      }`}
                     onClick={() => addProduct(product)}
                   >
                     <div className="flex items-start justify-between gap-2">

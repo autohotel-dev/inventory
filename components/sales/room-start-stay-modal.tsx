@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RoomType } from "@/components/sales/room-types";
-import { Minus, Plus, Users, Car } from "lucide-react";
+import { Minus, Plus, Users, Car, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
 
 export interface VehicleInfo {
   plate: string;
@@ -45,6 +47,8 @@ export function RoomStartStayModal({
   const [initialPeople, setInitialPeople] = useState(2);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [vehicle, setVehicle] = useState<VehicleInfo>({ plate: "", brand: "", model: "" });
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
 
@@ -59,6 +63,8 @@ export function RoomStartStayModal({
       setInitialPeople(2);
       setPayments(createInitialPayment(roomType?.base_price ?? 0));
       setVehicle({ plate: "", brand: "", model: "" });
+      setVehicleSearch("");
+      setShowSearchResults(false);
     }
   }, [isOpen]);
 
@@ -168,19 +174,78 @@ export function RoomStartStayModal({
                 disabled={actionLoading}
                 className="uppercase"
               />
+
+              {/* Búsqueda rápida por modelo */}
+              <div className="relative">
+                <div className="flex items-center gap-2 border rounded px-3 py-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <input
+                    className="outline-none flex-1 bg-transparent text-sm"
+                    placeholder="Buscar por modelo (ej: Corolla, Versa)..."
+                    value={vehicleSearch}
+                    onChange={(e) => {
+                      setVehicleSearch(e.target.value);
+                      setShowSearchResults(e.target.value.length >= 2);
+                    }}
+                    onFocus={() => vehicleSearch.length >= 2 && setShowSearchResults(true)}
+                  />
+                </div>
+
+                {showSearchResults && vehicleSearch.length >= 2 && (
+                  <div className="absolute z-10 w-full mt-1 border rounded bg-background max-h-48 overflow-auto shadow-lg">
+                    {searchVehicles(vehicleSearch).map((result, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        onClick={() => {
+                          setVehicle({ ...vehicle, brand: result.brand.value, model: result.model });
+                          setVehicleSearch(`${result.brand.label} ${result.model}`);
+                          setShowSearchResults(false);
+                        }}
+                      >
+                        <span className="font-medium text-blue-500">{result.brand.label}</span>
+                        <span className="text-muted-foreground">{result.model}</span>
+                      </button>
+                    ))}
+                    {searchVehicles(vehicleSearch).length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                        No se encontraron resultados
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Marca (ej: Toyota)"
-                  value={vehicle.brand}
-                  onChange={(e) => setVehicle({ ...vehicle, brand: e.target.value })}
-                  disabled={actionLoading}
+                <SearchableSelect
+                  id="vehicle-brand"
+                  name="vehicle-brand"
+                  options={getBrandOptions()}
+                  defaultValue={vehicle.brand}
+                  onChange={(value) => {
+                    setVehicle({ brand: value, model: "", plate: vehicle.plate });
+                  }}
+                  placeholder="O selecciona marca..."
+                  className="w-full"
                 />
-                <Input
-                  placeholder="Modelo (ej: Corolla)"
-                  value={vehicle.model}
-                  onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
-                  disabled={actionLoading}
-                />
+                {vehicle.brand ? (
+                  <SearchableSelect
+                    id="vehicle-model"
+                    name="vehicle-model"
+                    options={getModelsForBrand(vehicle.brand).map(m => ({ value: m, label: m }))}
+                    defaultValue={vehicle.model}
+                    onChange={(value) => setVehicle({ ...vehicle, model: value })}
+                    placeholder="Seleccionar modelo..."
+                    className="w-full"
+                  />
+                ) : (
+                  <Input
+                    placeholder="Primero selecciona marca"
+                    disabled
+                    className="bg-muted"
+                  />
+                )}
               </div>
             </div>
           </div>
