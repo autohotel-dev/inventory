@@ -79,6 +79,34 @@ export function SensorsTable() {
 
     useEffect(() => {
         fetchData();
+
+        const channel = supabase
+            .channel('sensors-table-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'sensors'
+                },
+                (payload) => {
+                    const newSensor = payload.new as SensorWithRoom;
+                    setSensors((prev) =>
+                        prev.map((s) => {
+                            if (s.id === newSensor.id) {
+                                // Preserve the existing room object since the payload doesn't have it
+                                return { ...newSensor, room: s.room };
+                            }
+                            return s;
+                        })
+                    );
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const openForCreate = () => {

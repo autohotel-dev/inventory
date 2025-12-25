@@ -94,7 +94,7 @@ async function getTuyaStatus(deviceId) {
         }
         return res.result;
     } catch (e) {
-        // console.error(`Error polling ${deviceId}:`, e.message);
+        console.error(`Error polling ${deviceId}:`, e.message);
         return null;
     }
 }
@@ -127,6 +127,19 @@ async function reportToApi(deviceId, statusArray, isOpen) {
     }
 }
 
+async function syncStateToDB(deviceId, isOpen) {
+    try {
+        await supabase.from('sensors').update({
+            is_open: isOpen,
+            last_seen: new Date().toISOString(),
+            status: 'ONLINE'
+        }).eq('device_id', deviceId);
+        console.log(`[SYNC] Initial state for ${deviceId}: ${isOpen ? 'OPEN' : 'CLOSED'} (DB Updated)`);
+    } catch (e) {
+        console.error("Error syncing DB:", e.message);
+    }
+}
+
 // Helper to get internal ID (could cache this too)
 async function getSensorId(deviceId) {
     const { data } = await supabase.from('sensors').select('id').eq('device_id', deviceId).single();
@@ -144,6 +157,8 @@ async function pollAll() {
     const promises = Array.from(monitoredDevices).map(async (deviceId) => {
         const status = await getTuyaStatus(deviceId);
         if (!status) return;
+
+        console.log(`[DEBUG] Device ${deviceId} raw status:`, JSON.stringify(status)); // Temporary debug log
 
         // Logic to detect door state
         const relevant = status.find(s =>
@@ -164,8 +179,9 @@ async function pollAll() {
             // For now, simple change detection.
 
             if (lastVal === undefined) {
+                // First run: Sync state to DB to ensure consistency, but don't log an EVENT
                 stateCache.set(cacheKey, relevant.value);
-                // Optional: Sync initial state to DB without event
+                await syncStateToDB(deviceId, isOpen);
                 return;
             }
 
@@ -178,7 +194,7 @@ async function pollAll() {
     });
 
     await Promise.all(promises);
-    process.stdout.write(`\r[${new Date().toLocaleTimeString()}] Monitoring ${monitoredDevices.size} sensors... `);
+    // process.stdout.write(`\r[${new Date().toLocaleTimeString()}] Monitoring ${monitoredDevices.size} sensors... `);
 }
 
 // --- BOOTSTRAP ---
