@@ -25,7 +25,15 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Frontier",
             "NP300",
             "370Z",
-            "GT-R"
+            "GT-R",
+            "Tsuru",
+            "Platina",
+            "Tiida",
+            "Aprio",
+            "Urvan",
+            "Maxima",
+            "240SX",
+            "300ZX"
         ]
     },
     {
@@ -41,7 +49,13 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "4Runner",
             "Prius",
             "Avanza",
-            "Sienna"
+            "Sienna",
+            "Tercel",
+            "Starlet",
+            "Celica",
+            "Supra",
+            "Tundra",
+            "Previa"
         ]
     },
     {
@@ -60,7 +74,18 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Suburban",
             "Silverado",
             "Camaro",
-            "Corvette"
+            "Corvette",
+            "Chevy",
+            "Pop",
+            "Monza",
+            "Astra",
+            "Corsa",
+            "Meriva",
+            "Optra",
+            "Spark",
+            "Blazer (Clásica)",
+            "Astro",
+            "S-10"
         ]
     },
     {
@@ -75,7 +100,15 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Passat",
             "Tiguan",
             "Touareg",
-            "Amarok"
+            "Amarok",
+            "Sedán",
+            "Derby",
+            "Pointer",
+            "Gol",
+            "Caribe",
+            "Combi",
+            "Brasilia",
+            "Safari"
         ]
     },
     {
@@ -89,7 +122,13 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "HR-V",
             "Pilot",
             "Odyssey",
-            "Fit"
+            "Fit",
+            "CRX",
+            "Del Sol",
+            "Prelude",
+            "Integra",
+            "Element",
+            "S2000"
         ]
     },
     {
@@ -119,7 +158,11 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Sorento",
             "Carnival",
             "Soul",
-            "Stinger"
+            "Stinger",
+            "Pride",
+            "Sephia",
+            "Spectra",
+            "Optima"
         ]
     },
     {
@@ -153,7 +196,18 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "F-150",
             "Ranger",
             "Mustang",
-            "Bronco"
+            "Bronco",
+            "Ikon",
+            "Escort",
+            "Contour",
+            "Taurus",
+            "Crown Victoria",
+            "Windstar",
+            "Aerostar",
+            "Econoline",
+            "F-250",
+            "F-350",
+            "Ka"
         ]
     },
     {
@@ -240,7 +294,13 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Challenger",
             "Charger",
             "Durango",
-            "Ram"
+            "Ram",
+            "Atos",
+            "Stratus",
+            "Intrepid",
+            "Dakota",
+            "Viper",
+            "Caravan"
         ]
     },
     {
@@ -306,6 +366,112 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Q8",
             "TT",
             "R8"
+        ]
+    },
+    {
+        value: "byd",
+        label: "BYD",
+        models: [
+            "Dolphin",
+            "Seal",
+            "Atto 3",
+            "Han",
+            "Tang",
+            "Song Plus",
+            "Yuan Plus",
+            "Qin"
+        ]
+    },
+    {
+        value: "mg",
+        label: "MG",
+        models: [
+            "MG5",
+            "MG6",
+            "MG ZS",
+            "MG RX5",
+            "MG HS",
+            "MG GT",
+            "MG ONE"
+        ]
+    },
+    {
+        value: "geely",
+        label: "Geely",
+        models: [
+            "Coolray",
+            "Okavango",
+            "Azkarra",
+            "Emgrand",
+            "GS",
+            "Tugella"
+        ]
+    },
+    {
+        value: "jetour",
+        label: "Jetour",
+        models: [
+            "X70",
+            "X70 Plus",
+            "X90",
+            "Dashing",
+            "T1",
+            "T2"
+        ]
+    },
+    {
+        value: "chery",
+        label: "Chery",
+        models: [
+            "Tiggo 2",
+            "Tiggo 3",
+            "Tiggo 4",
+            "Tiggo 7",
+            "Tiggo 8",
+            "Tiggo 8 Pro",
+            "Arrizo 5",
+            "Arrizo 6",
+            "Omoda 5"
+        ]
+    },
+    {
+        value: "changan",
+        label: "Changan",
+        models: [
+            "CS15",
+            "CS35",
+            "CS35 Plus",
+            "CS55",
+            "CS75",
+            "CS85",
+            "Alsvin",
+            "Eado",
+            "Hunter"
+        ]
+    },
+    {
+        value: "jac",
+        label: "JAC",
+        models: [
+            "S2",
+            "S3",
+            "S4",
+            "S7",
+            "T6",
+            "T8",
+            "E10X",
+            "JS4"
+        ]
+    },
+    {
+        value: "tesla",
+        label: "Tesla",
+        models: [
+            "Model 3",
+            "Model Y",
+            "Model S",
+            "Model X",
+            "Cybertruck"
         ]
     }
 ];
