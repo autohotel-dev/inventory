@@ -138,8 +138,7 @@ export function RoomsBoard() {
         .from("rooms")
         .select(
           `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, sales_orders ( remaining_amount ) )`
-        )
-        .order("number", { ascending: true });
+        );
 
       if (error) {
         console.error("Error loading rooms:", error);
@@ -147,7 +146,22 @@ export function RoomsBoard() {
         return;
       }
 
-      setRooms((data as any) || []);
+      // Ordenar: primero las que NO son tipo Torre/Hotel, luego las Torre
+      // Dentro de cada grupo, ordenar por número
+      const sortedRooms = (data as any[])?.sort((a, b) => {
+        const aIsTorre = a.room_types?.is_hotel === true;
+        const bIsTorre = b.room_types?.is_hotel === true;
+
+        // Si uno es Torre y el otro no, el que no es Torre va primero
+        if (aIsTorre !== bIsTorre) {
+          return aIsTorre ? 1 : -1;
+        }
+
+        // Si ambos son del mismo tipo, ordenar por número
+        return a.number.localeCompare(b.number, undefined, { numeric: true });
+      }) || [];
+
+      setRooms(sortedRooms);
     } catch (err) {
       console.error("Error fetching rooms:", err);
       if (!silent) setRooms([]);
