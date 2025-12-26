@@ -765,6 +765,31 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
     try {
+      // REVALIDAR TOLERANCIA: Obtener datos frescos de la estancia
+      const { data: freshStay, error: stayError } = await supabase
+        .from("room_stays")
+        .select("tolerance_started_at, tolerance_type")
+        .eq("sales_order_id", checkoutInfo.salesOrderId)
+        .eq("status", "active")
+        .single();
+
+      if (!stayError && freshStay) {
+        // Verificar si la tolerancia expiró DURANTE el modal
+        if (freshStay.tolerance_started_at && freshStay.tolerance_type) {
+          const toleranceExpired = isToleranceExpired(freshStay.tolerance_started_at);
+
+          if (toleranceExpired) {
+            // Tolerancia expiró mientras el modal estaba abierto
+            setActionLoading(false);
+            toast.error("La tolerancia ha expirado", {
+              description: "Se requiere cobrar hora extra. Por favor, cierre y vuelva a abrir el checkout.",
+              duration: 6000
+            });
+            return false; // Abortar checkout
+          }
+        }
+      }
+
       const finalizeStay = async () => {
         const activeStay = getActiveStay(room);
         if (activeStay) {
