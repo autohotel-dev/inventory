@@ -42,6 +42,7 @@ import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainin
 import { useSensors } from "@/hooks/use-sensors";
 import { toast } from "sonner";
 import { useRef } from "react";
+import { GlobalClock } from "@/components/ui/global-clock";
 
 export function RoomsBoard() {
   const router = useRouter();
@@ -1277,6 +1278,9 @@ export function RoomsBoard() {
           Recargar
         </Button>
       </div>
+
+      {/* Reloj global - solo visible en tablero de habitaciones */}
+      <GlobalClock />
 
       {/* Mini-dashboard de contadores por estado */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
