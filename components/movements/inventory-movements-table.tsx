@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, X, Calendar } from "lucide-react";
+import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package } from "lucide-react";
+import Link from "next/link";
 
 interface InventoryMovement {
   id: string;
@@ -33,14 +34,10 @@ interface InventoryMovement {
 
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [movementReasons, setMovementReasons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const { success, error: showError } = useToast();
 
   const fetchMovements = async () => {
@@ -59,40 +56,7 @@ export function InventoryMovementsTable() {
 
       if (movementsError) throw movementsError;
 
-      // Obtener productos para el formulario
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("id, name, sku")
-        .eq("is_active", true)
-        .order("name");
 
-      if (!productsError && productsData) {
-        setProducts(productsData);
-      }
-
-      // Obtener almacenes para el formulario
-      const { data: warehousesData, error: warehousesError } = await supabase
-        .from("warehouses")
-        .select("id, name, code")
-        .eq("is_active", true)
-        .order("name");
-
-      if (!warehousesError && warehousesData) {
-        setWarehouses(warehousesData);
-      }
-
-      // Obtener razones de movimiento
-      const { data: reasonsData, error: reasonsError } = await supabase
-        .from("movement_reasons")
-        .select("id, movement_type, name, description")
-        .eq("is_active", true)
-        .order("movement_type, name");
-
-      if (reasonsError) {
-        console.error("Error loading movement reasons:", reasonsError);
-      } else {
-        setMovementReasons(reasonsData || []);
-      }
 
       setMovements(movementsData || []);
     } catch (error) {
@@ -107,68 +71,10 @@ export function InventoryMovementsTable() {
     fetchMovements();
   }, []);
 
-  const handleNew = () => {
-    setIsModalOpen(true);
-  };
 
-  const handleSave = async (movementData: any) => {
-    const supabase = createClient();
-    try {
-      // Preparar datos del movimiento
-      const movementToSave = {
-        ...movementData,
-        reason_id: parseInt(movementData.reason_id),
-        quantity: parseInt(movementData.quantity)
-      };
-
-      // Crear movimiento
-      const { data: movement, error: movementError } = await supabase
-        .from("inventory_movements")
-        .insert([movementToSave])
-        .select()
-        .single();
-
-      if (movementError) throw movementError;
-
-      // Actualizar stock en la tabla stock
-      const { data: currentStock, error: stockError } = await supabase
-        .from("stock")
-        .select("qty")
-        .eq("product_id", movementData.product_id)
-        .eq("warehouse_id", movementData.warehouse_id)
-        .single();
-
-      let newQuantity = 0;
-      if (movementData.movement_type === 'IN') {
-        newQuantity = (currentStock?.qty || 0) + movementData.quantity;
-      } else if (movementData.movement_type === 'OUT') {
-        newQuantity = Math.max(0, (currentStock?.qty || 0) - movementData.quantity);
-      } else { // ADJUSTMENT
-        newQuantity = movementData.quantity;
-      }
-
-      // Upsert stock
-      const { error: updateStockError } = await supabase
-        .from("stock")
-        .upsert({
-          product_id: movementData.product_id,
-          warehouse_id: movementData.warehouse_id,
-          qty: newQuantity
-        });
-
-      if (updateStockError) throw updateStockError;
-
-      success("Movimiento registrado", "El movimiento se registró y el stock se actualizó");
-      setIsModalOpen(false);
-      fetchMovements();
-    } catch (error) {
-      console.error("Error saving movement:", error);
-      showError("Error", "No se pudo registrar el movimiento");
-    }
-  };
 
   const filteredMovements = movements.filter(movement => {
-    const matchesSearch = search === "" || 
+    const matchesSearch = search === "" ||
       movement.product?.name.toLowerCase().includes(search.toLowerCase()) ||
       movement.product?.sku.toLowerCase().includes(search.toLowerCase()) ||
       movement.warehouse?.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -176,7 +82,7 @@ export function InventoryMovementsTable() {
 
     const matchesType = typeFilter === "" || movement.movement_type === typeFilter;
 
-    const matchesDate = dateFilter === "" || 
+    const matchesDate = dateFilter === "" ||
       new Date(movement.created_at).toDateString() === new Date(dateFilter).toDateString();
 
     return matchesSearch && matchesType && matchesDate;
@@ -208,7 +114,7 @@ export function InventoryMovementsTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-5 w-5 text-green-600" />
@@ -218,7 +124,7 @@ export function InventoryMovementsTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <TrendingDown className="h-5 w-5 text-red-600" />
@@ -228,7 +134,7 @@ export function InventoryMovementsTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <RotateCcw className="h-5 w-5 text-orange-600" />
@@ -252,15 +158,17 @@ export function InventoryMovementsTable() {
               className="pl-10"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Button onClick={fetchMovements} variant="outline">
               Actualizar
             </Button>
-            <Button onClick={handleNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Movimiento
-            </Button>
+            <Link href="/movements/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Movimiento
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -291,8 +199,8 @@ export function InventoryMovementsTable() {
           </div>
 
           <div className="flex items-end">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setSearch("");
                 setTypeFilter("");
@@ -332,7 +240,7 @@ export function InventoryMovementsTable() {
                     </div>
                   </div>
                 </td>
-                
+
                 <td className="p-4">
                   <div>
                     <div className="font-medium">{movement.product?.name}</div>
@@ -341,7 +249,7 @@ export function InventoryMovementsTable() {
                     </div>
                   </div>
                 </td>
-                
+
                 <td className="p-4">
                   <div>
                     <div className="font-medium">{movement.warehouse?.name}</div>
@@ -350,12 +258,12 @@ export function InventoryMovementsTable() {
                     </div>
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
-                  <Badge 
+                  <Badge
                     variant={
                       movement.movement_type === 'IN' ? 'default' :
-                      movement.movement_type === 'OUT' ? 'destructive' : 'secondary'
+                        movement.movement_type === 'OUT' ? 'destructive' : 'secondary'
                     }
                   >
                     {movement.movement_type === 'IN' && '📈 Entrada'}
@@ -363,19 +271,18 @@ export function InventoryMovementsTable() {
                     {movement.movement_type === 'ADJUSTMENT' && '🔄 Ajuste'}
                   </Badge>
                 </td>
-                
+
                 <td className="p-4 text-right">
-                  <div className={`font-medium ${
-                    movement.movement_type === 'IN' ? 'text-green-600' :
-                    movement.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
-                  }`}>
+                  <div className={`font-medium ${movement.movement_type === 'IN' ? 'text-green-600' :
+                      movement.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
+                    }`}>
                     {movement.movement_type === 'OUT' ? '-' : '+'}{movement.quantity}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {movement.product?.unit}
                   </div>
                 </td>
-                
+
                 <td className="p-4">
                   <div className="font-medium">{movement.reason}</div>
                   {movement.notes && (
@@ -393,14 +300,14 @@ export function InventoryMovementsTable() {
           <div className="text-center py-12">
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <div className="text-lg font-medium text-muted-foreground mb-2">
-              {movements.length === 0 
-                ? "No hay movimientos registrados" 
+              {movements.length === 0
+                ? "No hay movimientos registrados"
                 : "No se encontraron movimientos"
               }
             </div>
             <div className="text-sm text-muted-foreground">
-              {movements.length === 0 
-                ? "Los movimientos aparecerán aquí cuando registres cambios de stock" 
+              {movements.length === 0
+                ? "Los movimientos aparecerán aquí cuando registres cambios de stock"
                 : "Intenta con otros filtros de búsqueda"
               }
             </div>
@@ -418,174 +325,9 @@ export function InventoryMovementsTable() {
         </div>
       </div>
 
-      {/* Modal para nuevo movimiento */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Nuevo Movimiento</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsModalOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <MovementForm
-              products={products}
-              warehouses={warehouses}
-              movementReasons={movementReasons}
-              onSave={handleSave}
-              onCancel={() => setIsModalOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
 
-// Formulario para movimientos
-function MovementForm({ 
-  products,
-  warehouses,
-  movementReasons,
-  onSave, 
-  onCancel 
-}: { 
-  products: any[];
-  warehouses: any[];
-  movementReasons: any[];
-  onSave: (data: any) => void;
-  onCancel: () => void;
-}) {
-  const [formData, setFormData] = useState({
-    product_id: "",
-    warehouse_id: "",
-    movement_type: "IN" as 'IN' | 'OUT' | 'ADJUSTMENT',
-    quantity: 0,
-    reason_id: "",
-    reason: "",
-    notes: "",
-  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1">Producto *</label>
-        <select
-          value={formData.product_id}
-          onChange={(e) => setFormData({...formData, product_id: e.target.value})}
-          className="w-full px-3 py-2 border border-input rounded-md bg-background"
-          required
-        >
-          <option value="">Seleccionar producto</option>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.name} ({product.sku})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Almacén *</label>
-        <select
-          value={formData.warehouse_id}
-          onChange={(e) => setFormData({...formData, warehouse_id: e.target.value})}
-          className="w-full px-3 py-2 border border-input rounded-md bg-background"
-          required
-        >
-          <option value="">Seleccionar almacén</option>
-          {warehouses.map((warehouse) => (
-            <option key={warehouse.id} value={warehouse.id}>
-              {warehouse.name} ({warehouse.code})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Tipo de Movimiento *</label>
-        <select
-          value={formData.movement_type}
-          onChange={(e) => setFormData({...formData, movement_type: e.target.value as any})}
-          className="w-full px-3 py-2 border border-input rounded-md bg-background"
-          required
-        >
-          <option value="IN">📈 Entrada (Agregar stock)</option>
-          <option value="OUT">📉 Salida (Quitar stock)</option>
-          <option value="ADJUSTMENT">🔄 Ajuste (Establecer cantidad exacta)</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          {formData.movement_type === 'ADJUSTMENT' ? 'Cantidad Final *' : 'Cantidad *'}
-        </label>
-        <Input
-          type="number"
-          min="1"
-          value={formData.quantity}
-          onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
-          placeholder={formData.movement_type === 'ADJUSTMENT' ? 'Cantidad que quedará' : 'Cantidad a mover'}
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Razón *</label>
-        <select
-          value={formData.reason_id}
-          onChange={(e) => {
-            const selectedReason = movementReasons.find(r => r.id === parseInt(e.target.value));
-            setFormData({
-              ...formData, 
-              reason_id: e.target.value,
-              reason: selectedReason?.name || ""
-            });
-          }}
-          className="w-full px-3 py-2 border border-input rounded-md bg-background"
-          required
-        >
-          <option value="">Seleccionar razón</option>
-          {movementReasons
-            .filter(reason => reason.movement_type === formData.movement_type)
-            .map((reason) => (
-              <option key={reason.id} value={reason.id}>
-                {reason.name}
-                {reason.description && ` - ${reason.description}`}
-              </option>
-            ))
-          }
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Notas</label>
-        <textarea
-          value={formData.notes}
-          onChange={(e) => setFormData({...formData, notes: e.target.value})}
-          placeholder="Información adicional sobre el movimiento"
-          className="w-full px-3 py-2 border border-input rounded-md bg-background min-h-[80px] resize-none"
-        />
-      </div>
-
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button type="submit">
-          Registrar Movimiento
-        </Button>
-      </div>
-    </form>
-  );
-}

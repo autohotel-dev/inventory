@@ -166,7 +166,9 @@ export function AdvancedStockView() {
     const matchesStatus = statusFilter === "" || item.stock_status === statusFilter;
 
     const matchesWarehouse = warehouseFilter === "" ||
-      item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0);
+      (warehouseFilter === "UNASSIGNED"
+        ? item.stock_by_warehouse.length === 0 || item.stock_by_warehouse.every(s => s.qty === 0)
+        : item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0));
 
     return matchesSearch && matchesStatus && matchesWarehouse;
   });
@@ -293,6 +295,7 @@ export function AdvancedStockView() {
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
             >
               <option value="">Todos los almacenes</option>
+              <option value="UNASSIGNED">📦 Sin ubicación asignada</option>
               {warehouses.map((warehouse) => (
                 <option key={warehouse.id} value={warehouse.id}>
                   {warehouse.name} ({warehouse.code})
