@@ -63,6 +63,8 @@ export interface RoomStay {
   vehicle_plate?: string | null;
   vehicle_brand?: string | null;
   vehicle_model?: string | null;
+  // Cochero asignado (optional)
+  valet_employee_id?: string | null;
   sales_orders?: {
     remaining_amount?: number;
   } | null;

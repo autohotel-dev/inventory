@@ -7,7 +7,7 @@ export interface Employee {
   last_name: string;
   email: string;
   phone?: string | null;
-  role: 'admin' | 'receptionist' | 'manager';
+  role: 'admin' | 'receptionist' | 'manager' | 'gerente' | 'cochero';
   is_active: boolean;
   pin_code?: string | null;
   avatar_url?: string | null;
@@ -101,8 +101,9 @@ export interface CashBreakdown {
 // Constantes de roles
 export const EMPLOYEE_ROLES = [
   { value: 'admin', label: 'Administrador', color: 'bg-purple-500' },
-  { value: 'manager', label: 'Gerente', color: 'bg-blue-500' },
+  { value: 'gerente', label: 'Gerente', color: 'bg-blue-500' },
   { value: 'receptionist', label: 'Recepcionista', color: 'bg-green-500' },
+  { value: 'cochero', label: 'Cochero', color: 'bg-orange-500' },
 ] as const;
 
 // Constantes de turnos

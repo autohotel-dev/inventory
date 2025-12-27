@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -19,8 +19,8 @@ export interface RoomActionsWheelProps {
   onPayExtra: () => void; // Pagar solo extras sin checkout
   onViewSale: () => void;
   onViewDetails: () => void; // Ver detalles de pagos y consumos
-  onGranularPayment: () => void; // Cobrar por concepto individual
-  onAddConsumption: () => void; // Agregar consumo/producto
+  onGranularPayment: () => void; //Cobrar por concepto individual
+  onAddProduct: () => void; // Agregar consumo/producto
   onAddPerson: () => void; // Entra persona nueva (siempre cobra extra si >2)
   onRemovePerson: () => void; // Sale persona (sin tolerancia, se fue definitivamente)
   onPersonLeftReturning: () => void; // Salió pero va a regresar (inicia tolerancia 1h, solo motel)
@@ -34,10 +34,11 @@ export interface RoomActionsWheelProps {
   onCancelStay: () => void; // Cancelar estancia
   onManagePeople: () => void; // Gestión de personas (modal unificado)
   onMarkDirty: () => void; // Marcar como sucia/mantenimiento
+  onEditValet: () => void; // Editar cochero asignado
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddConsumption' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet';
 
 interface ActionConfig {
   id: string;
@@ -61,10 +62,11 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   OCUPADA: [
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
     { id: "granular", label: "Cobrar", icon: <ListChecks className="h-5 w-5" />, color: "text-lime-400", hoverBg: "hover:bg-lime-500/30", action: "onGranularPayment" },
-    { id: "consumption", label: "Consumo", icon: <ShoppingBag className="h-5 w-5" />, color: "text-green-400", hoverBg: "hover:bg-green-500/30", action: "onAddConsumption" },
+    { id: "consumption", label: "Consumo", icon: <ShoppingBag className="h-5 w-5" />, color: "text-green-400", hoverBg: "hover:bg-green-500/30", action: "onAddProduct" },
     { id: "payextra", label: "Pagar Todo", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
     { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
+    { id: "valet", label: "Cochero", icon: <UserCog className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onEditValet" },
     { id: "changeroom", label: "Cambiar", icon: <ArrowRightLeft className="h-5 w-5" />, color: "text-indigo-400", hoverBg: "hover:bg-indigo-500/30", action: "onChangeRoom" },
     { id: "managePeople", label: "Personas", icon: <Users className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onManagePeople" },
     { id: "hour", label: "+Hora", icon: <Clock className="h-5 w-5" />, color: "text-pink-400", hoverBg: "hover:bg-pink-500/30", action: "onAddHour" },
@@ -147,7 +149,7 @@ export function RoomActionsWheel({
   onViewSale,
   onViewDetails,
   onGranularPayment,
-  onAddConsumption,
+  onAddProduct, // Changed from onAddConsumption
   onAddPerson,
   onRemovePerson,
   onPersonLeftReturning,
@@ -161,6 +163,7 @@ export function RoomActionsWheel({
   onCancelStay,
   onManagePeople,
   onMarkDirty,
+  onEditValet, // New prop
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -190,7 +193,7 @@ export function RoomActionsWheel({
     onViewSale,
     onViewDetails,
     onGranularPayment,
-    onAddConsumption,
+    onAddProduct,
     onAddPerson,
     onRemovePerson,
     onPersonLeftReturning,
@@ -204,6 +207,7 @@ export function RoomActionsWheel({
     onCancelStay,
     onManagePeople,
     onMarkDirty,
+    onEditValet,
   };
 
   return (

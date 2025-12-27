@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RoomType } from "@/components/sales/room-types";
+import { Employee } from "@/components/employees/types";
+import { createClient } from "@/lib/supabase/client";
 import {
   Minus,
   Plus,
@@ -14,7 +17,8 @@ import {
   Clock,
   Zap,
   AlertTriangle,
-  DollarSign
+  DollarSign,
+  UserCog
 } from "lucide-react";
 
 export interface VehicleInfo {
@@ -33,6 +37,7 @@ export interface QuickCheckinModalProps {
     initialPeople: number;
     vehicle: VehicleInfo;
     actualEntryTime: Date;
+    valetEmployeeId?: string | null;
   }) => void;
 }
 
@@ -66,6 +71,8 @@ export function QuickCheckinModal({
   const [useCustomTime, setUseCustomTime] = useState(false);
   const [customHour, setCustomHour] = useState("");
   const [customMinute, setCustomMinute] = useState("");
+  const [valetEmployeeId, setValetEmployeeId] = useState<string>("");
+  const [valets, setValets] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
 
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
@@ -109,11 +116,31 @@ export function QuickCheckinModal({
   const expectedCheckout = getExpectedCheckout(actualEntryTime);
   const timeDifference = Math.round((new Date().getTime() - actualEntryTime.getTime()) / 60000);
 
+  // Cargar cocheros disponibles
+  useEffect(() => {
+    const loadValets = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name')
+        .eq('role', 'cochero')
+        .eq('is_active', true)
+        .order('first_name');
+
+      if (data) {
+        setValets(data);
+      }
+    };
+
+    loadValets();
+  }, []);
+
   // Reset al abrir
   useEffect(() => {
     if (isOpen) {
       setInitialPeople(2);
       setVehicle({ plate: "", brand: "", model: "" });
+      setValetEmployeeId("none");
       setUseCustomTime(false);
       const now = new Date();
       setCustomHour(now.getHours().toString().padStart(2, "0"));
@@ -128,6 +155,7 @@ export function QuickCheckinModal({
       initialPeople,
       vehicle,
       actualEntryTime,
+      valetEmployeeId: valetEmployeeId === "none" ? null : valetEmployeeId,
     });
   };
 
@@ -301,6 +329,36 @@ export function QuickCheckinModal({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Cochero (opcional) */}
+          <div className="space-y-3 pt-2 border-t">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <UserCog className="h-4 w-4" />
+              Cochero (opcional)
+            </p>
+            <Select
+              value={valetEmployeeId}
+              onValueChange={setValetEmployeeId}
+              disabled={actionLoading || valets.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={valets.length === 0 ? "No hay cocheros registrados" : "Selecciona un cochero"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
+                {valets.map((valet) => (
+                  <SelectItem key={valet.id} value={valet.id}>
+                    {valet.first_name} {valet.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(valetEmployeeId === "none" || valetEmployeeId === "") && (
+              <p className="text-xs text-muted-foreground">
+                Puedes asignar el cochero después cuando traiga la comanda
+              </p>
+            )}
           </div>
         </div>
 

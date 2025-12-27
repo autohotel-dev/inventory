@@ -19,6 +19,7 @@ import { GranularPaymentModal } from "@/components/sales/granular-payment-modal"
 import { AddConsumptionModal } from "@/components/sales/add-consumption-modal";
 import { QuickCheckinModal } from "@/components/sales/quick-checkin-modal";
 import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
+import { EditValetModal } from "@/components/sales/edit-valet-modal";
 import { ChangeRoomModal } from "@/components/sales/change-room-modal";
 import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
 import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
@@ -82,6 +83,7 @@ export function RoomsBoard() {
   const [startStayLoading, setStartStayLoading] = useState(false);
   const [showQuickCheckinModal, setShowQuickCheckinModal] = useState(false);
   const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
+  const [showEditValetModal, setShowEditValetModal] = useState(false);
   const [showChangeRoomModal, setShowChangeRoomModal] = useState(false);
   const [showCancelStayModal, setShowCancelStayModal] = useState(false);
   const [showManagePeopleModal, setShowManagePeopleModal] = useState(false);
@@ -1002,6 +1004,7 @@ export function RoomsBoard() {
         vehicle_plate: vehicle.plate.trim() || null,
         vehicle_brand: vehicle.brand.trim() || null,
         vehicle_model: vehicle.model.trim() || null,
+        valet_employee_id: null, // En entrada con pago, cochero se asigna después
       });
 
       if (stayError) {
@@ -1050,6 +1053,7 @@ export function RoomsBoard() {
     initialPeople: number;
     vehicle: { plate: string; brand: string; model: string };
     actualEntryTime: Date;
+    valetEmployeeId?: string | null;
   }) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
@@ -1184,6 +1188,7 @@ export function RoomsBoard() {
         vehicle_plate: data.vehicle.plate.trim() || null,
         vehicle_brand: data.vehicle.brand.trim() || null,
         vehicle_model: data.vehicle.model.trim() || null,
+        valet_employee_id: data.valetEmployeeId || null,
       });
 
       if (stayError) {
@@ -1499,7 +1504,7 @@ export function RoomsBoard() {
             setShowActionsModal(false);
           }
         }}
-        onAddConsumption={() => {
+        onAddProduct={() => {
           if (selectedRoom) {
             openConsumptionModal(selectedRoom);
             setShowActionsModal(false);
@@ -1541,6 +1546,10 @@ export function RoomsBoard() {
         onEditVehicle={() => {
           setShowActionsModal(false);
           setShowEditVehicleModal(true);
+        }}
+        onEditValet={() => {
+          setShowActionsModal(false);
+          setShowEditValetModal(true);
         }}
         onChangeRoom={() => {
           setShowActionsModal(false);
@@ -1646,6 +1655,20 @@ export function RoomsBoard() {
             description: vehicle.plate ? `Placas: ${vehicle.plate}` : "Datos guardados",
           });
           setShowEditVehicleModal(false);
+          await fetchRooms(true);
+        }}
+      />
+      <EditValetModal
+        isOpen={showEditValetModal && !!selectedRoom}
+        roomNumber={selectedRoom?.number || ""}
+        currentValetId={selectedRoom ? getActiveStay(selectedRoom)?.valet_employee_id || null : null}
+        stayId={selectedRoom ? (getActiveStay(selectedRoom)?.id || "") : ""}
+        onClose={() => {
+          setShowEditValetModal(false);
+        }}
+        onSuccess={async () => {
+          toast.success("Cochero actualizado");
+          setShowEditValetModal(false);
           await fetchRooms(true);
         }}
       />
