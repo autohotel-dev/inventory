@@ -18,6 +18,35 @@ export interface ConsumptionTicketData {
     hotelName?: string;
 }
 
+export interface ClosingTicketData {
+    employeeName: string;
+    shiftName: string;
+    periodStart: Date | string;
+    periodEnd: Date | string;
+    totalCash: number;
+    totalCardBBVA: number;
+    totalCardGetnet: number;
+    totalSales: number;
+    totalTransactions: number;
+    countedCash: number;
+    cashDifference: number;
+    notes?: string;
+    transactions: Array<{
+        time: string;
+        amount: number;
+        paymentMethod: string;
+        terminalCode?: string;
+        reference?: string;
+        concept?: string;
+        items?: Array<{
+            name: string;
+            qty: number;
+            unitPrice: number;
+            total: number;
+        }>;
+    }>;
+}
+
 export interface PrinterConfig {
     type: 'usb' | 'network' | 'serial';
     interface?: string; // USB deviceID, IP:Port, or Serial port
@@ -30,21 +59,20 @@ export class ThermalPrinterService {
     private config: PrinterConfig;
 
     constructor(config?: PrinterConfig) {
-        // Configuración para POS-8360 (Fujun) - 80mm papel, Red/Ethernet
-        // IP configurada: 192.168.1.100, Puerto: 9100 (estándar ESC/POS)
+        // Configuración para POS-80 - 80mm papel, USB
+        // Impresora detectada: POS-80 (1) en puerto USB002
         this.config = config || {
-            type: 'network',
-            interface: 'tcp://192.168.1.100:9100',
-            printerType: PrinterTypes.EPSON,  // POS-8360 es compatible EPSON ESC/POS
+            type: 'usb',
+            interface: '\\\\localhost\\POS-80 (1)',  // Nombre exacto de la impresora en Windows
+            printerType: PrinterTypes.EPSON,  // POS-80 es compatible EPSON ESC/POS
             characterSet: 'PC858_EURO',  // Soporte para español (á, é, í, ó, ú, ñ)
             width: 48  // 80mm paper (48 caracteres por línea)
         };
     }
 
     private createPrinter(): ThermalPrinter {
-        return new ThermalPrinter({
+        const printerConfig: any = {
             type: this.config.printerType || PrinterTypes.EPSON,
-            interface: this.config.interface || 'tcp://192.168.1.100:9100',
             characterSet: (this.config.characterSet || 'PC437_USA') as any,
             removeSpecialCharacters: false,
             lineCharacter: "=",
@@ -52,7 +80,14 @@ export class ThermalPrinterService {
             options: {
                 timeout: 5000
             }
-        });
+        };
+
+        // Solo agregar interface si está definida (para USB se auto-detecta)
+        if (this.config.interface) {
+            printerConfig.interface = this.config.interface;
+        }
+
+        return new ThermalPrinter(printerConfig);
     }
 
     /**
@@ -62,6 +97,9 @@ export class ThermalPrinterService {
         const printer = this.createPrinter();
 
         try {
+            // Convertir fecha si viene como string desde JSON
+            const date = typeof data.date === 'string' ? new Date(data.date) : data.date;
+
             // Header
             printer.alignCenter();
             printer.setTextDoubleHeight();
@@ -75,12 +113,12 @@ export class ThermalPrinterService {
             printer.alignLeft();
 
             // Fecha y hora
-            const dateStr = data.date.toLocaleDateString('es-MX', {
+            const dateStr = date.toLocaleDateString('es-MX', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
             });
-            const timeStr = data.date.toLocaleTimeString('es-MX', {
+            const timeStr = date.toLocaleTimeString('es-MX', {
                 hour: '2-digit',
                 minute: '2-digit'
             });
@@ -131,7 +169,7 @@ export class ThermalPrinterService {
             // Footer
             printer.newLine();
             printer.alignCenter();
-            printer.println("Items pendientes de pago");
+            printer.println("Consumo pagado");
             printer.println("Entregar ticket al cliente");
             printer.drawLine();
 
@@ -156,6 +194,9 @@ export class ThermalPrinterService {
         const printer = this.createPrinter();
 
         try {
+            // Convertir fecha si viene como string desde JSON
+            const date = typeof data.date === 'string' ? new Date(data.date) : data.date;
+
             // Header con nombre del hotel
             printer.alignCenter();
             printer.setTextDoubleHeight();
@@ -166,12 +207,12 @@ export class ThermalPrinterService {
             printer.alignLeft();
 
             // Fecha y hora
-            const dateStr = data.date.toLocaleDateString('es-MX', {
+            const dateStr = date.toLocaleDateString('es-MX', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
             });
-            const timeStr = data.date.toLocaleTimeString('es-MX', {
+            const timeStr = date.toLocaleTimeString('es-MX', {
                 hour: '2-digit',
                 minute: '2-digit'
             });
@@ -186,7 +227,7 @@ export class ThermalPrinterService {
             printer.newLine();
             printer.alignCenter();
             printer.bold(true);
-            printer.println("CONSUMO (SIN COBRAR)");
+            printer.println("CONSUMO PAGADO");
             printer.bold(false);
             printer.newLine();
             printer.alignLeft();
@@ -223,10 +264,9 @@ export class ThermalPrinterService {
             // Nota importante
             printer.newLine();
             printer.alignCenter();
-            printer.println("Este consumo sera cargado");
-            printer.println("a su cuenta de habitacion");
-            printer.newLine();
-            printer.println("Pendiente de pago al checkout");
+            printer.bold(true);
+            printer.println("PAGADO");
+            printer.bold(false);
             printer.drawLine();
 
             // Footer
@@ -301,6 +341,217 @@ export class ThermalPrinterService {
         } catch (error) {
             console.error('Error en prueba de impresión:', error);
             throw new Error('Error al imprimir prueba');
+        }
+    }
+
+    /**
+     * Imprime ticket de corte de caja
+     */
+    async printClosingTicket(data: ClosingTicketData): Promise<void> {
+        const printer = this.createPrinter();
+
+        try {
+            // Convertir fechas si vienen como string
+            const periodStart = typeof data.periodStart === 'string' ? new Date(data.periodStart) : data.periodStart;
+            const periodEnd = typeof data.periodEnd === 'string' ? new Date(data.periodEnd) : data.periodEnd;
+
+            // ===== HEADER =====
+            printer.alignCenter();
+            printer.setTextDoubleHeight();
+            printer.setTextDoubleWidth();
+            printer.println("CORTE DE CAJA");
+            printer.setTextNormal();
+            printer.newLine();
+
+            printer.bold(true);
+            printer.println(data.shiftName);
+            printer.bold(false);
+            printer.println(data.employeeName);
+            printer.drawLine();
+
+            // ===== PERIODO =====
+            printer.alignLeft();
+            const startDate = periodStart.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const startTime = periodStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            const endDate = periodEnd.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const endTime = periodEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+            printer.println(`Inicio: ${startDate} ${startTime}`);
+            printer.println(`Fin:    ${endDate} ${endTime}`);
+            printer.drawLine();
+
+            // ===== RESUMEN POR METODO DE PAGO =====
+            printer.newLine();
+            printer.alignCenter();
+            printer.bold(true);
+            printer.println("RESUMEN POR METODO");
+            printer.bold(false);
+            printer.newLine();
+            printer.alignLeft();
+
+            // Efectivo
+            printer.bold(true);
+            printer.println("EFECTIVO");
+            printer.bold(false);
+            printer.println(`  Esperado:  $${data.totalCash.toFixed(2)}`);
+            printer.println(`  Contado:   $${data.countedCash.toFixed(2)}`);
+            const diffSymbol = data.cashDifference >= 0 ? '+' : '';
+            printer.println(`  Diferencia: ${diffSymbol}$${data.cashDifference.toFixed(2)}`);
+            printer.newLine();
+
+            // Tarjeta BBVA
+            if (data.totalCardBBVA > 0) {
+                printer.bold(true);
+                printer.println("TARJETA BBVA");
+                printer.bold(false);
+                printer.println(`  Total:     $${data.totalCardBBVA.toFixed(2)}`);
+                printer.newLine();
+            }
+
+            // Tarjeta GETNET
+            if (data.totalCardGetnet > 0) {
+                printer.bold(true);
+                printer.println("TARJETA GETNET");
+                printer.bold(false);
+                printer.println(`  Total:     $${data.totalCardGetnet.toFixed(2)}`);
+                printer.newLine();
+            }
+
+            printer.drawLine();
+
+            // ===== TOTAL GENERAL =====
+            printer.alignLeft();
+            const totalLine = `TOTAL VENTAS:`;
+            const totalPrice = `$${data.totalSales.toFixed(2)}`;
+            const totalSpaces = (this.config.width || 48) - totalLine.length - totalPrice.length;
+            printer.bold(true);
+            printer.println(totalLine + ' '.repeat(Math.max(totalSpaces, 1)) + totalPrice);
+            printer.bold(false);
+
+            printer.println(`Transacciones: ${data.totalTransactions}`);
+            printer.drawLine();
+
+            // ===== TRANSACCIONES DETALLADAS =====
+            if (data.transactions && data.transactions.length > 0) {
+                printer.newLine();
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("DETALLE DE TRANSACCIONES");
+                printer.bold(false);
+                printer.newLine();
+                printer.alignLeft();
+
+                // Agrupar por método de pago
+                const cashTransactions = data.transactions.filter(t => t.paymentMethod === 'EFECTIVO');
+                const bbvaTransactions = data.transactions.filter(t =>
+                    t.paymentMethod === 'TARJETA' && t.terminalCode === 'BBVA' ||
+                    t.paymentMethod === 'TARJETA_BBVA'
+                );
+                const getnetTransactions = data.transactions.filter(t =>
+                    t.paymentMethod === 'TARJETA' && t.terminalCode === 'GETNET' ||
+                    t.paymentMethod === 'TARJETA_GETNET'
+                );
+
+                // Imprimir EFECTIVO
+                if (cashTransactions.length > 0) {
+                    printer.bold(true);
+                    printer.println(`EFECTIVO (${cashTransactions.length})`);
+                    printer.bold(false);
+                    cashTransactions.forEach((tx, idx) => {
+                        printer.println(`${idx + 1}. ${tx.time}  $${tx.amount.toFixed(2)}`);
+                        if (tx.reference) printer.println(`   Ref: ${tx.reference}`);
+
+                        // Mostrar items si están disponibles (formato compacto)
+                        if (tx.items && tx.items.length > 0) {
+                            tx.items.forEach(item => {
+                                // Línea 1: cantidad y nombre
+                                printer.println(`   ${item.qty}x ${item.name}`);
+                                // Línea 2: precio unitario y total
+                                printer.println(`      $${item.unitPrice.toFixed(2)} c/u = $${item.total.toFixed(2)}`);
+                            });
+                        } else if (tx.concept) {
+                            printer.println(`   ${tx.concept}`);
+                        }
+                    });
+                    printer.newLine();
+                }
+
+                // Imprimir BBVA
+                if (bbvaTransactions.length > 0) {
+                    printer.bold(true);
+                    printer.println(`TARJETA BBVA (${bbvaTransactions.length})`);
+                    printer.bold(false);
+                    bbvaTransactions.forEach((tx, idx) => {
+                        printer.println(`${idx + 1}. ${tx.time}  $${tx.amount.toFixed(2)}`);
+                        if (tx.reference) printer.println(`   Ref: ${tx.reference}`);
+
+                        // Mostrar items si están disponibles (formato compacto)
+                        if (tx.items && tx.items.length > 0) {
+                            tx.items.forEach(item => {
+                                printer.println(`   ${item.qty}x ${item.name}`);
+                                printer.println(`      $${item.unitPrice.toFixed(2)} c/u = $${item.total.toFixed(2)}`);
+                            });
+                        } else if (tx.concept) {
+                            printer.println(`   ${tx.concept}`);
+                        }
+                    });
+                    printer.newLine();
+                }
+
+                // Imprimir GETNET
+                if (getnetTransactions.length > 0) {
+                    printer.bold(true);
+                    printer.println(`TARJETA GETNET (${getnetTransactions.length})`);
+                    printer.bold(false);
+                    getnetTransactions.forEach((tx, idx) => {
+                        printer.println(`${idx + 1}. ${tx.time}  $${tx.amount.toFixed(2)}`);
+                        if (tx.reference) printer.println(`   Ref: ${tx.reference}`);
+
+                        // Mostrar items si están disponibles
+                        if (tx.items && tx.items.length > 0) {
+                            tx.items.forEach(item => {
+                                const line = `   ${item.qty}x ${item.name} @ $${item.unitPrice.toFixed(2)} = $${item.total.toFixed(2)}`;
+                                printer.println(line);
+                            });
+                        } else if (tx.concept) {
+                            printer.println(`   ${tx.concept}`);
+                        }
+                    });
+                    printer.newLine();
+                }
+
+                printer.drawLine();
+            }
+
+            // ===== NOTAS =====
+            if (data.notes && data.notes.trim()) {
+                printer.newLine();
+                printer.alignLeft();
+                printer.bold(true);
+                printer.println("NOTAS:");
+                printer.bold(false);
+                printer.println(data.notes.trim());
+                printer.drawLine();
+            }
+
+            // ===== FOOTER =====
+            printer.newLine();
+            printer.alignCenter();
+            const printTime = new Date();
+            printer.println(`Impreso: ${printTime.toLocaleDateString('es-MX')} ${printTime.toLocaleTimeString('es-MX')}`);
+            printer.drawLine();
+
+            printer.newLine();
+            printer.newLine();
+            printer.newLine();
+            printer.cut();
+
+            await printer.execute();
+            console.log('✓ Ticket de corte impreso');
+
+        } catch (error) {
+            console.error('Error printing closing ticket:', error);
+            throw new Error('Error al imprimir ticket de corte');
         }
     }
 }

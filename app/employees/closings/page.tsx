@@ -1,4 +1,5 @@
 import { ShiftClosingHistory } from "@/components/employees/shift-closing";
+import { PendingClosingsIndicator } from "@/components/employees/pending-closings-indicator";
 
 export default function ClosingsPage() {
   return (
@@ -9,6 +10,13 @@ export default function ClosingsPage() {
           Consulta el historial de cortes de caja por turno
         </p>
       </div>
+
+      {/* Indicador de cortes pendientes */}
+      <div className="mb-6">
+        <PendingClosingsIndicator />
+      </div>
+
+      {/* Historial de cortes completados */}
       <ShiftClosingHistory />
     </div>
   );

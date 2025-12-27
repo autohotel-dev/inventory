@@ -38,6 +38,7 @@ import {
   TrendingDown,
   Minus,
   History,
+  Printer,
 } from "lucide-react";
 import {
   Employee,
@@ -48,6 +49,8 @@ import {
   CASH_DENOMINATIONS,
   SHIFT_COLORS,
 } from "./types";
+import { usePrintClosing } from "@/hooks/use-print-closing";
+
 
 interface ShiftClosingProps {
   session: ShiftSession;
@@ -73,10 +76,10 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
 
-  // Conteo de efectivo
   const [cashBreakdown, setCashBreakdown] = useState<CashBreakdown>({});
   const [countedCash, setCountedCash] = useState(0);
   const [notes, setNotes] = useState("");
+  const { printClosing, isPrinting: isPrintingClosing } = usePrintClosing();
 
   // Cargar resumen de pagos del turno
   const loadPaymentSummary = async () => {
@@ -139,13 +142,80 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         }
       });
 
+      // Enriquecer pagos con detalles de items
+      const enrichedPayments = await Promise.all(
+        (payments || []).map(async (payment) => {
+          // Si el pago tiene un sales_order_id, buscar items pagados en ese momento
+          if (payment.sales_order_id) {
+            const { data: items } = await supabase
+              .from("sales_order_items")
+              .select(`
+                id, qty, unit_price, total, concept_type, is_paid, paid_at,
+                products(name, sku)
+              `)
+              .eq("sales_order_id", payment.sales_order_id)
+              .eq("is_paid", true)
+              .not("paid_at", "is", null);
+
+            // Filtrar items que fueron pagados cerca del tiempo del pago (±5 minutos)
+            const paymentTime = new Date(payment.created_at).getTime();
+            const relatedItems = (items || []).filter(item => {
+              if (!item.paid_at) return false;
+              const itemPaidTime = new Date(item.paid_at).getTime();
+              const diffMinutes = Math.abs(paymentTime - itemPaidTime) / 1000 / 60;
+              return diffMinutes <= 5; // Items pagados dentro de 5 minutos
+            });
+
+            // Crear descripción de items si hay items relacionados
+            if (relatedItems.length > 0) {
+              const conceptLabels: Record<string, string> = {
+                ROOM_BASE: "Habitación",
+                EXTRA_HOUR: "Hora Extra",
+                EXTRA_PERSON: "Persona Extra",
+                CONSUMPTION: "Consumo",
+                PRODUCT: "Producto",
+              };
+
+              const itemsRawData = relatedItems.map(item => {
+                const product = Array.isArray(item.products) ? item.products[0] : item.products;
+                const name = product?.name || conceptLabels[item.concept_type || "PRODUCT"] || "Item";
+                return {
+                  name,
+                  qty: item.qty,
+                  unitPrice: item.unit_price,
+                  total: item.qty * item.unit_price
+                };
+              });
+
+              const itemDescriptions = itemsRawData.map(item =>
+                item.qty > 1 ? `${item.qty}x ${item.name}` : item.name
+              );
+
+              return {
+                ...payment,
+                itemsDescription: itemDescriptions.join(", "),
+                itemsCount: relatedItems.length,
+                itemsRaw: itemsRawData
+              };
+            }
+          }
+
+          return {
+            ...payment,
+            itemsDescription: null,
+            itemsCount: 0,
+            itemsRaw: null
+          };
+        })
+      );
+
       setSummary({
         total_cash,
         total_card_bbva,
         total_card_getnet,
         total_sales: total_cash + total_card_bbva + total_card_getnet,
         total_transactions: payments?.length || 0,
-        payments: payments || [],
+        payments: enrichedPayments || [],
         salesOrders: salesOrders || [],
       });
     } catch (err) {
@@ -279,6 +349,87 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       style: "currency",
       currency: "MXN",
     }).format(amount);
+  };
+
+  // Imprimir ticket de corte
+  const handlePrintClosing = async () => {
+    if (!summary) return;
+
+    try {
+      const printData = {
+        employeeName: `${session.employees?.first_name} ${session.employees?.last_name}`,
+        shiftName: session.shift_definitions?.name || 'Turno',
+        periodStart: session.clock_in_at,
+        periodEnd: session.clock_out_at || new Date().toISOString(),
+        totalCash: summary.total_cash,
+        totalCardBBVA: summary.total_card_bbva,
+        totalCardGetnet: summary.total_card_getnet,
+        totalSales: summary.total_sales,
+        totalTransactions: summary.total_transactions,
+        countedCash,
+        cashDifference,
+        notes: notes.trim() || undefined,
+        transactions: await Promise.all(summary.payments.map(async (payment) => {
+          // Si el pago tiene sales_order_id, buscar items
+          let items: any[] = [];
+          if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {
+            const { data: orderItems } = await supabase
+              .from("sales_order_items")
+              .select(`
+                id, qty, unit_price, total, concept_type, is_paid, paid_at,
+                products(name, sku)
+              `)
+              .eq("sales_order_id", payment.sales_order_id)
+              .eq("is_paid", true)
+              .not("paid_at", "is", null);
+
+            const paymentTime = new Date(payment.created_at).getTime();
+            const relatedItems = (orderItems || []).filter(item => {
+              if (!item.paid_at) return false;
+              const itemPaidTime = new Date(item.paid_at).getTime();
+              const diffMinutes = Math.abs(paymentTime - itemPaidTime) / 1000 / 60;
+              return diffMinutes <= 5;
+            });
+
+            const conceptLabels: Record<string, string> = {
+              ROOM_BASE: "Habitación",
+              EXTRA_HOUR: "Hora Extra",
+              EXTRA_PERSON: "Persona Extra",
+              CONSUMPTION: "Consumo",
+              PRODUCT: "Producto",
+            };
+
+            items = relatedItems.map(item => {
+              const product = Array.isArray(item.products) ? item.products[0] : item.products;
+              const name = product?.name || conceptLabels[item.concept_type || "PRODUCT"] || "Item";
+              return {
+                name,
+                qty: item.qty,
+                unitPrice: item.unit_price,
+                total: item.qty * item.unit_price
+              };
+            });
+          }
+
+          return {
+            time: new Date(payment.created_at).toLocaleTimeString('es-MX', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            amount: payment.amount,
+            paymentMethod: payment.payment_method || 'N/A',
+            terminalCode: payment.payment_terminals?.code || payment.terminal_code,
+            reference: payment.reference || undefined,
+            concept: payment.itemsDescription || payment.concept || undefined,
+            items: items.length > 0 ? items : undefined
+          };
+        }))
+      };
+
+      await printClosing(printData);
+    } catch (error) {
+      console.error('Error preparing print data:', error);
+    }
   };
 
   return (
@@ -492,6 +643,26 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                                 <span className="text-muted-foreground">{conceptLabel}</span>
                               </div>
 
+                              {/* Mostrar items desglosados si están disponibles */}
+                              {payment.itemsRaw && payment.itemsRaw.length > 0 ? (
+                                <div className="mt-2 ml-4 space-y-0.5 text-xs">
+                                  {payment.itemsRaw.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center text-muted-foreground font-mono">
+                                      <span className="flex-1">
+                                        {item.qty}x {item.name} @ ${item.unitPrice.toFixed(2)}
+                                      </span>
+                                      <span className="font-semibold ml-2">
+                                        ${item.total.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : payment.itemsDescription && (
+                                <div className="mt-1 text-xs text-muted-foreground italic ml-4">
+                                  {payment.itemsDescription}
+                                </div>
+                              )}
+
                               <div className="mt-1 text-xs text-muted-foreground">
                                 {payment.reference && (
                                   <span className="mr-3">Ref: {payment.reference}</span>
@@ -660,6 +831,15 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         <DialogFooter className="border-t pt-4">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancelar
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handlePrintClosing}
+            disabled={loading || isPrintingClosing || !summary}
+          >
+            {isPrintingClosing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimir
           </Button>
           <Button onClick={handleSaveClosing} disabled={loading || saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

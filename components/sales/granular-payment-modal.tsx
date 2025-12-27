@@ -302,6 +302,7 @@ export function GranularPaymentModal({
                 sales_order_id: salesOrderId,
                 amount: p.amount,
                 payment_method: p.method,
+                terminal_code: p.method === "TARJETA" ? p.terminal : null,
                 reference: p.reference || generatePaymentReference("SUB"),
                 concept: pending.concept,
                 status: "PAGADO",
@@ -330,6 +331,17 @@ export function GranularPaymentModal({
       if (!hasPendingPayments) {
         const isMultipago = validPayments.length > 1;
 
+        // Crear descripción de items para el concept
+        const selectedItemsData = items.filter(item => itemIds.includes(item.id));
+        const itemDescriptions = selectedItemsData.map(item => {
+          const name = item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"];
+          return item.qty > 1 ? `${item.qty}x ${name}` : name;
+        });
+        const itemsSummary = itemDescriptions.slice(0, 3).join(", ");
+        const detailedConcept = itemDescriptions.length > 3
+          ? `${itemsSummary} +${itemDescriptions.length - 3} más`
+          : itemsSummary;
+
         if (isMultipago) {
           // MULTIPAGO: Crear cargo principal + subpagos
           const { data: mainPayment, error: mainError } = await supabase
@@ -339,7 +351,7 @@ export function GranularPaymentModal({
               amount: totalPaid,
               payment_method: "MIXTO",
               reference: generatePaymentReference("GRN"),
-              concept: `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
+              concept: detailedConcept || `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
               status: "PAGADO",
               payment_type: "COMPLETO",
             })
@@ -353,8 +365,9 @@ export function GranularPaymentModal({
               sales_order_id: salesOrderId,
               amount: p.amount,
               payment_method: p.method,
+              terminal_code: p.method === "TARJETA" ? p.terminal : null,
               reference: p.reference || generatePaymentReference("SUB"),
-              concept: "PAGO_GRANULAR",
+              concept: detailedConcept || "PAGO_GRANULAR",
               status: "PAGADO",
               payment_type: "PARCIAL",
               parent_payment_id: mainPayment.id,
@@ -369,8 +382,9 @@ export function GranularPaymentModal({
             sales_order_id: salesOrderId,
             amount: p.amount,
             payment_method: p.method,
+            terminal_code: p.method === "TARJETA" ? p.terminal : null,
             reference: p.reference || generatePaymentReference("GRN"),
-            concept: `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
+            concept: detailedConcept || `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
             status: "PAGADO",
             payment_type: "COMPLETO",
           });
