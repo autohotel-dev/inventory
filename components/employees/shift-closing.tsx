@@ -82,6 +82,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   const loadPaymentSummary = async () => {
     setLoading(true);
     try {
+      // Calcular el fin del período (clock_out o ahora)
+      const periodEnd = session.clock_out_at || new Date().toISOString();
+
       // Obtener pagos del período del turno
       const { data: payments, error } = await supabase
         .from("payments")
@@ -91,6 +94,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           sales_orders(id, total, status)
         `)
         .gte("created_at", session.clock_in_at)
+        .lte("created_at", periodEnd)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -110,6 +114,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           )
         `)
         .gte("created_at", session.clock_in_at)
+        .lte("created_at", periodEnd)
         .order("created_at", { ascending: false });
 
       // Calcular totales
@@ -153,7 +158,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
   useEffect(() => {
     loadPaymentSummary();
-  }, [session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id]); // Solo recargar cuando cambia la sesión
 
   // Calcular total contado basado en denominaciones
   useEffect(() => {
@@ -166,6 +172,10 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
   // Actualizar conteo de denominación
   const updateDenomination = (denomination: number, count: number) => {
+    // Validar que el conteo no sea negativo
+    if (count < 0) {
+      return;
+    }
     setCashBreakdown((prev) => ({
       ...prev,
       [denomination.toString()]: count,
@@ -179,8 +189,27 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   const handleSaveClosing = async () => {
     if (!summary) return;
 
+    // Validación: No permitir cortes sin transacciones
+    if (summary.total_transactions === 0) {
+      showError("Error", "No hay transacciones en este turno para crear un corte");
+      return;
+    }
+
     setSaving(true);
     try {
+      // Validación: Verificar que no exista ya un corte para esta sesión
+      const { data: existingClosing } = await supabase
+        .from("shift_closings")
+        .select("id")
+        .eq("shift_session_id", session.id)
+        .maybeSingle();
+
+      if (existingClosing) {
+        showError("Error", "Ya existe un corte registrado para este turno");
+        setSaving(false);
+        return;
+      }
+
       // Crear registro de corte
       const { data: closing, error: closingError } = await supabase
         .from("shift_closings")
@@ -224,11 +253,10 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         if (detailsError) throw detailsError;
       }
 
-      // Cerrar sesión de turno
+      // Cerrar sesión de turno (solo cambiar estado, clock_out_at ya está establecido)
       const { error: sessionError } = await supabase
         .from("shift_sessions")
         .update({
-          clock_out_at: new Date().toISOString(),
           status: "closed",
         })
         .eq("id", session.id);
@@ -362,19 +390,19 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                 </div>
                 <div
                   className={`rounded-lg p-3 ${cashDifference === 0
-                      ? "bg-green-500/10"
-                      : cashDifference > 0
-                        ? "bg-blue-500/10"
-                        : "bg-red-500/10"
+                    ? "bg-green-500/10"
+                    : cashDifference > 0
+                      ? "bg-blue-500/10"
+                      : "bg-red-500/10"
                     }`}
                 >
                   <p className="text-sm text-muted-foreground">Diferencia</p>
                   <p
                     className={`text-lg font-bold flex items-center gap-1 ${cashDifference === 0
-                        ? "text-green-600"
-                        : cashDifference > 0
-                          ? "text-blue-600"
-                          : "text-red-600"
+                      ? "text-green-600"
+                      : cashDifference > 0
+                        ? "text-blue-600"
+                        : "text-red-600"
                       }`}
                   >
                     {cashDifference === 0 ? (
@@ -573,10 +601,10 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                                       <Badge
                                         variant="outline"
                                         className={`text-[10px] px-1.5 ${conceptType === "ROOM_BASE" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
-                                            conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
-                                              conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
-                                                conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
-                                                  "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                                          conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                                            conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
+                                              conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
+                                                "bg-slate-500/10 text-slate-400 border-slate-500/30"
                                           }`}
                                       >
                                         {conceptLabels[conceptType] || "Prod"}
@@ -658,6 +686,9 @@ export function ShiftClosingHistory() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [processingAction, setProcessingAction] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
@@ -694,21 +725,40 @@ export function ShiftClosingHistory() {
     setIsAdmin(userIsAdmin);
 
     // Construir query - admin ve todos, empleado solo los suyos
+    // Primero obtener el conteo total
+    let countQuery = supabase
+      .from("shift_closings")
+      .select("id", { count: 'exact', head: true });
+
+    // Si no es admin, filtrar por su employee_id
+    if (!userIsAdmin && employeeId) {
+      countQuery = countQuery.eq("employee_id", employeeId);
+    }
+
+    // Filtrar por estado si no es "all"
+    if (statusFilter !== "all") {
+      countQuery = countQuery.eq("status", statusFilter);
+    }
+
+    const { count } = await countQuery;
+    setTotalCount(count || 0);
+
+    // Calcular offset para paginación
+    const offset = (currentPage - 1) * pageSize;
+
     let query = supabase
       .from("shift_closings")
       .select("*, employees!shift_closings_employee_id_fkey(*), shift_definitions(*)")
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(offset, offset + pageSize - 1);
 
     // Si no es admin, filtrar por su employee_id
     if (!userIsAdmin && employeeId) {
       query = query.eq("employee_id", employeeId);
     }
 
-    // Filtrar por estado si no es "all"
-    if (statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
-    }
+    // Ya no necesitamos filtrar aquí porque lo hicimos en countQuery
+    // Aplicar los mismos filtros a la query principal
 
     const { data, error } = await query;
 
@@ -722,7 +772,8 @@ export function ShiftClosingHistory() {
 
   useEffect(() => {
     loadClosings();
-  }, [statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, currentPage, pageSize]); // Recargar cuando cambia filtro, página o tamaño
 
   // Cargar detalles del corte seleccionado
   const loadClosingDetails = async (closingId: string, periodStart: string, periodEnd: string) => {
@@ -811,26 +862,33 @@ export function ShiftClosingHistory() {
   const approveClosing = async (closingId: string) => {
     setProcessingAction(true);
 
-    // Actualizar estado del corte
-    const { error } = await supabase
-      .from("shift_closings")
-      .update({
-        status: "approved",
-        reviewed_by: currentEmployeeId,
-        reviewed_at: new Date().toISOString()
-      })
-      .eq("id", closingId);
+    try {
+      // Actualizar estado del corte
+      const { error } = await supabase
+        .from("shift_closings")
+        .update({
+          status: "approved",
+          reviewed_by: currentEmployeeId,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq("id", closingId);
 
-    if (error) {
-      showError("Error", "No se pudo aprobar el corte");
-    } else {
+      if (error) throw error;
+
       // Registrar en historial de revisiones
       await recordReview(closingId, "approved");
+
+      // Recargar datos antes de cerrar modal
+      await loadClosings();
+
       success("Corte aprobado", "El corte ha sido aprobado exitosamente");
       setSelectedClosing(null);
-      loadClosings();
+    } catch (err) {
+      console.error("Error approving closing:", err);
+      showError("Error", "No se pudo aprobar el corte");
+    } finally {
+      setProcessingAction(false);
     }
-    setProcessingAction(false);
   };
 
   // Abrir modal de rechazo
@@ -848,28 +906,35 @@ export function ShiftClosingHistory() {
 
     setProcessingAction(true);
 
-    // Actualizar estado del corte con motivo
-    const { error } = await supabase
-      .from("shift_closings")
-      .update({
-        status: "rejected",
-        reviewed_by: currentEmployeeId,
-        reviewed_at: new Date().toISOString(),
-        rejection_reason: rejectionReason.trim()
-      })
-      .eq("id", selectedClosing.id);
+    try {
+      // Actualizar estado del corte con motivo
+      const { error } = await supabase
+        .from("shift_closings")
+        .update({
+          status: "rejected",
+          reviewed_by: currentEmployeeId,
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: rejectionReason.trim()
+        })
+        .eq("id", selectedClosing.id);
 
-    if (error) {
-      showError("Error", "No se pudo rechazar el corte");
-    } else {
+      if (error) throw error;
+
       // Registrar en historial de revisiones
       await recordReview(selectedClosing.id, "rejected", rejectionReason.trim());
+
+      // Recargar datos antes de cerrar modal
+      await loadClosings();
+
       success("Corte rechazado", "El corte ha sido marcado como rechazado");
       setShowRejectModal(false);
       setSelectedClosing(null);
-      loadClosings();
+    } catch (err) {
+      console.error("Error rejecting closing:", err);
+      showError("Error", "No se pudo rechazar el corte");
+    } finally {
+      setProcessingAction(false);
     }
-    setProcessingAction(false);
   };
 
   // Abrir modal de corrección
@@ -894,6 +959,22 @@ export function ShiftClosingHistory() {
 
     setSavingCorrection(true);
     try {
+      // Validación: Verificar que no exista ya una corrección para este corte
+      const { data: existingCorrection } = await supabase
+        .from("shift_closings")
+        .select("id, status")
+        .eq("original_closing_id", correctionClosing.id)
+        .maybeSingle();
+
+      if (existingCorrection) {
+        showError(
+          "Error",
+          `Ya existe una corrección ${existingCorrection.status === 'pending' ? 'pendiente' : existingCorrection.status} para este corte`
+        );
+        setSavingCorrection(false);
+        return;
+      }
+
       const correctionCashTotal = calculateCorrectionCashTotal();
       const expectedCash = correctionClosing.total_cash || 0;
       const cashDifference = correctionCashTotal - expectedCash;
@@ -1033,6 +1114,23 @@ export function ShiftClosingHistory() {
 
         <div class="section">
           <h3>🧮 Arqueo de Caja</h3>
+          ${closing.cash_breakdown && Object.keys(closing.cash_breakdown).length > 0 ? `
+            <div style="margin-bottom: 10px;">
+              <p style="font-size: 11px; margin-bottom: 5px; font-weight: bold;">Desglose de efectivo:</p>
+              ${Object.entries(closing.cash_breakdown)
+          .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
+          .map(([denom, count]) => {
+            const denomValue = parseFloat(denom);
+            const total = denomValue * (count as number);
+            return `
+                    <div class="info-row" style="font-size: 11px; padding: 2px 0;">
+                      <span>${count} × $${denomValue.toFixed(2)}</span>
+                      <span>$${total.toFixed(2)}</span>
+                    </div>
+                  `;
+          }).join('')}
+            </div>
+          ` : ''}
           <div class="info-row">
             <span>Efectivo esperado:</span>
             <span>$${(closing.total_cash || 0).toFixed(2)}</span>
@@ -1153,25 +1251,52 @@ export function ShiftClosingHistory() {
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Estado:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border rounded-md px-3 py-1.5 text-sm bg-background"
-          >
-            <option value="all">Todos</option>
-            <option value="pending">Pendientes</option>
-            <option value="approved">Aprobados</option>
-            <option value="rejected">Rechazados</option>
-          </select>
+      {/* Filtros y paginación */}
+      <div className="flex items-center gap-4 flex-wrap justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Estado:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1); // Reset a página 1 cuando cambia el filtro
+              }}
+              className="border rounded-md px-3 py-1.5 text-sm bg-background"
+            >
+              <option value="all">Todos</option>
+              <option value="pending">Pendientes</option>
+              <option value="approved">Aprobados</option>
+              <option value="rejected">Rechazados</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Mostrar:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1); // Reset a página 1 cuando cambia el tamaño
+              }}
+              className="border rounded-md px-3 py-1.5 text-sm bg-background"
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
         </div>
-        <div className="flex-1" />
-        <Badge variant="outline" className="text-xs">
-          {closings.length} corte(s)
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-xs">
+            {totalCount} corte(s) total
+          </Badge>
+          {totalCount > 0 && (
+            <span className="text-xs text-muted-foreground">
+              Página {currentPage} de {Math.ceil(totalCount / pageSize)}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Tabla */}
@@ -1233,10 +1358,10 @@ export function ShiftClosingHistory() {
                   <TableCell className="text-right">
                     <span
                       className={`font-medium ${closing.cash_difference === 0
-                          ? "text-green-600"
-                          : (closing.cash_difference || 0) > 0
-                            ? "text-blue-600"
-                            : "text-red-600"
+                        ? "text-green-600"
+                        : (closing.cash_difference || 0) > 0
+                          ? "text-blue-600"
+                          : "text-red-600"
                         }`}
                     >
                       {closing.cash_difference === 0 ? "✓" : (closing.cash_difference || 0) > 0 ? "+" : ""}
@@ -1270,6 +1395,52 @@ export function ShiftClosingHistory() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Controles de paginación */}
+      {totalCount > pageSize && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {Math.min((currentPage - 1) * pageSize + 1, totalCount)} - {Math.min(currentPage * pageSize, totalCount)} de {totalCount}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              Primera
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm px-3">
+              Página {currentPage} de {Math.ceil(totalCount / pageSize)}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / pageSize), prev + 1))}
+              disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+            >
+              Siguiente
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.ceil(totalCount / pageSize))}
+              disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+            >
+              Última
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Modal de detalle */}
       <Dialog open={!!selectedClosing} onOpenChange={() => setSelectedClosing(null)}>
@@ -1316,10 +1487,10 @@ export function ShiftClosingHistory() {
 
               {/* Arqueo */}
               <div className={`p-4 rounded-lg border ${selectedClosing.cash_difference === 0
-                  ? "bg-green-500/10 border-green-500/30"
-                  : (selectedClosing.cash_difference || 0) > 0
-                    ? "bg-blue-500/10 border-blue-500/30"
-                    : "bg-red-500/10 border-red-500/30"
+                ? "bg-green-500/10 border-green-500/30"
+                : (selectedClosing.cash_difference || 0) > 0
+                  ? "bg-blue-500/10 border-blue-500/30"
+                  : "bg-red-500/10 border-red-500/30"
                 }`}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -1331,10 +1502,10 @@ export function ShiftClosingHistory() {
                   </div>
                   <div className="text-right">
                     <p className={`text-2xl font-bold ${selectedClosing.cash_difference === 0
-                        ? "text-green-600"
-                        : (selectedClosing.cash_difference || 0) > 0
-                          ? "text-blue-600"
-                          : "text-red-600"
+                      ? "text-green-600"
+                      : (selectedClosing.cash_difference || 0) > 0
+                        ? "text-blue-600"
+                        : "text-red-600"
                       }`}>
                       {selectedClosing.cash_difference === 0
                         ? "✓ Cuadra"
@@ -1466,8 +1637,8 @@ export function ShiftClosingHistory() {
                                       <span className="font-medium">Orden:</span> #{salesOrder.id.slice(0, 8).toUpperCase()}
                                       {salesOrder.status && (
                                         <span className={`ml-2 ${salesOrder.status === "COMPLETED" || salesOrder.status === "ENDED"
-                                            ? "text-green-500"
-                                            : "text-amber-500"
+                                          ? "text-green-500"
+                                          : "text-amber-500"
                                           }`}>
                                           ({salesOrder.status})
                                         </span>
@@ -1583,10 +1754,10 @@ export function ShiftClosingHistory() {
                                         <Badge
                                           variant="outline"
                                           className={`text-[10px] px-1.5 ${conceptType === "ROOM_BASE" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
-                                              conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
-                                                conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
-                                                  conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
-                                                    "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                                            conceptType === "EXTRA_HOUR" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                                              conceptType === "EXTRA_PERSON" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" :
+                                                conceptType === "CONSUMPTION" ? "bg-green-500/10 text-green-400 border-green-500/30" :
+                                                  "bg-slate-500/10 text-slate-400 border-slate-500/30"
                                             }`}
                                         >
                                           {conceptLabels[conceptType] || "Prod"}
@@ -1888,10 +2059,10 @@ export function ShiftClosingHistory() {
                   <span className="text-right font-medium">{formatCurrency(calculateCorrectionCashTotal())}</span>
                   <span className="text-muted-foreground">Nueva diferencia:</span>
                   <span className={`text-right font-bold ${calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) === 0
-                      ? "text-green-500"
-                      : calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) > 0
-                        ? "text-blue-500"
-                        : "text-red-500"
+                    ? "text-green-500"
+                    : calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) > 0
+                      ? "text-blue-500"
+                      : "text-red-500"
                     }`}>
                     {formatCurrency(calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0))}
                     {calculateCorrectionCashTotal() - (correctionClosing.total_cash || 0) === 0 && " ✓"}

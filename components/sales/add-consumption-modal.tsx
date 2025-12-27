@@ -14,8 +14,10 @@ import {
   Minus,
   X,
   Loader2,
-  Package
+  Package,
+  Printer
 } from "lucide-react";
+import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 
 interface Product {
   id: string;
@@ -45,6 +47,7 @@ export function AddConsumptionModal({
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<Map<string, { product: Product; qty: number }>>(new Map());
+  const { printConsumptionTickets, isPrinting, printStatus } = useThermalPrinter();
 
   useEffect(() => {
     if (isOpen) {
@@ -171,8 +174,10 @@ export function AddConsumptionModal({
         return;
       }
 
-      // NUEVO: Validar stock disponible para cada producto
+      // Validar stock disponible para cada producto (con logging para diagnóstico)
       const { validateStockAvailability } = await import("@/lib/utils/stock-helpers");
+
+      console.log('[CONSUMPTION] Validating stock for warehouse:', orderInfo.warehouse_id);
 
       const itemsToValidate = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
         product_id: product.id,
@@ -180,18 +185,23 @@ export function AddConsumptionModal({
         quantity: qty
       }));
 
+      console.log('[CONSUMPTION] Items to validate:', itemsToValidate);
+
       const stockErrors = await validateStockAvailability(
         itemsToValidate,
         orderInfo.warehouse_id
       );
 
       if (stockErrors.length > 0) {
+        console.error('[CONSUMPTION] Stock validation failed:', stockErrors);
         toast.error("Stock insuficiente", {
           description: stockErrors.join("\n"),
-          duration: 5000
+          duration: 7000
         });
         return; // Abortar la operación
       }
+
+      console.log('[CONSUMPTION] Stock validation passed ✓');
 
       // Insertar items en sales_order_items
       const itemsToInsert = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
@@ -261,6 +271,49 @@ export function AddConsumptionModal({
       const productNames = Array.from(selectedProducts.values())
         .map(({ product, qty }) => `${qty}x ${product.name}`)
         .join(", ");
+
+      // NUEVO: Imprimir tickets térmicos
+      try {
+        // Generar folio único en cliente
+        const date = new Date();
+        const year = date.getFullYear().toString().slice(-2);
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        const folio = `COM-${year}${month}${day}-${random}`;
+
+        const printData = {
+          roomNumber: roomNumber || 'N/A',
+          folio: folio,
+          date: new Date(),
+          items: Array.from(selectedProducts.values()).map(({ product, qty }) => ({
+            name: product.name,
+            qty,
+            price: product.price,
+            total: product.price * qty
+          })),
+          subtotal: totalAmount,
+          total: totalAmount,
+          hotelName: undefined // Se puede configurar después
+        };
+
+        const printSuccess = await printConsumptionTickets(printData);
+
+        if (!printSuccess) {
+          // Imprimir falló pero consumo ya está guardado
+          toast.warning("Consumo agregado sin imprimir", {
+            description: "El consumo se guardó pero hubo un error al imprimir los tickets. Puedes reimprimirlos después.",
+            duration: 8000
+          });
+        }
+      } catch (printError) {
+        console.error('Print error:', printError);
+        // No bloqueamos la operación si falla la impresión
+        toast.warning("Error de impresión", {
+          description: "Consumo agregado correctamente, pero no se pudieron imprimir los tickets",
+          duration: 5000
+        });
+      }
 
       toast.success("Consumo agregado", {
         description: `${productNames} - Total: $${totalAmount.toFixed(2)}`,
@@ -414,12 +467,14 @@ export function AddConsumptionModal({
             </Button>
             <Button
               onClick={processConsumption}
-              disabled={selectedProducts.size === 0 || processing}
+              disabled={selectedProducts.size === 0 || processing || isPrinting}
             >
-              {processing ? (
+              {processing || isPrinting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Agregando...
+                  {printStatus === 'printing_reception' && 'Imprimiendo comanda...'}
+                  {printStatus === 'printing_client' && 'Imprimiendo ticket...'}
+                  {printStatus !== 'printing_reception' && printStatus !== 'printing_client' && 'Agregando...'}
                 </>
               ) : (
                 <>

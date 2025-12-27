@@ -59,7 +59,7 @@ export interface ShiftSession {
   schedule_id?: string | null;
   clock_in_at: string;
   clock_out_at?: string | null;
-  status: 'active' | 'closed' | 'cancelled';
+  status: 'active' | 'pending_closing' | 'closed' | 'cancelled';
   notes?: string | null;
   created_at: string;
   // Relaciones

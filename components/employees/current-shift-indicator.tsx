@@ -31,8 +31,10 @@ import {
   Loader2,
   AlertCircle,
   ChevronRight,
+  Receipt,
 } from "lucide-react";
 import { Employee, ShiftDefinition, ShiftSession, SHIFT_COLORS } from "./types";
+import { ShiftClosingModal } from "./shift-closing";
 
 // Iconos por turno
 const SHIFT_ICONS: Record<string, React.ReactNode> = {
@@ -66,6 +68,13 @@ export function CurrentShiftIndicator({
   // Modal de clock in
   const [isClockInModalOpen, setIsClockInModalOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+
+  // Modal de clock out con opciones
+  const [showClockOutOptions, setShowClockOutOptions] = useState(false);
+
+  // Modal de corte de caja
+  const [showClosingModal, setShowClosingModal] = useState(false);
+  const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
 
   // Cargar datos
   const loadData = async () => {
@@ -184,8 +193,13 @@ export function CurrentShiftIndicator({
     }
   };
 
-  // Clock Out
-  const handleClockOut = async () => {
+  // Clock Out - Mostrar opciones
+  const handleClockOutClick = () => {
+    setShowClockOutOptions(true);
+  };
+
+  // Clock Out con corte inmediato
+  const handleClockOutWithClosing = async () => {
     if (!activeSession) return;
 
     setActionLoading(true);
@@ -194,21 +208,68 @@ export function CurrentShiftIndicator({
         .from("shift_sessions")
         .update({
           clock_out_at: new Date().toISOString(),
-          status: "closed",
+          status: "pending_closing",
         })
         .eq("id", activeSession.id);
 
       if (error) throw error;
 
-      success("Salida registrada", "Se ha registrado tu salida del turno");
+      // Actualizar sesión local
+      const updatedSession = {
+        ...activeSession,
+        clock_out_at: new Date().toISOString(),
+        status: "pending_closing" as const,
+      };
+
+      setSessionToClose(updatedSession);
+      setShowClockOutOptions(false);
+      setShowClosingModal(true);
+    } catch (err: any) {
+      console.error("Error clocking out:", err);
+      showError("Error", err.message || "No se pudo registrar la salida");
+      setActionLoading(false);
+    }
+  };
+
+  // Clock Out diferido (sin corte inmediato)
+  const handleClockOutDeferred = async () => {
+    if (!activeSession) return;
+
+    setActionLoading(true);
+    try {
+      const { error } = await supabase
+        .from("shift_sessions")
+        .update({
+          clock_out_at: new Date().toISOString(),
+          status: "pending_closing",
+        })
+        .eq("id", activeSession.id);
+
+      if (error) throw error;
+
+      success(
+        "Turno cerrado",
+        "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo"
+      );
       setActiveSession(null);
       onShiftChange?.(null);
+      setShowClockOutOptions(false);
     } catch (err: any) {
       console.error("Error clocking out:", err);
       showError("Error", err.message || "No se pudo registrar la salida");
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Callback cuando se completa el corte
+  const handleClosingComplete = () => {
+    setShowClosingModal(false);
+    setSessionToClose(null);
+    setActiveSession(null);
+    onShiftChange?.(null);
+    setActionLoading(false);
+    loadData(); // Recargar datos
   };
 
   // Formatear hora
@@ -353,7 +414,7 @@ export function CurrentShiftIndicator({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleClockOut}
+                onClick={handleClockOutClick}
                 disabled={actionLoading}
                 className="text-red-500 border-red-500 hover:bg-red-500/10"
               >
@@ -432,6 +493,98 @@ export function CurrentShiftIndicator({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Opciones de Clock Out */}
+      <Dialog open={showClockOutOptions} onOpenChange={setShowClockOutOptions}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              Cerrar Turno
+            </DialogTitle>
+            <DialogDescription>
+              ¿Cómo deseas proceder con el cierre de tu turno?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4">
+            <div className="space-y-2">
+              <Button
+                className="w-full justify-start h-auto py-4"
+                variant="outline"
+                onClick={handleClockOutWithClosing}
+                disabled={actionLoading}
+              >
+                <div className="flex items-start gap-3 text-left">
+                  <Receipt className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium">Hacer corte ahora</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Completar el corte de caja inmediatamente
+                    </p>
+                  </div>
+                  <span className="text-xs bg-amber-500/10 text-amber-600 px-2 py-1 rounded">
+                    ~5 min
+                  </span>
+                </div>
+              </Button>
+
+              <Button
+                className="w-full justify-start h-auto py-4"
+                variant="outline"
+                onClick={handleClockOutDeferred}
+                disabled={actionLoading}
+              >
+                <div className="flex items-start gap-3 text-left">
+                  <Clock className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium">Hacer corte después</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Libera la recepción y completa el corte cuando quieras
+                    </p>
+                  </div>
+                  <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded">
+                    Recomendado
+                  </span>
+                </div>
+              </Button>
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  Si eliges "Hacer corte después", podrás completarlo desde cualquier
+                  computadora iniciando sesión en el sistema.
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowClockOutOptions(false)}
+              disabled={actionLoading}
+            >
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Corte de Caja */}
+      {showClosingModal && sessionToClose && (
+        <ShiftClosingModal
+          session={sessionToClose}
+          onClose={() => {
+            setShowClosingModal(false);
+            setSessionToClose(null);
+            setActionLoading(false);
+          }}
+          onComplete={handleClosingComplete}
+        />
+      )}
     </div>
   );
 }
