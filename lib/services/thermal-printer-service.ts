@@ -507,11 +507,11 @@ export class ThermalPrinterService {
                         printer.println(`${idx + 1}. ${tx.time}  $${tx.amount.toFixed(2)}`);
                         if (tx.reference) printer.println(`   Ref: ${tx.reference}`);
 
-                        // Mostrar items si están disponibles
+                        // Mostrar items si están disponibles (formato compacto)
                         if (tx.items && tx.items.length > 0) {
                             tx.items.forEach(item => {
-                                const line = `   ${item.qty}x ${item.name} @ $${item.unitPrice.toFixed(2)} = $${item.total.toFixed(2)}`;
-                                printer.println(line);
+                                printer.println(`   ${item.qty}x ${item.name}`);
+                                printer.println(`      $${item.unitPrice.toFixed(2)} c/u = $${item.total.toFixed(2)}`);
                             });
                         } else if (tx.concept) {
                             printer.println(`   ${tx.concept}`);
