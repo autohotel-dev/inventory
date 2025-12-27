@@ -30,7 +30,8 @@ const Icon = React.memo(({ name, className }: { name: string; className?: string
     moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
     expand: "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7",
     compress: "M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3",
-    logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+    logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+    fileText: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"
   };
 
   return (
@@ -78,6 +79,8 @@ const adminLinks: readonly NavLink[] = [
   { href: "/employees", label: "Empleados", icon: "users", adminOnly: true },
   { href: "/employees/schedules", label: "Horarios", icon: "activity", adminOnly: true },
   { href: "/employees/closings", label: "Cortes de Caja", icon: "bag" },
+  { divider: true },
+  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText" },
 ] as const;
 
 // Reusable components

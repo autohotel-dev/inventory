@@ -105,6 +105,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Derby",
             "Pointer",
             "Gol",
+            "Golf",
             "Caribe",
             "Combi",
             "Brasilia",

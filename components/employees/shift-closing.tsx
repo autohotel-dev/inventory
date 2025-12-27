@@ -400,6 +400,11 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       if (sessionError) throw sessionError;
 
       success("Corte completado", "El corte de caja se ha registrado correctamente");
+
+      // Abrir reporte de ingresos para imprimir automáticamente
+      const reportUrl = `/reports/income?shiftId=${closing.id}&autoPrint=true`;
+      window.open(reportUrl, '_blank');
+
       onComplete();
     } catch (err: any) {
       console.error("Error saving closing:", err);

@@ -51,12 +51,13 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
       clearInterval(interval);
     };
   }, []);
-  
+
+
   // Rutas que no deben mostrar el sidebar
-  const noSidebarRoutes = ['/auth'];
+  const noSidebarRoutes = ['/auth', '/reports/income/print'];
   const isNoSidebarRoute = noSidebarRoutes.some(route => pathname.startsWith(route));
   const isLandingPage = pathname === '/';
-  
+
   if (isNoSidebarRoute || isLandingPage) {
     // Layout simple para rutas de autenticación y landing page
     return <>{children}</>;
@@ -64,14 +65,14 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
 
   // Ancho del sidebar según estado
   const sidebarWidth = sidebarCompact ? "72px" : "256px";
-  
+
   // Layout completo con sidebar para rutas principales
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       <Sidebar />
-      <main 
+      <main
         className="flex-1 px-3 py-4 md:px-6 md:py-6 w-full space-y-4 md:space-y-6 transition-all duration-200"
-        style={{ 
+        style={{
           marginLeft: mounted ? undefined : undefined,
           maxWidth: "100%"
         }}
