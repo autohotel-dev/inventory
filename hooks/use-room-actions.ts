@@ -31,12 +31,12 @@ async function getCurrentShiftId(supabase: any): Promise<string | null> {
 
     if (!employee) return null;
 
-    // Obtener turno activo (status = 'open' en shift_sessions según analisis previo de page.tsx)
+    // Obtener turno activo (status = 'active' según schema real de la tabla)
     const { data: session } = await supabase
       .from("shift_sessions")
       .select("id")
       .eq("employee_id", employee.id)
-      .eq("status", "open")
+      .eq("status", "active")
       .maybeSingle();
 
     return session?.id || null;
