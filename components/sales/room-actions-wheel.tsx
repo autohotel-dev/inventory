@@ -69,7 +69,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "valet", label: "Cochero", icon: <UserCog className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onEditValet" },
     { id: "changeroom", label: "Cambiar", icon: <ArrowRightLeft className="h-5 w-5" />, color: "text-indigo-400", hoverBg: "hover:bg-indigo-500/30", action: "onChangeRoom" },
     { id: "managePeople", label: "Personas", icon: <Users className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onManagePeople" },
-    { id: "hour", label: "+Hora", icon: <Clock className="h-5 w-5" />, color: "text-pink-400", hoverBg: "hover:bg-pink-500/30", action: "onAddHour" },
+    { id: "hour", label: "Gestionar", icon: <Clock className="h-5 w-5" />, color: "text-pink-400", hoverBg: "hover:bg-pink-500/30", action: "onAddHour" },
     { id: "cancelstay", label: "Cancelar", icon: <XCircle className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onCancelStay" },
   ],
   SUCIA: [

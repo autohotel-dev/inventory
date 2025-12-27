@@ -205,6 +205,9 @@ export interface UseRoomActionsReturn {
   handleRemovePerson: (room: Room) => Promise<void>; // Persona sale definitivamente
   handlePersonLeftReturning: (room: Room) => Promise<void>; // Persona salió pero regresa (tolerancia 1h)
   handleAddExtraHour: (room: Room) => Promise<void>;
+  handleAddCustomHours: (room: Room, hours: number, payments: PaymentEntry[]) => Promise<void>; // Agregar horas personalizadas
+  handleRenewRoom: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Renovar habitación con precio base
+  handleAdd4HourPromo: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Promoción de 4 horas
   updateRoomStatus: (
     room: Room,
     newStatus: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA",
@@ -557,6 +560,280 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     } catch (error) {
       logger.error("Error in tolerance handling", error);
       toast.error("Error al procesar tolerancia");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /**
+   * Agregar horas personalizadas con pago
+   */
+  const handleAddCustomHours = async (room: Room, hours: number, payments: PaymentEntry[]) => {
+    if (room.status !== "OCUPADA") return;
+
+    const activeStay = getActiveStay(room);
+    if (!activeStay) {
+      toast.error("No se encontró una estancia activa para esta habitación");
+      return;
+    }
+
+    if (!room.room_types?.extra_hour_price || room.room_types.extra_hour_price <= 0) {
+      toast.error("No se configuró el precio de hora extra para este tipo");
+      return;
+    }
+
+    if (hours <= 0) {
+      toast.error("El número de horas debe ser mayor a 0");
+      return;
+    }
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      const extraHourPrice = room.room_types.extra_hour_price;
+      const totalPrice = extraHourPrice * hours;
+      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
+      // Actualizar totales de la orden
+      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
+
+      if (result.success) {
+        // Obtener o crear producto de servicio
+        const productResult = await getOrCreateServiceProduct();
+        if (!productResult.success) {
+          logger.error("Failed to get/create service product", productResult.error);
+          toast.error("Error al registrar el cargo");
+          return;
+        }
+
+        // Crear items de servicio para cada hora
+        for (let i = 0; i < hours; i++) {
+          await createServiceItem(
+            activeStay.sales_order_id,
+            extraHourPrice,
+            "EXTRA_HOUR",
+            1
+          );
+        }
+
+        // Procesar el pago
+        const remainingAfterPending = await updatePendingPaymentsHelper(
+          supabase,
+          activeStay.sales_order_id,
+          payments,
+          totalPaid,
+          "HEX"
+        );
+
+        // Si sobra dinero después de pagar pendientes, crear nuevos pagos
+        if (remainingAfterPending > 0) {
+          toast.error("Error: sobró dinero en el pago");
+          return;
+        }
+
+        // Actualizar paid_amount en sales_orders
+        await supabase
+          .from("sales_orders")
+          .update({
+            paid_amount: supabase.rpc('increment', { x: totalPaid }),
+            remaining_amount: supabase.rpc('decrement', { x: totalPaid }),
+          })
+          .eq("id", activeStay.sales_order_id);
+
+        toast.success("Horas agregadas", {
+          description: `Hab. ${room.number}: +${hours} hora(s) - $${totalPrice.toFixed(2)} MXN`,
+        });
+        await onRefresh();
+      } else {
+        toast.error("No se pudo agregar las horas");
+      }
+    } catch (error) {
+      logger.error("Error adding custom hours", error);
+      toast.error("Error al agregar horas");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /**
+   * Renovar habitación con precio base
+   */
+  const handleRenewRoom = async (room: Room, payments: PaymentEntry[]) => {
+    if (room.status !== "OCUPADA") return;
+
+    const activeStay = getActiveStay(room);
+    if (!activeStay) {
+      toast.error("No se encontró una estancia activa para esta habitación");
+      return;
+    }
+
+    if (!room.room_types?.base_price || room.room_types.base_price <= 0) {
+      toast.error("No se configuró el precio base para este tipo");
+      return;
+    }
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      const basePrice = room.room_types.base_price;
+      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
+      // Actualizar totales de la orden
+      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
+
+      if (result.success) {
+        // Crear item de renovación
+        const productResult = await getOrCreateServiceProduct();
+        if (!productResult.success) {
+          logger.error("Failed to get/create service product", productResult.error);
+          toast.error("Error al registrar el cargo");
+          return;
+        }
+
+        await createServiceItem(
+          activeStay.sales_order_id,
+          basePrice,
+          "RENEWAL",
+          1
+        );
+
+        // Procesar el pago
+        const remainingAfterPending = await updatePendingPaymentsHelper(
+          supabase,
+          activeStay.sales_order_id,
+          payments,
+          totalPaid,
+          "REN"
+        );
+
+        if (remainingAfterPending > 0) {
+          toast.error("Error: sobró dinero en el pago");
+          return;
+        }
+
+        // Extender expected_check_out_at según las horas del tipo
+        if (activeStay.expected_check_out_at) {
+          const currentCheckout = new Date(activeStay.expected_check_out_at);
+          const now = new Date();
+          const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+          const hours = isWeekend ? (room.room_types.weekend_hours ?? 4) : (room.room_types.weekday_hours ?? 4);
+          currentCheckout.setHours(currentCheckout.getHours() + hours);
+
+          await supabase
+            .from("room_stays")
+            .update({ expected_check_out_at: currentCheckout.toISOString() })
+            .eq("id", activeStay.id);
+        }
+
+        toast.success("Habitación renovada", {
+          description: `Hab. ${room.number}: Renovación completa - $${basePrice.toFixed(2)} MXN`,
+        });
+        await onRefresh();
+      } else {
+        toast.error("No se pudo renovar la habitación");
+      }
+    } catch (error) {
+      logger.error("Error renewing room", error);
+      toast.error("Error al renovar habitación");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /**
+   * Agregar promoción de 4 horas
+   */
+  const handleAdd4HourPromo = async (room: Room, payments: PaymentEntry[]) => {
+    if (room.status !== "OCUPADA") return;
+
+    const activeStay = getActiveStay(room);
+    if (!activeStay) {
+      toast.error("No se encontró una estancia activa para esta habitación");
+      return;
+    }
+
+    if (!room.room_types?.name) {
+      toast.error("No se encontró el tipo de habitación");
+      return;
+    }
+
+    // Importar constantes en el scope
+    const FOUR_HOUR_PROMO_PRICES: Record<string, number> = {
+      "Alberca": 1000,
+      "Jacuzzi y Sauna": 600,
+      "Jacuzzi": 440,
+      "Sencilla": 300,
+      "Torre": 270,
+    };
+
+    const promoPrice = FOUR_HOUR_PROMO_PRICES[room.room_types.name];
+    if (!promoPrice || promoPrice <= 0) {
+      toast.error("No hay precio de promoción configurado para este tipo");
+      return;
+    }
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
+      // Actualizar totales de la orden
+      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, promoPrice);
+
+      if (result.success) {
+        // Crear item de promoción
+        const productResult = await getOrCreateServiceProduct();
+        if (!productResult.success) {
+          logger.error("Failed to get/create service product", productResult.error);
+          toast.error("Error al registrar el cargo");
+          return;
+        }
+
+        await createServiceItem(
+          activeStay.sales_order_id,
+          promoPrice,
+          "PROMO_4H",
+          1
+        );
+
+        // Procesar el pago
+        const remainingAfterPending = await updatePendingPaymentsHelper(
+          supabase,
+          activeStay.sales_order_id,
+          payments,
+          totalPaid,
+          "P4H"
+        );
+
+        if (remainingAfterPending > 0) {
+          toast.error("Error: sobró dinero en el pago");
+          return;
+        }
+
+        // Extender expected_check_out_at en 4 horas
+        if (activeStay.expected_check_out_at) {
+          const currentCheckout = new Date(activeStay.expected_check_out_at);
+          currentCheckout.setHours(currentCheckout.getHours() + 4);
+
+          await supabase
+            .from("room_stays")
+            .update({ expected_check_out_at: currentCheckout.toISOString() })
+            .eq("id", activeStay.id);
+        }
+
+        toast.success("Promoción 4 horas aplicada", {
+          description: `Hab. ${room.number}: +4 horas - $${promoPrice.toFixed(2)} MXN`,
+        });
+        await onRefresh();
+      } else {
+        toast.error("No se pudo aplicar la promoción");
+      }
+    } catch (error) {
+      logger.error("Error adding 4-hour promo", error);
+      toast.error("Error al aplicar promoción");
     } finally {
       setActionLoading(false);
     }
@@ -972,6 +1249,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     handleRemovePerson,
     handlePersonLeftReturning,
     handleAddExtraHour,
+    handleAddCustomHours,
+    handleRenewRoom,
+    handleAdd4HourPromo,
     updateRoomStatus,
     prepareCheckout,
     processCheckout,

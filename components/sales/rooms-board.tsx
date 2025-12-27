@@ -24,6 +24,7 @@ import { ChangeRoomModal } from "@/components/sales/change-room-modal";
 import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
 import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
 import { RoomStatusNoteModal } from "@/components/sales/room-status-note-modal";
+import { RoomHourManagementModal } from "@/components/sales/room-hour-management-modal";
 import {
   Room,
   RoomType,
@@ -89,6 +90,7 @@ export function RoomsBoard() {
   const [showManagePeopleModal, setShowManagePeopleModal] = useState(false);
   const [showStatusNoteModal, setShowStatusNoteModal] = useState(false);
   const [statusNoteAction, setStatusNoteAction] = useState<"BLOCK" | "DIRTY" | null>(null);
+  const [showHourManagementModal, setShowHourManagementModal] = useState(false);
 
   // Sensores
   const { sensors } = useSensors();
@@ -180,10 +182,13 @@ export function RoomsBoard() {
     handleRemovePerson,
     handlePersonLeftReturning,
     handleAddExtraHour,
+    handleAddCustomHours,
+    handleRenewRoom,
+    handleAdd4HourPromo,
     updateRoomStatus,
     prepareCheckout,
     processCheckout,
-  } = useRoomActions(() => fetchRooms(true));
+  } = useRoomActions(async () => await fetchRooms(true));
 
   // Abrir modal de checkout usando el hook
   const openCheckoutModal = async (room: Room) => {
@@ -1523,7 +1528,8 @@ export function RoomsBoard() {
           if (selectedRoom) handlePersonLeftReturning(selectedRoom);
         }}
         onAddHour={() => {
-          if (selectedRoom) handleAddExtraHour(selectedRoom);
+          setShowActionsModal(false);
+          setShowHourManagementModal(true);
         }}
         onMarkClean={() => selectedRoom && updateRoomStatus(selectedRoom, "LIBRE", "Habitación limpia")}
         onBlock={() => {
@@ -1900,6 +1906,31 @@ export function RoomsBoard() {
         confirmLabel={statusNoteAction === "BLOCK" ? "Bloquear" : "Marcar Sucia"}
         loading={actionLoading}
         initialNote={selectedRoom?.notes || ""}
+      />
+
+      <RoomHourManagementModal
+        isOpen={showHourManagementModal && !!selectedRoom}
+        room={selectedRoom}
+        actionLoading={actionLoading}
+        onClose={() => setShowHourManagementModal(false)}
+        onConfirmCustomHours={async (hours, payments) => {
+          if (selectedRoom) {
+            await handleAddCustomHours(selectedRoom, hours, payments);
+            setShowHourManagementModal(false);
+          }
+        }}
+        onConfirmRenew={async (payments) => {
+          if (selectedRoom) {
+            await handleRenewRoom(selectedRoom, payments);
+            setShowHourManagementModal(false);
+          }
+        }}
+        onConfirmPromo4H={async (payments) => {
+          if (selectedRoom) {
+            await handleAdd4HourPromo(selectedRoom, payments);
+            setShowHourManagementModal(false);
+          }
+        }}
       />
     </div>
   );

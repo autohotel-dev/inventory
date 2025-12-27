@@ -55,3 +55,14 @@ export const DEFAULT_MAX_PEOPLE = 2;
  * Número mínimo de personas en una habitación ocupada
  */
 export const MIN_PEOPLE_IN_ROOM = 1;
+
+/**
+ * Precios de promoción de 4 horas por tipo de habitación
+ */
+export const FOUR_HOUR_PROMO_PRICES: Record<string, number> = {
+  "Alberca": 1000,
+  "Jacuzzi y Sauna": 600,
+  "Jacuzzi": 440,
+  "Sencilla": 300,
+  "Torre": 270,
+} as const;
