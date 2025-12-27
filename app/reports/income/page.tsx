@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Filter } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
-export default function IncomeReportPage() {
+function IncomeReportContent() {
     const searchParams = useSearchParams();
     const [reportType, setReportType] = useState<"shift" | "dateRange">("dateRange");
     const [startDate, setStartDate] = useState<Date | undefined>();
@@ -278,5 +279,13 @@ export default function IncomeReportPage() {
             {/* Estilos de impresión para ocultar UI */}
 
         </div>
+    );
+}
+
+export default function IncomeReportPage() {
+    return (
+        <Suspense fallback={<div className="container mx-auto py-6">Cargando...</div>}>
+            <IncomeReportContent />
+        </Suspense>
     );
 }
