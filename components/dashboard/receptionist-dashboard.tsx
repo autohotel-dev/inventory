@@ -5,6 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftClosingModal } from "@/components/employees/shift-closing";
@@ -28,7 +36,8 @@ import {
   Moon,
   KeyRound,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Receipt
 } from "lucide-react";
 import Link from "next/link";
 
@@ -85,7 +94,10 @@ export function ReceptionistDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
   const [showClosingModal, setShowClosingModal] = useState(false);
-  
+  const [showClockOutOptions, setShowClockOutOptions] = useState(false);
+  const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
   // Estados para inicio de turno
   const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
   const [pinCode, setPinCode] = useState("");
@@ -134,7 +146,7 @@ export function ReceptionistDashboard() {
   // Cargar PIN del empleado
   const fetchEmployeePin = async () => {
     if (!employeeId) return;
-    
+
     const supabase = createClient();
     const { data } = await supabase
       .from("employees")
@@ -148,7 +160,7 @@ export function ReceptionistDashboard() {
   // Cargar sesión de turno activa
   const fetchActiveSession = async () => {
     if (!employeeId) return;
-    
+
     const supabase = createClient();
     const { data: sessions } = await supabase
       .from("shift_sessions")
@@ -207,7 +219,7 @@ export function ReceptionistDashboard() {
   // Cargar resumen del turno
   const fetchShiftSummary = async () => {
     if (!userId) return;
-    
+
     setLoading(true);
     const supabase = createClient();
 
@@ -246,7 +258,7 @@ export function ReceptionistDashboard() {
       // Calcular totales
       const totalSales = sales?.length || 0;
       const totalAmount = sales?.reduce((sum, s) => sum + (s.total || 0), 0) || 0;
-      
+
       let cashAmount = 0;
       let cardBBVA = 0;
       let cardGetnet = 0;
@@ -305,22 +317,118 @@ export function ReceptionistDashboard() {
     }
   };
 
+  // Mostrar opciones de clock out
+  const handleClockOutClick = () => {
+    if (!activeSession) {
+      showError("Error", "No hay un turno activo");
+      return;
+    }
+    setShowClockOutOptions(true);
+  };
+
+  // Clock Out con corte inmediato
+  const handleClockOutWithClosing = async () => {
+    if (!activeSession || actionLoading) return; // Prevent race conditions
+
+    setActionLoading(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("shift_sessions")
+        .update({
+          clock_out_at: new Date().toISOString(),
+          status: "pending_closing",
+        })
+        .eq("id", activeSession.id);
+
+      if (error) throw error;
+
+      // Actualizar sesión local
+      const updatedSession = {
+        ...activeSession,
+        clock_out_at: new Date().toISOString(),
+        status: "pending_closing" as const,
+      };
+
+      setSessionToClose(updatedSession);
+      setShowClockOutOptions(false);
+      setShowClosingModal(true);
+    } catch (err: any) {
+      console.error("Error clocking out:", err);
+      showError("Error", err.message || "No se pudo registrar la salida");
+      setActionLoading(false);
+    }
+  };
+
+  // Clock Out diferido (sin corte inmediato)
+  const handleClockOutDeferred = async () => {
+    if (!activeSession || actionLoading) return; // Prevent race conditions
+
+    setActionLoading(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("shift_sessions")
+        .update({
+          clock_out_at: new Date().toISOString(),
+          status: "pending_closing",
+        })
+        .eq("id", activeSession.id);
+
+      if (error) throw error;
+
+      success(
+        "Turno cerrado",
+        "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo"
+      );
+      setActiveSession(null);
+      setShowClockOutOptions(false);
+    } catch (err: any) {
+      console.error("Error clocking out:", err);
+      showError("Error", err.message || "No se pudo registrar la salida");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Manejar cierre de turno completado
   const handleClosingComplete = () => {
     setShowClosingModal(false);
+    setSessionToClose(null);
     setActiveSession(null);
+    setActionLoading(false);
     fetchShiftSummary();
   };
 
   useEffect(() => {
-    fetchCurrentShift();
+    let isMounted = true;
+
+    const loadData = async () => {
+      await fetchCurrentShift();
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     if (employeeId) {
-      fetchActiveSession();
-      fetchEmployeePin();
+      const loadData = async () => {
+        await fetchActiveSession();
+        await fetchEmployeePin();
+      };
+
+      loadData();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [employeeId]);
 
   useEffect(() => {
@@ -419,12 +527,17 @@ export function ReceptionistDashboard() {
             Actualizar
           </Button>
           {activeSession && (
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={() => setShowClosingModal(true)}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClockOutClick}
+              disabled={actionLoading}
             >
-              <LogOut className="h-4 w-4 mr-2" />
+              {actionLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <LogOut className="h-4 w-4 mr-2" />
+              )}
               Cerrar Turno
             </Button>
           )}
@@ -455,14 +568,13 @@ export function ReceptionistDashboard() {
                   </p>
                 </div>
               </div>
-              
+
               {/* Tiempo restante - Sección llamativa */}
               {timeRemaining && (
-                <div className={`px-6 py-4 flex flex-col items-center justify-center min-w-[200px] ${
-                  timeRemaining.isOvertime 
-                    ? 'bg-gradient-to-br from-red-500 to-red-600' 
-                    : 'bg-gradient-to-br from-emerald-500 to-teal-600'
-                }`}>
+                <div className={`px-6 py-4 flex flex-col items-center justify-center min-w-[200px] ${timeRemaining.isOvertime
+                  ? 'bg-gradient-to-br from-red-500 to-red-600'
+                  : 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                  }`}>
                   {timeRemaining.isOvertime ? (
                     <div className="text-center text-white">
                       <p className="text-xs font-medium opacity-90 uppercase tracking-wider">Tiempo excedido</p>
@@ -525,21 +637,21 @@ export function ReceptionistDashboard() {
               </div>
             </div>
           </div>
-          
+
           <CardContent className="p-6">
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
                 <User className="h-5 w-5" />
                 <span className="text-lg">{employeeName}</span>
               </div>
-              
+
               {!showPinInput ? (
                 <div className="space-y-3">
                   <p className="text-muted-foreground">
                     ¿Listo para comenzar tu turno?
                   </p>
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     className={`w-full max-w-xs bg-gradient-to-r ${SHIFT_COLORS[currentShift.code] || 'from-primary to-primary'} hover:opacity-90 text-white`}
                     onClick={() => employeePin ? setShowPinInput(true) : handleStartShift()}
                     disabled={startingShift}
@@ -569,8 +681,8 @@ export function ReceptionistDashboard() {
                     onKeyDown={(e) => e.key === 'Enter' && handleStartShift()}
                   />
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="flex-1"
                       onClick={() => {
                         setShowPinInput(false);
@@ -579,7 +691,7 @@ export function ReceptionistDashboard() {
                     >
                       Cancelar
                     </Button>
-                    <Button 
+                    <Button
                       className={`flex-1 bg-gradient-to-r ${SHIFT_COLORS[currentShift.code] || 'from-primary to-primary'}`}
                       onClick={handleStartShift}
                       disabled={startingShift || !pinCode}
@@ -622,76 +734,76 @@ export function ReceptionistDashboard() {
 
       {/* Resumen del turno - Solo mostrar si hay sesión activa */}
       {activeSession && (
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Resumen de tu Turno
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-background rounded-lg border">
-              <ShoppingBag className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-              <p className="text-2xl font-bold">{summary.totalSales}</p>
-              <p className="text-xs text-muted-foreground">Ventas Realizadas</p>
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Resumen de tu Turno
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-background rounded-lg border">
+                <ShoppingBag className="h-8 w-8 mx-auto mb-2 text-blue-500" />
+                <p className="text-2xl font-bold">{summary.totalSales}</p>
+                <p className="text-xs text-muted-foreground">Ventas Realizadas</p>
+              </div>
+              <div className="text-center p-4 bg-background rounded-lg border">
+                <DollarSign className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
+                <p className="text-2xl font-bold">{formatCurrency(summary.totalAmount)}</p>
+                <p className="text-xs text-muted-foreground">Total Vendido</p>
+              </div>
+              <div className="text-center p-4 bg-background rounded-lg border">
+                <Building2 className="h-8 w-8 mx-auto mb-2 text-amber-500" />
+                <p className="text-2xl font-bold">{summary.openRooms}</p>
+                <p className="text-xs text-muted-foreground">Habitaciones Ocupadas</p>
+              </div>
+              <div className="text-center p-4 bg-background rounded-lg border">
+                <TrendingUp className="h-8 w-8 mx-auto mb-2 text-purple-500" />
+                <p className="text-2xl font-bold">{summary.completedCheckouts}</p>
+                <p className="text-xs text-muted-foreground">Checkouts Completados</p>
+              </div>
             </div>
-            <div className="text-center p-4 bg-background rounded-lg border">
-              <DollarSign className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
-              <p className="text-2xl font-bold">{formatCurrency(summary.totalAmount)}</p>
-              <p className="text-xs text-muted-foreground">Total Vendido</p>
-            </div>
-            <div className="text-center p-4 bg-background rounded-lg border">
-              <Building2 className="h-8 w-8 mx-auto mb-2 text-amber-500" />
-              <p className="text-2xl font-bold">{summary.openRooms}</p>
-              <p className="text-xs text-muted-foreground">Habitaciones Ocupadas</p>
-            </div>
-            <div className="text-center p-4 bg-background rounded-lg border">
-              <TrendingUp className="h-8 w-8 mx-auto mb-2 text-purple-500" />
-              <p className="text-2xl font-bold">{summary.completedCheckouts}</p>
-              <p className="text-xs text-muted-foreground">Checkouts Completados</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
       )}
 
       {/* Desglose de pagos - Solo mostrar si hay sesión activa */}
       {activeSession && (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Efectivo</CardTitle>
-            <Banknote className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.cashAmount)}</div>
-            <p className="text-xs text-muted-foreground">Cobrado en efectivo</p>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Efectivo</CardTitle>
+              <Banknote className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.cashAmount)}</div>
+              <p className="text-xs text-muted-foreground">Cobrado en efectivo</p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tarjeta BBVA</CardTitle>
-            <CreditCard className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.cardBBVA)}</div>
-            <p className="text-xs text-muted-foreground">Terminal BBVA</p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tarjeta BBVA</CardTitle>
+              <CreditCard className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.cardBBVA)}</div>
+              <p className="text-xs text-muted-foreground">Terminal BBVA</p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tarjeta Getnet</CardTitle>
-            <CreditCard className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.cardGetnet)}</div>
-            <p className="text-xs text-muted-foreground">Terminal Getnet</p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tarjeta Getnet</CardTitle>
+              <CreditCard className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.cardGetnet)}</div>
+              <p className="text-xs text-muted-foreground">Terminal Getnet</p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Desglose por Concepto - Solo mostrar si hay sesión activa */}
@@ -774,13 +886,12 @@ export function ReceptionistDashboard() {
               <span className="text-sm font-medium">Nueva Venta</span>
             </Link>
             <button
-              onClick={() => activeSession ? setShowClosingModal(true) : null}
+              onClick={() => activeSession ? handleClockOutClick() : null}
               disabled={!activeSession}
-              className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${
-                activeSession 
-                  ? "hover:bg-muted cursor-pointer" 
-                  : "opacity-50 cursor-not-allowed"
-              }`}
+              className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${activeSession
+                ? "hover:bg-muted cursor-pointer"
+                : "opacity-50 cursor-not-allowed"
+                }`}
             >
               <span className="text-3xl">🧾</span>
               <span className="text-sm font-medium">Cerrar Turno</span>
@@ -789,11 +900,82 @@ export function ReceptionistDashboard() {
         </CardContent>
       </Card>
 
+      {/* Modal de opciones de cierre de turno */}
+      <Dialog open={showClockOutOptions} onOpenChange={setShowClockOutOptions}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              Cerrar Turno
+            </DialogTitle>
+            <DialogDescription>
+              ¿Cómo deseas proceder con el cierre de tu turno?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <Button
+              className="w-full text-left h-auto py-3"
+              variant="outline"
+              onClick={handleClockOutWithClosing}
+              disabled={actionLoading}
+            >
+              <div className="flex items-start gap-3 w-full">
+                <Receipt className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium">Hacer corte ahora</p>
+                  <p className="text-xs text-muted-foreground">
+                    Completar el corte de caja inmediatamente
+                  </p>
+                  <span className="inline-block text-xs bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded mt-1">
+                    ~5 min
+                  </span>
+                </div>
+              </div>
+            </Button>
+
+            <Button
+              className="w-full text-left h-auto py-3"
+              variant="outline"
+              onClick={handleClockOutDeferred}
+              disabled={actionLoading}
+            >
+              <div className="flex items-start gap-3 w-full">
+                <Clock className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium">Hacer corte después</p>
+                  <p className="text-xs text-muted-foreground">
+                    Libera la recepción y completa el corte cuando quieras
+                  </p>
+                  <span className="inline-block text-xs bg-green-500/10 text-green-600 px-2 py-0.5 rounded mt-1">
+                    Recomendado
+                  </span>
+                </div>
+              </div>
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowClockOutOptions(false)}
+              disabled={actionLoading}
+            >
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de cierre de turno */}
-      {showClosingModal && activeSession && (
+      {showClosingModal && sessionToClose && (
         <ShiftClosingModal
-          session={activeSession}
-          onClose={() => setShowClosingModal(false)}
+          session={sessionToClose}
+          onClose={() => {
+            setShowClosingModal(false);
+            setSessionToClose(null);
+            setActionLoading(false);
+          }}
           onComplete={handleClosingComplete}
         />
       )}

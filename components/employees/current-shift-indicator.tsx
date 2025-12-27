@@ -195,12 +195,16 @@ export function CurrentShiftIndicator({
 
   // Clock Out - Mostrar opciones
   const handleClockOutClick = () => {
+    if (!activeSession) {
+      showError("Error", "No hay un turno activo");
+      return;
+    }
     setShowClockOutOptions(true);
   };
 
   // Clock Out con corte inmediato
   const handleClockOutWithClosing = async () => {
-    if (!activeSession) return;
+    if (!activeSession || actionLoading) return; // Prevent race conditions
 
     setActionLoading(true);
     try {
@@ -233,7 +237,7 @@ export function CurrentShiftIndicator({
 
   // Clock Out diferido (sin corte inmediato)
   const handleClockOutDeferred = async () => {
-    if (!activeSession) return;
+    if (!activeSession || actionLoading) return; // Prevent race conditions
 
     setActionLoading(true);
     try {

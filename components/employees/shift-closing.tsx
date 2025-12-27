@@ -143,71 +143,97 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       });
 
       // Enriquecer pagos con detalles de items
-      const enrichedPayments = await Promise.all(
-        (payments || []).map(async (payment) => {
-          // Si el pago tiene un sales_order_id, buscar items pagados en ese momento
-          if (payment.sales_order_id) {
-            const { data: items } = await supabase
-              .from("sales_order_items")
-              .select(`
-                id, qty, unit_price, total, concept_type, is_paid, paid_at,
-                products(name, sku)
-              `)
-              .eq("sales_order_id", payment.sales_order_id)
-              .eq("is_paid", true)
-              .not("paid_at", "is", null);
+      // Optimized: Get all sales_order_ids first, then fetch all items in ONE query
+      const salesOrderIds = (payments || [])
+        .filter(p => p.sales_order_id)
+        .map(p => p.sales_order_id);
 
-            // Filtrar items que fueron pagados cerca del tiempo del pago (±5 minutos)
-            const paymentTime = new Date(payment.created_at).getTime();
-            const relatedItems = (items || []).filter(item => {
-              if (!item.paid_at) return false;
-              const itemPaidTime = new Date(item.paid_at).getTime();
-              const diffMinutes = Math.abs(paymentTime - itemPaidTime) / 1000 / 60;
-              return diffMinutes <= 5; // Items pagados dentro de 5 minutos
-            });
+      let allItems: any[] = [];
+      if (salesOrderIds.length > 0) {
+        const { data } = await supabase
+          .from("sales_order_items")
+          .select(`
+            id, qty, unit_price, total, concept_type, is_paid, paid_at, sales_order_id,
+            products(name, sku)
+          `)
+          .in("sales_order_id", salesOrderIds)
+          .eq("is_paid", true)
+          .not("paid_at", "is", null);
 
-            // Crear descripción de items si hay items relacionados
-            if (relatedItems.length > 0) {
-              const conceptLabels: Record<string, string> = {
-                ROOM_BASE: "Habitación",
-                EXTRA_HOUR: "Hora Extra",
-                EXTRA_PERSON: "Persona Extra",
-                CONSUMPTION: "Consumo",
-                PRODUCT: "Producto",
-              };
+        allItems = data || [];
+      }
 
-              const itemsRawData = relatedItems.map(item => {
-                const product = Array.isArray(item.products) ? item.products[0] : item.products;
-                const name = product?.name || conceptLabels[item.concept_type || "PRODUCT"] || "Item";
-                return {
-                  name,
-                  qty: item.qty,
-                  unitPrice: item.unit_price,
-                  total: item.qty * item.unit_price
-                };
-              });
+      // Group items by sales_order_id
+      const itemsBySalesOrder = allItems.reduce((acc, item) => {
+        if (!acc[item.sales_order_id]) {
+          acc[item.sales_order_id] = [];
+        }
+        acc[item.sales_order_id].push(item);
+        return acc;
+      }, {} as Record<string, any[]>);
 
-              const itemDescriptions = itemsRawData.map(item =>
-                item.qty > 1 ? `${item.qty}x ${item.name}` : item.name
-              );
-
-              return {
-                ...payment,
-                itemsDescription: itemDescriptions.join(", "),
-                itemsCount: relatedItems.length,
-                itemsRaw: itemsRawData
-              };
-            }
-          }
-
+      // Enrich payments with their items
+      const enrichedPayments = (payments || []).map((payment) => {
+        if (!payment.sales_order_id) {
           return {
             ...payment,
             itemsDescription: null,
             itemsCount: 0,
             itemsRaw: null
           };
-        })
-      );
+        }
+
+        const items = itemsBySalesOrder[payment.sales_order_id] || [];
+
+        // Filter items paid around the same time (±5 minutes)
+        const paymentTime = new Date(payment.created_at).getTime();
+        const relatedItems = items.filter((item: any) => {
+          if (!item.paid_at) return false;
+          const itemPaidTime = new Date(item.paid_at).getTime();
+          const diffMinutes = Math.abs(paymentTime - itemPaidTime) / 1000 / 60;
+          return diffMinutes <= 5; // Items paid within 5 minutes
+        });
+
+        if (relatedItems.length === 0) {
+          return {
+            ...payment,
+            itemsDescription: null,
+            itemsCount: 0,
+            itemsRaw: null
+          };
+        }
+
+        // Create items description
+        const conceptLabels: Record<string, string> = {
+          ROOM_BASE: "Habitación",
+          EXTRA_HOUR: "Hora Extra",
+          EXTRA_PERSON: "Persona Extra",
+          CONSUMPTION: "Consumo",
+          PRODUCT: "Producto",
+        };
+
+        const itemsRawData = relatedItems.map((item: any) => {
+          const product = Array.isArray(item.products) ? item.products[0] : item.products;
+          const name = product?.name || conceptLabels[item.concept_type || "PRODUCT"] || "Item";
+          return {
+            name,
+            qty: item.qty,
+            unitPrice: item.unit_price,
+            total: item.qty * item.unit_price
+          };
+        });
+
+        const itemDescriptions = itemsRawData.map((item: any) =>
+          item.qty > 1 ? `${item.qty}x ${item.name}` : item.name
+        );
+
+        return {
+          ...payment,
+          itemsDescription: itemDescriptions.join(", "),
+          itemsCount: relatedItems.length,
+          itemsRaw: itemsRawData
+        };
+      });
 
       setSummary({
         total_cash,
@@ -288,7 +314,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           employee_id: session.employee_id,
           shift_definition_id: session.shift_definition_id,
           period_start: session.clock_in_at,
-          period_end: new Date().toISOString(),
+          period_end: session.clock_out_at || new Date().toISOString(),
           total_cash: summary.total_cash,
           total_card_bbva: summary.total_card_bbva,
           total_card_getnet: summary.total_card_getnet,
