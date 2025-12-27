@@ -310,6 +310,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Renegade",
             "Compass",
             "Cherokee",
+            "Rubicon",
             "Grand Cherokee",
             "Wrangler",
             "Gladiator"
