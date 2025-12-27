@@ -37,9 +37,13 @@ import {
   KeyRound,
   Loader2,
   CheckCircle2,
-  Receipt
+  Receipt,
+  Wallet
 } from "lucide-react";
 import Link from "next/link";
+import { ExpenseModal } from "@/components/expenses/expense-modal";
+import { ExpensesList } from "@/components/expenses/expenses-list";
+import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 
 interface ShiftSummary {
   totalSales: number;
@@ -97,6 +101,7 @@ export function ReceptionistDashboard() {
   const [showClockOutOptions, setShowClockOutOptions] = useState(false);
   const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   // Estados para inicio de turno
   const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
@@ -104,6 +109,9 @@ export function ReceptionistDashboard() {
   const [showPinInput, setShowPinInput] = useState(false);
   const [startingShift, setStartingShift] = useState(false);
   const [employeePin, setEmployeePin] = useState<string | null>(null);
+
+  // Hook para gastos
+  const { expenses, totalExpenses, loading: expensesLoading, refetch: refetchExpenses } = useShiftExpenses(activeSession?.id || null);
 
   // Actualizar reloj cada segundo
   useEffect(() => {
@@ -857,6 +865,15 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
+      {/* Gastos del Turno */}
+      {activeSession && (
+        <ExpensesList
+          expenses={expenses}
+          totalExpenses={totalExpenses}
+          loading={expensesLoading}
+        />
+      )}
+
       {/* Acciones rápidas para recepcionista */}
       <Card>
         <CardHeader>
@@ -895,6 +912,17 @@ export function ReceptionistDashboard() {
             >
               <span className="text-3xl">🧾</span>
               <span className="text-sm font-medium">Cerrar Turno</span>
+            </button>
+            <button
+              onClick={() => activeSession && setShowExpenseModal(true)}
+              disabled={!activeSession}
+              className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${activeSession
+                ? "hover:bg-muted cursor-pointer"
+                : "opacity-50 cursor-not-allowed"
+                }`}
+            >
+              <span className="text-3xl">💸</span>
+              <span className="text-sm font-medium">Registrar Gasto</span>
             </button>
           </div>
         </CardContent>
@@ -977,6 +1005,21 @@ export function ReceptionistDashboard() {
             setActionLoading(false);
           }}
           onComplete={handleClosingComplete}
+        />
+      )}
+
+      {/* Modal de gastos */}
+      {activeSession && (
+        <ExpenseModal
+          open={showExpenseModal}
+          onClose={() => setShowExpenseModal(false)}
+          sessionId={activeSession.id}
+          employeeId={employeeId || ''}
+          availableCash={summary.cashAmount - totalExpenses}
+          onSuccess={() => {
+            refetchExpenses();
+            fetchShiftSummary();
+          }}
         />
       )}
     </div>

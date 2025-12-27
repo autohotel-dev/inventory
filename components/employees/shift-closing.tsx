@@ -50,6 +50,7 @@ import {
   SHIFT_COLORS,
 } from "./types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
+import { ShiftExpense, EXPENSE_TYPE_LABELS, EXPENSE_TYPE_ICONS } from "@/types/expenses";
 
 
 interface ShiftClosingProps {
@@ -58,14 +59,33 @@ interface ShiftClosingProps {
   onComplete: () => void;
 }
 
+// Define EnrichedPayment type based on the structure created in loadPaymentSummary
+interface EnrichedPayment {
+  id: string;
+  created_at: string;
+  amount: number;
+  payment_method: string;
+  terminal_code?: string;
+  payment_terminals?: { code: string; name: string } | null;
+  sales_order_id?: string;
+  sales_orders?: { id: string; total: number; status: string } | null;
+  reference?: string | null;
+  concept?: string | null;
+  itemsDescription: string | null;
+  itemsCount: number;
+  itemsRaw: Array<{ name: string; qty: number; unitPrice: number; total: number }> | null;
+}
+
 interface PaymentSummary {
   total_cash: number;
   total_card_bbva: number;
   total_card_getnet: number;
   total_sales: number;
   total_transactions: number;
-  payments: any[];
+  payments: EnrichedPayment[];
   salesOrders: any[];
+  expenses?: ShiftExpense[];
+  total_expenses?: number;
 }
 
 export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosingProps) {
@@ -235,14 +255,31 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         };
       });
 
+      // Obtener gastos del turno
+      const { data: expenses, error: expensesError } = await supabase
+        .from("shift_expenses")
+        .select("*")
+        .eq("shift_session_id", session.id)
+        .neq("status", "rejected")
+        .order("created_at", { ascending: false });
+
+      if (expensesError) {
+        console.error("Error fetching expenses:", expensesError);
+      }
+
+      const totalExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+      const total_sales = total_cash + total_card_bbva + total_card_getnet;
+
       setSummary({
         total_cash,
         total_card_bbva,
         total_card_getnet,
-        total_sales: total_cash + total_card_bbva + total_card_getnet,
-        total_transactions: payments?.length || 0,
-        payments: enrichedPayments || [],
+        total_sales,
+        total_transactions: enrichedPayments.length,
+        payments: enrichedPayments,
         salesOrders: salesOrders || [],
+        expenses: expenses || [],
+        total_expenses: totalExpenses
       });
     } catch (err) {
       console.error("Error loading payment summary:", err);
@@ -278,8 +315,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
     }));
   };
 
-  // Calcular diferencia
-  const cashDifference = summary ? countedCash - summary.total_cash : 0;
+  // Calcular efectivo esperado (ventas en efectivo - gastos)
+  const expectedCash = summary ? summary.total_cash - (summary.total_expenses || 0) : 0;
+  const cashDifference = summary ? countedCash - expectedCash : 0;
 
   // Guardar corte
   const handleSaveClosing = async () => {
@@ -320,6 +358,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           total_card_getnet: summary.total_card_getnet,
           total_sales: summary.total_sales,
           total_transactions: summary.total_transactions,
+          total_expenses: summary.total_expenses || 0,
+          expenses_count: summary.expenses?.length || 0,
           counted_cash: countedCash,
           cash_difference: cashDifference,
           cash_breakdown: cashBreakdown,
@@ -528,6 +568,54 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
               </div>
             </div>
 
+            {/* Gastos del Turno */}
+            {summary && summary.expenses && summary.expenses.length > 0 && (
+              <div className="border rounded-lg p-4 mt-4 bg-red-50/30">
+                <h4 className="font-semibold mb-3 flex items-center gap-2 text-red-800">
+                  💸 Gastos del Turno ({summary.expenses.length})
+                </h4>
+                <div className="space-y-2">
+                  {summary.expenses.map((expense) => (
+                    <div key={expense.id} className="flex justify-between items-start p-2 bg-white/50 rounded">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{expense.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {EXPENSE_TYPE_LABELS[expense.expense_type]}
+                          {expense.recipient && ` • ${expense.recipient}`}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold text-red-600">-${expense.amount.toFixed(2)}</p>
+                    </div>
+                  ))}
+                  <div className="border-t pt-2 flex justify-between font-semibold text-red-600">
+                    <span>Total Gastos:</span>
+                    <span>-${(summary.total_expenses || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Efectivo Esperado */}
+            {summary && summary.total_expenses && summary.total_expenses > 0 && (
+              <div className="border rounded-lg p-4 mt-4 bg-blue-50/30">
+                <h4 className="font-semibold mb-2 text-sm">Cálculo del Efectivo</h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Efectivo ventas:</span>
+                    <span>${summary.total_cash.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-red-600">
+                    <span>(-) Gastos:</span>
+                    <span>-${summary.total_expenses.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t pt-1">
+                    <span>Efectivo esperado:</span>
+                    <span className="text-green-600">${expectedCash.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Conteo de efectivo */}
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -558,7 +646,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm text-muted-foreground">Efectivo esperado</p>
                   <p className="text-lg font-bold">
-                    {formatCurrency(summary?.total_cash || 0)}
+                    {formatCurrency(expectedCash)}
                   </p>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-3">
