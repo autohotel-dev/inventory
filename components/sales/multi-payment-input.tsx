@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, CreditCard } from "lucide-react";
-import { PaymentMethod, PAYMENT_METHODS, PaymentTerminal, PAYMENT_TERMINALS } from "@/components/sales/room-types";
+import { PaymentMethod, PAYMENT_METHODS, PaymentTerminal, PAYMENT_TERMINALS, CardType, CARD_TYPES } from "@/components/sales/room-types";
 
 export interface PaymentEntry {
   id: string;
@@ -13,6 +13,8 @@ export interface PaymentEntry {
   method: PaymentMethod;
   terminal?: PaymentTerminal; // Solo aplica cuando method = 'TARJETA'
   reference?: string;
+  cardLast4?: string; // Últimos 4 dígitos de la tarjeta
+  cardType?: CardType; // CREDITO o DEBITO
 }
 
 interface MultiPaymentInputProps {
@@ -40,6 +42,8 @@ export function MultiPaymentInput({
       method: "EFECTIVO",
       terminal: undefined,
       reference: "",
+      cardLast4: undefined,
+      cardType: undefined,
     };
     onPaymentsChange([...payments, newPayment]);
   };
@@ -49,9 +53,11 @@ export function MultiPaymentInput({
       payments.map((p) => {
         if (p.id !== id) return p;
         const updated = { ...p, [field]: field === "amount" ? parseFloat(value) || 0 : value };
-        // Si cambia a EFECTIVO, limpiar terminal
+        // Si cambia a EFECTIVO, limpiar terminal y detalles de tarjeta
         if (field === "method" && value === "EFECTIVO") {
           updated.terminal = undefined;
+          updated.cardLast4 = undefined;
+          updated.cardType = undefined;
         }
         // Si cambia a TARJETA y no tiene terminal, asignar BBVA por defecto
         if (field === "method" && value === "TARJETA" && !updated.terminal) {
@@ -76,93 +82,136 @@ export function MultiPaymentInput({
       {/* Lista de pagos - scrolleable */}
       <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
         {payments.map((payment, index) => (
-        <div
-          key={payment.id}
-          className="p-3 rounded-lg border bg-muted/30 space-y-2"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">
-              Pago #{index + 1}
-            </span>
-            {payments.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-red-500 hover:text-red-400"
-                onClick={() => removePayment(payment.id)}
-                disabled={disabled}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-
-          {/* Método de pago */}
-          <div className="flex gap-1">
-            {PAYMENT_METHODS.map((method) => (
-              <Button
-                key={method.value}
-                type="button"
-                variant={payment.method === method.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => updatePayment(payment.id, "method", method.value)}
-                disabled={disabled}
-                className="flex-1 text-xs px-2"
-              >
-                <span className="mr-1">{method.icon}</span>
-                {method.label}
-              </Button>
-            ))}
-          </div>
-
-          {/* Selector de terminal (solo para tarjeta) */}
-          {payment.method === "TARJETA" && (
-            <div className="flex gap-1">
-              {PAYMENT_TERMINALS.map((terminal) => (
+          <div
+            key={payment.id}
+            className="p-3 rounded-lg border bg-muted/30 space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                Pago #{index + 1}
+              </span>
+              {payments.length > 1 && (
                 <Button
-                  key={terminal.value}
                   type="button"
-                  variant={payment.terminal === terminal.value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => updatePayment(payment.id, "terminal", terminal.value)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-red-500 hover:text-red-400"
+                  onClick={() => removePayment(payment.id)}
                   disabled={disabled}
-                  className={`flex-1 text-xs px-2 ${payment.terminal === terminal.value ? terminal.color + " text-white" : ""}`}
                 >
-                  {terminal.label}
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+
+            {/* Método de pago */}
+            <div className="flex gap-1">
+              {PAYMENT_METHODS.map((method) => (
+                <Button
+                  key={method.value}
+                  type="button"
+                  variant={payment.method === method.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updatePayment(payment.id, "method", method.value)}
+                  disabled={disabled}
+                  className="flex-1 text-xs px-2"
+                >
+                  <span className="mr-1">{method.icon}</span>
+                  {method.label}
                 </Button>
               ))}
             </div>
-          )}
 
-          {/* Monto */}
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={payment.amount || ""}
-                onChange={(e) => updatePayment(payment.id, "amount", e.target.value)}
-                disabled={disabled}
-                placeholder="Monto"
-                className="h-9"
-              />
-            </div>
-            {showReference && (
+            {/* Selector de terminal (solo para tarjeta) */}
+            {payment.method === "TARJETA" && (
+              <div className="flex gap-1">
+                {PAYMENT_TERMINALS.map((terminal) => (
+                  <Button
+                    key={terminal.value}
+                    type="button"
+                    variant={payment.terminal === terminal.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => updatePayment(payment.id, "terminal", terminal.value)}
+                    disabled={disabled}
+                    className={`flex-1 text-xs px-2 ${payment.terminal === terminal.value ? terminal.color + " text-white" : ""}`}
+                  >
+                    {terminal.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {/* Detalles de tarjeta (solo para tarjeta) */}
+            {payment.method === "TARJETA" && (
+              <>
+                {/* Últimos 4 dígitos */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1">Últimos 4 dígitos</Label>
+                  <Input
+                    type="text"
+                    maxLength={4}
+                    value={payment.cardLast4 || ""}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, "");
+                      updatePayment(payment.id, "cardLast4", value);
+                    }}
+                    disabled={disabled}
+                    placeholder="1234"
+                    className="h-9"
+                  />
+                </div>
+
+                {/* Tipo de tarjeta */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1">Tipo de tarjeta</Label>
+                  <div className="flex gap-1">
+                    {CARD_TYPES.map((cardType) => (
+                      <Button
+                        key={cardType.value}
+                        type="button"
+                        variant={payment.cardType === cardType.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => updatePayment(payment.id, "cardType", cardType.value)}
+                        disabled={disabled}
+                        className="flex-1 text-xs px-2"
+                      >
+                        <span className="mr-1">{cardType.icon}</span>
+                        {cardType.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Monto */}
+            <div className="flex gap-2">
               <div className="flex-1">
                 <Input
-                  type="text"
-                  value={payment.reference || ""}
-                  onChange={(e) => updatePayment(payment.id, "reference", e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={payment.amount || ""}
+                  onChange={(e) => updatePayment(payment.id, "amount", e.target.value)}
                   disabled={disabled}
-                  placeholder="Referencia (opcional)"
+                  placeholder="Monto"
                   className="h-9"
                 />
               </div>
-            )}
+              {showReference && (
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    value={payment.reference || ""}
+                    onChange={(e) => updatePayment(payment.id, "reference", e.target.value)}
+                    disabled={disabled}
+                    placeholder="Referencia (opcional)"
+                    className="h-9"
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
         ))}
       </div>
 
@@ -228,7 +277,7 @@ export function MultiPaymentInput({
 
 // Función helper para inicializar pagos
 export function createInitialPayment(
-  amount: number, 
+  amount: number,
   method: PaymentMethod = "EFECTIVO",
   terminal?: PaymentTerminal
 ): PaymentEntry[] {
@@ -239,6 +288,8 @@ export function createInitialPayment(
       method,
       terminal: method === "TARJETA" ? (terminal || "BBVA") : undefined,
       reference: "",
+      cardLast4: undefined,
+      cardType: undefined,
     },
   ];
 }

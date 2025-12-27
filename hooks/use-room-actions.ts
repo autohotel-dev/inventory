@@ -156,6 +156,9 @@ async function updatePendingPaymentsHelper(
         parent_payment_id: pending.id,
         // Agregar terminal si es pago con tarjeta
         ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+        // Agregar detalles de tarjeta
+        ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+        ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
       }));
 
       const { error: subError } = await supabase
@@ -176,6 +179,9 @@ async function updatePendingPaymentsHelper(
           reference: p.reference || generatePaymentReference(referencePrefix),
           // Agregar terminal si es pago con tarjeta
           ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+          // Agregar detalles de tarjeta
+          ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+          ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
         })
         .eq("id", pending.id);
 

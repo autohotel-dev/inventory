@@ -100,3 +100,11 @@ export const PAYMENT_TERMINALS: { value: PaymentTerminal; label: string; color: 
   { value: 'BBVA', label: 'BBVA', color: 'bg-blue-600' },
   { value: 'GETNET', label: 'GETNET', color: 'bg-red-600' },
 ];
+
+// Tipo de tarjeta
+export type CardType = 'CREDITO' | 'DEBITO';
+
+export const CARD_TYPES: { value: CardType; label: string; icon: string }[] = [
+  { value: 'CREDITO', label: 'Crédito', icon: '💳' },
+  { value: 'DEBITO', label: 'Débito', icon: '💵' },
+];
