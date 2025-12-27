@@ -89,17 +89,68 @@ export function IncomeReport({
 
             // Filtrar por turno o rango de fechas
             if (reportType === "shift" && shiftId) {
-                const { data: shift } = await supabase
-                    .from("employee_shifts")
-                    .select("*")
+                // Primero intentar buscar en cierres (histórico)
+                const { data: closingData } = await supabase
+                    .from("shift_closings")
+                    .select(`
+                        period_start,
+                        period_end,
+                        employees!inner(first_name, last_name)
+                    `)
                     .eq("id", shiftId)
-                    .single();
+                    .maybeSingle();
+
+                let shift: any = null;
+
+                // Mapear a formato esperado
+                if (closingData) {
+                    const employee = (closingData.employees as any);
+                    shift = {
+                        shift_start: closingData.period_start,
+                        shift_end: closingData.period_end,
+                        employee_name: employee ? `${employee.first_name} ${employee.last_name}` : undefined
+                    };
+                }
+
+                // Si no es un cierre, buscar en sesiones activas
+                if (!shift) {
+                    const { data: session } = await supabase
+                        .from("shift_sessions")
+                        .select(`
+                            clock_in_at,
+                            employees!inner(
+                                first_name,
+                                last_name
+                            )
+                        `)
+                        .eq("id", shiftId)
+                        .single();
+
+                    if (session) {
+                        const employee = (session.employees as any);
+                        const employeeName = employee
+                            ? `${employee.first_name} ${employee.last_name}`
+                            : undefined;
+
+                        shift = {
+                            shift_start: session.clock_in_at,
+                            shift_end: null, // Turno abierto
+                            employee_name: employeeName
+                        };
+                    }
+                }
 
                 if (shift) {
                     setShiftInfo(shift);
-                    query = query
-                        .gte("check_in_at", shift.shift_start)
-                        .lte("check_in_at", shift.shift_end || new Date().toISOString());
+                    query = query.gte("check_in_at", shift.shift_start);
+
+                    // Si el turno tiene fin (cerrado), usarlo. Si no (activo), usar ahora.
+                    if (shift.shift_end) {
+                        query = query.lte("check_in_at", shift.shift_end);
+                    } else {
+                        // Para turno actual, hasta el momento presente
+                        query = query.lte("check_in_at", new Date().toISOString());
+                    }
                 }
             } else if (reportType === "dateRange") {
                 if (startDate) {

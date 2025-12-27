@@ -16,6 +16,36 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   return `${prefix}-${timestamp}-${random}`;
 }
 
+// Helper para obtener el turno activo del usuario actual
+async function getCurrentShiftId(supabase: any): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Obtener empleado asociado al usuario
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (!employee) return null;
+
+    // Obtener turno activo (status = 'open' en shift_sessions según analisis previo de page.tsx)
+    const { data: session } = await supabase
+      .from("shift_sessions")
+      .select("id")
+      .eq("employee_id", employee.id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    return session?.id || null;
+  } catch (error) {
+    console.error("Error getting current shift:", error);
+    return null;
+  }
+}
+
 // Helper para obtener la estancia activa
 export function getActiveStay(room: Room): RoomStay | null {
   return (room.room_stays || []).find((stay) => stay.status === "ACTIVA") || null;
@@ -145,6 +175,20 @@ async function updatePendingPaymentsHelper(
 
       // Crear subpagos proporcionales para este pago pendiente
       const proportion = amountForThis / totalPaid;
+
+      // Obtener turno actual para los subpagos nuevos
+      // Nota: getCurrentShiftId debería pasarse o estar disponible. Como es helper aislado, podemos requerir pasarlo o usar supabase.
+      // Modificamos slightly para usar el supabase client que ya viene
+      const { data: { user } } = await supabase.auth.getUser();
+      let currentShiftId = null;
+      if (user) {
+        const { data: emp } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
+        if (emp) {
+          const { data: sess } = await supabase.from("shift_sessions").select("id").eq("employee_id", emp.id).eq("status", "open").maybeSingle();
+          currentShiftId = sess?.id;
+        }
+      }
+
       const subpayments = validPayments.map(p => ({
         sales_order_id: salesOrderId,
         amount: Math.round(p.amount * proportion * 100) / 100,
@@ -154,6 +198,7 @@ async function updatePendingPaymentsHelper(
         status: "PAGADO",
         payment_type: "PARCIAL",
         parent_payment_id: pending.id,
+        shift_session_id: currentShiftId, // Vincular subpagos al turno actual
         // Agregar terminal si es pago con tarjeta
         ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
         // Agregar detalles de tarjeta
@@ -171,18 +216,36 @@ async function updatePendingPaymentsHelper(
     } else {
       // Pago único - actualizar el pago pendiente directamente
       const p = validPayments[0];
+
+      // Obtener turno actual para actualizar el pago
+      const { data: { user } } = await supabase.auth.getUser();
+      let currentShiftId = null;
+      if (user) {
+        const { data: emp } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
+        if (emp) {
+          const { data: sess } = await supabase.from("shift_sessions").select("id").eq("employee_id", emp.id).eq("status", "open").maybeSingle();
+          currentShiftId = sess?.id;
+        }
+      }
+
+      const updateData: any = {
+        status: "PAGADO",
+        payment_method: p.method,
+        reference: p.reference || generatePaymentReference(referencePrefix),
+        // Agregar terminal si es pago con tarjeta
+        ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+        // Agregar detalles de tarjeta
+        ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+        ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+      };
+
+      if (currentShiftId) {
+        updateData.shift_session_id = currentShiftId; // Vincular al turno actual al momento de pagar
+      }
+
       await supabase
         .from("payments")
-        .update({
-          status: "PAGADO",
-          payment_method: p.method,
-          reference: p.reference || generatePaymentReference(referencePrefix),
-          // Agregar terminal si es pago con tarjeta
-          ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-          // Agregar detalles de tarjeta
-          ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-          ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-        })
+        .update(updateData)
         .eq("id", pending.id);
 
       logger.info("Updated pending payment (single payment)", {
@@ -287,6 +350,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
                 concept: "TOLERANCIA_EXPIRADA",
                 status: "PENDIENTE",
                 payment_type: "COMPLETO",
+                shift_session_id: await getCurrentShiftId(supabase) // Vincular al turno
               });
 
               toast.warning("Tolerancia expirada - Habitación cobrada", {
@@ -1138,6 +1202,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             if (mainError) {
               logger.error("Error inserting main payment", mainError);
             } else if (mainPayment) {
+              const currentShiftId = await getCurrentShiftId(supabase);
               const subpayments = validPayments.map(p => ({
                 sales_order_id: checkoutInfo.salesOrderId,
                 amount: p.amount,
@@ -1147,6 +1212,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
                 status: "PAGADO",
                 payment_type: "PARCIAL",
                 parent_payment_id: mainPayment.id,
+                shift_session_id: currentShiftId, // Vinculado al turno
                 // Agregar terminal si es pago con tarjeta
                 ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
               }));

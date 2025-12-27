@@ -47,7 +47,38 @@ export default function IncomeReportPage() {
 
     const fetchShifts = async () => {
         const supabase = createClient();
-        const { data, error } = await supabase
+
+        // 1. Obtener turno actual activo (sin joins complejos para evitar problemas)
+        const { data: activeSession, error: sessionError } = await supabase
+            .from("shift_sessions")
+            .select("id, clock_in_at, employee_id")
+            .eq("status", "active")
+            .maybeSingle();
+
+        console.log("🔍 Active session query result:", { activeSession, sessionError });
+
+        if (sessionError) {
+            console.error("Error fetching active session:", sessionError);
+        }
+
+        // Si hay turno activo, obtener info del empleado por separado
+        let employeeName = "Usuario Actual";
+        if (activeSession?.employee_id) {
+            const { data: employee } = await supabase
+                .from("employees")
+                .select("first_name, last_name")
+                .eq("id", activeSession.employee_id)
+                .single();
+
+            console.log("👤 Employee data:", employee);
+
+            if (employee) {
+                employeeName = `${employee.first_name} ${employee.last_name}`;
+            }
+        }
+
+        // 2. Obtener cierres históricos
+        const { data: closedShifts, error } = await supabase
             .from("shift_closings")
             .select("*")
             .order("created_at", { ascending: false })
@@ -57,7 +88,32 @@ export default function IncomeReportPage() {
             console.error("Error fetching shifts:", error);
             return;
         }
-        if (data) setShifts(data);
+
+        // Combinar: Turno actual (si existe) + Históricos
+        let allShifts = [];
+
+        if (activeSession) {
+            allShifts.push({
+                id: activeSession.id,
+                is_current: true, // Flag para identificar turno actual
+                employee_name: employeeName,
+                created_at: activeSession.clock_in_at,
+                type: 'active'
+            });
+        }
+
+        if (closedShifts) {
+            allShifts = [...allShifts, ...closedShifts.map(s => ({ ...s, type: 'closed' }))];
+        }
+
+        console.log("📊 All shifts combined:", allShifts);
+
+        setShifts(allShifts);
+
+        // Auto-seleccionar el turno actual si no hay selección y estamos en modo turno
+        if (reportType === 'shift' && !selectedShift && activeSession) {
+            setSelectedShift(activeSession.id);
+        }
     };
 
     const fetchRooms = async () => {
@@ -122,13 +178,25 @@ export default function IncomeReportPage() {
                                         ) : (
                                             shifts.map((shift) => (
                                                 <SelectItem key={shift.id} value={shift.id}>
-                                                    {shift.employee_name || "Sin empleado"} - {new Date(shift.created_at).toLocaleDateString("es-MX", {
-                                                        year: "numeric",
-                                                        month: "long",
-                                                        day: "numeric",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit"
-                                                    })}
+                                                    {shift.type === 'active' ? (
+                                                        <span className="flex items-center gap-2 font-semibold text-emerald-600">
+                                                            <span className="relative flex h-2 w-2">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                            </span>
+                                                            TURNO ACTUAL - {shift.employee_name} (Desde {new Date(shift.created_at).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit' })})
+                                                        </span>
+                                                    ) : (
+                                                        <span>
+                                                            {shift.employee_name || "Sin empleado"} - {new Date(shift.created_at).toLocaleDateString("es-MX", {
+                                                                year: "numeric",
+                                                                month: "long",
+                                                                day: "numeric",
+                                                                hour: "2-digit",
+                                                                minute: "2-digit"
+                                                            })}
+                                                        </span>
+                                                    )}
                                                 </SelectItem>
                                             ))
                                         )}
