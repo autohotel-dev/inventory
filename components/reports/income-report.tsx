@@ -20,6 +20,7 @@ interface IncomeEntry {
     payment_method: string;
     card_type?: string;
     card_last_4?: string;
+    stay_status?: string;
 }
 
 interface IncomeReportProps {
@@ -29,6 +30,7 @@ interface IncomeReportProps {
     endDate?: Date;
     paymentMethodFilter?: string;
     roomFilter?: string;
+    statusFilter?: string;
 }
 
 export function IncomeReport({
@@ -38,6 +40,7 @@ export function IncomeReport({
     endDate,
     paymentMethodFilter,
     roomFilter,
+    statusFilter = "all",
 }: IncomeReportProps) {
     const [entries, setEntries] = useState<IncomeEntry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -46,7 +49,7 @@ export function IncomeReport({
 
     useEffect(() => {
         fetchIncomeData();
-    }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter]);
+    }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
 
     const fetchIncomeData = async () => {
         setLoading(true);
@@ -61,6 +64,7 @@ export function IncomeReport({
           vehicle_plate,
           room_id,
           sales_order_id,
+          status,
           rooms!inner (
             number
           ),
@@ -84,7 +88,6 @@ export function IncomeReport({
             )
           )
         `)
-                .eq("status", "FINALIZADA")
                 .order("check_in_at", { ascending: true });
 
             // Filtrar por turno o rango de fechas
@@ -163,6 +166,14 @@ export function IncomeReport({
                 }
             }
 
+            // Filtrar por estado de habitación
+            if (statusFilter && statusFilter !== "all") {
+                query = query.eq("status", statusFilter);
+            } else {
+                // Si es "all", mostrar ACTIVA y FINALIZADA
+                query = query.in("status", ["ACTIVA", "FINALIZADA"]);
+            }
+
             const { data, error } = await query;
 
             if (error) {
@@ -204,6 +215,7 @@ export function IncomeReport({
                     payment_method: payments.length > 0 ? payments[0].payment_method : "",
                     card_type: cardPayment?.card_type,
                     card_last_4: cardPayment?.card_last_4,
+                    stay_status: stay.status,
                 };
             });
 
@@ -375,7 +387,16 @@ export function IncomeReport({
                                         <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{entry.no}</td>
                                         <td className="border-r border-border p-2 text-center print:border-r print:border-black">{entry.time}</td>
                                         <td className="border-r border-border p-2 text-center uppercase print:border-r print:border-black">{entry.vehicle_plate}</td>
-                                        <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{entry.room_number}</td>
+                                        <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <span>{entry.room_number}</span>
+                                                {entry.stay_status === "ACTIVA" && (
+                                                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 print:hidden">
+                                                        EN CURSO
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="border-r border-border p-2 text-right print:border-r print:border-black">
                                             {entry.room_price > 0 ? <span className="font-mono">{formatCurrency(entry.room_price)}</span> : "-"}
                                         </td>

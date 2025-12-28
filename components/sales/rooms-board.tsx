@@ -32,6 +32,7 @@ import {
   STATUS_CONFIG,
   ROOM_STATUS_BG,
   ROOM_STATUS_ACCENT,
+  PAYMENT_TERMINALS,
 } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 
@@ -74,6 +75,26 @@ const getCurrentShiftId = async (supabase: any) => {
     return null;
   }
 };
+
+// Helper para obtener employee_id del usuario actual
+const getCurrentEmployeeId = async (supabase: any) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    return employee?.id || null;
+  } catch (err) {
+    console.error("Error getting current employee id:", err);
+    return null;
+  }
+};
+
 
 export function RoomsBoard() {
   const router = useRouter();
@@ -856,8 +877,9 @@ export function RoomsBoard() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Obtener turno actual
+      // Obtener turno actual y employee_id
       const currentShiftId = await getCurrentShiftId(supabase);
+      const currentEmployeeId = await getCurrentEmployeeId(supabase);
 
       // Crear orden de venta básica para la estancia
       const { data: salesOrder, error: orderError } = await supabase
@@ -989,6 +1011,8 @@ export function RoomsBoard() {
               status: isPagado ? "PAGADO" : "PENDIENTE",
               payment_type: "COMPLETO",
               created_by: user?.id ?? null,
+              shift_session_id: currentShiftId,
+              employee_id: currentEmployeeId,
             })
             .select("id")
             .single();
@@ -1007,6 +1031,11 @@ export function RoomsBoard() {
               payment_type: "PARCIAL",
               parent_payment_id: mainPayment.id,
               created_by: user?.id ?? null,
+              shift_session_id: currentShiftId,
+              employee_id: currentEmployeeId,
+              terminal_code: p.method === "TARJETA" ? p.terminal : null,
+              card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+              card_type: p.method === "TARJETA" ? p.cardType : null,
             }));
 
             const { error: subError } = await supabase
@@ -1031,6 +1060,11 @@ export function RoomsBoard() {
               status: "PAGADO",
               payment_type: "COMPLETO",
               created_by: user?.id ?? null,
+              shift_session_id: currentShiftId,
+              employee_id: currentEmployeeId,
+              terminal_code: p.method === "TARJETA" ? p.terminal : null,
+              card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+              card_type: p.method === "TARJETA" ? p.cardType : null,
             });
 
           if (paymentsError) {
@@ -1145,8 +1179,9 @@ export function RoomsBoard() {
 
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Obtener turno actual
+      // Obtener turno actual y employee_id
       const currentShiftId = await getCurrentShiftId(supabase);
+      const currentEmployeeId = await getCurrentEmployeeId(supabase);
 
       // Crear orden de venta con pago PENDIENTE
       const { data: salesOrder, error: orderError } = await supabase
@@ -1231,7 +1266,8 @@ export function RoomsBoard() {
         status: "PENDIENTE",
         payment_type: "COMPLETO",
         created_by: user?.id ?? null,
-        shift_session_id: currentShiftId
+        shift_session_id: currentShiftId,
+        employee_id: currentEmployeeId,
       });
 
       // Registrar la estancia con la hora REAL de entrada

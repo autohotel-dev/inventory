@@ -21,6 +21,7 @@ function IncomeReportContent() {
     const [selectedShift, setSelectedShift] = useState<string | undefined>();
     const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
     const [roomFilter, setRoomFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState("all");
 
     const [shifts, setShifts] = useState<any[]>([]);
     const [rooms, setRooms] = useState<string[]>([]);
@@ -216,7 +217,20 @@ function IncomeReportContent() {
                             <Filter className="h-4 w-4" />
                             <h3 className="font-semibold">Filtros Adicionales</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <Label>Estado de Habitación</Label>
+                                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas (Activas + Finalizadas)</SelectItem>
+                                        <SelectItem value="FINALIZADA">Solo Finalizadas (Checkout)</SelectItem>
+                                        <SelectItem value="ACTIVA">Solo Activas (En curso)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <div>
                                 <Label>Método de Pago</Label>
                                 <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
@@ -257,6 +271,7 @@ function IncomeReportContent() {
                                 setSelectedShift(undefined);
                                 setPaymentMethodFilter("all");
                                 setRoomFilter("all");
+                                setStatusFilter("all");
                             }}
                             variant="outline"
                         >
@@ -274,6 +289,7 @@ function IncomeReportContent() {
                 endDate={endDate}
                 paymentMethodFilter={paymentMethodFilter}
                 roomFilter={roomFilter}
+                statusFilter={statusFilter}
             />
 
             {/* Estilos de impresión para ocultar UI */}

@@ -31,6 +31,53 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   return `${prefix}-${timestamp}-${random}`;
 }
 
+// Helper para obtener turno activo
+const getCurrentShiftId = async (supabase: any) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (!employee) return null;
+
+    const { data: session } = await supabase
+      .from("shift_sessions")
+      .select("id")
+      .eq("employee_id", employee.id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    return session?.id;
+  } catch (err) {
+    console.error("Error getting current shift id:", err);
+    return null;
+  }
+};
+
+// Helper para obtener employee_id del usuario actual
+const getCurrentEmployeeId = async (supabase: any) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    return employee?.id || null;
+  } catch (err) {
+    console.error("Error getting current employee id:", err);
+    return null;
+  }
+};
+
 // Iconos por tipo de concepto
 const CONCEPT_ICONS: Record<string, React.ReactNode> = {
   ROOM_BASE: <Bed className="h-4 w-4" />,
@@ -231,6 +278,10 @@ export function GranularPaymentModal({
     const supabase = createClient();
 
     try {
+      // Obtener turno y empleado actuales
+      const currentShiftId = await getCurrentShiftId(supabase);
+      const currentEmployeeId = await getCurrentEmployeeId(supabase);
+
       const itemIds = Array.from(selectedItems);
       const validPayments = payments.filter(p => p.amount > 0);
 
@@ -308,6 +359,10 @@ export function GranularPaymentModal({
                 status: "PAGADO",
                 payment_type: "PARCIAL",
                 parent_payment_id: pending.id,
+                shift_session_id: currentShiftId,
+                employee_id: currentEmployeeId,
+                card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+                card_type: p.method === "TARJETA" ? p.cardType : null,
               }));
 
               await supabase.from("payments").insert(subpayments);
@@ -321,6 +376,8 @@ export function GranularPaymentModal({
                   payment_method: p.method,
                   terminal_code: p.method === "TARJETA" ? p.terminal : null,
                   reference: p.reference || generatePaymentReference("GRN"),
+                  card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+                  card_type: p.method === "TARJETA" ? p.cardType : null,
                 })
                 .eq("id", pending.id);
             }
@@ -344,7 +401,7 @@ export function GranularPaymentModal({
           : itemsSummary;
 
         if (isMultipago) {
-          // MULTIPAGO: Crear cargo principal + subpagos
+          // MULTIP AGO: Crear cargo principal + subpagos
           const { data: mainPayment, error: mainError } = await supabase
             .from("payments")
             .insert({
@@ -355,6 +412,8 @@ export function GranularPaymentModal({
               concept: detailedConcept || `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
               status: "PAGADO",
               payment_type: "COMPLETO",
+              shift_session_id: currentShiftId,
+              employee_id: currentEmployeeId,
             })
             .select("id")
             .single();
@@ -372,6 +431,10 @@ export function GranularPaymentModal({
               status: "PAGADO",
               payment_type: "PARCIAL",
               parent_payment_id: mainPayment.id,
+              shift_session_id: currentShiftId,
+              employee_id: currentEmployeeId,
+              card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+              card_type: p.method === "TARJETA" ? p.cardType : null,
             }));
 
             await supabase.from("payments").insert(subpayments);
@@ -388,6 +451,10 @@ export function GranularPaymentModal({
             concept: detailedConcept || `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
             status: "PAGADO",
             payment_type: "COMPLETO",
+            shift_session_id: currentShiftId,
+            employee_id: currentEmployeeId,
+            card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+            card_type: p.method === "TARJETA" ? p.cardType : null,
           });
         }
       }

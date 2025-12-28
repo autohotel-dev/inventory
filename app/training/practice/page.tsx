@@ -1011,6 +1011,7 @@ export default function PracticePage() {
                     onManagePeople={handleManagePeople}
                     onRemovePerson={handleManagePeople}
                     onPersonLeftReturning={handleNoOp}
+                    onShowGuestPortal={handleNoOp}
                 />
 
                 {/* MODALES DE PRÁCTICA */}
