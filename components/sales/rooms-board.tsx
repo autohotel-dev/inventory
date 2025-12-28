@@ -1479,6 +1479,7 @@ export function RoomsBoard() {
                     setShowInfoModal(true);
                   }}
                   onActions={() => openActionsDock(room)}
+                  data-tutorial="room-card"
                 />
               );
             })}

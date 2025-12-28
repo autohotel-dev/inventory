@@ -7,6 +7,8 @@ import { AuthDebug } from "@/components/auth/auth-debug";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { DataDebug } from "@/components/debug/data-debug";
 import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
+import { TrainingProvider } from "@/contexts/training-context";
+import { InteractiveOverlay } from "@/components/training/interactive-overlay";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
@@ -85,14 +87,17 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <ConditionalLayout>
-            {children}
-          </ConditionalLayout>
-          <ToastProvider />
-          <PWAInstaller />
-          <PWAStatus />
-          <AuthDebug />
-          <DataDebug />
+          <TrainingProvider>
+            <ConditionalLayout>
+              {children}
+            </ConditionalLayout>
+            <InteractiveOverlay />
+            <ToastProvider />
+            <PWAInstaller />
+            <PWAStatus />
+            <AuthDebug />
+            <DataDebug />
+          </TrainingProvider>
         </ThemeProvider>
       </body>
     </html>

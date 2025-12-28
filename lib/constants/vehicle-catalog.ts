@@ -93,6 +93,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         label: "Volkswagen",
         models: [
             "Vento",
+            "Bocho",
             "Jetta",
             "Golf",
             "Polo",
@@ -227,6 +228,8 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         value: "renault",
         label: "Renault",
         models: [
+            "Captur",
+            "Clio",
             "Logan",
             "Sandero",
             "Stepway",
@@ -241,6 +244,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         label: "Suzuki",
         models: [
             "Swift",
+            "Baleno",
             "Vitara",
             "Ignis",
             "Ciaz",
@@ -269,7 +273,8 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "2008",
             "3008",
             "5008",
-            "Partner"
+            "Partner",
+            "Rifter"
         ]
     },
     {
