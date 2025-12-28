@@ -25,6 +25,7 @@ import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
 import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
 import { RoomStatusNoteModal } from "@/components/sales/room-status-note-modal";
 import { RoomHourManagementModal } from "@/components/sales/room-hour-management-modal";
+import { GuestPortalQRModal } from "@/components/sales/guest-portal-qr-modal";
 import {
   Room,
   RoomType,
@@ -119,6 +120,7 @@ export function RoomsBoard() {
   const [showStatusNoteModal, setShowStatusNoteModal] = useState(false);
   const [statusNoteAction, setStatusNoteAction] = useState<"BLOCK" | "DIRTY" | null>(null);
   const [showHourManagementModal, setShowHourManagementModal] = useState(false);
+  const [showGuestPortalQRModal, setShowGuestPortalQRModal] = useState(false);
 
   // Sensores
   const { sensors } = useSensors();
@@ -1621,6 +1623,10 @@ export function RoomsBoard() {
           setShowActionsModal(false);
           setShowManagePeopleModal(true);
         }}
+        onShowGuestPortal={() => {
+          setShowActionsModal(false);
+          setShowGuestPortalQRModal(true);
+        }}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
@@ -1983,6 +1989,13 @@ export function RoomsBoard() {
             setShowHourManagementModal(false);
           }
         }}
+      />
+
+      <GuestPortalQRModal
+        isOpen={showGuestPortalQRModal && !!selectedRoom}
+        onClose={() => setShowGuestPortalQRModal(false)}
+        roomNumber={selectedRoom?.number || ""}
+        roomStayId={selectedRoom ? (getActiveStay(selectedRoom)?.id || "") : ""}
       />
     </div>
   );

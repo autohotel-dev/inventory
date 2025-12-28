@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -35,10 +35,11 @@ export interface RoomActionsWheelProps {
   onManagePeople: () => void; // Gestión de personas (modal unificado)
   onMarkDirty: () => void; // Marcar como sucia/mantenimiento
   onEditValet: () => void; // Editar cochero asignado
+  onShowGuestPortal: () => void; // Mostrar QR del portal de huéspedes
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal';
 
 interface ActionConfig {
   id: string;
@@ -63,6 +64,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
     { id: "granular", label: "Cobrar", icon: <ListChecks className="h-5 w-5" />, color: "text-lime-400", hoverBg: "hover:bg-lime-500/30", action: "onGranularPayment" },
     { id: "consumption", label: "Consumo", icon: <ShoppingBag className="h-5 w-5" />, color: "text-green-400", hoverBg: "hover:bg-green-500/30", action: "onAddProduct" },
+    { id: "guestportal", label: "Portal", icon: <QrCode className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onShowGuestPortal" },
     { id: "payextra", label: "Pagar Todo", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
     { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
@@ -163,7 +165,8 @@ export function RoomActionsWheel({
   onCancelStay,
   onManagePeople,
   onMarkDirty,
-  onEditValet, // New prop
+  onEditValet,
+  onShowGuestPortal, // New prop
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -208,6 +211,7 @@ export function RoomActionsWheel({
     onManagePeople,
     onMarkDirty,
     onEditValet,
+    onShowGuestPortal,
   };
 
   return (

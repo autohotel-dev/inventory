@@ -11,6 +11,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (
     pathname === '/sw.js' ||
+    pathname === '/guest-sw.js' ||
     pathname === '/manifest.json' ||
     pathname === '/icon.svg' ||
     pathname.startsWith('/icons/')
@@ -57,10 +58,25 @@ export async function updateSession(request: NextRequest) {
   // with the Supabase client, your users may be randomly logged out.
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Allow guest portal access ONLY with valid token in query params
+  const isGuestPortal = pathname.startsWith("/guest-portal");
+  if (isGuestPortal) {
+    const token = request.nextUrl.searchParams.get('token');
+    if (token) {
+      // Token validation happens in the page component
+      // Allow request to proceed to page for validation
+      return supabaseResponse;
+    }
+    // No token provided, redirect to login
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
   if (
-    request.nextUrl.pathname !== "/" &&
+    pathname !== "/" &&
     !user &&
-    !request.nextUrl.pathname.startsWith("/auth")
+    !pathname.startsWith("/auth")
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();

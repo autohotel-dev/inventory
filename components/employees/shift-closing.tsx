@@ -116,6 +116,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           payment_terminals(code, name),
           sales_orders(id, total, status)
         `)
+        .eq("shift_session_id", session.id)
         .gte("created_at", session.clock_in_at)
         .lte("created_at", periodEnd)
         .order("created_at", { ascending: false });
