@@ -319,6 +319,7 @@ export function GranularPaymentModal({
                 .update({
                   status: "PAGADO",
                   payment_method: p.method,
+                  terminal_code: p.method === "TARJETA" ? p.terminal : null,
                   reference: p.reference || generatePaymentReference("GRN"),
                 })
                 .eq("id", pending.id);

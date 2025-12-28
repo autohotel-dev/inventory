@@ -109,6 +109,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       const periodEnd = session.clock_out_at || new Date().toISOString();
 
       // Obtener pagos del período del turno
+      // Filtrar por shift_session_id si existe, o por rango de tiempo si es NULL
       const { data: payments, error } = await supabase
         .from("payments")
         .select(`
@@ -116,9 +117,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           payment_terminals(code, name),
           sales_orders(id, total, status)
         `)
-        .eq("shift_session_id", session.id)
-        .gte("created_at", session.clock_in_at)
-        .lte("created_at", periodEnd)
+        .or(`shift_session_id.eq.${session.id},and(shift_session_id.is.null,created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd})`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -149,17 +148,18 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       (payments || []).forEach((payment) => {
         if (payment.payment_method === "EFECTIVO") {
           total_cash += payment.amount;
+        } else if (payment.payment_method === "TARJETA_BBVA") {
+          total_card_bbva += payment.amount;
+        } else if (payment.payment_method === "TARJETA_GETNET") {
+          total_card_getnet += payment.amount;
         } else if (payment.payment_method === "TARJETA") {
+          // Para pagos con método TARJETA, revisar terminal_code
           const terminalCode = payment.terminal_code || payment.payment_terminals?.code;
           if (terminalCode === "BBVA") {
             total_card_bbva += payment.amount;
           } else if (terminalCode === "GETNET") {
             total_card_getnet += payment.amount;
           }
-        } else if (payment.payment_method === "TARJETA_BBVA") {
-          total_card_bbva += payment.amount;
-        } else if (payment.payment_method === "TARJETA_GETNET") {
-          total_card_getnet += payment.amount;
         }
       });
 

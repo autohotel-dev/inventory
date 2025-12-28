@@ -1,19 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrinterInstance, type ClosingTicketData } from '@/lib/services/thermal-printer-service';
+import type { ClosingTicketData } from '@/lib/services/thermal-printer-service';
 
 export async function POST(request: NextRequest) {
     try {
         const data = await request.json() as ClosingTicketData;
 
-        // Obtener instancia de impresora
-        const printerService = getPrinterInstance();
+        // URL del servidor local de impresión
+        const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
 
-        // Imprimir ticket de corte
-        await printerService.printClosingTicket(data);
+        console.log(`Enviando trabajo de impresión a: ${printServerUrl}/print-closing`);
+
+        // Enviar petición al servidor local
+        const response = await fetch(`${printServerUrl}/print-closing`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Error al imprimir en servidor local');
+        }
+
+        const result = await response.json();
 
         return NextResponse.json({
             success: true,
-            message: 'Ticket de corte impreso correctamente'
+            message: result.message || 'Ticket de corte impreso correctamente'
         });
 
     } catch (error) {
@@ -24,7 +39,10 @@ export async function POST(request: NextRequest) {
             : 'Error desconocido al imprimir';
 
         return NextResponse.json(
-            { error: errorMessage },
+            {
+                error: errorMessage,
+                hint: 'Verifica que el servidor de impresión local esté corriendo en la PC con la impresora'
+            },
             { status: 500 }
         );
     }
