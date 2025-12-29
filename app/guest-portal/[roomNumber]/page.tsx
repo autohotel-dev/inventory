@@ -26,21 +26,31 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
     const { roomNumber } = await params;
     const { token } = await searchParams;
 
+    console.log("--- GUEST PORTAL DEBUG ---");
+    console.log("Room Number:", roomNumber);
+    console.log("Token:", token);
+    console.log("Has Service Key:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
     // Token is required for security
     if (!token) {
+        console.log("Error: No token provided");
         notFound();
     }
 
     const supabase = createAdminClient();
 
     // First, get the room ID from the room number
-    const { data: room } = await supabase
+    const { data: room, error: roomError } = await supabase
         .from('rooms')
         .select('id')
         .eq('number', roomNumber)
         .single();
 
+    if (roomError) console.log("Room Fetch Error:", roomError.message);
+    console.log("Room Found:", room?.id);
+
     if (!room) {
+        console.log("Error: Room not found in DB");
         notFound();
     }
 
@@ -71,7 +81,11 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         .eq('guest_access_token', token)
         .maybeSingle();
 
+    if (error) console.log("Stay Fetch Error:", error.message);
+    console.log("Stay Found:", roomStay?.id);
+
     if (error || !roomStay) {
+        console.log("Error: Stay not found or token mismatch");
         notFound(); // Invalid token or room stay not found
     }
 
