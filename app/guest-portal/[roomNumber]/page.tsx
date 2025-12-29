@@ -11,6 +11,7 @@ import {
     NotificationSubscribe,
     ServicesShowcase,
     SurveyViewer,
+    NotificationListener
 } from '@/components/guest';
 
 interface PageProps {
@@ -133,6 +134,8 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
                     />
                 )}
             </main>
+
+            <NotificationListener />
 
             {/* Footer */}
             <footer className="relative z-10 bg-neutral-950 border-t border-white/5 mt-20">

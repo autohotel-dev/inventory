@@ -75,13 +75,33 @@ self.addEventListener('notificationclick', (event) => {
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then((windowClients) => {
                 // Check if already open
+                let matchingClient = null;
                 for (let client of windowClients) {
-                    if (client.url.includes('/guest-portal') && 'focus' in client) {
-                        return client.focus();
+                    if (client.url.includes('/guest-portal')) {
+                        matchingClient = client;
+                        break;
                     }
                 }
-                // Open new window
+
+                if (matchingClient) {
+                    matchingClient.focus();
+                    // Send message to the client
+                    matchingClient.postMessage({
+                        type: 'NOTIFICATION_CLICK',
+                        payload: {
+                            title: notification.title,
+                            body: notification.body,
+                            data: data
+                        }
+                    });
+                    return;
+                }
+
+                // Open new window with query param to trigger local detection if needed
                 if (clients.openWindow) {
+                    // Append query param to handle 'fresh' opens if postMessage misses
+                    // (Though for a fresh open, the page loads from scratch, so maybe just URL param is better?
+                    //  Let's stick to simple open for now, the postMessage is for existing tabs)
                     return clients.openWindow(urlToOpen);
                 }
             })
