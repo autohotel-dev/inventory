@@ -193,7 +193,7 @@ export function RoomsBoard() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, sales_orders ( remaining_amount ) )`
+          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, sales_orders ( remaining_amount ) )`
         );
 
       if (error) {
