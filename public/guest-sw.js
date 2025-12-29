@@ -97,12 +97,20 @@ self.addEventListener('notificationclick', (event) => {
                     return;
                 }
 
-                // Open new window with query param to trigger local detection if needed
+                // Open new window with query param to trigger local detection
                 if (clients.openWindow) {
-                    // Append query param to handle 'fresh' opens if postMessage misses
-                    // (Though for a fresh open, the page loads from scratch, so maybe just URL param is better?
-                    //  Let's stick to simple open for now, the postMessage is for existing tabs)
-                    return clients.openWindow(urlToOpen);
+                    // Construct URL with parameters
+                    try {
+                        const baseUrl = new URL(urlToOpen, self.location.origin);
+                        baseUrl.searchParams.set('show_notification', 'true');
+                        baseUrl.searchParams.set('notif_title', notification.title);
+                        baseUrl.searchParams.set('notif_body', notification.body);
+
+                        return clients.openWindow(baseUrl.toString());
+                    } catch (e) {
+                        console.error("Error constructing notification URL", e);
+                        return clients.openWindow(urlToOpen);
+                    }
                 }
             })
             .then(() => {
