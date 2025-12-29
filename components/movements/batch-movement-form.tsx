@@ -266,9 +266,14 @@ export function BatchMovementForm({
                                             <Input
                                                 type="number"
                                                 min="0"
-                                                step="0.01"
+                                                step="1"
                                                 value={item.quantity || ""}
-                                                onChange={(e) => updateItem(item.tempId, { quantity: Number(e.target.value) })}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    // Permitir vacío para UX, pero convertir a int si hay valor
+                                                    if (val === '') updateItem(item.tempId, { quantity: 0 });
+                                                    else updateItem(item.tempId, { quantity: parseInt(val) || 0 });
+                                                }}
                                                 placeholder="Cantidad"
                                                 className="w-full text-lg"
                                             />
@@ -318,7 +323,7 @@ export function BatchMovementForm({
                         <>
                             <strong className="text-foreground">{items.length}</strong> producto(s) •
                             <strong className="text-foreground ml-1">
-                                {items.reduce((sum, item) => sum + item.quantity, 0).toFixed(2)}
+                                {items.reduce((sum, item) => sum + item.quantity, 0)}
                             </strong> unidades totales
                         </>
                     ) : (
