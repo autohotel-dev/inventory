@@ -1152,6 +1152,18 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         }
       }
 
+      // PRIVACIDAD: Desactivar notificaciones para esta habitación
+      try {
+        await fetch('/api/guest/unsubscribe-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_number: room.number }),
+        });
+      } catch (privacyError) {
+        console.error("Error disabling notifications:", privacyError);
+        // No bloqueamos el checkout por esto, pero lo logueamos
+      }
+
       const finalizeStay = async () => {
         const activeStay = getActiveStay(room);
         if (activeStay) {

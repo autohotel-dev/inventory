@@ -40,14 +40,14 @@ export function GuestList() {
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-white/5 shadow-2xl h-full">
+            <h2 className="text-xl font-bold text-white mb-6">
                 Huéspedes Suscritos
             </h2>
 
             {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                    <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
                 </div>
             ) : guests.length === 0 ? (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
@@ -58,17 +58,17 @@ export function GuestList() {
                     {guests.map((guest) => (
                         <div
                             key={guest.id}
-                            className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex items-center justify-between"
+                            className="bg-neutral-950/50 border border-white/5 rounded-xl p-4 flex items-center justify-between"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-2">
-                                    <BellRing className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                <div className="bg-brand-red/10 rounded-lg p-2">
+                                    <BellRing className="w-4 h-4 text-brand-red" />
                                 </div>
                                 <div>
-                                    <p className="font-semibold text-gray-900 dark:text-white">
+                                    <p className="font-semibold text-white">
                                         Habitación {guest.room_number}
                                     </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="text-xs text-neutral-500">
                                         Suscrito:{' '}
                                         {new Date(guest.subscribed_at).toLocaleDateString('es-MX', {
                                             month: 'short',
@@ -79,7 +79,7 @@ export function GuestList() {
                                     </p>
                                 </div>
                             </div>
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
                         </div>
                     ))}
                 </div>

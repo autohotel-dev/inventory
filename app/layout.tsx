@@ -3,7 +3,6 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { ConditionalLayout } from "@/components/layout/conditional-layout";
-import { AuthDebug } from "@/components/auth/auth-debug";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { DataDebug } from "@/components/debug/data-debug";
 import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
@@ -95,7 +94,6 @@ export default function RootLayout({
             <ToastProvider />
             <PWAInstaller />
             <PWAStatus />
-            <AuthDebug />
             <DataDebug />
           </TrainingProvider>
         </ThemeProvider>

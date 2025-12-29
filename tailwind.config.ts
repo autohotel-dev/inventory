@@ -51,6 +51,8 @@ export default {
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
         },
+        "brand-red": "#ff5252",
+        "brand-dark-red": "#991b1b", // Deep red for gradients
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -57,7 +57,7 @@ export function ServicesShowcase() {
         <div>
             <div className="mb-6">
                 <h2 className="text-3xl font-bold text-white mb-2">Nuestros Servicios</h2>
-                <p className="text-blue-300">Todo lo que necesitas durante tu estancia</p>
+                <p className="text-white/60">Todo lo que necesitas durante tu estancia</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -66,11 +66,11 @@ export function ServicesShowcase() {
                     return (
                         <div
                             key={index}
-                            className="group bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-white/30 transition-all hover:scale-105 hover:shadow-2xl"
+                            className="group bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-brand-red/30 transition-all hover:scale-105 hover:shadow-2xl hover:shadow-brand-red/10"
                         >
                             <div className="flex items-start gap-4">
                                 <div
-                                    className={`bg-gradient-to-br ${service.color} rounded-xl p-3 group-hover:scale-110 transition-transform`}
+                                    className={`bg-gradient-to-br ${service.color} rounded-xl p-3 group-hover:scale-110 transition-transform shadow-lg`}
                                 >
                                     <Icon className="w-6 h-6 text-white" />
                                 </div>
@@ -78,8 +78,8 @@ export function ServicesShowcase() {
                                     <h3 className="text-lg font-bold text-white mb-1">{service.title}</h3>
                                     <p className="text-white/60 text-sm mb-2">{service.description}</p>
                                     <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                                        <span className="text-green-400 text-xs font-semibold">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-green-500 text-xs font-semibold">
                                             {service.hours}
                                         </span>
                                     </div>
@@ -91,17 +91,19 @@ export function ServicesShowcase() {
             </div>
 
             {/* Call to Action */}
-            <div className="mt-8 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl p-6 border border-blue-500/30 backdrop-blur-sm">
-                <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="mt-8 bg-gradient-to-r from-neutral-900 to-black rounded-2xl p-6 border border-white/10 backdrop-blur-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-brand-red/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+
+                <div className="flex items-center justify-between flex-wrap gap-4 relative z-10">
                     <div>
                         <h3 className="text-xl font-bold text-white mb-1">
                             ¿Necesitas algo más?
                         </h3>
-                        <p className="text-white/70 text-sm">
+                        <p className="text-white/60 text-sm">
                             Estamos aquí para hacer tu estancia perfecta
                         </p>
                     </div>
-                    <button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-xl transition-all hover:scale-105">
+                    <button className="bg-brand-red hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-all hover:scale-105 shadow-lg shadow-brand-red/20">
                         Contactar Recepción
                     </button>
                 </div>

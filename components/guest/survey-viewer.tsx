@@ -85,8 +85,8 @@ export function SurveyViewer({ surveys, roomStayId, roomNumber }: SurveyViewerPr
                                 >
                                     <Star
                                         className={`w-10 h-10 transition-all ${responses[questionId] >= rating
-                                                ? 'text-yellow-400 fill-yellow-400'
-                                                : 'text-white/30 hover:text-yellow-300'
+                                            ? 'text-yellow-400 fill-yellow-400'
+                                            : 'text-white/30 hover:text-yellow-300'
                                             }`}
                                     />
                                 </button>
@@ -156,12 +156,12 @@ export function SurveyViewer({ surveys, roomStayId, roomNumber }: SurveyViewerPr
 
     if (isSubmitted) {
         return (
-            <div className="bg-gradient-to-br from-green-950/50 to-blue-950/50 rounded-2xl p-8 border border-green-500/20 text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-green-500/20 rounded-full mb-4">
-                    <CheckCircle2 className="w-10 h-10 text-green-400" />
+            <div className="bg-neutral-900/40 rounded-2xl p-8 border border-white/5 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/10 rounded-full mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-green-500" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">¡Gracias por tu opinión!</h3>
-                <p className="text-white/70">Tu feedback nos ayuda a mejorar cada día.</p>
+                <h3 className="text-xl font-bold text-white mb-2">Gracias por tu opinión</h3>
+                <p className="text-neutral-400 text-sm">Tu feedback es invaluable para nosotros.</p>
             </div>
         );
     }
@@ -170,23 +170,24 @@ export function SurveyViewer({ surveys, roomStayId, roomNumber }: SurveyViewerPr
         return (
             <div>
                 <div className="mb-6">
-                    <h2 className="text-3xl font-bold text-white mb-2">Encuestas</h2>
-                    <p className="text-blue-300">Tu opinión es importante para nosotros</p>
+                    <h2 className="text-2xl font-bold text-white mb-2">Tu opinión cuenta</h2>
+                    <p className="text-neutral-400 text-sm">Ayúdanos a mejorar nuestros servicios</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {surveys.map((survey) => (
                         <div
                             key={survey.id}
-                            className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-blue-500/50 transition-all"
+                            className="group bg-neutral-900/40 backdrop-blur-sm rounded-2xl p-6 border border-white/5 hover:border-brand-red/30 transition-all duration-300"
                         >
-                            <h3 className="text-xl font-bold text-white mb-2">{survey.title}</h3>
-                            <p className="text-white/60 text-sm mb-4">{survey.description}</p>
+                            <h3 className="text-lg font-bold text-white mb-2 group-hover:text-brand-red transition-colors">{survey.title}</h3>
+                            <p className="text-neutral-400 text-sm mb-6 line-clamp-2">{survey.description}</p>
                             <button
                                 onClick={() => setSelectedSurvey(survey)}
-                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all w-full"
+                                className="w-full bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 font-medium py-2.5 px-4 rounded-xl transition-all text-sm flex items-center justify-center gap-2 group-hover:bg-brand-red group-hover:text-white"
                             >
                                 Completar Encuesta
+                                <span className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all">→</span>
                             </button>
                         </div>
                     ))}
@@ -201,52 +202,54 @@ export function SurveyViewer({ surveys, roomStayId, roomNumber }: SurveyViewerPr
         : [];
 
     return (
-        <div className="bg-gradient-to-br from-indigo-950/50 to-purple-950/50 rounded-2xl p-8 border border-indigo-500/20">
+        <div className="bg-neutral-900/40 rounded-2xl p-8 border border-white/5">
             <button
                 onClick={() => setSelectedSurvey(null)}
-                className="text-white/60 hover:text-white mb-6 transition-colors"
+                className="text-neutral-500 hover:text-white mb-6 transition-colors flex items-center gap-2 text-sm"
             >
-                ← Volver a encuestas
+                <span>←</span> Volver
             </button>
 
-            <h2 className="text-3xl font-bold text-white mb-2">{selectedSurvey.title}</h2>
-            <p className="text-white/70 mb-8">{selectedSurvey.description}</p>
+            <h2 className="text-2xl font-bold text-white mb-2">{selectedSurvey.title}</h2>
+            <p className="text-neutral-400 text-sm mb-8">{selectedSurvey.description}</p>
 
             <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
                 {questions.map((question, index) => renderQuestion(question, index))}
 
                 {/* Additional Feedback */}
                 <div className="mb-6">
-                    <label className="block text-white font-medium mb-3">
-                        Comentarios adicionales (opcional)
+                    <label className="block text-white font-medium mb-3 text-sm">
+                        Comentarios adicionales
                     </label>
                     <textarea
                         value={guestFeedback}
                         onChange={(e) => setGuestFeedback(e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                        className="w-full bg-neutral-950/50 border border-white/10 rounded-xl p-4 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-brand-red/50 focus:ring-1 focus:ring-brand-red/50 transition-all"
                         rows={4}
-                        placeholder="Cuéntanos más sobre tu experiencia..."
+                        placeholder="Comparte tu experiencia..."
                     />
                 </div>
 
                 {/* Submit Button */}
-                <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3"
-                >
-                    {isSubmitting ? (
-                        <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            <span>Enviando...</span>
-                        </>
-                    ) : (
-                        <>
-                            <Send className="w-5 h-5" />
-                            <span>Enviar Encuesta</span>
-                        </>
-                    )}
-                </button>
+                <div className="flex justify-end">
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="bg-brand-red hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-8 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-red/20 text-sm"
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                <span>Enviando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Send className="w-4 h-4" />
+                                <span>Enviar Respuestas</span>
+                            </>
+                        )}
+                    </button>
+                </div>
             </form>
         </div>
     );

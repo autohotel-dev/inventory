@@ -316,6 +316,19 @@ export function BatchMovementForm({
                 )}
             </div>
 
+            {/* Botón de agregar inferior (UX Improvement) */}
+            {items.length > 3 && (
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addNewItem}
+                    className="w-full border-dashed border-2 py-8 text-muted-foreground hover:text-foreground hover:border-brand-red/50 hover:bg-brand-red/5 transition-all gap-2"
+                >
+                    <Plus className="h-5 w-5" />
+                    Agregar otro producto
+                </Button>
+            )}
+
             {/* Footer con resumen y botones */}
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
                 <div className="text-sm text-muted-foreground">

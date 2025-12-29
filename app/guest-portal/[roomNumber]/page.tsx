@@ -26,14 +26,8 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
     const { roomNumber } = await params;
     const { token } = await searchParams;
 
-    console.log("--- GUEST PORTAL DEBUG ---");
-    console.log("Room Number:", roomNumber);
-    console.log("Token:", token);
-    console.log("Has Service Key:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-
     // Token is required for security
     if (!token) {
-        console.log("Error: No token provided");
         notFound();
     }
 
@@ -46,11 +40,7 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         .eq('number', roomNumber)
         .single();
 
-    if (roomError) console.log("Room Fetch Error:", roomError.message);
-    console.log("Room Found:", room?.id);
-
     if (!room) {
-        console.log("Error: Room not found in DB");
         notFound();
     }
 
@@ -73,7 +63,9 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         )
       ),
       sales_orders (
-        customer_name
+        customers (
+          name
+        )
       )
     `)
         .eq('room_id', room.id)
@@ -81,11 +73,8 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         .eq('guest_access_token', token)
         .maybeSingle();
 
-    if (error) console.log("Stay Fetch Error:", error.message);
-    console.log("Stay Found:", roomStay?.id);
-
     if (error || !roomStay) {
-        console.log("Error: Stay not found or token mismatch");
+        if (error) console.error("Guest Portal Error:", error);
         notFound(); // Invalid token or room stay not found
     }
 
@@ -97,18 +86,27 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         .in('target_audience', ['all', 'specific']);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        <div className="min-h-screen bg-neutral-950 text-white selection:bg-brand-red selection:text-white relative overflow-x-hidden">
+            {/* Ambient Background */}
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-brand-red/5 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-brand-red/5 rounded-full blur-[100px]" />
+            </div>
+
             {/* Header */}
-            <header className="bg-slate-900/50 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
+            <header className="bg-neutral-950/80 backdrop-blur-xl border-b border-white/5 sticky top-0 z-50">
                 <div className="max-w-6xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-white">Portal de Huéspedes</h1>
-                            <p className="text-blue-300 text-sm">Habitación {roomNumber}</p>
+                            <h1 className="text-xl font-bold text-white tracking-tight">Portal de Huéspedes</h1>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse" />
+                                <p className="text-neutral-400 text-xs font-medium">Habitación <span className="text-white font-mono">{roomNumber}</span></p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-xl">🏨</span>
+                            <div className="w-10 h-10 bg-gradient-to-br from-neutral-800 to-neutral-900 border border-white/5 rounded-xl flex items-center justify-center shadow-lg">
+                                <span className="text-brand-red text-lg">🏨</span>
                             </div>
                         </div>
                     </div>
@@ -116,7 +114,7 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
             </header>
 
             {/* Main Content */}
-            <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+            <main className="relative z-10 max-w-6xl mx-auto px-4 py-8 space-y-8">
                 {/* Welcome Section */}
                 <WelcomeSection roomStay={roomStay} />
 
@@ -137,10 +135,13 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
             </main>
 
             {/* Footer */}
-            <footer className="bg-slate-900/50 backdrop-blur-md border-t border-white/10 mt-16">
-                <div className="max-w-6xl mx-auto px-4 py-8 text-center text-white/60">
-                    <p>© 2025 Hotel. Todos los derechos reservados.</p>
-                    <p className="text-sm mt-2">Sistema de gestión de huéspedes</p>
+            <footer className="relative z-10 bg-neutral-950 border-t border-white/5 mt-20">
+                <div className="max-w-6xl mx-auto px-4 py-12">
+                    <div className="flex flex-col items-center justify-center text-center space-y-4">
+                        <div className="w-12 h-1 bg-white/5 rounded-full mb-4" />
+                        <p className="text-neutral-500 text-sm">© 2025 Hotel. Todos los derechos reservados.</p>
+                        <p className="text-neutral-600 text-xs">Sistema de gestión inteligente</p>
+                    </div>
                 </div>
             </footer>
         </div>

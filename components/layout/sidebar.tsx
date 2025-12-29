@@ -32,7 +32,8 @@ const Icon = React.memo(({ name, className }: { name: string; className?: string
     compress: "M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3",
     logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
     fileText: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
-    graduation: "M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c3 3 9 3 12 0v-5"
+    graduation: "M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c3 3 9 3 12 0v-5",
+    bell: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"
   };
 
   return (
@@ -63,6 +64,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/warehouses", label: "Almacenes", icon: "building", adminOnly: true },
   { href: "/suppliers", label: "Proveedores", icon: "truck", adminOnly: true },
   { href: "/customers", label: "Clientes", icon: "users", adminOnly: true },
+  { href: "/notifications-admin", label: "Notificaciones", icon: "bell", adminOnly: true },
   { divider: true, adminOnly: true },
   { href: "/movements", label: "Movimientos", icon: "activity", adminOnly: true },
   { href: "/stock", label: "Stock", icon: "box", adminOnly: true },

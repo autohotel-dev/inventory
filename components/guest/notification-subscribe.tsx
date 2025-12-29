@@ -114,20 +114,20 @@ export function NotificationSubscribe({
     }
 
     return (
-        <div className="bg-gradient-to-br from-purple-950/50 to-blue-950/50 backdrop-blur-sm rounded-2xl p-8 border border-purple-500/20 shadow-xl">
+        <div className="bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-xl">
             <div className="flex items-start gap-4 mb-6">
-                <div className="bg-purple-500/20 rounded-xl p-4">
+                <div className="bg-brand-red/10 rounded-xl p-4 border border-brand-red/20">
                     {isSubscribed ? (
-                        <Check className="w-8 h-8 text-green-400" />
+                        <Check className="w-8 h-8 text-green-500" />
                     ) : (
-                        <Bell className="w-8 h-8 text-purple-400" />
+                        <Bell className="w-8 h-8 text-brand-red" />
                     )}
                 </div>
                 <div className="flex-1">
                     <h3 className="text-2xl font-bold text-white mb-2">
                         {isSubscribed ? '¡Estás suscrito!' : 'Recibe Notificaciones'}
                     </h3>
-                    <p className="text-white/70">
+                    <p className="text-white/60">
                         {isSubscribed
                             ? 'Recibirás recordatorios y promociones durante tu estancia.'
                             : 'Activa las notificaciones para recibir recordatorios de check-out, ofertas especiales y encuestas.'}
@@ -139,15 +139,15 @@ export function NotificationSubscribe({
             {!isSubscribed && (
                 <div className="mb-6 space-y-2">
                     <div className="flex items-center gap-3 text-white/80 text-sm">
-                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <div className="w-2 h-2 bg-brand-red rounded-full"></div>
                         <span>Recordatorios de check-out</span>
                     </div>
                     <div className="flex items-center gap-3 text-white/80 text-sm">
-                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <div className="w-2 h-2 bg-brand-red rounded-full"></div>
                         <span>Promociones exclusivas de servicios</span>
                     </div>
                     <div className="flex items-center gap-3 text-white/80 text-sm">
-                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <div className="w-2 h-2 bg-brand-red rounded-full"></div>
                         <span>Encuestas de satisfacción</span>
                     </div>
                 </div>
@@ -156,12 +156,12 @@ export function NotificationSubscribe({
             {/* Message */}
             {message && (
                 <div
-                    className={`mb-4 p-4 rounded-lg ${message.type === 'success'
-                            ? 'bg-green-500/20 border border-green-500/30 text-green-300'
-                            : 'bg-red-500/20 border border-red-500/30 text-red-300'
+                    className={`mb-4 p-4 rounded-lg border ${message.type === 'success'
+                        ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                        : 'bg-red-500/10 border-red-500/20 text-red-400'
                         }`}
                 >
-                    <p className="text-sm">{message.text}</p>
+                    <p className="text-sm font-medium">{message.text}</p>
                 </div>
             )}
 
@@ -170,8 +170,8 @@ export function NotificationSubscribe({
                 onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
                 disabled={isLoading}
                 className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all ${isSubscribed
-                        ? 'bg-red-600 hover:bg-red-700'
-                        : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+                    ? 'bg-neutral-800 hover:bg-neutral-700 border border-white/10'
+                    : 'bg-brand-red hover:bg-red-600 shadow-lg shadow-brand-red/20 hover:shadow-brand-red/40'
                     } disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3`}
             >
                 {isLoading ? (
