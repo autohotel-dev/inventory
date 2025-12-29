@@ -31,6 +31,66 @@ export function SimpleProductsTable() {
   const [editingProduct, setEditingProduct] = useState<SimpleProduct | null>(null);
   const { success, error: showError } = useToast();
 
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    activeProducts: 0,
+    lowStockProducts: 0,
+    criticalStockProducts: 0,
+    totalValue: 0
+  });
+
+  // Fetch global statistics separate from pagination
+  const fetchStats = async () => {
+    const supabase = createClient();
+    try {
+      // 1. Total Products
+      const { count: total, error: err1 } = await supabase
+        .from("products_view")
+        .select("*", { count: "exact", head: true });
+
+      // 2. Active Products
+      const { count: active, error: err2 } = await supabase
+        .from("products_view")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true);
+
+      // 3. Stock Status counts
+      const { count: low, error: err3 } = await supabase
+        .from("products_view")
+        .select("*", { count: "exact", head: true })
+        .or("stock_status.eq.low,stock_status.eq.critical");
+
+      const { count: critical, error: err4 } = await supabase
+        .from("products_view")
+        .select("*", { count: "exact", head: true })
+        .eq("stock_status", "critical");
+
+      // 4. Total Value (requires summing, fetch column)
+      const { data: valueData, error: err5 } = await supabase
+        .from("products_view")
+        .select("inventory_value");
+
+      if (err1 || err2 || err3 || err4 || err5) throw new Error("Error fetching stats");
+
+      const totalVal = (valueData || []).reduce((sum, item) => sum + (item.inventory_value || 0), 0);
+
+      setStats({
+        totalProducts: total || 0,
+        activeProducts: active || 0,
+        lowStockProducts: low || 0,
+        criticalStockProducts: critical || 0,
+        totalValue: totalVal
+      });
+
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
   // Debounce para búsqueda
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -199,27 +259,55 @@ export function SimpleProductsTable() {
     );
   }
 
-  // Calculos de totales para el header (OJO: Esto solo será de lo cargado si paginamos,
-  // para totales reales necesitaríamos otra consulta aggregate, por ahora mostramos lo visible o lo quitamos/ajustamos)
-  // Para mantener performance, quizás mejor quitar los totales globales o hacer consulta aparte.
-  // Dejaremos los totales calculados sobre los productos CARGADOS por ahora, o idealmente hacer un .count()
-
-  const totalLoadedValue = products.reduce((sum, p) => sum + (p.inventory_value || 0), 0);
+  // Replace client-side calculation variables with stats state
+  // const totalValue = ... (removed)
+  // const activeProducts = ... (removed)
+  // etc.
 
   return (
     <div className="space-y-6">
-      {/* Header con estadísticas (De los productos visibles) */}
+      {/* Header con estadísticas Globales */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card p-6 rounded-lg border">
-          <div className="flex items-center space-x-2">
-            <Package className="h-5 w-5 text-blue-600" />
-            <div>
-              <div className="text-2xl font-bold text-foreground">{products.length}{hasMore ? "+" : ""}</div>
-              <div className="text-sm text-muted-foreground">Productos Listados</div>
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="h-5 w-5 text-blue-500" />
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.totalProducts}</div>
+            <div className="text-sm text-muted-foreground font-medium">Total Productos</div>
+          </div>
+        </div>
+
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="text-3xl font-bold text-emerald-500">{stats.activeProducts}</div>
+            <div className="text-sm text-muted-foreground font-medium">Productos Activos</div>
+          </div>
+        </div>
+
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="text-3xl font-bold text-amber-500">{stats.lowStockProducts}</div>
+            <div className="text-sm text-muted-foreground font-medium">
+              Stock Bajo ({stats.criticalStockProducts} críticos)
             </div>
           </div>
         </div>
-        {/* ... Otros cards similares ... */}
+
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm flex items-center justify-center">
+          <div className="flex flex-col gap-1 items-center text-center">
+            <div className="text-3xl font-bold text-purple-500">
+              ${stats.totalValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-sm text-muted-foreground font-medium">Valor Real Inventario</div>
+          </div>
+        </div>
       </div>
 
       {/* Controles y Filtros (Igual que antes pero los setters activan el fetch server-side) */}
@@ -371,41 +459,67 @@ export function SimpleProductsTable() {
                   )}
                 </td>
 
-                <td className="p-4 text-right">
-                  <div className="font-medium text-lg">
-                    {Math.floor(product.total_stock)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Mín: {product.min_stock} {product.unit}
-                  </div>
-                </td>
-
-                <td className="p-4 text-right">
-                  <div className="font-medium">${product.price.toFixed(2)}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Valor: ${(product.inventory_value).toFixed(2)}
+                <td className="p-4 text-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-xl font-bold text-foreground">
+                      {Math.floor(product.total_stock)}
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-0.5">
+                      Mín: {product.min_stock} {product.unit}
+                    </span>
+                    {/* Placeholder for warehouse count if available in future */}
                   </div>
                 </td>
 
                 <td className="p-4 text-center">
-                  <div className="space-y-1">
-                    <Badge variant={product.is_active ? "default" : "secondary"}>
+                  <div className="font-semibold text-foreground text-lg">${product.price.toFixed(2)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Valor: ${(product.inventory_value).toFixed(2)}
+                  </div>
+                  {(() => {
+                    const margin = product.cost > 0 ? ((product.price - product.cost) / product.cost) * 100 : 0;
+                    return (
+                      <div className={`text-xs font-medium ${margin > 50 ? 'text-emerald-500' : margin > 20 ? 'text-amber-500' : 'text-rose-500'}`}>
+                        Margen: {margin.toFixed(1)}%
+                      </div>
+                    );
+                  })()}
+                </td>
+
+                <td className="p-4 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    {/* Badge de Activo (Blanco/Negro) */}
+                    <div className="bg-white text-black px-3 py-0.5 rounded-md text-xs font-bold border shadow-sm">
                       {product.is_active ? "Activo" : "Inactivo"}
-                    </Badge>
-                    <div>
-                      <Badge
-                        variant={
-                          product.stock_status === 'critical' ? "destructive" :
-                            product.stock_status === 'low' ? "secondary" :
-                              product.stock_status === 'high' ? "default" : "outline"
-                        }
-                        className="text-xs"
-                      >
-                        {product.stock_status === 'critical' ? '🔴 Sin Stock' :
-                          product.stock_status === 'low' ? '🟡 Stock Bajo' :
-                            product.stock_status === 'high' ? '🟢 Stock Alto' : '✅ Normal'}
-                      </Badge>
                     </div>
+
+                    {/* Badge de Stock (Pills) */}
+                    {product.stock_status === 'critical' ? (
+                      <div className="bg-red-900/80 text-white border border-red-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                        Sin Stock
+                      </div>
+                    ) : product.stock_status === 'low' ? (
+                      <div className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+                        Stock Bajo
+                      </div>
+                    ) : product.stock_status === 'high' ? (
+                      <div className="bg-white text-black border border-gray-200 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-sm">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        Stock Alto
+                      </div>
+                    ) : (
+                      <div className="bg-zinc-800 text-white border border-zinc-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                        {/* Green Checkbox Icon style */}
+                        <div className="bg-emerald-500 rounded-[2px] p-[1px]">
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="text-black">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </div>
+                        Normal
+                      </div>
+                    )}
                   </div>
                 </td>
 
