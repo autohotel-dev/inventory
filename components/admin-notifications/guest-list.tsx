@@ -39,6 +39,60 @@ export function GuestList() {
         setIsLoading(false);
     }
 
+    // Realtime subscription
+    useEffect(() => {
+        const supabase = createClient();
+
+        const channel = supabase
+            .channel('guest_subscriptions_changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'guest_subscriptions'
+                },
+                (payload) => {
+                    console.log('Realtime change:', payload);
+
+                    if (payload.eventType === 'INSERT') {
+                        const newGuest = payload.new as GuestSubscription;
+                        // Only add if active (although robust logic might filter backend view)
+                        // payload.new might include other fields, but we cast for safely
+                        setGuests(prev => [newGuest, ...prev].slice(0, 10)); // Keep top 10
+                    } else if (payload.eventType === 'UPDATE') {
+                        const updatedGuest = payload.new as GuestSubscription & { is_active: boolean };
+
+                        if (!updatedGuest.is_active) {
+                            // Helper to remove if deactivated
+                            setGuests(prev => prev.filter(g => g.id !== updatedGuest.id));
+                        } else {
+                            // Update existing (maybe re-activated?) or just modified
+                            // Check if it already exists
+                            setGuests(prev => {
+                                const exists = prev.find(g => g.id === updatedGuest.id);
+                                if (exists) {
+                                    return prev.map(g => g.id === updatedGuest.id ? updatedGuest : g);
+                                } else {
+                                    return [updatedGuest, ...prev].sort((a, b) =>
+                                        new Date(b.subscribed_at).getTime() - new Date(a.subscribed_at).getTime()
+                                    ).slice(0, 10);
+                                }
+                            });
+                        }
+                    } else if (payload.eventType === 'DELETE') {
+                        const deletedId = payload.old.id;
+                        setGuests(prev => prev.filter(g => g.id !== deletedId));
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
     return (
         <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-white/5 shadow-2xl h-full">
             <h2 className="text-xl font-bold text-white mb-6">
