@@ -291,7 +291,8 @@ export interface UseRoomActionsReturn {
     room: Room,
     checkoutInfo: { salesOrderId: string; remainingAmount: number },
     amount: number,
-    payments?: PaymentEntry[]
+    payments?: PaymentEntry[],
+    checkoutValetId?: string | null
   ) => Promise<boolean>;
 }
 

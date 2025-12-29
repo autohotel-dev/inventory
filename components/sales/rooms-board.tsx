@@ -290,9 +290,9 @@ export function RoomsBoard() {
   };
 
   // Procesar checkout usando el hook
-  const handleCheckout = async (payments: PaymentEntry[]) => {
+  const handleCheckout = async (data: { payments: PaymentEntry[]; checkoutValetId?: string | null }) => {
     if (!checkoutInfo || !selectedRoom) return;
-    const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount, payments);
+    const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount, data.payments, data.checkoutValetId);
     if (success) {
       setShowCheckoutModal(false);
       setSelectedRoom(null);
