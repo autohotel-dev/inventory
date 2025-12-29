@@ -81,7 +81,7 @@ export function BatchMovementForm({
             tempId: `temp-${Date.now()}`,
             product_id: "",
             product_name: "",
-            quantity: 1,
+            quantity: 0,
             warehouse_id: defaultWarehouse.id,
             warehouse_name: `${defaultWarehouse.code} - ${defaultWarehouse.name}`,
             notes: ""
@@ -242,7 +242,7 @@ export function BatchMovementForm({
                             <thead className="bg-muted/50 border-b">
                                 <tr>
                                     <th className="text-left px-4 py-3 text-sm font-medium">Producto</th>
-                                    <th className="text-left px-4 py-3 text-sm font-medium w-32">Cantidad</th>
+                                    <th className="text-left px-4 py-3 text-sm font-medium w-40">Cantidad</th>
                                     <th className="text-left px-4 py-3 text-sm font-medium">Almacén</th>
                                     <th className="text-left px-4 py-3 text-sm font-medium">Notas</th>
                                     <th className="text-center px-4 py-3 text-sm font-medium w-20"></th>
@@ -265,11 +265,12 @@ export function BatchMovementForm({
                                         <td className="px-4 py-3">
                                             <Input
                                                 type="number"
-                                                min="0.01"
+                                                min="0"
                                                 step="0.01"
-                                                value={item.quantity}
+                                                value={item.quantity || ""}
                                                 onChange={(e) => updateItem(item.tempId, { quantity: Number(e.target.value) })}
-                                                className="w-full"
+                                                placeholder="Cantidad"
+                                                className="w-full text-lg"
                                             />
                                         </td>
                                         <td className="px-4 py-3">

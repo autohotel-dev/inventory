@@ -98,7 +98,16 @@ export function IndividualMovementForm({
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="qty">Cantidad</Label>
-                        <Input id="qty" name="qty" type="number" step="0.01" min="0" defaultValue={1} required />
+                        <Input
+                            id="qty"
+                            name="qty"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="Ingresa cantidad"
+                            className="w-full text-lg"
+                            required
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="reason_code">Razón</Label>

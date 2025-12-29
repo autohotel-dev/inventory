@@ -198,7 +198,7 @@ export default async function NewMovementPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Nuevo Movimiento de Inventario</h1>
         <p className="text-muted-foreground mt-1">
