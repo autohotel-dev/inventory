@@ -65,7 +65,24 @@ export async function sendNotificationToGuest(
             return { success: false, error: 'Subscription not found' };
         }
 
-        // Send push notification
+        // Fetch the room stay to get the guest access token
+        const { data: roomStay } = await supabase
+            .from('room_stays')
+            .select('guest_access_token')
+            .eq('id', subscription.room_stay_id)
+            .single();
+
+        let finalActionUrl = payload.action_url;
+
+        // If we have a token and an action URL, append the token
+        if (roomStay?.guest_access_token && finalActionUrl) {
+            const separator = finalActionUrl.includes('?') ? '&' : '?';
+            finalActionUrl = `${finalActionUrl}${separator}token=${roomStay.guest_access_token}`;
+        } else if (roomStay?.guest_access_token && !finalActionUrl) {
+            // Fallback default URL if none provided
+            finalActionUrl = `/guest-portal/${subscription.room_number}?token=${roomStay.guest_access_token}`;
+        }
+
         const pushSubscription = subscription.subscription_data;
 
         try {
@@ -79,7 +96,7 @@ export async function sendNotificationToGuest(
                     tag: payload.tag || 'hotel-notification',
                     data: {
                         ...payload.data,
-                        action_url: payload.action_url,
+                        action_url: finalActionUrl,
                     },
                 })
             );
@@ -91,7 +108,7 @@ export async function sendNotificationToGuest(
                 title: payload.title,
                 body: payload.body,
                 icon_url: payload.icon,
-                action_url: payload.action_url,
+                action_url: finalActionUrl,
                 notification_type: payload.notification_type,
                 data: payload.data || {},
                 delivered: true,
