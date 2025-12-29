@@ -787,8 +787,21 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         if (activeStay.expected_check_out_at) {
           const currentCheckout = new Date(activeStay.expected_check_out_at);
           const now = new Date();
-          const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-          const hours = isWeekend ? (room.room_types.weekend_hours ?? 4) : (room.room_types.weekday_hours ?? 4);
+
+          // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
+          const day = now.getDay();
+          const hour = now.getHours();
+          let isWeekendPeriod = false;
+
+          if (day === 5 && hour >= 6) {
+            isWeekendPeriod = true;
+          } else if (day === 6) {
+            isWeekendPeriod = true;
+          } else if (day === 0 && hour < 6) {
+            isWeekendPeriod = true;
+          }
+
+          const hours = isWeekendPeriod ? (room.room_types.weekend_hours ?? 4) : (room.room_types.weekday_hours ?? 4);
           currentCheckout.setHours(currentCheckout.getHours() + hours);
 
           await supabase
@@ -1105,7 +1118,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     room: Room,
     checkoutInfo: { salesOrderId: string; remainingAmount: number },
     amount: number,
-    payments?: PaymentEntry[]
+    payments?: PaymentEntry[],
+    checkoutValetId?: string | null
   ): Promise<boolean> => {
     setActionLoading(true);
     const supabase = createClient();
@@ -1145,6 +1159,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             .update({
               status: "FINALIZADA",
               actual_check_out_at: new Date().toISOString(),
+              checkout_valet_employee_id: checkoutValetId || null,
             })
             .eq("id", activeStay.id);
         }

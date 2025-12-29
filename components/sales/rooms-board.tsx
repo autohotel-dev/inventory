@@ -193,7 +193,7 @@ export function RoomsBoard() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, sales_orders ( remaining_amount ) )`
+          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, sales_orders ( remaining_amount ) )`
         );
 
       if (error) {
@@ -717,11 +717,27 @@ export function RoomsBoard() {
       return checkout;
     }
 
-    // Motel: 12h entre semana, 8h fin de semana (viernes y sábado)
-    const day = now.getDay(); // 0 = Domingo ... 6 = Sábado
-    const isWeekend = day === 5 || day === 6; // Viernes, Sábado
+    // Motel: Determinar si estamos en período de fin de semana o entre semana
+    // Fin de semana: Viernes 6:00 AM - Domingo 6:00 AM (8 horas)
+    // Entre semana: Domingo 6:00 AM - Viernes 6:00 AM (12 horas)
 
-    const hours = isWeekend
+    const day = now.getDay(); // 0=Domingo, 1=Lunes, ..., 5=Viernes, 6=Sábado
+    const hour = now.getHours(); // 0-23
+
+    let isWeekendPeriod = false;
+
+    if (day === 5 && hour >= 6) {
+      // Viernes desde las 6:00 AM en adelante
+      isWeekendPeriod = true;
+    } else if (day === 6) {
+      // Todo el sábado
+      isWeekendPeriod = true;
+    } else if (day === 0 && hour < 6) {
+      // Domingo antes de las 6:00 AM
+      isWeekendPeriod = true;
+    }
+
+    const hours = isWeekendPeriod
       ? roomType.weekend_hours ?? 8
       : roomType.weekday_hours ?? 12;
 
@@ -1151,8 +1167,20 @@ export function RoomsBoard() {
       const entryTime = data.actualEntryTime;
 
       // Calcular hora de salida basada en la hora REAL de entrada
-      const isWeekend = entryTime.getDay() === 0 || entryTime.getDay() === 6;
-      const hours = isWeekend
+      // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
+      const day = entryTime.getDay();
+      const hour = entryTime.getHours();
+      let isWeekendPeriod = false;
+
+      if (day === 5 && hour >= 6) {
+        isWeekendPeriod = true;
+      } else if (day === 6) {
+        isWeekendPeriod = true;
+      } else if (day === 0 && hour < 6) {
+        isWeekendPeriod = true;
+      }
+
+      const hours = isWeekendPeriod
         ? (roomType.weekend_hours ?? 4)
         : (roomType.weekday_hours ?? 4);
       const expectedCheckout = new Date(entryTime);
@@ -1813,8 +1841,21 @@ export function RoomsBoard() {
               // Reiniciar tiempo desde ahora
               const now = new Date();
               const roomType = newRoom.room_types;
-              const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-              const hours = isWeekend ? (roomType?.weekend_hours ?? 4) : (roomType?.weekday_hours ?? 4);
+
+              // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
+              const day = now.getDay();
+              const hour = now.getHours();
+              let isWeekendPeriod = false;
+
+              if (day === 5 && hour >= 6) {
+                isWeekendPeriod = true;
+              } else if (day === 6) {
+                isWeekendPeriod = true;
+              } else if (day === 0 && hour < 6) {
+                isWeekendPeriod = true;
+              }
+
+              const hours = isWeekendPeriod ? (roomType?.weekend_hours ?? 4) : (roomType?.weekday_hours ?? 4);
               const checkout = new Date(now);
               checkout.setHours(checkout.getHours() + hours);
               newExpectedCheckout = checkout.toISOString();

@@ -50,14 +50,25 @@ function IncomeReportContent() {
     const fetchShifts = async () => {
         const supabase = createClient();
 
-        // 1. Obtener turno actual activo (sin joins complejos para evitar problemas)
-        const { data: activeSession, error: sessionError } = await supabase
+        // 1. Primero obtener TODOS los turnos para debugging
+        const { data: allSessions, error: allSessionsError } = await supabase
             .from("shift_sessions")
-            .select("id, clock_in_at, employee_id")
-            .eq("status", "active")
-            .maybeSingle();
+            .select("id, clock_in_at, employee_id, status")
+            .order("clock_in_at", { ascending: false })
+            .limit(10);
 
-        console.log("🔍 Active session query result:", { activeSession, sessionError });
+        console.log("🔍 All recent sessions (for debugging):", { allSessions, allSessionsError });
+
+        // 2. Obtener turno actual activo
+        const { data: activeSessions, error: sessionError } = await supabase
+            .from("shift_sessions")
+            .select("id, clock_in_at, employee_id, status")
+            .eq("status", "active");
+
+        console.log("🔍 Open sessions query result:", { activeSessions, sessionError });
+
+        // Tomar la primera sesión abierta (debería haber solo una)
+        const activeSession = activeSessions && activeSessions.length > 0 ? activeSessions[0] : null;
 
         if (sessionError) {
             console.error("Error fetching active session:", sessionError);

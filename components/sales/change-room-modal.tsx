@@ -67,12 +67,25 @@ export function ChangeRoomModal({
   // Calcular hora de salida según opción
   const expectedCheckout = new Date(currentStay.expected_check_out_at);
   const currentRoomType = currentRoom.room_types;
-  
+
   // Para reinicio, calcular nueva hora de salida
   const getNewCheckoutTime = (roomType: RoomType | null) => {
     if (!roomType) return new Date();
-    const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-    const hours = isWeekend ? (roomType.weekend_hours ?? 4) : (roomType.weekday_hours ?? 4);
+
+    // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
+    const day = now.getDay();
+    const hour = now.getHours();
+    let isWeekendPeriod = false;
+
+    if (day === 5 && hour >= 6) {
+      isWeekendPeriod = true;
+    } else if (day === 6) {
+      isWeekendPeriod = true;
+    } else if (day === 0 && hour < 6) {
+      isWeekendPeriod = true;
+    }
+
+    const hours = isWeekendPeriod ? (roomType.weekend_hours ?? 4) : (roomType.weekday_hours ?? 4);
     const newCheckout = new Date(now);
     newCheckout.setHours(newCheckout.getHours() + hours);
     return newCheckout;
@@ -162,8 +175,8 @@ export function ChangeRoomModal({
                   </div>
                 ) : (
                   availableRooms.map((room) => (
-                    <SelectItem 
-                      key={room.id} 
+                    <SelectItem
+                      key={room.id}
                       value={room.id}
                     >
                       <span className="flex items-center gap-2">
@@ -195,12 +208,12 @@ export function ChangeRoomModal({
                         <span className="font-medium">Mantener tiempo</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        El cliente conserva el tiempo que ya llevaba. 
+                        El cliente conserva el tiempo que ya llevaba.
                         Salida: <span className="text-blue-400 font-medium">{formatTime(checkoutIfKeep)}</span>
                       </p>
                     </div>
                   </label>
-                  
+
                   <label className="flex items-start gap-3 p-3 rounded-lg border hover:border-emerald-500/50 cursor-pointer transition-colors">
                     <RadioGroupItem value="reset" id="reset" className="mt-0.5" />
                     <div className="flex-1">
@@ -209,7 +222,7 @@ export function ChangeRoomModal({
                         <span className="font-medium">Reiniciar tiempo</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        El tiempo comienza desde cero. 
+                        El tiempo comienza desde cero.
                         Salida: <span className="text-emerald-400 font-medium">{formatTime(checkoutIfReset)}</span>
                       </p>
                     </div>

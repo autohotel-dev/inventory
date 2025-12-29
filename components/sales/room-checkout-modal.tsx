@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PaymentMethod } from "@/components/sales/room-types";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
-import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 interface PendingItem {
   concept_type: string;
@@ -23,7 +25,7 @@ export interface RoomCheckoutModalProps {
   pendingItems?: PendingItem[];
   onAmountChange: (amount: number) => void;
   onClose: () => void;
-  onConfirm: (payments: PaymentEntry[]) => void;
+  onConfirm: (data: { payments: PaymentEntry[]; checkoutValetId?: string | null }) => void;
 }
 
 export function RoomCheckoutModal({
@@ -40,6 +42,8 @@ export function RoomCheckoutModal({
 }: RoomCheckoutModalProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [showPendingWarning, setShowPendingWarning] = useState(false);
+  const [checkoutValetId, setCheckoutValetId] = useState<string>("none");
+  const [valets, setValets] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
 
   const conceptLabels: Record<string, string> = {
     ROOM_BASE: "Habitación",
@@ -61,10 +65,28 @@ export function RoomCheckoutModal({
 
   const hasPendingItems = pendingItems.length > 0 && pendingItems.some(item => item.total > 0);
 
-  // Reset al abrir
+  // Cargar cocheros disponibles
   useEffect(() => {
-    if (isOpen && remainingAmount > 0) {
-      setPayments(createInitialPayment(remainingAmount));
+    const loadValets = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name')
+        .eq('role', 'cochero')
+        .eq('is_active', true)
+        .order('first_name');
+
+      if (data) {
+        setValets(data);
+      }
+    };
+
+    if (isOpen) {
+      loadValets();
+      setCheckoutValetId("none");
+      if (remainingAmount > 0) {
+        setPayments(createInitialPayment(remainingAmount));
+      }
     }
   }, [isOpen, remainingAmount]);
 
@@ -101,9 +123,9 @@ export function RoomCheckoutModal({
               </div>
               <div className="flex flex-wrap gap-2">
                 {pendingItems.filter(item => item.total > 0).map((item, idx) => (
-                  <Badge 
-                    key={idx} 
-                    variant="outline" 
+                  <Badge
+                    key={idx}
+                    variant="outline"
                     className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30"
                   >
                     {conceptIcons[item.concept_type]}
@@ -136,6 +158,34 @@ export function RoomCheckoutModal({
               disabled={actionLoading}
             />
           )}
+
+          {/* Cochero de Salida */}
+          <div className="space-y-3 pt-2 border-t">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <UserCog className="h-4 w-4" />
+              Cochero de Salida
+            </p>
+            <Select
+              value={checkoutValetId}
+              onValueChange={setCheckoutValetId}
+              disabled={actionLoading || valets.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={valets.length === 0 ? "No hay cocheros registrados" : "Selecciona cochero de salida"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
+                {valets.map((valet) => (
+                  <SelectItem key={valet.id} value={valet.id}>
+                    {valet.first_name} {valet.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Opcional: Registra qué cochero entregó el vehículo al cliente
+            </p>
+          </div>
         </div>
         <div className="px-6 py-4 border-t flex justify-end gap-2 flex-shrink-0">
           <Button
@@ -145,7 +195,7 @@ export function RoomCheckoutModal({
           >
             Cancelar
           </Button>
-          <Button onClick={() => onConfirm(payments)} disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) <= 0)}>
+          <Button onClick={() => onConfirm({ payments, checkoutValetId: checkoutValetId === "none" ? null : checkoutValetId })} disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) <= 0)}>
             {actionLoading
               ? "Procesando..."
               : remainingAmount <= 0

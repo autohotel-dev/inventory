@@ -82,8 +82,20 @@ export function QuickCheckinModal({
 
   // Calcular hora de salida estimada
   const getExpectedCheckout = (entryTime: Date) => {
-    const isWeekend = entryTime.getDay() === 0 || entryTime.getDay() === 6;
-    const hours = isWeekend
+    // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
+    const day = entryTime.getDay();
+    const hour = entryTime.getHours();
+    let isWeekendPeriod = false;
+
+    if (day === 5 && hour >= 6) {
+      isWeekendPeriod = true;
+    } else if (day === 6) {
+      isWeekendPeriod = true;
+    } else if (day === 0 && hour < 6) {
+      isWeekendPeriod = true;
+    }
+
+    const hours = isWeekendPeriod
       ? (roomType?.weekend_hours ?? 4)
       : (roomType?.weekday_hours ?? 4);
     const checkout = new Date(entryTime);
