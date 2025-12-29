@@ -139,29 +139,32 @@ export async function subscribeToPushNotifications(
 /**
  * Unsubscribe from push notifications
  */
-export async function unsubscribeFromPushNotifications(
-    subscriptionId: string
-): Promise<{ success: boolean; error?: string }> {
+export async function unsubscribeFromPushNotifications(): Promise<{ success: boolean; error?: string }> {
     try {
         // Get current subscription
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.getSubscription();
 
-        if (subscription) {
-            await subscription.unsubscribe();
+        if (!subscription) {
+            return { success: true }; // Already unsubscribed
         }
 
-        // Notify backend
+        const endpoint = subscription.endpoint;
+
+        // Unsubscribe from push manager
+        await subscription.unsubscribe();
+
+        // Notify backend using endpoint to identify the subscription
         const response = await fetch('/api/guest/unsubscribe', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ subscription_id: subscriptionId }),
+            body: JSON.stringify({ endpoint }),
         });
 
         if (!response.ok) {
-            throw new Error('Failed to unsubscribe');
+            console.warn('Backend unsubscribe failed, but local subscription removed');
         }
 
         return { success: true };

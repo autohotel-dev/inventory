@@ -69,12 +69,10 @@ export function NotificationSubscribe({
     }
 
     async function handleUnsubscribe() {
-        if (!subscriptionId) return;
-
         setIsLoading(true);
         setMessage(null);
 
-        const result = await unsubscribeFromPushNotifications(subscriptionId);
+        const result = await unsubscribeFromPushNotifications();
 
         if (result.success) {
             setIsSubscribed(false);
