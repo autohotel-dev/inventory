@@ -66,6 +66,7 @@ export interface RoomStay {
   // Cocheros
   valet_employee_id?: string | null; // Cochero de entrada
   checkout_valet_employee_id?: string | null; // Cochero de salida
+  guest_access_token?: string | null; // Token de acceso al portal de huéspedes
   sales_orders?: {
     remaining_amount?: number;
   } | null;
