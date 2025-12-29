@@ -33,10 +33,20 @@ export function SimpleProductsTable() {
   const [hasMore, setHasMore] = useState(true);
 
   // Filtros
-  const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useState(""); // Input value (immediate)
+  const [debouncedSearch, setDebouncedSearch] = useState(""); // Fetch trigger (delayed)
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Debounce effect for search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 800); // 800ms delay for better typing experience
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<SimpleProduct | null>(null);
@@ -110,17 +120,19 @@ export function SimpleProductsTable() {
     fetchStats();
   }, []);
 
-  // Debounce para búsqueda
+  // Fetch Logic Effect
   useEffect(() => {
-    const timer = setTimeout(() => {
-      resetAndFetch();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [search, categoryFilter, stockFilter, statusFilter]);
+    // Only fetch if filters actually changed logic (optional optimization)
+    // But resetAndFetch handles reset.
+    resetAndFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, categoryFilter, stockFilter, statusFilter]);
+
+  // Removed old simple debounce useEffect
 
   const resetAndFetch = () => {
     setPage(0);
-    setProducts([]);
+    // setProducts([]); // Don't clear products immediately to prevent flash
     setHasMore(true);
     fetchProducts(0, true);
   };
@@ -129,7 +141,7 @@ export function SimpleProductsTable() {
     if (!isReset && (!hasMore || loadingMore)) return;
 
     const supabase = createClient();
-    if (pageNumber === 0) setLoading(true);
+    if (pageNumber === 0) setLoading(true); // This sets 'loading' which we'll use for opacity
     else setLoadingMore(true);
 
     try {
@@ -139,8 +151,8 @@ export function SimpleProductsTable() {
         .order("created_at", { ascending: false });
 
       // Aplicar filtros
-      if (search) {
-        query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%,description.ilike.%${search}%`);
+      if (debouncedSearch) {
+        query = query.or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%,description.ilike.%${debouncedSearch}%`);
       }
       if (categoryFilter) {
         if (categoryFilter === "sin-categoria") query = query.is("category_id", null);
@@ -274,10 +286,8 @@ export function SimpleProductsTable() {
     setIsModalOpen(true);
   };
 
-  // Render simplificado (no filters client-side)
-  // ... (reutilizar el JSX anterior pero apuntando a `products` estado que ya es la vista)
-
-  if (loading && page === 0) {
+  // Render simplificado: solo mostrar spinner si es la PRIMERA carga y no hay datos
+  if (loading && products.length === 0 && page === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -343,8 +353,8 @@ export function SimpleProductsTable() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               placeholder="Buscar por nombre, SKU o descripción..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
           </div>
@@ -412,7 +422,7 @@ export function SimpleProductsTable() {
             <Button
               variant="outline"
               onClick={() => {
-                setSearch("");
+                setSearchTerm("");
                 setCategoryFilter("");
                 setStockFilter("");
                 setStatusFilter("");
@@ -425,7 +435,7 @@ export function SimpleProductsTable() {
         </div>
 
         {/* Indicadores de filtro (Igual JSX) */}
-        {(search || categoryFilter || stockFilter || statusFilter) && (
+        {(searchTerm || categoryFilter || stockFilter || statusFilter) && (
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-sm text-muted-foreground">Filtros activos:</span>
             {/* ... Badges igual que antes ... */}
@@ -434,7 +444,7 @@ export function SimpleProductsTable() {
       </div>
 
       {/* Tabla */}
-      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
+      <div className={`overflow-x-auto rounded-lg border border-border bg-card shadow-sm transition-opacity duration-300 ${loading && products.length > 0 ? "opacity-50" : "opacity-100"}`}>
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
