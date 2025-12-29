@@ -22,13 +22,17 @@ function NotificationListenerContent() {
             console.log("Showing notification from URL params:", title);
             info(title, body);
 
-            // Clean URL
-            const newParams = new URLSearchParams(searchParams.toString());
-            newParams.delete('show_notification');
-            newParams.delete('notif_title');
-            newParams.delete('notif_body');
+            // Clean URL after delay to ensure toast renders and isn't cleared by obscure rerenders
+            const timer = setTimeout(() => {
+                const newParams = new URLSearchParams(searchParams.toString());
+                newParams.delete('show_notification');
+                newParams.delete('notif_title');
+                newParams.delete('notif_body');
 
-            router.replace(`${pathname}?${newParams.toString()}`);
+                router.replace(`${pathname}?${newParams.toString()}`);
+            }, 5000); // 5 second delay to be safe
+
+            return () => clearTimeout(timer);
         }
 
         // 2. Listen for Service Worker messages (Existing Tab / Focus)
