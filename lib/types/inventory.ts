@@ -168,3 +168,24 @@ export type ProductUpdate = Omit<SimpleProduct, 'id' | 'created_at'>;
  */
 export type CustomerCreate = Omit<Customer, 'id' | 'created_at' | 'total_orders' | 'total_spent' | 'last_order' | 'customer_type'>;
 
+/**
+ * Tipo para la vista de productos (products_view)
+ */
+export interface ProductView {
+  id: string;
+  name: string;
+  sku: string;
+  description?: string;
+  price: number;
+  cost: number;
+  min_stock: number;
+  unit: string;
+  barcode?: string;
+  category_id?: string;
+  category_name?: string;
+  is_active: boolean;
+  created_at: string;
+  total_stock: number;
+  inventory_value: number;
+  stock_status: 'critical' | 'low' | 'normal' | 'high';
+}
