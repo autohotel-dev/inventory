@@ -41,24 +41,35 @@ export function GuestPortalQRModal({
 
         try {
             const supabase = createClient();
-            const { data, error: fetchError } = await supabase
+            let { data, error: fetchError } = await supabase
                 .from('room_stays')
                 .select('guest_access_token')
                 .eq('id', roomStayId)
                 .single();
 
-            if (fetchError || !data || !data.guest_access_token) {
-                throw new Error('No se pudo obtener el token de acceso');
+            if (fetchError) throw fetchError;
+
+            let token = data?.guest_access_token;
+
+            // Si no hay token, generarlo y guardarlo (Self-healing for old records)
+            if (!token) {
+                token = crypto.randomUUID();
+                const { error: updateError } = await supabase
+                    .from('room_stays')
+                    .update({ guest_access_token: token })
+                    .eq('id', roomStayId);
+
+                if (updateError) throw updateError;
             }
 
-            const token = data.guest_access_token;
             const url = getGuestPortalURL(roomNumber, token);
             const qr = await generateGuestPortalQR(roomNumber, token);
 
             setPortalURL(url);
             setQRCodeDataURL(qr);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error desconocido');
+            console.error("Error loading guest portal:", err);
+            setError(err instanceof Error ? err.message : 'Error desconocido al cargar el portal');
         } finally {
             setIsLoading(false);
         }
