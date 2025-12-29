@@ -1,13 +1,9 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BatchMovementForm } from "@/components/movements/batch-movement-form";
+import { IndividualMovementForm } from "@/components/movements/individual-movement-form";
 import { getAvailableStock } from "@/lib/utils/stock-helpers";
 
 async function getFormData() {
@@ -187,8 +183,6 @@ async function createBatchMovementsAction(formData: FormData) {
 
 export default async function NewMovementPage() {
   const { products, warehouses, reasons } = await getFormData();
-  const productOptions = (products ?? []).map((p: any) => ({ value: p.id, label: `${p.sku} - ${p.name} ` }));
-  const warehouseOptions = (warehouses ?? []).map((w: any) => ({ value: w.id, label: `${w.code} - ${w.name} ` }));
 
   const handleBatchSubmit = async (data: {
     movementType: string;
@@ -228,73 +222,12 @@ export default async function NewMovementPage() {
         </TabsContent>
 
         <TabsContent value="individual" className="mt-6">
-          <div className="max-w-2xl">
-            <form action={createMovementAction} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Tipo</Label>
-                <select id="type" name="type" className="border rounded-lg px-3 py-2 w-full">
-                  <option value="entry">📈 Entrada (Agregar stock)</option>
-                  <option value="exit">📉 Salida (Quitar stock)</option>
-                  <option value="adjustment">🔄 Ajuste (Establecer cantidad exacta)</option>
-                  <option value="transfer">🔀 Transferencia</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="product_id">Producto</Label>
-                <SearchableSelect id="product_id" name="product_id" options={productOptions} required className="w-full" placeholder="Buscar producto..." />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="warehouse_id">Almacén</Label>
-                  <SearchableSelect id="warehouse_id" name="warehouse_id" options={warehouseOptions} required className="w-full" placeholder="Buscar almacén..." />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="to_warehouse_id">A Almacén (Transferencia)</Label>
-                  <SearchableSelect id="to_warehouse_id" name="to_warehouse_id" options={warehouseOptions} className="w-full" placeholder="Buscar destino..." />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="qty">Cantidad</Label>
-                  <Input id="qty" name="qty" type="number" step="0.01" min="0" defaultValue={1} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reason_code">Razón</Label>
-                  <select id="reason_code" name="reason_code" className="border rounded-lg px-3 py-2 w-full" required>
-                    {reasons
-                      .filter(r => {
-                        const type = (document.getElementById('type') as HTMLSelectElement)?.value || 'entry';
-                        if (type === 'entry') return r.movement_type === 'IN';
-                        if (type === 'exit') return r.movement_type === 'OUT';
-                        if (type === 'adjustment') return r.movement_type === 'ADJUSTMENT';
-                        if (type === 'transfer') return r.movement_type === 'IN' || r.movement_type === 'OUT';
-                        return true;
-                      })
-                      .map(r => (
-                        <option key={r.id} value={r.code}>{r.code} - {r.description}</option>
-                      ))
-                    }
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="note">Nota</Label>
-                <Input id="note" name="note" />
-              </div>
-
-              <div className="flex gap-3">
-                <SubmitButton pendingText="Guardando...">Crear Movimiento</SubmitButton>
-              </div>
-            </form>
-
-            <p className="text-sm text-muted-foreground mt-4">
-              En transferencias se crearán automáticamente dos movimientos (salida y entrada).
-            </p>
-          </div>
+          <IndividualMovementForm
+            products={products}
+            warehouses={warehouses}
+            reasons={reasons}
+            onSubmit={createMovementAction}
+          />
         </TabsContent>
       </Tabs>
     </div>

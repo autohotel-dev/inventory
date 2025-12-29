@@ -515,11 +515,11 @@ export default function PracticePage() {
         setIsQuickCheckinOpen(false);
     };
 
-    const confirmCheckout = async (payments: any[]) => {
+    const confirmCheckout = async (data: { payments: any[]; checkoutValetId?: string | null }) => {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 2000)); // Checkout tarda más por impresión
 
-        checkPaymentExercises(payments);
+        checkPaymentExercises(data.payments);
 
         const result = mockOperations.checkout(selectedRoom.id);
         toast.success(result.message);
