@@ -4,7 +4,7 @@
  * Accessible via /guest-portal/[roomNumber]
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound } from 'next/navigation';
 import {
     WelcomeSection,
@@ -31,7 +31,7 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         notFound();
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // First, get the room ID from the room number
     const { data: room } = await supabase
