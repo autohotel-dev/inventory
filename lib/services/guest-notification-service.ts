@@ -4,7 +4,7 @@
  */
 
 import webpush from 'web-push';
-import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 // VAPID keys - Generated using: npx web-push generate-vapid-keys
 // Store these in .env.local
@@ -48,7 +48,10 @@ export async function sendNotificationToGuest(
     payload: NotificationPayload
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabase = await createClient();
+        const supabase = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
 
         // Get subscription from database
         const { data: subscription, error } = await supabase
@@ -132,7 +135,10 @@ export async function sendNotificationToRoom(
     roomNumber: string,
     payload: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
-    const supabase = await createClient();
+    const supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Get all active subscriptions for this room
     const { data: subscriptions, error } = await supabase
@@ -166,7 +172,10 @@ export async function sendNotificationToRoom(
 export async function sendNotificationToAll(
     payload: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
-    const supabase = await createClient();
+    const supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Get all active subscriptions
     const { data: subscriptions, error } = await supabase
@@ -200,7 +209,10 @@ export async function renderTemplate(
     templateId: string,
     variables: Record<string, string>
 ): Promise<{ title: string; body: string } | null> {
-    const supabase = await createClient();
+    const supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const { data: template, error } = await supabase
         .from('notification_templates')
@@ -230,7 +242,10 @@ export async function renderTemplate(
  * Send checkout reminder to guests checking out soon
  */
 export async function sendCheckoutReminders(hoursBeforeCheckout: number = 2): Promise<void> {
-    const supabase = await createClient();
+    const supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Calculate time window
     const now = new Date();

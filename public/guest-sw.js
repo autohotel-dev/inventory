@@ -18,6 +18,7 @@ self.addEventListener('push', (event) => {
         notificationData = event.data.json();
     } catch (e) {
         console.error('[Guest SW] Error parsing notification:', e);
+        console.log('[Guest SW] Raw data:', event.data.text()); // Log raw data to debug
         notificationData = {
             title: 'Notificación del Hotel',
             body: event.data.text(),
