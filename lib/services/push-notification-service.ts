@@ -93,6 +93,9 @@ export async function subscribeToPushNotifications(
             return { success: false, error: 'Service worker registration failed' };
         }
 
+        // Wait for service worker to be ready (active) to avoid "no active Service Worker" error
+        await navigator.serviceWorker.ready;
+
         // Subscribe to push manager
         const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
         const subscription = await registration.pushManager.subscribe({
