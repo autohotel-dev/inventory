@@ -2,7 +2,7 @@
 // Handles push notifications specifically for hotel guests
 // Works alongside the main PWA service worker
 
-const GUEST_NOTIFICATION_CACHE = 'guest-notifications-v1';
+const GUEST_NOTIFICATION_CACHE = 'guest-notifications-v2';
 
 // Listen for push notifications
 self.addEventListener('push', (event) => {
