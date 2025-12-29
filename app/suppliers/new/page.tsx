@@ -8,9 +8,12 @@ import { SubmitButton } from "@/components/ui/submit-button";
 async function createSupplierAction(formData: FormData) {
   "use server";
   const supabase = await createClient();
+  const name = String(formData.get("name") || "").trim();
+  const tax_id = String(formData.get("tax_id") || "").trim();
+
   const payload = {
-    name: String(formData.get("name") || "").trim(),
-    tax_id: String(formData.get("tax_id") || "").trim(),
+    name,
+    tax_id,
     email: String(formData.get("email") || "").trim(),
     phone: String(formData.get("phone") || "").trim(),
     address: String(formData.get("address") || "").trim(),
@@ -18,7 +21,23 @@ async function createSupplierAction(formData: FormData) {
   };
 
   const { error } = await supabase.from("suppliers").insert(payload);
-  if (error) throw error;
+
+  if (error) {
+    if (error.code === "23505") {
+      if (error.message.includes("tax_id")) {
+        throw new Error(`Ya existe un proveedor con el RFC "${tax_id}". Verifica que no esté duplicado.`);
+      }
+      if (error.message.includes("name")) {
+        throw new Error(`Ya existe un proveedor con el nombre "${name}".`);
+      }
+      throw new Error("Ya existe un proveedor con estos datos. Verifica que no esté duplicado.");
+    }
+    if (error.code === "23502") {
+      throw new Error("Faltan campos requeridos. Asegúrate de llenar el Nombre.");
+    }
+    throw new Error(`Error al registrar proveedor: ${error.message}`);
+  }
+
   revalidatePath("/suppliers");
   redirect("/suppliers");
 }

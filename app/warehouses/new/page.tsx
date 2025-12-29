@@ -8,15 +8,34 @@ import { SubmitButton } from "@/components/ui/submit-button";
 async function createWarehouseAction(formData: FormData) {
   "use server";
   const supabase = await createClient();
+  const code = String(formData.get("code") || "").trim();
+  const name = String(formData.get("name") || "").trim();
+
   const payload = {
-    code: String(formData.get("code") || "").trim(),
-    name: String(formData.get("name") || "").trim(),
+    code,
+    name,
     address: String(formData.get("address") || "").trim(),
     is_active: formData.get("is_active") === "on",
   };
 
   const { error } = await supabase.from("warehouses").insert(payload);
-  if (error) throw error;
+
+  if (error) {
+    if (error.code === "23505") {
+      if (error.message.includes("code")) {
+        throw new Error(`Ya existe un almacén con el código "${code}". Usa un código diferente.`);
+      }
+      if (error.message.includes("name")) {
+        throw new Error(`Ya existe un almacén con el nombre "${name}".`);
+      }
+      throw new Error("Ya existe un almacén con estos datos. Verifica que no esté duplicado.");
+    }
+    if (error.code === "23502") {
+      throw new Error("Faltan campos requeridos. Asegúrate de llenar Código y Nombre.");
+    }
+    throw new Error(`Error al registrar almacén: ${error.message}`);
+  }
+
   revalidatePath("/warehouses");
   redirect("/warehouses");
 }

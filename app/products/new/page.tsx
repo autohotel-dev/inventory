@@ -6,16 +6,36 @@ import { ProductForm } from "@/components/product-form";
 async function createProductAction(formData: FormData) {
   "use server";
   const supabase = await createClient();
+  const sku = String(formData.get("sku") || "").trim();
+  const name = String(formData.get("name") || "").trim();
+
   const payload = {
-    sku: String(formData.get("sku") || "").trim(),
-    name: String(formData.get("name") || "").trim(),
+    sku,
+    name,
     price: Number(formData.get("price") || 0),
     min_stock: Number(formData.get("min_stock") || 0),
     is_active: formData.get("is_active") === "on",
   };
 
   const { error } = await supabase.from("products").insert(payload);
-  if (error) throw error;
+
+  if (error) {
+    // Manejar errores específicos
+    if (error.code === "23505") {
+      // Violación de unique constraint
+      if (error.message.includes("sku")) {
+        throw new Error(`El SKU "${sku}" ya está registrado. Por favor usa un SKU diferente.`);
+      }
+      throw new Error(`Ya existe un producto con estos datos. Verifica que no esté duplicado.`);
+    }
+    if (error.code === "23502") {
+      // Campo requerido nulo
+      throw new Error("Faltan campos requeridos. Asegúrate de llenar SKU y Nombre.");
+    }
+    // Error genérico con más detalle
+    throw new Error(`Error al registrar producto: ${error.message}`);
+  }
+
   revalidatePath("/products");
   redirect("/products");
 }

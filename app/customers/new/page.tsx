@@ -8,9 +8,12 @@ import { Label } from "@/components/ui/label";
 async function createCustomerAction(formData: FormData) {
   "use server";
   const supabase = await createClient();
+  const name = String(formData.get("name") || "").trim();
+  const tax_id = String(formData.get("tax_id") || "").trim();
+
   const payload = {
-    name: String(formData.get("name") || "").trim(),
-    tax_id: String(formData.get("tax_id") || "").trim(),
+    name,
+    tax_id,
     email: String(formData.get("email") || "").trim(),
     phone: String(formData.get("phone") || "").trim(),
     address: String(formData.get("address") || "").trim(),
@@ -18,7 +21,23 @@ async function createCustomerAction(formData: FormData) {
   };
 
   const { error } = await supabase.from("customers").insert(payload);
-  if (error) throw error;
+
+  if (error) {
+    if (error.code === "23505") {
+      if (error.message.includes("tax_id")) {
+        throw new Error(`Ya existe un cliente con el RFC "${tax_id}". Verifica que no esté duplicado.`);
+      }
+      if (error.message.includes("name")) {
+        throw new Error(`Ya existe un cliente con el nombre "${name}".`);
+      }
+      throw new Error("Ya existe un cliente con estos datos. Verifica que no esté duplicado.");
+    }
+    if (error.code === "23502") {
+      throw new Error("Faltan campos requeridos. Asegúrate de llenar el Nombre.");
+    }
+    throw new Error(`Error al registrar cliente: ${error.message}`);
+  }
+
   revalidatePath("/customers");
   redirect("/customers");
 }
