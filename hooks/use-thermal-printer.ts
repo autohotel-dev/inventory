@@ -2,7 +2,24 @@
 
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import type { ConsumptionTicketData } from '@/lib/services/network-printer-service';
+
+// URL del print-server local
+const PRINT_SERVER_URL = 'http://localhost:3001';
+
+interface ConsumptionTicketData {
+    roomNumber: string;
+    folio: string;
+    date: Date;
+    items: Array<{
+        name: string;
+        qty: number;
+        price: number;
+        total: number;
+    }>;
+    subtotal: number;
+    total: number;
+    hotelName?: string;
+}
 
 interface UseThermalPrinterReturn {
     isPrinting: boolean;
@@ -22,18 +39,13 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         setError(null);
 
         try {
-            // Imprimir comanda de recepción (silencioso via API de red)
+            // Imprimir comanda de recepción via print-server local
             setPrintStatus('printing_reception');
 
-            const receptionResponse = await fetch('/api/print', {
+            const receptionResponse = await fetch(`${PRINT_SERVER_URL}/print`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    type: 'reception',
-                    data
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'reception', data })
             });
 
             if (!receptionResponse.ok) {
@@ -41,21 +53,16 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
                 throw new Error(errorData.error || 'Error al imprimir comanda de recepción');
             }
 
-            // Esperar 1.5 segundos entre impresiones
+            // Esperar entre impresiones
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             // Imprimir ticket de cliente
             setPrintStatus('printing_client');
 
-            const clientResponse = await fetch('/api/print', {
+            const clientResponse = await fetch(`${PRINT_SERVER_URL}/print`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    type: 'client',
-                    data
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'client', data })
             });
 
             if (!clientResponse.ok) {
@@ -76,10 +83,18 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
             setError(errorMessage);
             setPrintStatus('error');
 
-            toast.error('Error al imprimir', {
-                description: errorMessage,
-                duration: 5000
-            });
+            // Verificar si es error de conexión al print-server
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                toast.error('Print-server no disponible', {
+                    description: 'Verifica que el print-server esté corriendo en localhost:3001',
+                    duration: 8000
+                });
+            } else {
+                toast.error('Error al imprimir', {
+                    description: errorMessage,
+                    duration: 5000
+                });
+            }
 
             return false;
         } finally {
@@ -93,7 +108,7 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         setPrintStatus('printing_reception');
 
         try {
-            const response = await fetch('/api/print/test', {
+            const response = await fetch(`${PRINT_SERVER_URL}/print/test`, {
                 method: 'POST',
             });
 
@@ -115,9 +130,16 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
             setError(errorMessage);
             setPrintStatus('error');
 
-            toast.error('Error en prueba de impresión', {
-                description: errorMessage
-            });
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                toast.error('Print-server no disponible', {
+                    description: 'Asegúrate de que el print-server esté corriendo',
+                    duration: 8000
+                });
+            } else {
+                toast.error('Error en prueba de impresión', {
+                    description: errorMessage
+                });
+            }
 
             return false;
         } finally {
@@ -133,3 +155,6 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         error
     };
 }
+
+// Re-exportar el tipo para uso en otros lugares
+export type { ConsumptionTicketData };
