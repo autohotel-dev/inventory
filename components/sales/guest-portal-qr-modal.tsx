@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { X, Copy, Check, Download, Printer } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { generateGuestPortalQR, getGuestPortalURL } from '@/lib/utils/guest-portal-qr';
+import { printHTML } from '@/lib/utils/print-helper';
 
 interface GuestPortalQRModalProps {
     isOpen: boolean;
@@ -92,42 +93,73 @@ export function GuestPortalQRModal({
         link.click();
     }
 
-    function handlePrintQR() {
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(`
+    async function handlePrintQR() {
+        // Generate the HTML content
+        const htmlContent = `
         <html>
           <head>
             <title>Portal Huésped - Habitación ${roomNumber}</title>
             <style>
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
               body {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
+                width: 80mm; /* Force full 80mm width */
+                max-width: 100%;
+                margin: 0;
+                padding: 10px 0;
                 font-family: system-ui, -apple-system, sans-serif;
                 text-align: center;
-                padding: 20px;
+                color: #000;
               }
-              h1 { color: #1e293b; margin-bottom: 10px; }
-              p { color: #64748b; margin-bottom: 30px; }
-              img { max-width: 400px; border: 2px solid #e2e8f0; border-radius: 8px; }
-              .footer { margin-top: 30px; font-size: 14px; color: #94a3b8; }
+              h1 { 
+                font-size: 16px; 
+                margin: 0 0 5px 0;
+                font-weight: bold;
+                text-transform: uppercase;
+              }
+              .room { 
+                font-size: 24px; 
+                font-weight: bold; 
+                margin: 5px 0 10px 0;
+              }
+              .qr-container {
+                display: flex;
+                justify-content: center;
+                margin: 0;
+                padding: 0;
+              }
+              img { 
+                width: 65mm; /* Specific width for 80mm paper to avoid overflow but max size */
+                height: auto;
+                display: block;
+              }
+              .footer { 
+                margin-top: 10px; 
+                font-size: 12px; 
+                line-height: 1.2;
+                font-weight: bold;
+              }
             </style>
           </head>
           <body>
             <h1>Portal de Huéspedes</h1>
-            <p>Habitación ${roomNumber}</p>
-            <img src="${qrCodeDataURL}" alt="QR Code" />
+            <div class="room">Habitación ${roomNumber}</div>
+            <div class="qr-container">
+              <img src="${qrCodeDataURL}" alt="QR Code" />
+            </div>
             <div class="footer">
-              <p>Escanea este código para acceder al portal de huéspedes</p>
+              <p>ESCANEA PARA ACCEDER<br>A TU HABITACIÓN</p>
             </div>
           </body>
         </html>
-      `);
-            printWindow.document.close();
-            printWindow.print();
+      `;
+
+        try {
+            await printHTML(htmlContent);
+        } catch (error) {
+            console.error("Failed to print:", error);
         }
     }
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { printHTML } from '@/lib/utils/print-helper';
 import type { ClosingTicketData } from '@/lib/services/thermal-printer-service';
 
 interface UsePrintClosingReturn {
@@ -19,13 +20,6 @@ export function usePrintClosing(): UsePrintClosingReturn {
         setError(null);
 
         try {
-            // Create a temporary container for the print content
-            const printWindow = window.open('', '_blank');
-
-            if (!printWindow) {
-                throw new Error('No se pudo abrir la ventana de impresión. Verifica que no esté bloqueada por el navegador.');
-            }
-
             // Generate HTML for ticket
             const ticketHTML = `
                 <!DOCTYPE html>
@@ -36,15 +30,16 @@ export function usePrintClosing(): UsePrintClosingReturn {
                     <style>
                         @page {
                             size: 80mm auto;
-                            margin: 5mm;
+                            margin: 0;
                         }
                         
                         body {
-                            font-family: 'Courier New', monospace;
+                            font-family: system-ui, -apple-system, sans-serif;
                             font-size: 12px;
                             margin: 0;
-                            padding: 10px;
-                            width: 70mm;
+                            padding: 10px 0;
+                            width: 80mm;
+                            max-width: 100%;
                         }
                         
                         .center { text-align: center; }
@@ -248,23 +243,12 @@ export function usePrintClosing(): UsePrintClosingReturn {
                 </html>
             `;
 
-            printWindow.document.write(ticketHTML);
-            printWindow.document.close();
+            const success = await printHTML(ticketHTML);
 
-            // Wait for content to load
-            printWindow.onload = () => {
-                printWindow.print();
-                // Close the window after printing
-                setTimeout(() => {
-                    printWindow.close();
-                }, 500);
-            };
-
-            toast.success('Imprimiendo ticket de corte', {
-                description: 'Se abrirá el diálogo de impresión'
-            });
-
-            return true;
+            if (success) {
+                toast.success('Imprimiendo ticket de corte');
+            }
+            return success;
 
         } catch (err) {
             console.error('Print error:', err);

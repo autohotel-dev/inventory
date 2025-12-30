@@ -51,6 +51,7 @@ import {
 } from "./types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense, EXPENSE_TYPE_LABELS, EXPENSE_TYPE_ICONS } from "@/types/expenses";
+import { printHTML } from "@/lib/utils/print-helper";
 
 
 interface ShiftClosingProps {
@@ -1335,150 +1336,160 @@ export function ShiftClosingHistory() {
     }
   };
 
-  // Exportar corte a PDF/Imprimir
-  const exportClosing = (closing: ShiftClosing) => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
+  // Exportar corte a PDF/Imprimir (Silent Print)
+  const exportClosing = async (closing: ShiftClosing) => {
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Corte de Caja - ${new Date(closing.period_start).toLocaleDateString("es-MX")}</title>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; max-width: 400px; margin: 0 auto; }
-          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-          .header h1 { font-size: 18px; margin-bottom: 5px; }
-          .info { margin-bottom: 15px; }
-          .info-row { display: flex; justify-content: space-between; margin-bottom: 5px; padding: 3px 0; }
-          .info-row.border { border-bottom: 1px dashed #ccc; }
-          .section { margin: 15px 0; padding: 10px 0; border-top: 1px solid #000; }
-          .section h3 { font-size: 14px; margin-bottom: 10px; }
-          .total-row { font-size: 14px; font-weight: bold; background: #f0f0f0; padding: 8px; margin: 5px 0; }
-          .status { text-align: center; padding: 10px; margin: 15px 0; font-weight: bold; border: 2px solid; }
-          .status.ok { border-color: green; color: green; }
-          .status.over { border-color: blue; color: blue; }
-          .status.under { border-color: red; color: red; }
-          .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }
-          @media print { .no-print { display: none; } }
+            @page {
+                size: 80mm auto;
+                margin: 0;
+            }
+            body { 
+                font-family: system-ui, -apple-system, sans-serif; 
+                font-size: 12px; 
+                margin: 0;
+                padding: 10px 0;
+                width: 80mm;
+                max-width: 100%;
+                color: #000;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .large { font-size: 16px; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .line { display: flex; justify-content: space-between; margin: 2px 0; }
+            .separator { 
+                border-top: 2px solid #000; 
+                border-bottom: 2px solid #000;
+                text-align: center;
+                padding: 4px 0;
+                margin: 8px 0;
+            }
+            .section-title { font-weight: bold; margin-top: 10px; text-align: center; }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h1>📋 CORTE DE CAJA</h1>
-          <p>${closing.shift_definitions?.name || "Turno"}</p>
-          <p>${new Date(closing.period_start).toLocaleDateString("es-MX", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <div class="center bold large">CORTE DE CAJA</div>
+        <div class="center bold">${closing.shift_definitions?.name || "Turno"}</div>
+        <div class="separator">================================</div>
+
+        <div class="line">
+          <span>Empleado:</span>
+          <span class="bold">${closing.employees?.first_name} ${closing.employees?.last_name}</span>
+        </div>
+        <div class="line">
+          <span>Inicio:</span>
+          <span>${new Date(closing.period_start).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        <div class="line">
+          <span>Fin:</span>
+          <span>${new Date(closing.period_end).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        <div class="line">
+            <span>Fecha:</span>
+            <span>${new Date(closing.period_start).toLocaleDateString("es-MX")}</span>
+        </div>
+        
+        <div class="separator">================================</div>
+
+        <div class="center bold">RESUMEN DE VENTAS</div>
+        <div class="divider"></div>
+
+        <div class="line">
+          <span>Efectivo:</span>
+          <span>$${(closing.total_cash || 0).toFixed(2)}</span>
+        </div>
+        <div class="line">
+          <span>Tarjeta BBVA:</span>
+          <span>$${(closing.total_card_bbva || 0).toFixed(2)}</span>
+        </div>
+        <div class="line">
+          <span>Tarjeta Getnet:</span>
+          <span>$${(closing.total_card_getnet || 0).toFixed(2)}</span>
         </div>
 
-        <div class="info">
-          <div class="info-row border">
-            <span>Empleado:</span>
-            <span><strong>${closing.employees?.first_name} ${closing.employees?.last_name}</strong></span>
-          </div>
-          <div class="info-row border">
-            <span>Hora inicio:</span>
-            <span>${new Date(closing.period_start).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <div class="info-row border">
-            <span>Hora fin:</span>
-            <span>${new Date(closing.period_end).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <div class="info-row border">
-            <span>Transacciones:</span>
-            <span>${closing.total_transactions}</span>
-          </div>
+        <div class="separator">================================</div>
+        
+        <div class="line large bold">
+          <span>TOTAL:</span>
+          <span>$${(closing.total_sales || 0).toFixed(2)}</span>
         </div>
+        
+        <div class="separator">================================</div>
 
-        <div class="section">
-          <h3>💰 Resumen de Ventas</h3>
-          <div class="info-row">
-            <span>Efectivo:</span>
-            <span>$${(closing.total_cash || 0).toFixed(2)}</span>
-          </div>
-          <div class="info-row">
-            <span>Tarjeta BBVA:</span>
-            <span>$${(closing.total_card_bbva || 0).toFixed(2)}</span>
-          </div>
-          <div class="info-row">
-            <span>Tarjeta Getnet:</span>
-            <span>$${(closing.total_card_getnet || 0).toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <div class="info-row" style="margin:0">
-              <span>TOTAL VENTAS:</span>
-              <span>$${(closing.total_sales || 0).toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
+        <div class="center bold">ARQUEO DE CAJA</div>
+        <div class="divider"></div>
 
-        <div class="section">
-          <h3>🧮 Arqueo de Caja</h3>
-          ${closing.cash_breakdown && Object.keys(closing.cash_breakdown).length > 0 ? `
-            <div style="margin-bottom: 10px;">
-              <p style="font-size: 11px; margin-bottom: 5px; font-weight: bold;">Desglose de efectivo:</p>
-              ${Object.entries(closing.cash_breakdown)
+        ${closing.cash_breakdown && Object.keys(closing.cash_breakdown).length > 0 ? `
+          ${Object.entries(closing.cash_breakdown)
           .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
           .map(([denom, count]) => {
             const denomValue = parseFloat(denom);
             const total = denomValue * (count as number);
             return `
-                    <div class="info-row" style="font-size: 11px; padding: 2px 0;">
-                      <span>${count} × $${denomValue.toFixed(2)}</span>
-                      <span>$${total.toFixed(2)}</span>
-                    </div>
-                  `;
+                <div class="line" style="font-size: 11px;">
+                  <span>${count} x $${denomValue.toFixed(2)}</span>
+                  <span>$${total.toFixed(2)}</span>
+                </div>
+              `;
           }).join('')}
-            </div>
-          ` : ''}
-          <div class="info-row">
-            <span>Efectivo esperado:</span>
-            <span>$${(closing.total_cash || 0).toFixed(2)}</span>
-          </div>
-          <div class="info-row">
-            <span>Efectivo contado:</span>
-            <span>$${(closing.counted_cash || 0).toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <div class="info-row" style="margin:0">
-              <span>DIFERENCIA:</span>
-              <span>$${(closing.cash_difference || 0).toFixed(2)}</span>
-            </div>
-          </div>
+          <div class="divider"></div>
+        ` : ''}
+
+        <div class="line">
+          <span>Esperado:</span>
+          <span>$${(closing.total_cash || 0).toFixed(2)}</span>
+        </div>
+        <div class="line">
+          <span>Contado:</span>
+          <span>$${(closing.counted_cash || 0).toFixed(2)}</span>
+        </div>
+        
+         <div class="line bold" style="margin-top: 5px;">
+          <span>DIFERENCIA:</span>
+          <span>${(closing.cash_difference || 0) >= 0 ? '+' : ''}${(closing.cash_difference || 0).toFixed(2)}</span>
         </div>
 
-        <div class="status ${closing.cash_difference === 0 ? 'ok' : (closing.cash_difference || 0) > 0 ? 'over' : 'under'}">
-          ${closing.cash_difference === 0
+        <div class="separator">================================</div>
+
+        <div class="center bold">
+        ${closing.cash_difference === 0
         ? '✓ CAJA CUADRADA'
         : (closing.cash_difference || 0) > 0
-          ? '↑ SOBRANTE: $' + Math.abs(closing.cash_difference || 0).toFixed(2)
-          : '↓ FALTANTE: $' + Math.abs(closing.cash_difference || 0).toFixed(2)
+          ? 'SOBRANTE'
+          : 'FALTANTE'
       }
         </div>
 
+        <div class="separator">================================</div>
+
         ${closing.notes ? `
-          <div class="section">
-            <h3>📝 Notas</h3>
-            <p>${closing.notes}</p>
-          </div>
+          <div class="center bold">NOTAS</div>
+          <div style="margin: 5px 0;">${closing.notes}</div>
+          <div class="separator">================================</div>
         ` : ''}
 
-        <div class="footer">
-          <p>Generado: ${new Date().toLocaleString("es-MX")}</p>
-          <p>ID: ${closing.id.slice(0, 8).toUpperCase()}</p>
-        </div>
-
-        <div class="no-print" style="text-align: center; margin-top: 20px;">
-          <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer;">
-            🖨️ Imprimir
-          </button>
+        <div class="center" style="margin-top: 15px;">
+          <div style="font-size: 10px;">ID: ${closing.id.slice(0, 8).toUpperCase()}</div>
+          <div style="font-size: 10px;">${new Date().toLocaleString("es-MX")}</div>
         </div>
       </body>
       </html>
     `;
 
-    printWindow.document.write(html);
-    printWindow.document.close();
+    try {
+      const printResult = await printHTML(html);
+      if (printResult) {
+        success("Impresión iniciada", "Ticket enviado a imprimir");
+      }
+    } catch (err) {
+      console.error("Error al imprimir:", err);
+      showError("Error", "No se pudo iniciar la impresión");
+    }
   };
 
   const formatCurrency = (amount: number) => {
