@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrinterInstance, type ConsumptionTicketData } from '@/lib/services/thermal-printer-service';
+import { getNetworkPrinterInstance, type ConsumptionTicketData, type ClosingTicketData } from '@/lib/services/network-printer-service';
 
 export async function POST(request: NextRequest) {
     try {
-        const { type, data } = await request.json() as {
-            type: 'reception' | 'client' | 'both';
-            data: ConsumptionTicketData;
+        const body = await request.json();
+        const { type, data } = body as {
+            type: 'reception' | 'client' | 'both' | 'closing';
+            data: ConsumptionTicketData | ClosingTicketData;
         };
 
-        // Obtener instancia de impresora (usa configuración guardada o default)
-        const printerService = getPrinterInstance();
+        // Obtener instancia de impresora de red
+        const printerService = getNetworkPrinterInstance();
 
         if (type === 'reception') {
-            await printerService.printReceptionTicket(data);
+            await printerService.printReceptionTicket(data as ConsumptionTicketData);
         } else if (type === 'client') {
-            await printerService.printClientTicket(data);
+            await printerService.printClientTicket(data as ConsumptionTicketData);
         } else if (type === 'both') {
-            await printerService.printBothTickets(data);
+            await printerService.printBothTickets(data as ConsumptionTicketData);
+        } else if (type === 'closing') {
+            await printerService.printClosingTicket(data as ClosingTicketData);
         } else {
             return NextResponse.json(
                 { error: 'Tipo de impresión inválido' },
@@ -26,7 +29,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'Ticket impreso correctamente'
+            message: 'Ticket impreso correctamente (silencioso)'
         });
 
     } catch (error) {
@@ -42,3 +45,4 @@ export async function POST(request: NextRequest) {
         );
     }
 }
+

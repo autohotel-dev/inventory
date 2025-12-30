@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getPrinterInstance } from '@/lib/services/thermal-printer-service';
+import { getNetworkPrinterInstance } from '@/lib/services/network-printer-service';
 
 export async function POST() {
     try {
-        const printerService = getPrinterInstance();
+        const printerService = getNetworkPrinterInstance();
         await printerService.printTest();
 
         return NextResponse.json({
             success: true,
-            message: 'Prueba de impresión completada'
+            message: 'Prueba de impresión completada (silencioso)'
         });
 
     } catch (error) {
@@ -24,3 +24,4 @@ export async function POST() {
         );
     }
 }
+

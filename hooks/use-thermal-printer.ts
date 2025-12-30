@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import type { ConsumptionTicketData } from '@/lib/services/thermal-printer-service';
+import type { ConsumptionTicketData } from '@/lib/services/network-printer-service';
 
 interface UseThermalPrinterReturn {
     isPrinting: boolean;
@@ -22,7 +22,7 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         setError(null);
 
         try {
-            // Imprimir comanda de recepción
+            // Imprimir comanda de recepción (silencioso via API de red)
             setPrintStatus('printing_reception');
 
             const receptionResponse = await fetch('/api/print', {
@@ -41,8 +41,8 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
                 throw new Error(errorData.error || 'Error al imprimir comanda de recepción');
             }
 
-            // Esperar 2 segundos entre impresiones
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Esperar 1.5 segundos entre impresiones
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
             // Imprimir ticket de cliente
             setPrintStatus('printing_client');
