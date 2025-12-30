@@ -52,6 +52,11 @@ export const metadata: Metadata = {
     "application-name": "Inventario Pro",
     "msapplication-TileColor": "#2563eb",
     "msapplication-config": "/browserconfig.xml"
+  },
+  icons: {
+    icon: '/logo.jpg',
+    shortcut: '/logo.jpg',
+    apple: '/logo.jpg',
   }
 };
 
