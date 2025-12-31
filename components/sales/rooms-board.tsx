@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,7 @@ export function RoomsBoard() {
   const [statusNoteAction, setStatusNoteAction] = useState<"BLOCK" | "DIRTY" | null>(null);
   const [showHourManagementModal, setShowHourManagementModal] = useState(false);
   const [showGuestPortalQRModal, setShowGuestPortalQRModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Sensores
   const { sensors } = useSensors();
@@ -1440,12 +1442,17 @@ export function RoomsBoard() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => fetchRooms()}
+          onClick={async () => {
+            setIsRefreshing(true);
+            await fetchRooms(true);
+            setTimeout(() => setIsRefreshing(false), 500);
+          }}
+          disabled={isRefreshing}
           className="text-muted-foreground hover:text-foreground transition-colors"
         >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Actualizar</span>
-          <span className="sm:hidden">Sync</span>
+          <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+          <span className="hidden sm:inline">{isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
+          <span className="sm:hidden">{isRefreshing ? '...' : 'Sync'}</span>
         </Button>
       </div>
 
