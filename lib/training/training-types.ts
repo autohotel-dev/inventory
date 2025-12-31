@@ -24,7 +24,7 @@ export interface TrainingModule {
     icon: string; // Lucide icon name
     duration: number; // in minutes
     difficulty: TrainingDifficulty;
-    category: 'rooms' | 'payments' | 'sales' | 'shifts' | 'reports' | 'config' | 'intro';
+    category: 'rooms' | 'payments' | 'sales' | 'shifts' | 'reports' | 'config' | 'intro' | 'inventory' | 'sensors' | 'admin';
     // Main video tutorial
     videoUrl?: string;
     videoDuration?: string; // e.g., "3:45"

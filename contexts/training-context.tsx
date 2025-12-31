@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
 import { TrainingModule, TrainingMode, TrainingProgress, TrainingContextType } from '@/lib/training/training-types';
 import { getModuleById } from '@/lib/training/training-data';
 
@@ -11,6 +11,37 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     const [currentMode, setCurrentMode] = useState<TrainingMode | null>(null);
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [progress, setProgress] = useState<Map<string, TrainingProgress>>(new Map());
+
+    // Cargar progreso de localStorage al iniciar
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('training-progress');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    const map = new Map();
+                    parsed.forEach(([key, val]: [string, any]) => {
+                        map.set(key, {
+                            ...val,
+                            startedAt: val.startedAt ? new Date(val.startedAt) : undefined,
+                            completedAt: val.completedAt ? new Date(val.completedAt) : undefined
+                        });
+                    });
+                    setProgress(map);
+                }
+            }
+        } catch (e) {
+            console.error("Error loading training progress", e);
+        }
+    }, []);
+
+    // Guardar progreso cuando cambie
+    useEffect(() => {
+        if (progress.size > 0) {
+            const entries = Array.from(progress.entries());
+            localStorage.setItem('training-progress', JSON.stringify(entries));
+        }
+    }, [progress]);
 
     const startModule = useCallback((moduleId: string, mode: TrainingMode) => {
         const module = getModuleById(moduleId);

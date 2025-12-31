@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { mockProducts } from "@/lib/training/mock-data";
 import { cn } from "@/lib/utils";
+import { usePOSConfigRead } from "@/hooks/use-pos-config";
+import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 
 interface Product {
     id: string;
@@ -67,10 +69,13 @@ export function MockAddConsumptionModal({
     const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const rapidInputRef = useRef<boolean>(false);
 
-    // Configuración de detección de escaneo
-    const SCAN_SPEED_THRESHOLD = 50;
-    const SCAN_COMPLETE_DELAY = 150;
-    const MIN_SCAN_LENGTH = 3;
+    // Configuración real desde hooks
+    const posConfig = usePOSConfigRead();
+    const { playSuccess, playError, playClick } = useSoundFeedback();
+
+    const SCAN_SPEED_THRESHOLD = posConfig.scanSpeedThreshold;
+    const SCAN_COMPLETE_DELAY = posConfig.scanCompleteDelay;
+    const MIN_SCAN_LENGTH = posConfig.minScanLength;
 
     // Cargar productos mock al abrir
     useEffect(() => {
@@ -189,11 +194,14 @@ export function MockAddConsumptionModal({
         const product = findProduct(trimmedCode);
 
         if (product) {
+            if (posConfig.soundEnabled) playSuccess();
             addToCart(product);
             setSearchValue("");
             setLastAddedId(product.id);
             setInputError(false);
+            toast.success(`"${product.name}" agregado`, { duration: 1000 });
         } else {
+            if (posConfig.soundEnabled) playError();
             setInputError(true);
             toast.error(`Producto "${trimmedCode}" no encontrado`);
         }
@@ -218,7 +226,7 @@ export function MockAddConsumptionModal({
             rapidInputRef.current = true;
         }
 
-        if (rapidInputRef.current && newValue.length >= MIN_SCAN_LENGTH) {
+        if (posConfig.autoScanDetection && rapidInputRef.current && newValue.length >= MIN_SCAN_LENGTH) {
             scanTimeoutRef.current = setTimeout(() => {
                 if (rapidInputRef.current) {
                     processScannedCode(newValue);
@@ -230,6 +238,7 @@ export function MockAddConsumptionModal({
     // Manejar búsqueda
     const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && searchValue.trim()) {
+            if (posConfig.soundEnabled) playClick();
             if (scanTimeoutRef.current) {
                 clearTimeout(scanTimeoutRef.current);
             }

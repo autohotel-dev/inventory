@@ -4,9 +4,16 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Printer } from "lucide-react";
+import { Download, Printer, ChevronDown, ChevronUp, ChartBar } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { Badge } from "@/components/ui/badge";
+
+interface PaymentDetail {
+    payment_method: string;
+    amount: number;
+    card_type?: string;
+    card_last_4?: string;
+}
 
 interface IncomeEntry {
     no: number;
@@ -21,6 +28,7 @@ interface IncomeEntry {
     card_type?: string;
     card_last_4?: string;
     stay_status?: string;
+    payments?: PaymentDetail[];
 }
 
 interface IncomeReportProps {
@@ -46,6 +54,16 @@ export function IncomeReport({
     const [loading, setLoading] = useState(true);
     const [reportNumber, setReportNumber] = useState("0001");
     const [shiftInfo, setShiftInfo] = useState<any>(null);
+    const [expandedRows, setExpandedRows] = useState<number[]>([]);
+    const [showStats, setShowStats] = useState(true);
+
+    const toggleRow = (rowNo: number) => {
+        setExpandedRows(prev =>
+            prev.includes(rowNo)
+                ? prev.filter(r => r !== rowNo)
+                : [...prev, rowNo]
+        );
+    };
 
     useEffect(() => {
         fetchIncomeData();
@@ -93,15 +111,17 @@ export function IncomeReport({
             // Filtrar por turno o rango de fechas
             if (reportType === "shift" && shiftId) {
                 // Primero intentar buscar en cierres (histórico)
-                const { data: closingData } = await supabase
+                const { data: closingData, error: closingError } = await supabase
                     .from("shift_closings")
                     .select(`
                         period_start,
                         period_end,
-                        employees!inner(first_name, last_name)
+                        employees!shift_closings_employee_id_fkey(first_name, last_name)
                     `)
                     .eq("id", shiftId)
                     .maybeSingle();
+
+                console.log("🔍 Closing data for shift filter:", { shiftId, closingData, closingError });
 
                 let shift: any = null;
 
@@ -113,21 +133,24 @@ export function IncomeReport({
                         shift_end: closingData.period_end,
                         employee_name: employee ? `${employee.first_name} ${employee.last_name}` : undefined
                     };
+                    console.log("📅 Shift period:", { start: shift.shift_start, end: shift.shift_end });
                 }
 
                 // Si no es un cierre, buscar en sesiones activas
                 if (!shift) {
-                    const { data: session } = await supabase
+                    const { data: session, error: sessionError } = await supabase
                         .from("shift_sessions")
                         .select(`
                             clock_in_at,
-                            employees!inner(
+                            employees!shift_sessions_employee_id_fkey(
                                 first_name,
                                 last_name
                             )
                         `)
                         .eq("id", shiftId)
                         .single();
+
+                    console.log("🔍 Session data for shift filter:", { shiftId, session, sessionError });
 
                     if (session) {
                         const employee = (session.employees as any);
@@ -140,6 +163,7 @@ export function IncomeReport({
                             shift_end: null, // Turno abierto
                             employee_name: employeeName
                         };
+                        console.log("📅 Active shift period:", { start: shift.shift_start, end: "NOW" });
                     }
                 }
 
@@ -154,6 +178,9 @@ export function IncomeReport({
                         // Para turno actual, hasta el momento presente
                         query = query.lte("check_in_at", new Date().toISOString());
                     }
+                    console.log("✅ Query filtered by shift period");
+                } else {
+                    console.warn("⚠️ No shift data found for shiftId:", shiftId);
                 }
             } else if (reportType === "dateRange") {
                 if (startDate) {
@@ -196,8 +223,20 @@ export function IncomeReport({
                     )
                     .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
 
-                const consumption = order?.subtotal - roomPrice - extra || 0;
+                const consumption = Math.max(0, (order?.subtotal || 0) - roomPrice - extra);
                 const cardPayment = payments.find((p: any) => p.payment_method === "TARJETA");
+
+                // Determinar método de pago
+                let paymentMethod = "";
+                if (payments.length === 0) {
+                    paymentMethod = "PENDIENTE";
+                } else if (payments.length > 1) {
+                    // Verificar si son métodos distintos
+                    const uniqueMethods = new Set(payments.map((p: any) => p.payment_method));
+                    paymentMethod = uniqueMethods.size > 1 ? "MIXTO" : payments[0].payment_method;
+                } else {
+                    paymentMethod = payments[0].payment_method;
+                }
 
                 return {
                     no: index + 1,
@@ -211,11 +250,17 @@ export function IncomeReport({
                     room_price: roomPrice,
                     extra: extra,
                     consumption: consumption,
-                    total: order?.total || 0,
-                    payment_method: payments.length > 0 ? payments[0].payment_method : "",
+                    total: order?.total || order?.subtotal || 0,
+                    payment_method: paymentMethod,
                     card_type: cardPayment?.card_type,
                     card_last_4: cardPayment?.card_last_4,
                     stay_status: stay.status,
+                    payments: payments.map((p: any) => ({
+                        payment_method: p.payment_method,
+                        amount: p.amount || 0,
+                        card_type: p.card_type,
+                        card_last_4: p.card_last_4
+                    })),
                 };
             });
 
@@ -309,40 +354,64 @@ export function IncomeReport({
                 </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Habitaciones</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(totals.roomPrice)}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Extras</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{formatCurrency(totals.extra)}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Consumos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-amber-600">{formatCurrency(totals.consumption)}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Total General</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-emerald-600">{formatCurrency(totals.total)}</div>
-                    </CardContent>
-                </Card>
+            {/* Estadísticas Colapsables */}
+            <div className="space-y-4">
+                <div
+                    className="flex items-center justify-between p-2 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border border-border"
+                    onClick={() => setShowStats(!showStats)}
+                >
+                    <div className="flex items-center gap-2 px-2">
+                        <ChartBar className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="font-semibold text-sm">Resumen Estadístico</h3>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                        {showStats ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
+                </div>
+
+                {showStats && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in slide-in-from-top-2 fade-in duration-200">
+                        {/* Total Habitaciones */}
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Total Habitaciones</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{formatCurrency((totals.roomPrice || 0))}</div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Total Extras */}
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Extras</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{formatCurrency((totals.extra || 0))}</div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Total Consumo */}
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Consumo</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{formatCurrency((totals.consumption || 0))}</div>
+                            </CardContent>
+                        </Card>
+
+                        {/* GRAN TOTAL */}
+                        <Card className="bg-primary text-primary-foreground">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium text-primary-foreground/90">Total General</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{formatCurrency((totals.total || 0))}</div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </div>
 
             {/* Reporte */}
@@ -378,50 +447,106 @@ export function IncomeReport({
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Extra</th>
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Consumo</th>
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Total</th>
-                                    <th className="p-2 w-32 font-semibold">Tarjeta</th>
+                                    <th className="p-2 w-32 font-semibold">Forma Pago</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {entries.map((entry, idx) => (
-                                    <tr key={entry.no} className={`border-b border-border hover:bg-muted/30 transition-colors print:border-b print:border-black ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
-                                        <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{entry.no}</td>
-                                        <td className="border-r border-border p-2 text-center print:border-r print:border-black">{entry.time}</td>
-                                        <td className="border-r border-border p-2 text-center uppercase print:border-r print:border-black">{entry.vehicle_plate}</td>
-                                        <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <span>{entry.room_number}</span>
-                                                {entry.stay_status === "ACTIVA" && (
-                                                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 print:hidden">
-                                                        EN CURSO
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="border-r border-border p-2 text-right print:border-r print:border-black">
-                                            {entry.room_price > 0 ? <span className="font-mono">{formatCurrency(entry.room_price)}</span> : "-"}
-                                        </td>
-                                        <td className="border-r border-border p-2 text-right print:border-r print:border-black">
-                                            {entry.extra > 0 ? <span className="font-mono text-blue-600 print:text-black">{formatCurrency(entry.extra)}</span> : "-"}
-                                        </td>
-                                        <td className="border-r border-border p-2 text-right print:border-r print:border-black">
-                                            {entry.consumption > 0 ? <span className="font-mono text-amber-600 print:text-black">{formatCurrency(entry.consumption)}</span> : "-"}
-                                        </td>
-                                        <td className="border-r border-border p-2 text-right font-semibold print:border-r print:border-black">
-                                            <span className="font-mono">{formatCurrency(entry.total)}</span>
-                                        </td>
-                                        <td className="p-2 text-center">
-                                            {entry.payment_method === "TARJETA" && entry.card_last_4 ? (
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <Badge variant="outline" className="text-xs">
-                                                        {entry.card_type === "CREDITO" ? "CRÉDITO" : "DÉBITO"}
-                                                    </Badge>
-                                                    <span className="text-xs font-mono">•••• {entry.card_last_4}</span>
+                                    <>
+                                        <tr key={entry.no} className={`border-b border-border hover:bg-muted/30 transition-colors print:border-b print:border-black ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                                            <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{entry.no}</td>
+                                            <td className="border-r border-border p-2 text-center print:border-r print:border-black">{entry.time}</td>
+                                            <td className="border-r border-border p-2 text-center uppercase print:border-r print:border-black">{entry.vehicle_plate}</td>
+                                            <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <span>{entry.room_number}</span>
+                                                    {entry.stay_status === "ACTIVA" && (
+                                                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 print:hidden">
+                                                            EN CURSO
+                                                        </Badge>
+                                                    )}
                                                 </div>
-                                            ) : (
-                                                <span className="text-muted-foreground">-</span>
-                                            )}
-                                        </td>
-                                    </tr>
+                                            </td>
+                                            <td className="border-r border-border p-2 text-right print:border-r print:border-black">
+                                                {entry.room_price > 0 ? <span className="font-mono">{formatCurrency(entry.room_price)}</span> : "-"}
+                                            </td>
+                                            <td className="border-r border-border p-2 text-right print:border-r print:border-black">
+                                                {entry.extra > 0 ? <span className="font-mono text-blue-600 print:text-black">{formatCurrency(entry.extra)}</span> : "-"}
+                                            </td>
+                                            <td className="border-r border-border p-2 text-right print:border-r print:border-black">
+                                                {entry.consumption > 0 ? <span className="font-mono text-amber-600 print:text-black">{formatCurrency(entry.consumption)}</span> : "-"}
+                                            </td>
+                                            <td className="border-r border-border p-2 text-right font-semibold print:border-r print:border-black">
+                                                <span className="font-mono">{formatCurrency(entry.total)}</span>
+                                            </td>
+                                            <td className="p-2 text-center">
+                                                {entry.payment_method === "PENDIENTE" ? (
+                                                    <Badge variant="destructive" className="text-xs">
+                                                        PENDIENTE
+                                                    </Badge>
+                                                ) : entry.payment_method === "MIXTO" ? (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 gap-1 px-2 hover:bg-muted"
+                                                        onClick={() => toggleRow(entry.no)}
+                                                    >
+                                                        <Badge variant="secondary" className="text-xs pointer-events-none">
+                                                            MIXTO
+                                                        </Badge>
+                                                        {expandedRows.includes(entry.no) ? (
+                                                            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                                                        ) : (
+                                                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                                        )}
+                                                    </Button>
+                                                ) : entry.payment_method === "EFECTIVO" ? (
+                                                    <Badge className="text-xs bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:text-white">
+                                                        EFECTIVO
+                                                    </Badge>
+                                                ) : entry.payment_method === "TARJETA" ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {entry.card_type === "CREDITO" ? "CRÉDITO" : entry.card_type === "DEBITO" ? "DÉBITO" : "TARJETA"}
+                                                        </Badge>
+                                                        {entry.card_last_4 && (
+                                                            <span className="text-xs font-mono text-muted-foreground">•••• {entry.card_last_4}</span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground text-xs">{entry.payment_method || "-"}</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                        {/* Fila expandible para detalles de pago mixto */}
+                                        {expandedRows.includes(entry.no) && entry.payments && (
+                                            <tr className="bg-muted/30 print:hidden animate-in fade-in-0 slide-in-from-top-1">
+                                                <td colSpan={8} className="p-0 border-r border-border"></td>
+                                                <td className="p-2 border-b border-border bg-muted/30 shadow-inner">
+                                                    <div className="space-y-1">
+                                                        {entry.payments.map((p, pIdx) => (
+                                                            <div key={pIdx} className="flex justify-between items-center text-xs p-1 rounded hover:bg-background/50">
+                                                                <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                                                    {p.payment_method === "EFECTIVO" ? (
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                                    ) : (
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                                    )}
+                                                                    {p.payment_method}
+                                                                    {p.payment_method === 'TARJETA' && (
+                                                                        <span className="ml-1 text-[10px] opacity-70">
+                                                                            ({p.card_type === 'CREDITO' ? 'CRÉD.' : 'DÉB.'} •••• {p.card_last_4})
+                                                                        </span>
+                                                                    )}:
+                                                                </span>
+                                                                <span className="font-mono font-medium">{formatCurrency(p.amount)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </>
                                 ))}
 
                                 {entries.length === 0 && (

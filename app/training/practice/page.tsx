@@ -28,6 +28,14 @@ import { RoomPayExtraModal } from '@/components/sales/room-pay-extra-modal';
 import { PracticeIntro } from '@/components/training/practice-intro';
 import { MockGranularPaymentModal, MockOrderItem } from '@/components/training/modals/mock-granular-payment-modal';
 import { MockExpenseModal } from '@/components/training/modals/mock-expense-modal';
+import {
+    MockInventoryPanel,
+    MockSensorsPanel,
+    MockAdminPanel,
+    MockShiftPanel,
+    MockReportPanel,
+    MockConfigPanel
+} from '@/components/training/mock-panels';
 
 const ROOM_STATUS_BG: Record<string, string> = {
     FREE: 'bg-green-900/80',
@@ -38,135 +46,21 @@ const ROOM_STATUS_BG: Record<string, string> = {
     RESERVADA: 'bg-yellow-900/80',
 };
 
-// Mocks Visuales para Módulos Genéricos
-function MockShiftPanel({ completed, mockExpense }: { completed: string[], mockExpense?: any }) {
-    const isStarted = completed.includes('start-shift');
-    const isClosed = completed.includes('close-shift');
-    const hasExpense = completed.includes('register-expense');
-
-    return (
-        <div className="space-y-4">
-            <div className={`p-4 rounded-lg border ${isClosed ? 'bg-red-50 border-red-200 dark:bg-red-900/20' : isStarted ? 'bg-green-50 border-green-200 dark:bg-green-900/20' : 'bg-gray-50 border-gray-200 dark:bg-gray-800'}`}>
-                <div className="font-bold mb-1">Estado del Turno</div>
-                <div className="text-2xl font-mono">{isClosed ? '🔴 CERRADO' : isStarted ? '🟢 ABIERTO' : '⚪ NO INICIADO'}</div>
-                {isStarted && <div className="text-xs mt-2 text-muted-foreground">Iniciado: {new Date().toLocaleTimeString()}</div>}
-            </div>
-
-            <div className="border rounded-lg overflow-hidden bg-card">
-                <div className="bg-muted p-2 text-xs font-semibold uppercase tracking-wider">Movimientos Recientes</div>
-                <div className="p-3 space-y-2 text-sm">
-                    {hasExpense && (
-                        <div className="flex justify-between text-red-600 font-medium">
-                            <span>{mockExpense ? `Gasto: ${mockExpense.description}` : 'Gasto: Limpieza General'}</span>
-                            <span>{mockExpense ? `-$${mockExpense.amount.toFixed(2)}` : '-$150.00'}</span>
-                        </div>
-                    )}
-                    {isStarted ? (
-                        <div className="flex justify-between text-muted-foreground italic text-xs">
-                            <span>-- Esperando más movimientos --</span>
-                        </div>
-                    ) : (
-                        <div className="text-center text-muted-foreground py-4 text-xs">Inicia turno para ver registros</div>
-                    )}
-                    {isClosed && (
-                        <div className="border-t pt-2 mt-2 flex justify-between font-bold">
-                            <span>Balance Final:</span>
-                            <span>{hasExpense ? '-$150.00' : '$0.00'}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function MockReportPanel({ completed }: { completed: string[] }) {
-    const hasReport = completed.includes('income-report');
-    const hasFilters = completed.includes('filters');
-    const isPrinted = completed.includes('print-report');
-
-    if (!hasReport) return (
-        <div className="h-full flex items-center justify-center border-2 border-dashed rounded-lg p-8 text-muted-foreground bg-muted/20">
-            <div className="text-center">
-                <div className="text-4xl mb-2">📊</div>
-                <div>Genera un reporte para visualizar datos</div>
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="space-y-4 border p-4 rounded-lg bg-card shadow-sm">
-            <div className="flex justify-between items-center border-b pb-2">
-                <div className="font-bold">Reporte de Ingresos</div>
-                {isPrinted && <Badge variant="secondary">Impreso 🖨️</Badge>}
-            </div>
-            {hasFilters && (
-                <div className="flex gap-2 text-xs">
-                    <Badge variant="outline">Filtro: Hoy</Badge>
-                    <Badge variant="outline">Método: Todos</Badge>
-                </div>
-            )}
-            <div className="space-y-2">
-                <div className="flex items-end gap-2 h-32 pt-4 justify-between px-4 bg-muted/20 rounded">
-                    <div className="w-8 bg-blue-300 h-3/4 rounded-t" title="Efectivo"></div>
-                    <div className="w-8 bg-green-300 h-1/2 rounded-t" title="Tarjeta"></div>
-                    <div className="w-8 bg-purple-300 h-1/4 rounded-t" title="Transferencia"></div>
-                    <div className="w-8 bg-yellow-300 h-2/3 rounded-t" title="Otros"></div>
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground px-4">
-                    <span>EFE</span><span>TAR</span><span>TRA</span><span>OTR</span>
-                </div>
-            </div>
-            <div className="text-right font-bold text-lg mt-2">$12,450.00</div>
-        </div>
-    );
-}
-
-function MockConfigPanel({ completed }: { completed: string[] }) {
-    return (
-        <div className="border rounded-lg overflow-hidden bg-card">
-            <div className="bg-muted p-2 text-xs font-semibold">Configuración Actual</div>
-            <div className="divide-y">
-                <div className="p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">👤</div>
-                        <div className="text-sm">
-                            <div className="font-medium">Empleados</div>
-                            <div className="text-xs text-muted-foreground">{completed.includes('manage-employees') ? '3 Activos (Editado)' : '3 Activos'}</div>
-                        </div>
-                    </div>
-                    {completed.includes('manage-employees') && <Badge className="bg-green-500">Actualizado</Badge>}
-                </div>
-                <div className="p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">📦</div>
-                        <div className="text-sm">
-                            <div className="font-medium">Productos</div>
-                            <div className="text-xs text-muted-foreground">{completed.includes('manage-products') ? '45 Items (Catálogo ok)' : '45 Items'}</div>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">🖨️</div>
-                        <div className="text-sm">
-                            <div className="font-medium">Impresoras</div>
-                            <div className="text-xs text-muted-foreground">{completed.includes('printer-config') ? 'Conectada: 192.168.1.50' : 'Sin configurar'}</div>
-                        </div>
-                    </div>
-                    {completed.includes('printer-config') && <Badge variant="outline">Online</Badge>}
-                </div>
-            </div>
-        </div>
-    );
-}
+// Mocks Visuales importados de @/components/training/mock-panels
 
 // Componente para módulos genéricos (sin grid de habitaciones)
 function PracticeGenericModule({ module, onCompleteStep, completedSteps, onOpenExpense, mockExpense }: any) {
     const renderVisualMock = () => {
-        if (module.id === 'gestion-turnos') return <MockShiftPanel completed={completedSteps} mockExpense={mockExpense} />;
-        if (module.id === 'reportes-informes') return <MockReportPanel completed={completedSteps} />;
+        if (module.id === 'shift-control') return <MockShiftPanel completed={completedSteps} mockExpense={mockExpense} />;
+        if (module.id === 'reports-basic') return <MockReportPanel completed={completedSteps} />;
+        // No hay config panel en training-data aún, pero lo dejamos por si acaso
         if (module.id === 'configuracion-sistema') return <MockConfigPanel completed={completedSteps} />;
+
+        // Nuevos mocks visuales por categoría
+        if (module.category === 'inventory') return <MockInventoryPanel completed={completedSteps} />;
+        if (module.category === 'sensors') return <MockSensorsPanel completed={completedSteps} />;
+        if (module.category === 'admin') return <MockAdminPanel completed={completedSteps} />;
+
         return <div className="text-center text-muted-foreground p-8">Vista previa no disponible</div>;
     };
 
@@ -265,7 +159,7 @@ export default function PracticePage() {
 
     // Inicializar escenario según módulo
     useEffect(() => {
-        if (['procesamiento-pagos', 'consumos-ventas', 'gestion-avanzada'].includes(activeModule?.id || '')) {
+        if (['manage-payments', 'sales-order', 'manage-credit', 'customer-management'].includes(activeModule?.id || '')) {
             // Pre-llenar habitaciones con deuda para practicar cobro inmediato
             const now = new Date();
             setPracticeRooms(prev => prev.map((r, i) => {
@@ -298,13 +192,13 @@ export default function PracticePage() {
         const methods = payments.map(p => p.method);
 
         if (methods.includes('EFECTIVO')) {
-            if (!completedExercises.includes('pago-efectivo')) setCompletedExercises(prev => [...prev, 'pago-efectivo']);
+            if (!completedExercises.includes('pay-cash')) setCompletedExercises(prev => [...prev, 'pay-cash']);
         }
         if (methods.includes('TARJETA')) {
-            if (!completedExercises.includes('pago-tarjeta')) setCompletedExercises(prev => [...prev, 'pago-tarjeta']);
+            if (!completedExercises.includes('pay-card')) setCompletedExercises(prev => [...prev, 'pay-card']);
         }
         if (methods.length > 1) {
-            if (!completedExercises.includes('multi-pago')) setCompletedExercises(prev => [...prev, 'multi-pago']);
+            if (!completedExercises.includes('pay-mixed')) setCompletedExercises(prev => [...prev, 'pay-mixed']);
         }
     };
 
@@ -924,7 +818,7 @@ export default function PracticePage() {
                 </Card>
 
                 {/* Practice Rooms Grid or Intro */}
-                {activeModule.id === 'intro-sistema' ? (
+                {['intro-basica', 'intro-interfaz'].includes(activeModule.id) ? (
                     <PracticeIntro
                         completedSteps={completedExercises}
                         onCompleteStep={(stepId) => {
@@ -934,12 +828,15 @@ export default function PracticePage() {
                             }
                         }}
                     />
-                ) : ['gestion-turnos', 'reportes-informes', 'configuracion-sistema'].includes(activeModule.id) ? (
+                ) : ['shift-control', 'reports-basic', 'inventory-stock', 'inventory-movements', 'inventory-purchases', 'sensors-monitoring', 'customer-management', 'analytics-financial'].includes(activeModule.id) ? (
                     <PracticeGenericModule
                         module={activeModule}
                         completedSteps={completedExercises}
                         onCompleteStep={(stepId: string) => {
-                            if (!completedExercises.includes(stepId)) setCompletedExercises(prev => [...prev, stepId]);
+                            if (!completedExercises.includes(stepId)) {
+                                setCompletedExercises(prev => [...prev, stepId]);
+                                toast.success("Paso completado");
+                            }
                         }}
                         onOpenExpense={() => setIsExpenseModalOpen(true)}
                         mockExpense={mockExpense}
