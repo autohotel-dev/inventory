@@ -14,7 +14,7 @@ interface MovementReason {
 }
 
 interface IndividualMovementFormProps {
-    products: Array<{ id: string; sku: string; name: string }>;
+    products: Array<{ id: string; sku: string; name: string; barcode?: string }>;
     warehouses: Array<{ id: string; code: string; name: string }>;
     reasons: MovementReason[];
     onSubmit: (formData: FormData) => void;
@@ -28,7 +28,12 @@ export function IndividualMovementForm({
 }: IndividualMovementFormProps) {
     const [movementType, setMovementType] = useState<'entry' | 'exit' | 'adjustment' | 'transfer'>('entry');
 
-    const productOptions = products.map(p => ({ value: p.id, label: `${p.sku} - ${p.name}` }));
+    const productOptions = products.map(p => ({
+        value: p.id,
+        label: `${p.sku} - ${p.name}`,
+        sku: p.sku,
+        barcode: p.barcode
+    }));
     const warehouseOptions = warehouses.map(w => ({ value: w.id, label: `${w.code} - ${w.name}` }));
 
     // Filtrar razones según el tipo de movimiento
@@ -67,7 +72,8 @@ export function IndividualMovementForm({
                         options={productOptions}
                         required
                         className="w-full"
-                        placeholder="Buscar producto..."
+                        placeholder="Escanear o buscar producto..."
+                        scannerMode={true}
                     />
                 </div>
 

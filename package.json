@@ -2,6 +2,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:all": "concurrently \"npm run dev\" \"npm run print-server\"",
+    "print-server": "node print-server/index.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

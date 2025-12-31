@@ -4,14 +4,15 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Plus, Trash2, Save, Package } from "lucide-react";
+import { SearchableSelect, Option } from "@/components/ui/searchable-select";
+import { Plus, Trash2, Save, Package, Barcode } from "lucide-react";
 import { toast } from "sonner";
 
 interface Product {
     id: string;
     name: string;
     sku: string;
+    barcode?: string;
 }
 
 interface Warehouse {
@@ -63,7 +64,9 @@ export function BatchMovementForm({
 
     const productOptions = products.map(p => ({
         value: p.id,
-        label: `${p.sku} - ${p.name}`
+        label: `${p.sku} - ${p.name}`,
+        sku: p.sku,
+        barcode: p.barcode
     }));
 
     const warehouseOptions = warehouses.map(w => ({
@@ -116,6 +119,42 @@ export function BatchMovementForm({
             updateItem(tempId, {
                 warehouse_id: warehouseId,
                 warehouse_name: `${warehouse.code} - ${warehouse.name}`
+            });
+        }
+    };
+
+    // Manejar escaneo rápido - agrega producto automáticamente a la lista
+    const handleQuickScan = (option: Option) => {
+        if (!defaultWarehouse) {
+            toast.error("No hay almacenes disponibles");
+            return;
+        }
+
+        // Verificar si el producto ya está en la lista
+        const existingItem = items.find(item => item.product_id === option.value);
+        if (existingItem) {
+            // Incrementar cantidad si ya existe
+            updateItem(existingItem.tempId, {
+                quantity: existingItem.quantity + 1
+            });
+            toast.success(`${option.label}`, {
+                description: `Cantidad actualizada: ${existingItem.quantity + 1}`
+            });
+        } else {
+            // Agregar nuevo item
+            const product = products.find(p => p.id === option.value);
+            const newItem: BatchItem = {
+                tempId: `temp-${Date.now()}`,
+                product_id: option.value,
+                product_name: product ? `${product.sku} - ${product.name}` : option.label,
+                quantity: 1,
+                warehouse_id: defaultWarehouse.id,
+                warehouse_name: `${defaultWarehouse.code} - ${defaultWarehouse.name}`,
+                notes: ""
+            };
+            setItems(prev => [...prev, newItem]);
+            toast.success(`${option.label}`, {
+                description: "Agregado a la lista"
             });
         }
     };
@@ -209,6 +248,31 @@ export function BatchMovementForm({
                 </div>
             </div>
 
+            {/* Escaneo Rápido */}
+            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                        <Barcode className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                        <Label className="text-sm font-medium">Escaneo Rápido</Label>
+                        <p className="text-xs text-muted-foreground mb-2">
+                            Escanea códigos de barras para agregar productos automáticamente
+                        </p>
+                        <SearchableSelect
+                            id="quick-scan"
+                            name="quick-scan"
+                            options={productOptions}
+                            placeholder="Escanear o buscar producto..."
+                            scannerMode={true}
+                            continuousScan={true}
+                            onScan={handleQuickScan}
+                            className="max-w-md"
+                        />
+                    </div>
+                </div>
+            </div>
+
             {/* Tabla de productos */}
             <div className="border rounded-lg overflow-hidden">
                 <div className="bg-muted px-4 py-3 border-b">
@@ -258,8 +322,9 @@ export function BatchMovementForm({
                                                 options={productOptions}
                                                 defaultValue={item.product_id}
                                                 onChange={(value) => handleProductChange(item.tempId, value)}
-                                                placeholder="Buscar producto..."
+                                                placeholder="Escanear o buscar..."
                                                 className="min-w-[250px]"
+                                                scannerMode={true}
                                             />
                                         </td>
                                         <td className="px-4 py-3">

@@ -1,29 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import {
-  ShoppingBag,
+  ShoppingCart,
   Search,
   Plus,
   Minus,
   X,
   Loader2,
   Package,
-  Printer
+  Trash2,
+  Barcode,
+  Check,
+  AlertCircle
 } from "lucide-react";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
+import { usePOSConfigRead } from "@/hooks/use-pos-config";
+import { cn } from "@/lib/utils";
 
 interface Product {
   id: string;
   name: string;
   sku: string;
   price: number;
+  barcode?: string | null;
+}
+
+interface CartItem {
+  product: Product;
+  qty: number;
 }
 
 interface AddConsumptionModalProps {
@@ -34,6 +44,87 @@ interface AddConsumptionModalProps {
   onComplete: () => void;
 }
 
+// Hook para sonidos de feedback
+function useSoundFeedback() {
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  }, []);
+
+  const playSuccess = useCallback(() => {
+    try {
+      const ctx = getAudioContext();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.05);
+
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.15);
+    } catch {
+      // Silently fail if audio is not available
+    }
+  }, [getAudioContext]);
+
+  const playError = useCallback(() => {
+    try {
+      const ctx = getAudioContext();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(200, ctx.currentTime);
+
+      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.25);
+    } catch {
+      // Silently fail if audio is not available
+    }
+  }, [getAudioContext]);
+
+  const playClick = useCallback(() => {
+    try {
+      const ctx = getAudioContext();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+
+      gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.05);
+    } catch {
+      // Silently fail if audio is not available
+    }
+  }, [getAudioContext]);
+
+  return { playSuccess, playError, playClick };
+}
+
 export function AddConsumptionModal({
   isOpen,
   salesOrderId,
@@ -41,36 +132,133 @@ export function AddConsumptionModal({
   onClose,
   onComplete,
 }: AddConsumptionModalProps) {
+  // Estados principales
   const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<Map<string, { product: Product; qty: number }>>(new Map());
-  const { printConsumptionTickets, isPrinting, printStatus } = useThermalPrinter();
+  const [searchValue, setSearchValue] = useState("");
+  const [cartItems, setCartItems] = useState<Map<string, CartItem>>(new Map());
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+  const [inputError, setInputError] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<number>(-1);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editQty, setEditQty] = useState<number>(1);
 
+  // Refs
+  const inputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // Para detección de escaneo automático (sin Enter)
+  const lastInputTimeRef = useRef<number>(0);
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const rapidInputRef = useRef<boolean>(false);
+
+  // Hooks
+  const { printConsumptionTickets, isPrinting, printStatus } = useThermalPrinter();
+  const { playSuccess, playError, playClick } = useSoundFeedback();
+  const posConfig = usePOSConfigRead();
+
+  // Usar configuración del sistema (valores dinámicos)
+  const SCAN_SPEED_THRESHOLD = posConfig.scanSpeedThreshold;
+  const SCAN_COMPLETE_DELAY = posConfig.scanCompleteDelay;
+  const MIN_SCAN_LENGTH = posConfig.minScanLength;
+
+  // Cargar productos al abrir
   useEffect(() => {
     if (isOpen) {
       fetchProducts();
-      setSelectedProducts(new Map());
-      setSearchTerm("");
+      setCartItems(new Map());
+      setSearchValue("");
+      setSelectedRow(-1);
+      setEditingItemId(null);
+      // Auto-focus en el input
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredProducts(products);
-    } else {
-      const term = searchTerm.toLowerCase();
-      setFilteredProducts(
-        products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(term) ||
-            p.sku.toLowerCase().includes(term)
-        )
-      );
+  // Mantener focus en el input (excepto cuando se edita cantidad)
+  const ensureFocus = useCallback(() => {
+    if (!editingItemId && isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [searchTerm, products]);
+  }, [editingItemId, isOpen]);
+
+  // Focus en input de edición cuando se abre
+  useEffect(() => {
+    if (editingItemId) {
+      setTimeout(() => editInputRef.current?.focus(), 50);
+    }
+  }, [editingItemId]);
+
+  // Limpiar animación de último agregado
+  useEffect(() => {
+    if (lastAddedId) {
+      const timer = setTimeout(() => setLastAddedId(null), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastAddedId]);
+
+  // Limpiar error de input
+  useEffect(() => {
+    if (inputError) {
+      const timer = setTimeout(() => setInputError(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [inputError]);
+
+  // Keyboard shortcuts globales
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      // F2 para confirmar
+      if (e.key === 'F2') {
+        e.preventDefault();
+        if (cartItems.size > 0 && !processing) {
+          processConsumption();
+        }
+      }
+
+      // Escape para cerrar
+      if (e.key === 'Escape') {
+        if (editingItemId) {
+          setEditingItemId(null);
+          ensureFocus();
+        } else {
+          onClose();
+        }
+      }
+
+      // Delete para eliminar item seleccionado
+      if (e.key === 'Delete' && selectedRow >= 0 && !editingItemId) {
+        const items = Array.from(cartItems.values());
+        if (items[selectedRow]) {
+          removeFromCart(items[selectedRow].product.id);
+        }
+      }
+
+      // Flechas para navegar
+      if (e.key === 'ArrowDown' && !editingItemId) {
+        e.preventDefault();
+        setSelectedRow(prev => Math.min(prev + 1, cartItems.size - 1));
+      }
+      if (e.key === 'ArrowUp' && !editingItemId) {
+        e.preventDefault();
+        setSelectedRow(prev => Math.max(prev - 1, -1));
+      }
+
+      // Enter en fila seleccionada para editar
+      if (e.key === 'Enter' && selectedRow >= 0 && !editingItemId && document.activeElement !== inputRef.current) {
+        const items = Array.from(cartItems.values());
+        if (items[selectedRow]) {
+          openEditQty(items[selectedRow]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, cartItems, selectedRow, editingItemId, processing, ensureFocus, onClose]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -79,14 +267,13 @@ export function AddConsumptionModal({
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, price")
+        .select("id, name, sku, price, barcode")
         .eq("is_active", true)
-        .neq("sku", "SVC-ROOM") // Excluir producto de servicio
+        .neq("sku", "SVC-ROOM")
         .order("name");
 
       if (error) throw error;
       setProducts(data || []);
-      setFilteredProducts(data || []);
     } catch (error) {
       console.error("Error fetching products:", error);
       toast.error("Error al cargar productos");
@@ -95,62 +282,210 @@ export function AddConsumptionModal({
     }
   };
 
-  const addProduct = (product: Product) => {
-    const newSelected = new Map(selectedProducts);
-    const existing = newSelected.get(product.id);
-    if (existing) {
-      newSelected.set(product.id, { ...existing, qty: existing.qty + 1 });
+  // Buscar producto por código de barras, SKU o nombre
+  const findProduct = useCallback((code: string): Product | null => {
+    const codeLower = code.toLowerCase().trim();
+
+    // 1. Buscar por código de barras exacto
+    const byBarcode = products.find(p =>
+      p.barcode?.toLowerCase() === codeLower
+    );
+    if (byBarcode) return byBarcode;
+
+    // 2. Buscar por SKU exacto
+    const bySku = products.find(p =>
+      p.sku.toLowerCase() === codeLower
+    );
+    if (bySku) return bySku;
+
+    // 3. Buscar por nombre (parcial)
+    const byName = products.find(p =>
+      p.name.toLowerCase().includes(codeLower)
+    );
+    if (byName) return byName;
+
+    return null;
+  }, [products]);
+
+  // Procesar el código escaneado/buscado
+  const processScannedCode = useCallback((code: string) => {
+    const trimmedCode = code.trim();
+    if (!trimmedCode || trimmedCode.length < MIN_SCAN_LENGTH) return;
+
+    const product = findProduct(trimmedCode);
+
+    if (product) {
+      addToCart(product);
+      playSuccess();
+      setSearchValue("");
+      setLastAddedId(product.id);
+      setInputError(false);
     } else {
-      newSelected.set(product.id, { product, qty: 1 });
+      playError();
+      setInputError(true);
+      toast.error(`Producto "${trimmedCode}" no encontrado`, {
+        description: "Verifica el código e intenta de nuevo"
+      });
     }
-    setSelectedProducts(newSelected);
+
+    // Reset estado de escaneo rápido
+    rapidInputRef.current = false;
+  }, [findProduct, playSuccess, playError]);
+
+  // Manejar cambio de input con detección de escaneo automático
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const now = Date.now();
+    const timeSinceLastInput = now - lastInputTimeRef.current;
+
+    setSearchValue(newValue);
+    lastInputTimeRef.current = now;
+
+    // Solo procesar detección automática si está habilitada en configuración
+    if (!posConfig.autoScanDetection) {
+      return;
+    }
+
+    // Limpiar timeout anterior
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
+
+    // Detectar si es entrada rápida (típico de escáner)
+    if (timeSinceLastInput < SCAN_SPEED_THRESHOLD && newValue.length > 1) {
+      rapidInputRef.current = true;
+    }
+
+    // Si estamos en modo de escaneo rápido, esperar un momento y procesar
+    if (rapidInputRef.current && newValue.length >= MIN_SCAN_LENGTH) {
+      scanTimeoutRef.current = setTimeout(() => {
+        if (rapidInputRef.current) {
+          processScannedCode(newValue);
+        }
+      }, SCAN_COMPLETE_DELAY);
+    }
   };
 
-  const removeProduct = (productId: string) => {
-    const newSelected = new Map(selectedProducts);
-    const existing = newSelected.get(productId);
-    if (existing && existing.qty > 1) {
-      newSelected.set(productId, { ...existing, qty: existing.qty - 1 });
-    } else {
-      newSelected.delete(productId);
-    }
-    setSelectedProducts(newSelected);
-  };
-
-  const updateQty = (productId: string, qty: number) => {
-    if (qty <= 0) {
-      const newSelected = new Map(selectedProducts);
-      newSelected.delete(productId);
-      setSelectedProducts(newSelected);
-    } else {
-      const newSelected = new Map(selectedProducts);
-      const existing = newSelected.get(productId);
-      if (existing) {
-        newSelected.set(productId, { ...existing, qty });
-        setSelectedProducts(newSelected);
+  // Manejar Enter manual (para búsqueda con teclado)
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchValue.trim()) {
+      // Limpiar timeout de escaneo automático
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
       }
+      processScannedCode(searchValue);
     }
   };
 
-  const getTotalAmount = () => {
-    let total = 0;
-    selectedProducts.forEach(({ product, qty }) => {
-      total += product.price * qty;
+  // Limpiar timeouts al desmontar
+  useEffect(() => {
+    return () => {
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const addToCart = (product: Product) => {
+    setCartItems(prev => {
+      const newCart = new Map(prev);
+      const existing = newCart.get(product.id);
+      if (existing) {
+        newCart.set(product.id, { ...existing, qty: existing.qty + 1 });
+      } else {
+        newCart.set(product.id, { product, qty: 1 });
+      }
+      return newCart;
     });
-    return total;
   };
 
-  const getTotalItems = () => {
-    let count = 0;
-    selectedProducts.forEach(({ qty }) => {
-      count += qty;
+  const removeFromCart = (productId: string) => {
+    playClick();
+    setCartItems(prev => {
+      const newCart = new Map(prev);
+      newCart.delete(productId);
+      return newCart;
     });
-    return count;
+    setSelectedRow(-1);
+    ensureFocus();
+  };
+
+  const updateCartQty = (productId: string, qty: number) => {
+    if (qty <= 0) {
+      removeFromCart(productId);
+    } else {
+      setCartItems(prev => {
+        const newCart = new Map(prev);
+        const existing = newCart.get(productId);
+        if (existing) {
+          newCart.set(productId, { ...existing, qty });
+        }
+        return newCart;
+      });
+    }
+  };
+
+  const openEditQty = (item: CartItem) => {
+    setEditingItemId(item.product.id);
+    setEditQty(item.qty);
+  };
+
+  const confirmEditQty = () => {
+    if (editingItemId) {
+      updateCartQty(editingItemId, editQty);
+      setEditingItemId(null);
+      playClick();
+      ensureFocus();
+    }
+  };
+
+  const incrementQty = (productId: string) => {
+    playClick();
+    setCartItems(prev => {
+      const newCart = new Map(prev);
+      const existing = newCart.get(productId);
+      if (existing) {
+        newCart.set(productId, { ...existing, qty: existing.qty + 1 });
+      }
+      return newCart;
+    });
+  };
+
+  const decrementQty = (productId: string) => {
+    playClick();
+    setCartItems(prev => {
+      const newCart = new Map(prev);
+      const existing = newCart.get(productId);
+      if (existing && existing.qty > 1) {
+        newCart.set(productId, { ...existing, qty: existing.qty - 1 });
+      } else {
+        newCart.delete(productId);
+      }
+      return newCart;
+    });
+  };
+
+  // Calcular totales
+  const { totalAmount, totalItems } = useMemo(() => {
+    let amount = 0;
+    let items = 0;
+    cartItems.forEach(({ product, qty }) => {
+      amount += product.price * qty;
+      items += qty;
+    });
+    return { totalAmount: amount, totalItems: items };
+  }, [cartItems]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN",
+    }).format(amount);
   };
 
   const processConsumption = async () => {
-    if (selectedProducts.size === 0) {
-      toast.error("Selecciona al menos un producto");
+    if (cartItems.size === 0) {
+      toast.error("Agrega al menos un producto");
       return;
     }
 
@@ -158,8 +493,6 @@ export function AddConsumptionModal({
     const supabase = createClient();
 
     try {
-      const totalAmount = getTotalAmount();
-
       // Obtener warehouse_id de la orden de venta
       const { data: orderInfo } = await supabase
         .from("sales_orders")
@@ -174,18 +507,14 @@ export function AddConsumptionModal({
         return;
       }
 
-      // Validar stock disponible para cada producto (con logging para diagnóstico)
+      // Validar stock disponible
       const { validateStockAvailability } = await import("@/lib/utils/stock-helpers");
 
-      console.log('[CONSUMPTION] Validating stock for warehouse:', orderInfo.warehouse_id);
-
-      const itemsToValidate = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
+      const itemsToValidate = Array.from(cartItems.values()).map(({ product, qty }) => ({
         product_id: product.id,
         product_name: product.name,
         quantity: qty
       }));
-
-      console.log('[CONSUMPTION] Items to validate:', itemsToValidate);
 
       const stockErrors = await validateStockAvailability(
         itemsToValidate,
@@ -193,18 +522,16 @@ export function AddConsumptionModal({
       );
 
       if (stockErrors.length > 0) {
-        console.error('[CONSUMPTION] Stock validation failed:', stockErrors);
+        playError();
         toast.error("Stock insuficiente", {
           description: stockErrors.join("\n"),
           duration: 7000
         });
-        return; // Abortar la operación
+        return;
       }
 
-      console.log('[CONSUMPTION] Stock validation passed ✓');
-
       // Insertar items en sales_order_items
-      const itemsToInsert = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
+      const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty }) => ({
         sales_order_id: salesOrderId,
         product_id: product.id,
         qty,
@@ -219,30 +546,28 @@ export function AddConsumptionModal({
 
       if (itemsError) throw itemsError;
 
-      // Crear movimientos de inventario para descontar el stock
-      if (orderInfo?.warehouse_id) {
-        const movements = Array.from(selectedProducts.values()).map(({ product, qty }) => ({
-          product_id: product.id,
-          warehouse_id: orderInfo.warehouse_id,
-          quantity: qty,
-          movement_type: 'OUT',
-          reason_id: 6, // ID 6 = SALE in movement_reasons table
-          reason: 'SALE',
-          notes: `Consumo vendido - Habitación ${roomNumber || 'N/A'}`,
-          reference_table: 'sales_orders',
-          reference_id: salesOrderId
-        }));
+      // Crear movimientos de inventario
+      const movements = Array.from(cartItems.values()).map(({ product, qty }) => ({
+        product_id: product.id,
+        warehouse_id: orderInfo.warehouse_id,
+        quantity: qty,
+        movement_type: 'OUT',
+        reason_id: 6,
+        reason: 'SALE',
+        notes: `Consumo vendido - Habitación ${roomNumber || 'N/A'}`,
+        reference_table: 'sales_orders',
+        reference_id: salesOrderId
+      }));
 
-        const { error: movError } = await supabase
-          .from("inventory_movements")
-          .insert(movements);
+      const { error: movError } = await supabase
+        .from("inventory_movements")
+        .insert(movements);
 
-        if (movError) {
-          console.error('Error creating inventory movements:', movError);
-          toast.error("Advertencia", {
-            description: "Consumo agregado pero hubo un error al actualizar el inventario"
-          });
-        }
+      if (movError) {
+        console.error('Error creating inventory movements:', movError);
+        toast.error("Advertencia", {
+          description: "Consumo agregado pero hubo un error al actualizar el inventario"
+        });
       }
 
       // Actualizar totales de la orden
@@ -268,13 +593,8 @@ export function AddConsumptionModal({
           .eq("id", salesOrderId);
       }
 
-      const productNames = Array.from(selectedProducts.values())
-        .map(({ product, qty }) => `${qty}x ${product.name}`)
-        .join(", ");
-
-      // NUEVO: Imprimir tickets térmicos
+      // Imprimir tickets
       try {
-        // Generar folio único en cliente
         const date = new Date();
         const year = date.getFullYear().toString().slice(-2);
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -286,7 +606,7 @@ export function AddConsumptionModal({
           roomNumber: roomNumber || 'N/A',
           folio: folio,
           date: new Date(),
-          items: Array.from(selectedProducts.values()).map(({ product, qty }) => ({
+          items: Array.from(cartItems.values()).map(({ product, qty }) => ({
             name: product.name,
             qty,
             price: product.price,
@@ -294,198 +614,330 @@ export function AddConsumptionModal({
           })),
           subtotal: totalAmount,
           total: totalAmount,
-          hotelName: undefined // Se puede configurar después
+          hotelName: undefined
         };
 
         const printSuccess = await printConsumptionTickets(printData);
 
         if (!printSuccess) {
-          // Imprimir falló pero consumo ya está guardado
           toast.warning("Consumo agregado sin imprimir", {
-            description: "El consumo se guardó pero hubo un error al imprimir los tickets. Puedes reimprimirlos después.",
+            description: "El consumo se guardó pero hubo un error al imprimir los tickets.",
             duration: 8000
           });
         }
       } catch (printError) {
         console.error('Print error:', printError);
-        // No bloqueamos la operación si falla la impresión
         toast.warning("Error de impresión", {
           description: "Consumo agregado correctamente, pero no se pudieron imprimir los tickets",
           duration: 5000
         });
       }
 
-      toast.success("Consumo agregado", {
-        description: `${productNames} - Total: $${totalAmount.toFixed(2)}`,
+      playSuccess();
+
+      const productNames = Array.from(cartItems.values())
+        .map(({ product, qty }) => `${qty}x ${product.name}`)
+        .join(", ");
+
+      toast.success("✓ Consumo registrado", {
+        description: `${productNames} - Total: ${formatCurrency(totalAmount)}`,
       });
 
       onComplete();
     } catch (error) {
       console.error("Error adding consumption:", error);
+      playError();
       toast.error("Error al agregar consumo");
     } finally {
       setProcessing(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-    }).format(amount);
-  };
-
   if (!isOpen) return null;
 
+  const cartItemsArray = Array.from(cartItems.values());
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      onClick={ensureFocus}
+    >
+      <div
+        className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <ShoppingBag className="h-5 w-5 text-green-500" />
-              Agregar Consumo
-            </h2>
-            {roomNumber && (
-              <p className="text-sm text-muted-foreground">Habitación {roomNumber}</p>
-            )}
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-500/20 rounded-lg">
+              <ShoppingCart className="h-6 w-6 text-green-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">CONSUMO</h2>
+              {roomNumber && (
+                <p className="text-sm text-muted-foreground">Habitación {roomNumber}</p>
+              )}
+            </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
             disabled={processing}
+            className="hover:bg-destructive/20 hover:text-destructive"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="px-6 py-3 border-b border-border">
+        {/* Input de escaneo */}
+        <div className="px-6 py-4 border-b border-border bg-muted/30">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
-              placeholder="Buscar producto..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
+              ref={inputRef}
+              value={searchValue}
+              onChange={handleInputChange}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Escanear código de barras o buscar producto..."
+              className={cn(
+                "pl-12 pr-12 h-14 text-lg font-medium transition-all",
+                "focus:ring-2 focus:ring-green-500 focus:border-green-500",
+                inputError && "animate-shake border-red-500 focus:ring-red-500"
+              )}
+              autoComplete="off"
+              autoFocus
+              disabled={loading}
             />
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           </div>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Escanea el código de barras o escribe el nombre del producto y presiona Enter
+          </p>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Tabla de carrito */}
+        <div className="flex-1 overflow-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-3 text-muted-foreground">Cargando productos...</span>
+            </div>
+          ) : cartItemsArray.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Package className="h-16 w-16 mb-4 opacity-30" />
+              <p className="text-lg font-medium">Sin productos</p>
+              <p className="text-sm">Escanea o busca productos para agregar</p>
             </div>
           ) : (
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {filteredProducts.map((product) => {
-                const selected = selectedProducts.get(product.id);
-                const qty = selected?.qty || 0;
-
-                return (
-                  <div
-                    key={product.id}
-                    className={`p-3 rounded-lg border transition-all cursor-pointer ${qty > 0
-                      ? "border-green-500 bg-green-500/10"
-                      : "border-border hover:bg-muted/50"
-                      }`}
-                    onClick={() => addProduct(product)}
+            <table className="w-full">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr className="text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-6 py-3 w-12">#</th>
+                  <th className="px-6 py-3">Producto</th>
+                  <th className="px-6 py-3 text-right">Precio</th>
+                  <th className="px-6 py-3 text-center w-36">Cantidad</th>
+                  <th className="px-6 py-3 text-right">Subtotal</th>
+                  <th className="px-6 py-3 w-12"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {cartItemsArray.map((item, index) => (
+                  <tr
+                    key={item.product.id}
+                    className={cn(
+                      "border-b border-border/50 transition-all",
+                      selectedRow === index && "bg-green-500/10",
+                      lastAddedId === item.product.id && "animate-pulse bg-green-500/20"
+                    )}
+                    onClick={() => setSelectedRow(index)}
+                    onDoubleClick={() => openEditQty(item)}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.sku}</p>
-                        <p className="text-sm font-bold text-green-600 mt-1">
-                          {formatCurrency(product.price)}
-                        </p>
+                    <td className="px-6 py-4 text-muted-foreground">{index + 1}</td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium">{item.product.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.product.sku}</p>
                       </div>
-                      {qty > 0 && (
-                        <Badge className="bg-green-500 text-white">
-                          {qty}
-                        </Badge>
-                      )}
-                    </div>
-                    {qty > 0 && (
-                      <div className="flex items-center justify-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono">
+                      {formatCurrency(item.product.price)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-2">
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-7 w-7"
-                          onClick={() => removeProduct(product.id)}
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            decrementQty(item.product.id);
+                          }}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
-                        <Input
-                          type="number"
-                          value={qty}
-                          onChange={(e) => updateQty(product.id, parseInt(e.target.value) || 0)}
-                          className="w-14 h-7 text-center text-sm"
-                          min={0}
-                        />
+                        <span className="w-10 text-center font-bold text-lg">
+                          {item.qty}
+                        </span>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-7 w-7"
-                          onClick={() => addProduct(product)}
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            incrementQty(item.product.id);
+                          }}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {filteredProducts.length === 0 && (
-                <div className="col-span-full text-center py-8">
-                  <Package className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-                  <p className="text-muted-foreground">No se encontraron productos</p>
-                </div>
-              )}
-            </div>
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono font-bold text-green-600">
+                      {formatCurrency(item.product.price * item.qty)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFromCart(item.product.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4 flex-shrink-0">
-          <div>
-            {selectedProducts.size > 0 && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">{getTotalItems()} productos</span>
-                <span className="mx-2">•</span>
-                <span className="font-bold text-green-600">{formatCurrency(getTotalAmount())}</span>
-              </div>
-            )}
+        <div className="px-6 py-4 border-t border-border bg-muted/30 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                {totalItems} {totalItems === 1 ? 'producto' : 'productos'}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                Esc = Cerrar | F2 = Confirmar | ↑↓ = Navegar | Del = Eliminar
+              </span>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">TOTAL</p>
+              <p className="text-3xl font-bold text-green-600">
+                {formatCurrency(totalAmount)}
+              </p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={processing}>
-              Cancelar
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={processing}
+              className="flex-1"
+            >
+              ← Cancelar
             </Button>
             <Button
               onClick={processConsumption}
-              disabled={selectedProducts.size === 0 || processing || isPrinting}
+              disabled={cartItems.size === 0 || processing || isPrinting}
+              className="flex-[2] bg-green-600 hover:bg-green-700 text-white h-12 text-lg"
             >
               {processing || isPrinting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
                   {printStatus === 'printing_reception' && 'Imprimiendo comanda...'}
                   {printStatus === 'printing_client' && 'Imprimiendo ticket...'}
-                  {printStatus !== 'printing_reception' && printStatus !== 'printing_client' && 'Agregando...'}
+                  {printStatus !== 'printing_reception' && printStatus !== 'printing_client' && 'Procesando...'}
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar Consumo
+                  <Check className="h-5 w-5 mr-2" />
+                  REGISTRAR CONSUMO (F2)
                 </>
               )}
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Modal de edición de cantidad */}
+      {editingItemId && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+          onClick={() => {
+            setEditingItemId(null);
+            ensureFocus();
+          }}
+        >
+          <div
+            className="bg-background border border-border rounded-xl shadow-2xl p-6 w-80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Editar Cantidad</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {cartItems.get(editingItemId)?.product.name}
+            </p>
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-12 w-12"
+                onClick={() => setEditQty(prev => Math.max(1, prev - 1))}
+              >
+                <Minus className="h-5 w-5" />
+              </Button>
+              <Input
+                ref={editInputRef}
+                type="number"
+                value={editQty}
+                onChange={(e) => setEditQty(Math.max(0, parseInt(e.target.value) || 0))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') confirmEditQty();
+                  if (e.key === 'Escape') {
+                    setEditingItemId(null);
+                    ensureFocus();
+                  }
+                }}
+                className="w-20 h-12 text-center text-2xl font-bold"
+                min={0}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-12 w-12"
+                onClick={() => setEditQty(prev => prev + 1)}
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  removeFromCart(editingItemId);
+                  setEditingItemId(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={confirmEditQty}
+              >
+                Confirmar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,7 +21,9 @@ import {
   Receipt,
   X,
   Percent,
-  Tag
+  Tag,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 
 // Generar referencia única para pagos
@@ -142,6 +144,8 @@ export function GranularPaymentModal({
   const [step, setStep] = useState<"select" | "pay">("select");
   const [discounts, setDiscounts] = useState<Record<string, number>>({});
   const [showDiscountInput, setShowDiscountInput] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Cargar items de la orden
   const fetchItems = async () => {
@@ -188,6 +192,7 @@ export function GranularPaymentModal({
       setSelectedItems(new Set());
       setDiscounts({});
       setShowDiscountInput(null);
+      setConfirmDeleteId(null);
       setStep("select");
     }
   }, [isOpen, salesOrderId]);
@@ -263,6 +268,88 @@ export function GranularPaymentModal({
     }
     setPayments(createInitialPayment(selectedTotal));
     setStep("pay");
+  };
+
+  // Eliminar consumo no pagado
+  const deleteConsumption = async (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item || item.is_paid || item.concept_type !== 'CONSUMPTION') {
+      toast.error("Este concepto no puede eliminarse");
+      return;
+    }
+
+    setDeletingItemId(itemId);
+    const supabase = createClient();
+
+    try {
+      // 1. Obtener el warehouse_id de la orden
+      const { data: orderData } = await supabase
+        .from('sales_orders')
+        .select('warehouse_id')
+        .eq('id', salesOrderId)
+        .single();
+
+      if (!orderData?.warehouse_id) {
+        throw new Error('No se encontró el almacén de la orden');
+      }
+
+      // 2. Revertir movimiento de inventario (crear movimiento IN)
+      if (item.product_id) {
+        await supabase.from('inventory_movements').insert({
+          product_id: item.product_id,
+          warehouse_id: orderData.warehouse_id,
+          quantity: item.qty,
+          movement_type: 'IN',
+          reason_id: 7, // RETURN/DEVOLUCION
+          reason: 'RETURN',
+          notes: `Consumo eliminado - Habitación ${roomNumber || 'N/A'}`,
+          reference_table: 'sales_order_items',
+          reference_id: itemId,
+        });
+      }
+
+      // 3. Eliminar el item de la orden
+      const { error: deleteError } = await supabase
+        .from('sales_order_items')
+        .delete()
+        .eq('id', itemId);
+
+      if (deleteError) throw deleteError;
+
+      // 4. Recalcular totales de la orden
+      const { data: remainingItems } = await supabase
+        .from('sales_order_items')
+        .select('total, is_paid')
+        .eq('sales_order_id', salesOrderId);
+
+      const newSubtotal = remainingItems?.reduce((sum, i) => sum + (i.total || 0), 0) || 0;
+      const newRemaining = remainingItems?.filter(i => !i.is_paid).reduce((sum, i) => sum + (i.total || 0), 0) || 0;
+
+      await supabase
+        .from('sales_orders')
+        .update({
+          subtotal: newSubtotal,
+          total: newSubtotal,
+          remaining_amount: newRemaining,
+        })
+        .eq('id', salesOrderId);
+
+      toast.success("Consumo eliminado", {
+        description: `${item.products?.name || 'Producto'} ha sido removido y el inventario fue restaurado`
+      });
+
+      // 5. Refrescar lista de items
+      await fetchItems();
+      setConfirmDeleteId(null);
+
+    } catch (error) {
+      console.error('Error deleting consumption:', error);
+      toast.error("Error al eliminar consumo", {
+        description: "No se pudo eliminar el consumo. Intenta de nuevo."
+      });
+    } finally {
+      setDeletingItemId(null);
+    }
   };
 
   // Procesar el pago
@@ -689,6 +776,58 @@ export function GranularPaymentModal({
                                     <Percent className="h-3 w-3 mr-1" />
                                     Descuento
                                   </Button>
+                                )}
+
+                                {/* Botón de eliminar para consumos no pagados */}
+                                {item.concept_type === 'CONSUMPTION' && (
+                                  confirmDeleteId === item.id ? (
+                                    <div className="flex items-center gap-1 ml-auto">
+                                      <span className="text-xs text-destructive flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        ¿Eliminar?
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="h-6 text-xs px-2"
+                                        disabled={deletingItemId === item.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          deleteConsumption(item.id);
+                                        }}
+                                      >
+                                        {deletingItemId === item.id ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          "Sí"
+                                        )}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 text-xs px-2"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setConfirmDeleteId(null);
+                                        }}
+                                      >
+                                        No
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-muted-foreground hover:text-destructive ml-auto"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setConfirmDeleteId(item.id);
+                                      }}
+                                    >
+                                      <Trash2 className="h-3 w-3 mr-1" />
+                                      Eliminar
+                                    </Button>
+                                  )
                                 )}
                               </>
                             )}

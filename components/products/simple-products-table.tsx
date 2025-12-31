@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Package, DollarSign, AlertTriangle, X, Scan, Trash2, Edit } from "lucide-react";
+import { usePOSConfigRead } from "@/hooks/use-pos-config";
+import { Plus, Search, Package, DollarSign, AlertTriangle, X, Scan, Trash2, Edit, BarChart3, Filter, Barcode } from "lucide-react";
 import type { SimpleProduct, ProductView } from "@/lib/types/inventory";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { ProductModalForm } from "./product-modal-form";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +41,15 @@ export function SimpleProductsTable() {
   const [stockFilter, setStockFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
+  // Refs para detección de escaneo
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastInputTimeRef = useRef<number>(0);
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const rapidInputRef = useRef<boolean>(false);
+
+  // Configuración del sistema
+  const posConfig = usePOSConfigRead();
+
   // Debounce effect for search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -47,6 +58,34 @@ export function SimpleProductsTable() {
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Limpiar timeout al desmontar
+  useEffect(() => {
+    return () => {
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Estado para escaneo rápido (campo separado)
+  const [quickScanValue, setQuickScanValue] = useState("");
+
+  // Manejar escaneo rápido con Enter
+  const handleQuickScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && quickScanValue.trim()) {
+      e.preventDefault();
+      // Buscar inmediatamente
+      setSearchTerm(quickScanValue.trim());
+      setDebouncedSearch(quickScanValue.trim());
+      // Limpiar input para el siguiente escaneo
+      setQuickScanValue("");
+      // Re-enfocar
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else if (e.key === 'Escape') {
+      setQuickScanValue("");
+    }
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<SimpleProduct | null>(null);
@@ -302,53 +341,62 @@ export function SimpleProductsTable() {
 
   return (
     <div className="space-y-6">
-      {/* Header con estadísticas Globales */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="h-5 w-5 text-blue-500" />
+      {/* Header con estadísticas Globales - COLAPSABLE */}
+      <CollapsibleSection
+        storageKey="products-stats"
+        title="Estadísticas de Inventario"
+        icon={<BarChart3 className="h-4 w-4" />}
+        defaultOpen={true}
+        variant="minimal"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="h-5 w-5 text-blue-500" />
+              </div>
+              <div className="text-3xl font-bold text-white">{stats.totalProducts}</div>
+              <div className="text-sm text-muted-foreground font-medium">Total Productos</div>
             </div>
-            <div className="text-3xl font-bold text-white">{stats.totalProducts}</div>
-            <div className="text-sm text-muted-foreground font-medium">Total Productos</div>
           </div>
-        </div>
 
-        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="h-5 w-5 text-emerald-500" />
+          <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div className="text-3xl font-bold text-emerald-500">{stats.activeProducts}</div>
+              <div className="text-sm text-muted-foreground font-medium">Productos Activos</div>
             </div>
-            <div className="text-3xl font-bold text-emerald-500">{stats.activeProducts}</div>
-            <div className="text-sm text-muted-foreground font-medium">Productos Activos</div>
           </div>
-        </div>
 
-        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-            </div>
-            <div className="text-3xl font-bold text-amber-500">{stats.lowStockProducts}</div>
-            <div className="text-sm text-muted-foreground font-medium">
-              Stock Bajo ({stats.criticalStockProducts} críticos)
+          <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              </div>
+              <div className="text-3xl font-bold text-amber-500">{stats.lowStockProducts}</div>
+              <div className="text-sm text-muted-foreground font-medium">
+                Stock Bajo ({stats.criticalStockProducts} críticos)
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-card p-6 rounded-lg border border-border shadow-sm flex items-center justify-center">
-          <div className="flex flex-col gap-1 items-center text-center">
-            <div className="text-3xl font-bold text-purple-500">
-              ${stats.totalValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="bg-card p-6 rounded-lg border border-border shadow-sm flex items-center justify-center">
+            <div className="flex flex-col gap-1 items-center text-center">
+              <div className="text-3xl font-bold text-purple-500">
+                ${stats.totalValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-sm text-muted-foreground font-medium">Valor Real Inventario</div>
             </div>
-            <div className="text-sm text-muted-foreground font-medium">Valor Real Inventario</div>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Controles y Filtros (Igual que antes pero los setters activan el fetch server-side) */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          {/* Búsqueda normal */}
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
@@ -356,6 +404,19 @@ export function SimpleProductsTable() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
+            />
+          </div>
+
+          {/* Escaneo Rápido */}
+          <div className="relative flex-1 max-w-xs">
+            <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary h-4 w-4" />
+            <Input
+              ref={searchInputRef}
+              placeholder="Escanear código (Enter)..."
+              value={quickScanValue}
+              onChange={(e) => setQuickScanValue(e.target.value)}
+              onKeyDown={handleQuickScan}
+              className="pl-10 border-primary/30 focus:border-primary"
             />
           </div>
 
@@ -370,69 +431,78 @@ export function SimpleProductsTable() {
           </div>
         </div>
 
-        {/* Filtros Avanzados (Igual JSX, lógica state ya conectada) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
-          <div>
-            <label className="block text-sm font-medium mb-2">Categoría</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-            >
-              <option value="">Todas las categorías</option>
-              <option value="sin-categoria">Sin categoría</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Filtros Avanzados - COLAPSABLE */}
+        <CollapsibleSection
+          storageKey="products-filters"
+          title="Filtros Avanzados"
+          icon={<Filter className="h-4 w-4" />}
+          defaultOpen={false}
+          variant="default"
+          badge={(categoryFilter || stockFilter || statusFilter) ? "Activo" : undefined}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Categoría</label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+              >
+                <option value="">Todas las categorías</option>
+                <option value="sin-categoria">Sin categoría</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Estado de Stock</label>
-            <select
-              value={stockFilter}
-              onChange={(e) => setStockFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-            >
-              <option value="">Todos los stocks</option>
-              <option value="sin-stock">🔴 Sin stock</option>
-              <option value="stock-critico">🔴 Stock crítico</option>
-              <option value="stock-bajo">🟡 Stock bajo</option>
-              <option value="stock-normal">✅ Stock normal</option>
-              <option value="stock-alto">🟢 Stock alto</option>
-            </select>
-          </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Estado de Stock</label>
+              <select
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+              >
+                <option value="">Todos los stocks</option>
+                <option value="sin-stock">🔴 Sin stock</option>
+                <option value="stock-critico">🔴 Stock crítico</option>
+                <option value="stock-bajo">🟡 Stock bajo</option>
+                <option value="stock-normal">✅ Stock normal</option>
+                <option value="stock-alto">🟢 Stock alto</option>
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Estado del Producto</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-            >
-              <option value="">Todos los estados</option>
-              <option value="activo">✅ Activos</option>
-              <option value="inactivo">❌ Inactivos</option>
-            </select>
-          </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Estado del Producto</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+              >
+                <option value="">Todos los estados</option>
+                <option value="activo">✅ Activos</option>
+                <option value="inactivo">❌ Inactivos</option>
+              </select>
+            </div>
 
-          <div className="flex items-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchTerm("");
-                setCategoryFilter("");
-                setStockFilter("");
-                setStatusFilter("");
-              }}
-              className="w-full"
-            >
-              Limpiar Filtros
-            </Button>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchTerm("");
+                  setCategoryFilter("");
+                  setStockFilter("");
+                  setStatusFilter("");
+                }}
+                className="w-full"
+              >
+                Limpiar Filtros
+              </Button>
+            </div>
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Indicadores de filtro (Igual JSX) */}
         {(searchTerm || categoryFilter || stockFilter || statusFilter) && (
