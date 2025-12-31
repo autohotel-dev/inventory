@@ -564,6 +564,41 @@ export function RoomsBoard() {
   // Cargar habitaciones al montar
   useEffect(() => {
     fetchRooms();
+
+    // SUCURSAL REALTIME: Suscripción a cambios
+    const supabase = createClient();
+    const channel = supabase
+      .channel('rooms-board-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rooms' },
+        () => {
+          console.log("Realtime: Room updated");
+          fetchRooms(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'room_stays' },
+        () => {
+          console.log("Realtime: Stay updated");
+          fetchRooms(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sales_orders' },
+        () => {
+          console.log("Realtime: Order updated");
+          // Si cambia una orden (ej. pagada en otro lado), refrescar para ver saldos
+          fetchRooms(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchRooms]);
 
   // Recordatorios 20 minutos antes de la salida
@@ -1477,19 +1512,19 @@ export function RoomsBoard() {
             <span>Sencilla</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-blue-500 text-white">DBL</span>
-            <span>Doble</span>
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-purple-600 text-white">J&S</span>
+            <span>Jacuzzi y Sauna</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-pink-500 text-white">JAC</span>
             <span>Jacuzzi</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-amber-500 text-white">STE</span>
-            <span>Suite</span>
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-cyan-600 text-white">ALB</span>
+            <span>Alberca</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-cyan-500 text-white">TRE</span>
+            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-indigo-500 text-white">TRE</span>
             <span>Torre</span>
           </div>
         </div>

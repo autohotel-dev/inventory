@@ -1,8 +1,8 @@
 {
-  "id": "inventario-pro",
-  "name": "Sistema de Inventario Profesional",
-  "short_name": "Inventario Pro",
-  "description": "Sistema completo de gestión de inventario con analytics avanzados",
+  "id": "luxor-manager",
+  "name": "Auto Hotel Luxor Manager",
+  "short_name": "Luxor Manager",
+  "description": "Sistema completo de gestión para Auto Hotel Luxor",
   "start_url": "/dashboard",
   "display": "standalone",
   "display_override": [

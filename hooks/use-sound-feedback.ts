@@ -87,5 +87,35 @@ export function useSoundFeedback() {
         }
     }, [getAudioContext]);
 
-    return { playSuccess, playError, playClick };
+    const playVictory = useCallback(() => {
+        try {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+
+            // Arpeggio Major Chord (C5, E5, G5, C6)
+            const notes = [523.25, 659.25, 783.99, 1046.50];
+            const now = ctx.currentTime;
+
+            notes.forEach((freq, i) => {
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+
+                oscillator.type = 'triangle';
+                oscillator.frequency.value = freq;
+
+                gainNode.gain.setValueAtTime(0.2, now + (i * 0.1));
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + (i * 0.1) + 0.4);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+
+                oscillator.start(now + (i * 0.1));
+                oscillator.stop(now + (i * 0.1) + 0.4);
+            });
+        } catch {
+            // Silently fail
+        }
+    }, [getAudioContext]);
+
+    return { playSuccess, playError, playClick, playVictory };
 }

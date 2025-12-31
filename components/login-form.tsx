@@ -27,7 +27,7 @@ export function LoginForm({
 }: React.ComponentPropsWithoutRef<"div">) {
   const router = useRouter();
   const { success, error: showError } = useToast();
-  
+
   const {
     register,
     handleSubmit,
@@ -44,10 +44,12 @@ export function LoginForm({
         email: data.email,
         password: data.password,
       });
-      
+
       if (error) throw error;
-      
+
       success("¡Bienvenido!", "Has iniciado sesión correctamente");
+      // Force refresh to ensure middleware/server components see the new session
+      router.refresh();
       router.push("/dashboard");
     } catch (error: unknown) {
       showError(
@@ -60,10 +62,13 @@ export function LoginForm({
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Iniciar Sesión</CardTitle>
+        <CardHeader className="text-center">
+          <div className="mx-auto w-16 h-16 mb-4 relative">
+            <img src="/luxor-logo.png" alt="Luxor Logo" className="object-contain w-full h-full" />
+          </div>
+          <CardTitle className="text-2xl">Luxor Manager</CardTitle>
           <CardDescription>
-            Ingresa tu correo electrónico para acceder a tu cuenta
+            Sistema de Gestión para Auto Hotel Luxor
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -105,7 +110,7 @@ export function LoginForm({
               </Button>
             </div>
           </form>
-          
+
           {/* Divider */}
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
@@ -117,10 +122,10 @@ export function LoginForm({
               </span>
             </div>
           </div>
-          
+
           {/* Google Login Button */}
           <GoogleLoginButton />
-          
+
           <div className="mt-4 text-center text-sm">
             ¿No tienes una cuenta?{" "}
             <Link

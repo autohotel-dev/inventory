@@ -9,14 +9,10 @@ export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | strin
 // Configuración de tipos de habitación con abreviatura y color
 const ROOM_TYPE_CONFIG: Record<string, { abbr: string; color: string }> = {
   "Sencilla": { abbr: "SEN", color: "bg-slate-500" },
-  "Doble": { abbr: "DBL", color: "bg-blue-500" },
   "Jacuzzi": { abbr: "JAC", color: "bg-pink-500" },
-  "Suite": { abbr: "STE", color: "bg-amber-500" },
-  "Torre": { abbr: "TRE", color: "bg-cyan-500" },
-  "Hotel": { abbr: "HTL", color: "bg-indigo-500" },
-  "VIP": { abbr: "VIP", color: "bg-yellow-500" },
-  "Familiar": { abbr: "FAM", color: "bg-green-500" },
-  "Económica": { abbr: "ECO", color: "bg-gray-500" },
+  "Jacuzzi y Sauna": { abbr: "J&S", color: "bg-purple-600" },
+  "Alberca": { abbr: "ALB", color: "bg-cyan-600" },
+  "Torre": { abbr: "TRE", color: "bg-indigo-500" },
 };
 
 // Obtener config de tipo de habitación (con fallback inteligente)

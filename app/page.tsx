@@ -14,17 +14,17 @@ export default function LandingPage() {
         <nav className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <span className="text-2xl">📦</span>
-            <span className="text-xl font-bold text-foreground">Inventory System</span>
+            <span className="text-xl font-bold text-foreground">Luxor Manager</span>
           </div>
           <div className="flex items-center space-x-4">
-            <Link 
-              href="/auth/login" 
+            <Link
+              href="/auth/login"
               className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               Iniciar Sesión
             </Link>
-            <Link 
-              href="/dashboard" 
+            <Link
+              href="/dashboard"
               className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
             >
               Dashboard
@@ -37,22 +37,22 @@ export default function LandingPage() {
       <main className="container mx-auto px-6 py-16">
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6">
-            Sistema de Inventario
+            Auto Hotel Luxor Manager
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Gestiona tu inventario de manera eficiente con nuestro sistema completo. 
+            Gestiona tu inventario de manera eficiente con nuestro sistema completo.
             Control de stock, ventas, compras y más.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Link 
-              href="/dashboard" 
+            <Link
+              href="/dashboard"
               className="px-8 py-4 bg-primary text-primary-foreground text-lg font-semibold rounded-lg hover:bg-primary/90 transition-colors"
             >
               Comenzar Ahora
             </Link>
-            <Link 
-              href="/auth/login" 
+            <Link
+              href="/auth/login"
               className="px-8 py-4 border-2 border-primary text-primary text-lg font-semibold rounded-lg hover:bg-accent transition-colors"
             >
               Iniciar Sesión
@@ -70,7 +70,7 @@ export default function LandingPage() {
                 Monitorea tu inventario en tiempo real con alertas de stock mínimo
               </p>
             </div>
-            
+
             <div className="bg-card p-6 rounded-xl border shadow-sm">
               <div className="text-3xl mb-4">🛒</div>
               <h3 className="text-xl font-semibold text-card-foreground mb-2">
@@ -80,7 +80,7 @@ export default function LandingPage() {
                 Gestiona órdenes de venta y compra con seguimiento completo
               </p>
             </div>
-            
+
             <div className="bg-card p-6 rounded-xl border shadow-sm">
               <div className="text-3xl mb-4">📱</div>
               <h3 className="text-xl font-semibold text-card-foreground mb-2">
@@ -97,7 +97,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="container mx-auto px-6 py-8 mt-16 border-t border-border">
         <div className="text-center text-muted-foreground">
-          <p>&copy; 2024 Sistema de Inventario. Desarrollado por Ricardo Minor.</p>
+          <p>&copy; 2024 Auto Hotel Luxor Manager. Desarrollado por Ricardo Minor.</p>
         </div>
       </footer>
     </div>

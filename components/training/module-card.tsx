@@ -43,7 +43,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
     };
 
     return (
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="hover:shadow-lg transition-all duration-300 h-full flex flex-col border-muted-foreground/10 hover:border-primary/50 group">
             <CardHeader>
                 <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 w-full">
@@ -76,7 +76,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
                 </div>
             </CardHeader>
 
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4 mt-auto pt-0">
                 <div className="flex flex-col gap-2 w-full">
                     <Button
                         onClick={handleStartInteractive}

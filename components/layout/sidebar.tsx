@@ -196,7 +196,7 @@ CompactToggle.displayName = "CompactToggle";
 const MobileHeader = React.memo(({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) => (
   <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
     <div className="flex items-center justify-between px-4 py-3">
-      <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
+      <Link href="/dashboard" className="font-semibold text-lg">🏨 Luxor Manager</Link>
       <button
         type="button"
         aria-label="Toggle sidebar"
@@ -265,7 +265,7 @@ export function Sidebar() {
       <>
         <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
           <div className="flex items-center justify-between px-4 py-3">
-            <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
+            <Link href="/dashboard" className="font-semibold text-lg">🏨 Luxor Manager</Link>
             <button
               type="button"
               aria-label="Toggle sidebar"
@@ -281,7 +281,7 @@ export function Sidebar() {
         >
           <div className="h-full p-3 md:p-4 space-y-4 overflow-auto scrollbar-hide">
             <div className="px-1 hidden md:block">
-              <Link href="/dashboard" className="font-semibold text-lg block">📦 Inventory</Link>
+              <Link href="/dashboard" className="font-semibold text-lg block">🏨 Luxor Manager</Link>
             </div>
           </div>
         </aside>
@@ -305,13 +305,20 @@ export function Sidebar() {
         <div className="h-full p-3 md:p-4 space-y-4 overflow-auto scrollbar-hide">
           {/* Mobile header inside sidebar */}
           <div className="md:hidden px-1 pb-4 border-b">
-            <Link href="/dashboard" className="font-semibold text-lg">📦 Inventory</Link>
+            <Link href="/dashboard" className="font-semibold text-lg flex items-center gap-2">
+              <div className="relative w-8 h-8">
+                <img src="/luxor-logo.png" alt="Luxor Logo" className="object-contain w-full h-full" />
+              </div>
+              Luxor Manager
+            </Link>
           </div>
 
           {/* Logo section */}
           <div className="px-1 hidden md:block">
-            <Link href="/dashboard" className={`font-semibold text-lg block ${compact ? "text-center" : ""}`}>
-              {compact ? "📦" : "📦 Inventory"}
+            <Link href="/dashboard" className="block text-center py-2">
+              <div className="relative w-full h-12 mx-auto flex justify-center items-center">
+                <img src="/luxor-logo.png" alt="Luxor Logo" className="object-contain h-full w-auto" />
+              </div>
             </Link>
           </div>
 

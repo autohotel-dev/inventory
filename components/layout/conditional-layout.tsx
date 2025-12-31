@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Breadcrumbs } from "./breadcrumbs";
+import { BottomNav } from "./bottom-nav";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -68,10 +69,10 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
 
   // Layout completo con sidebar para rutas principales
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col md:flex-row bg-muted/10">
       <Sidebar />
       <main
-        className="flex-1 px-3 py-4 md:px-6 md:py-6 w-full space-y-4 md:space-y-6 transition-all duration-200"
+        className="flex-1 px-3 py-4 md:px-6 md:py-6 w-full space-y-4 md:space-y-6 transition-all duration-200 pb-24 md:pb-6"
         style={{
           marginLeft: mounted ? undefined : undefined,
           maxWidth: "100%"
@@ -80,6 +81,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
         <Breadcrumbs />
         {children}
       </main>
+      <BottomNav />
     </div>
   );
 }

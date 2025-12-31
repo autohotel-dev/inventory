@@ -8,6 +8,8 @@ import { DataDebug } from "@/components/debug/data-debug";
 import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
 import { TrainingProvider } from "@/contexts/training-context";
 import { InteractiveOverlay } from "@/components/training/interactive-overlay";
+import { ChatProvider } from "@/contexts/chat-context";
+import { ChatWidget } from "@/components/chat/chat-widget";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
@@ -27,12 +29,12 @@ const defaultUrl = getBaseUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Sistema de Inventario Profesional",
-  description: "Sistema completo de gestión de inventario con analytics avanzados, movimientos en tiempo real y exportación de datos",
-  keywords: ["inventario", "gestión", "stock", "almacén", "productos", "analytics"],
-  authors: [{ name: "Sistema de Inventario Pro" }],
-  creator: "Sistema de Inventario Pro",
-  publisher: "Sistema de Inventario Pro",
+  title: "Auto Hotel Luxor Manager",
+  description: "Sistema completo de gestión para Auto Hotel Luxor - Inventario, Ventas y Turnos",
+  keywords: ["hotel", "autohotel", "luxor", "gestión", "pms", "inventario", "turnos"],
+  authors: [{ name: "Ricardo Minor" }],
+  creator: "Ricardo Minor",
+  publisher: "Auto Hotel Luxor",
   formatDetection: {
     email: false,
     address: false,
@@ -42,14 +44,14 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Inventario Pro',
+    title: 'Luxor Manager',
   },
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "Inventario Pro",
-    "application-name": "Inventario Pro",
+    "apple-mobile-web-app-title": "Luxor Manager",
+    "application-name": "Luxor Manager",
     "msapplication-TileColor": "#2563eb",
     "msapplication-config": "/browserconfig.xml"
   },
@@ -67,7 +69,10 @@ export function generateViewport(): Viewport {
     maximumScale: 1,
     userScalable: false,
     viewportFit: "cover",
-    themeColor: "#eb2525ff"
+    themeColor: [
+      { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+      { media: "(prefers-color-scheme: light)", color: "#ffffff" }
+    ]
   };
 }
 
@@ -92,14 +97,17 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TrainingProvider>
-            <ConditionalLayout>
-              {children}
-            </ConditionalLayout>
-            <InteractiveOverlay />
-            <ToastProvider />
-            <PWAInstaller />
-            <PWAStatus />
-            <DataDebug />
+            <ChatProvider>
+              <ConditionalLayout>
+                {children}
+              </ConditionalLayout>
+              <InteractiveOverlay />
+              <ChatWidget />
+              <ToastProvider />
+              <PWAInstaller />
+              <PWAStatus />
+              <DataDebug />
+            </ChatProvider>
           </TrainingProvider>
         </ThemeProvider>
       </body>
