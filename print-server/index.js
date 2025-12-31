@@ -121,7 +121,7 @@ function buildReceptionTicket(data) {
 
     let t = CMD.INIT;
     t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
-    t += 'COMANDA' + CMD.NEW_LINE + 'RECEPCION' + CMD.NEW_LINE;
+    t += 'COMANDA RECEPCION' + CMD.NEW_LINE;
     t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
@@ -143,7 +143,7 @@ function buildReceptionTicket(data) {
     t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.total)) + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
-    t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'Consumo pagado' + CMD.NEW_LINE + CMD.BOLD_OFF;
+    t += CMD.ALIGN_CENTER;
     t += 'Entregar ticket al cliente' + CMD.NEW_LINE;
     t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
@@ -154,18 +154,16 @@ function buildClientTicket(data) {
     const { dateStr, timeStr } = formatDateTime(data.date);
 
     let t = CMD.INIT;
-    t += CMD.ALIGN_CENTER + CMD.DOUBLE_HEIGHT;
-    t += (data.hotelName || 'HOTEL') + CMD.NEW_LINE;
-    t += CMD.NORMAL_SIZE + CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
+    t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
     t += CMD.BOLD_ON + `Habitacion: ${data.roomNumber}` + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
-    t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT;
-    t += 'CONSUMO PAGADO' + CMD.NEW_LINE;
-    t += CMD.NORMAL_SIZE + CMD.BOLD_OFF + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CONSUMO' + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += CMD.ALIGN_LEFT;
 
     data.items.forEach(item => {
@@ -177,9 +175,7 @@ function buildClientTicket(data) {
     t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.total)) + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
-    t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_SIZE + 'PAGADO' + CMD.NEW_LINE;
-    t += CMD.NORMAL_SIZE + CMD.BOLD_OFF;
-    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER;
     t += 'Gracias por su preferencia' + CMD.NEW_LINE;
     t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
