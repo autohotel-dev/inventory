@@ -42,7 +42,7 @@ export function ChatWidget() {
     if (isLoading) return null; // Don't show until loaded
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
+        <div className="fixed bottom-24 md:bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
             {/* Chat Window - Enable pointer events for content */}
             {isOpen && (
                 <Card className="w-[calc(100vw-48px)] sm:w-96 shadow-2xl border-primary/20 animate-in slide-in-from-bottom-10 fade-in duration-200 flex flex-col h-[80vh] sm:h-[550px] pointer-events-auto rounded-3xl bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">

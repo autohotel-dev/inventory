@@ -55,14 +55,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     setMessages((current) => [...current, newMessage]);
 
                     // If chat is closed and message is not mine, increment unread and play sound
-                    if (!isOpen && newMessage.user_id !== userRef.current?.id) {
+                    if ((!isOpen || document.hidden) && newMessage.user_id !== userRef.current?.id) {
                         setUnreadCount(prev => prev + 1);
                         playNotificationSound(); // Ding!
-                        info("Nuevo mensaje de soporte", "Alguien ha escrito en el chat global.");
+
+                        // In-app Toast
+                        info("Nuevo mensaje", `${newMessage.user_email?.split('@')[0] || 'Alguien'} dice: ${newMessage.content.substring(0, 30)}...`);
+
+                        // Native Browser Notification (PWA)
+                        if (Notification.permission === "granted") {
+                            new Notification("Nuevo Mensaje - Luxor Manager", {
+                                body: newMessage.content,
+                                icon: "/luxor-logo.png", // Ensure this path is correct
+                                tag: "chat-message"
+                            });
+                        }
                     }
                 }
             )
             .subscribe();
+
+        // Request permission on mount
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
 
         return () => {
             supabase.removeChannel(channel);

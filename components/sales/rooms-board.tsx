@@ -1430,16 +1430,22 @@ export function RoomsBoard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Tablero de Habitaciones</h1>
-          <p className="text-muted-foreground text-sm">
-            Vista general de todas las habitaciones como tablero físico.
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Tablero de Habitaciones</h1>
+          <p className="text-muted-foreground text-sm hidden sm:block">
+            Vista general de todas las habitaciones.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => fetchRooms()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => fetchRooms()}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
           <RefreshCw className="h-4 w-4 mr-2" />
-          Recargar
+          <span className="hidden sm:inline">Actualizar</span>
+          <span className="sm:hidden">Sync</span>
         </Button>
       </div>
 
@@ -1448,106 +1454,115 @@ export function RoomsBoard() {
 
       {/* Mini-dashboard de contadores por estado */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-blue-500/40 bg-blue-950/30">
-          <CardContent className="py-3 px-4 flex flex-col gap-1">
-            <span className="text-xs text-blue-200">Libres</span>
-            <span className="text-xl font-bold text-blue-100">
+        <Card className="border-blue-500/20 bg-blue-500/5 shadow-sm">
+          <CardContent className="py-3 px-4 flex flex-col gap-1 items-center justify-center text-center">
+            <span className="text-xs font-medium text-blue-500 uppercase tracking-wider">Libres</span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {rooms.filter((r) => r.status === "LIBRE").length}
             </span>
           </CardContent>
         </Card>
-        <Card className="border-red-500/40 bg-red-950/30">
-          <CardContent className="py-3 px-4 flex flex-col gap-1">
-            <span className="text-xs text-red-200">Ocupadas</span>
-            <span className="text-xl font-bold text-red-100">
+        <Card className="border-red-500/20 bg-red-500/5 shadow-sm">
+          <CardContent className="py-3 px-4 flex flex-col gap-1 items-center justify-center text-center">
+            <span className="text-xs font-medium text-red-500 uppercase tracking-wider">Ocupadas</span>
+            <span className="text-2xl font-bold text-red-600 dark:text-red-400">
               {rooms.filter((r) => r.status === "OCUPADA").length}
             </span>
           </CardContent>
         </Card>
-        <Card className="border-purple-500/40 bg-purple-950/30">
-          <CardContent className="py-3 px-4 flex flex-col gap-1">
-            <span className="text-xs text-purple-200">Sucias</span>
-            <span className="text-xl font-bold text-purple-100">
+        <Card className="border-purple-500/20 bg-purple-500/5 shadow-sm">
+          <CardContent className="py-3 px-4 flex flex-col gap-1 items-center justify-center text-center">
+            <span className="text-xs font-medium text-purple-500 uppercase tracking-wider">Sucias</span>
+            <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {rooms.filter((r) => r.status === "SUCIA").length}
             </span>
           </CardContent>
         </Card>
-        <Card className="border-green-500/40 bg-green-950/30">
-          <CardContent className="py-3 px-4 flex flex-col gap-1">
-            <span className="text-xs text-green-200">Bloqueadas</span>
-            <span className="text-xl font-bold text-green-100">
+        <Card className="border-green-500/20 bg-green-500/5 shadow-sm">
+          <CardContent className="py-3 px-4 flex flex-col gap-1 items-center justify-center text-center">
+            <span className="text-xs font-medium text-green-500 uppercase tracking-wider">Bloqueadas</span>
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
               {rooms.filter((r) => r.status === "BLOQUEADA").length}
             </span>
           </CardContent>
         </Card>
       </div>
 
-      {/* Leyenda de estados y tipos */}
-      <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
-        {/* Estados */}
-        <div className="flex items-center gap-3">
-          <span className="text-white/50 font-medium">Estados:</span>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-blue-500" />
-            <span>Libre</span>
+      {/* Leyenda de estados y tipos - Responsive Fix */}
+      <div className="flex flex-col gap-4">
+        <div className="bg-muted/30 p-3 rounded-lg border border-border/50">
+          <div className="flex flex-wrap gap-x-8 gap-y-3 justify-center text-xs text-muted-foreground">
+            {/* Estados */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-semibold text-foreground/80">Estados:</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" />
+                <span>Libre</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
+                <span>Ocupada</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm" />
+                <span>Sucia</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" />
+                <span>Bloqueada</span>
+              </div>
+            </div>
+
+            <div className="w-px h-4 bg-border hidden sm:block" />
+
+            {/* Tipos de habitación */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-semibold text-foreground/80">Tipos:</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-500 text-white shadow-sm">SEN</span>
+                <span>Sencilla</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-purple-600 text-white shadow-sm">J&S</span>
+                <span>Jacuzzi y Sauna</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-pink-500 text-white shadow-sm">JAC</span>
+                <span>Jacuzzi</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-cyan-600 text-white shadow-sm">ALB</span>
+                <span>Alberca</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500 text-white shadow-sm">TRE</span>
+                <span>Torre</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-red-500" />
-            <span>Ocupada</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-purple-500" />
-            <span>Sucia</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-green-500" />
-            <span>Bloqueada</span>
-          </div>
-        </div>
-        {/* Tipos de habitación */}
-        <div className="flex items-center gap-3">
-          <span className="text-white/50 font-medium">Tipos:</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-slate-500 text-white">SEN</span>
-            <span>Sencilla</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-purple-600 text-white">J&S</span>
-            <span>Jacuzzi y Sauna</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-pink-500 text-white">JAC</span>
-            <span>Jacuzzi</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-cyan-600 text-white">ALB</span>
-            <span>Alberca</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-indigo-500 text-white">TRE</span>
-            <span>Torre</span>
-          </div>
-        </div>
-        {/* Botones de prueba para alertas - ELIMINAR EN PRODUCCIÓN */}
-        <div className="ml-auto flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[10px] border-amber-500/50 text-amber-400 hover:bg-amber-500/20"
-            onClick={() => setReminderAlert({ roomNumber: "101", minutes: 18, level: "20" })}
-          >
-            Test Alerta 20min
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[10px] border-red-500/50 text-red-400 hover:bg-red-500/20"
-            onClick={() => setReminderAlert({ roomNumber: "102", minutes: 3, level: "5" })}
-          >
-            Test Alerta 5min
-          </Button>
         </div>
       </div>
+
+      {/* Botones de prueba para alertas - ELIMINAR EN PRODUCCIÓN */}
+      <div className="flex gap-2 justify-end sm:ml-auto">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 text-[10px] border-amber-500/50 text-amber-400 hover:bg-amber-500/20"
+          onClick={() => setReminderAlert({ roomNumber: "101", minutes: 18, level: "20" })}
+        >
+          Test Alerta 20min
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 text-[10px] border-red-500/50 text-red-400 hover:bg-red-500/20"
+          onClick={() => setReminderAlert({ roomNumber: "102", minutes: 3, level: "5" })}
+        >
+          Test Alerta 5min
+        </Button>
+      </div>
+
 
       {/* Grid único de habitaciones */}
       <Card>
@@ -2111,6 +2126,6 @@ export function RoomsBoard() {
         roomNumber={selectedRoom?.number || ""}
         roomStayId={selectedRoom ? (getActiveStay(selectedRoom)?.id || "") : ""}
       />
-    </div>
+    </div >
   );
 }
