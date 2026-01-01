@@ -119,6 +119,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           sales_orders(id, total, status)
         `)
         .or(`shift_session_id.eq.${session.id},and(shift_session_id.is.null,created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd})`)
+        .in("status", ["PAGADO", "PENDIENTE"]) // Solo pagos válidos
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -147,6 +148,21 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       let total_card_getnet = 0;
 
       (payments || []).forEach((payment) => {
+        // Skip parent payments (multipago) to avoid double-counting
+        if (payment.parent_payment_id) return;
+
+        // Skip payments with PENDIENTE or MIXTO at leaf level
+        if (payment.payment_method === "PENDIENTE" || payment.payment_method === "MIXTO") {
+          console.warn(`Skipping payment ${payment.id} with method ${payment.payment_method}`);
+          return;
+        }
+
+        // Validate amount is positive
+        if (payment.amount < 0) {
+          console.warn(`Negative payment amount detected: ${payment.id} = ${payment.amount}`);
+          return;
+        }
+
         if (payment.payment_method === "EFECTIVO") {
           total_cash += payment.amount;
         } else if (payment.payment_method === "TARJETA_BBVA") {
@@ -160,7 +176,14 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
             total_card_bbva += payment.amount;
           } else if (terminalCode === "GETNET") {
             total_card_getnet += payment.amount;
+          } else {
+            // Fallback: Si no tiene terminal, asignar a BBVA y registrar advertencia
+            console.warn(`Payment ${payment.id} has TARJETA but no terminal_code, defaulting to BBVA`);
+            total_card_bbva += payment.amount;
           }
+        } else {
+          // Log unhandled payment methods
+          console.warn(`Unhandled payment method: ${payment.payment_method} for payment ${payment.id}`);
         }
       });
 
@@ -232,6 +255,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           EXTRA_PERSON: "Persona Extra",
           CONSUMPTION: "Consumo",
           PRODUCT: "Producto",
+          RENEWAL: "Renovación",
+          PROMO_4H: "Promo 4H",
         };
 
         const itemsRawData = relatedItems.map((item: any) => {

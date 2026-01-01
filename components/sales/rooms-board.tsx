@@ -234,7 +234,7 @@ export function RoomsBoard() {
     handleAddPerson,
     handleRemovePerson,
     handlePersonLeftReturning,
-    handleAddExtraHour,
+    // handleAddExtraHour removida - usar handleAddCustomHours
     handleAddCustomHours,
     handleRenewRoom,
     handleAdd4HourPromo,
@@ -832,7 +832,7 @@ export function RoomsBoard() {
     return Math.ceil(diffMs / (60 * 60 * 1000));
   };
 
-  // handleAddExtraHour viene del hook useRoomActions
+
 
   const openActionsDock = (room: Room) => {
     setSelectedRoom(room);
@@ -2111,18 +2111,21 @@ export function RoomsBoard() {
           if (selectedRoom) {
             await handleAddCustomHours(selectedRoom, hours, payments);
             setShowHourManagementModal(false);
+            setShowInfoModal(false); // Cerrar para refrescar tiempo
           }
         }}
         onConfirmRenew={async (payments) => {
           if (selectedRoom) {
             await handleRenewRoom(selectedRoom, payments);
             setShowHourManagementModal(false);
+            setShowInfoModal(false); // Cerrar para refrescar tiempo
           }
         }}
         onConfirmPromo4H={async (payments) => {
           if (selectedRoom) {
             await handleAdd4HourPromo(selectedRoom, payments);
             setShowHourManagementModal(false);
+            setShowInfoModal(false); // Cerrar para refrescar tiempo
           }
         }}
       />

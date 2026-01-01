@@ -87,6 +87,8 @@ const CONCEPT_ICONS: Record<string, React.ReactNode> = {
   EXTRA_PERSON: <Users className="h-4 w-4" />,
   CONSUMPTION: <ShoppingBag className="h-4 w-4" />,
   PRODUCT: <Package className="h-4 w-4" />,
+  RENEWAL: <Receipt className="h-4 w-4" />,
+  PROMO_4H: <Clock className="h-4 w-4" />,
   OTHER: <MoreHorizontal className="h-4 w-4" />,
 };
 
@@ -96,6 +98,8 @@ const CONCEPT_LABELS: Record<string, string> = {
   EXTRA_PERSON: "Persona Extra",
   CONSUMPTION: "Consumo",
   PRODUCT: "Producto",
+  RENEWAL: "Renovación",
+  PROMO_4H: "Promo 4 Horas",
   OTHER: "Otro",
 };
 
@@ -105,6 +109,8 @@ const CONCEPT_COLORS: Record<string, string> = {
   EXTRA_PERSON: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   CONSUMPTION: "bg-green-500/20 text-green-400 border-green-500/30",
   PRODUCT: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  RENEWAL: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  PROMO_4H: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   OTHER: "bg-slate-500/20 text-slate-400 border-slate-500/30",
 };
 
