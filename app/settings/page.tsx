@@ -20,9 +20,11 @@ import {
     Zap
 } from "lucide-react";
 import { usePOSConfig, type POSConfig } from "@/hooks/use-pos-config";
+import { usePrinterSettings } from "@/hooks/use-printer-settings";
 
 export default function SettingsPage() {
     const { config, isLoaded, saveConfig, resetConfig } = usePOSConfig();
+    const { size: printerSize, saveSize: savePrinterSize } = usePrinterSettings();
     const [localConfig, setLocalConfig] = useState<POSConfig | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
 
@@ -245,6 +247,35 @@ export default function SettingsPage() {
 
                         {localConfig.autoPrintTickets && (
                             <>
+                                <Separator />
+
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base font-medium">Tamaño de Papel</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Ancho del papel de la impresora térmica
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
+                                        <Button
+                                            variant={printerSize === '90mm' ? 'default' : 'ghost'}
+                                            size="sm"
+                                            onClick={() => savePrinterSize('90mm')}
+                                            className="h-7 text-xs"
+                                        >
+                                            90mm (Estándar)
+                                        </Button>
+                                        <Button
+                                            variant={printerSize === '58mm' ? 'default' : 'ghost'}
+                                            size="sm"
+                                            onClick={() => savePrinterSize('58mm')}
+                                            className="h-7 text-xs"
+                                        >
+                                            58mm (Estrecho)
+                                        </Button>
+                                    </div>
+                                </div>
+
                                 <Separator />
 
                                 <div className="flex items-center justify-between">

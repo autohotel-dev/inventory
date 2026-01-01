@@ -19,7 +19,24 @@ export function printHTML(htmlContent: string): Promise<boolean> {
             }
 
             doc.open();
-            doc.write(htmlContent);
+
+            // Inject dynamic styles for printer size
+            const storedSize = localStorage.getItem('printer_paper_size');
+            const width = storedSize === '58mm' ? '56mm' : '100%'; // Default 100% (usually 80mm/90mm behaves as full width) or specific 90mm.
+            // Note: 56mm is very specific. 58mm is the standard paper size, typically printable area is ~48mm-56mm.
+
+            const style = `
+                <style>
+                    @page { size: ${width} auto; margin: 0; }
+                    body { width: ${width}; margin: 0 auto; }
+                    /* Force tables to fit */
+                    table { width: 100% !important; }
+                    img { max-width: 100% !important; }
+                    .ticket { width: 100% !important; }
+                </style>
+            `;
+
+            doc.write(style + htmlContent);
             doc.close();
 
             // Wait for content to load (images, etc)

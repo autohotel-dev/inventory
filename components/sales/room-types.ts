@@ -1,21 +1,25 @@
 // Tipos compartidos para los componentes de habitaciones
 
 // Configuración de colores por estado
-export const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+export const STATUS_CONFIG: Record<string, { label: string; shortLabel?: string; color: string }> = {
   LIBRE: {
     label: "Libre",
+    shortLabel: "Libre",
     color: "bg-blue-950/50 text-blue-100 border-blue-400/40",
   },
   OCUPADA: {
     label: "Ocupada",
+    shortLabel: "Ocup.",
     color: "bg-red-950/50 text-red-100 border-red-400/40",
   },
   SUCIA: {
     label: "Sucia",
+    shortLabel: "Sucia",
     color: "bg-purple-950/50 text-purple-100 border-purple-400/40",
   },
   BLOQUEADA: {
     label: "Bloqueada",
+    shortLabel: "Bloq.",
     color: "bg-emerald-950/50 text-emerald-100 border-emerald-400/40",
   },
 };

@@ -1419,9 +1419,16 @@ function RoomsBoardInternal() {
     return (
       <Badge
         variant="outline"
-        className={`text-xs font-medium border ${config.color}`}
+        className={`text-[10px] sm:text-xs font-medium border px-1 ${config.color} truncate max-w-[70px] sm:max-w-none`}
       >
-        {config.label}
+        {config.shortLabel ? (
+          <>
+            <span className="sm:hidden">{config.shortLabel}</span>
+            <span className="hidden sm:inline">{config.label}</span>
+          </>
+        ) : (
+          config.label
+        )}
       </Badge>
     );
   };
@@ -1603,7 +1610,7 @@ function RoomsBoardInternal() {
       {/* Grid único de habitaciones */}
       <Card>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3">
             {rooms.map((room) => {
               const status = room.status || "OTRO";
               // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)

@@ -212,10 +212,10 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                                         <Button
                                             onClick={() => handleOpenCheckIn(room)}
-                                            className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700"
+                                            className="w-full h-auto min-h-[48px] text-base bg-blue-600 hover:bg-blue-700 whitespace-normal py-2"
                                         >
-                                            <Car className="h-5 w-5 mr-2" />
-                                            Registrar Vehículo y Cobrar
+                                            <Car className="h-5 w-5 mr-2 shrink-0" />
+                                            Registrar y Cobrar
                                         </Button>
                                     </Card>
                                 );
@@ -270,10 +270,10 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                                         <Button
                                             onClick={() => handleOpenCheckout(room)}
-                                            className="w-full h-12 text-base bg-green-600 hover:bg-green-700"
+                                            className="w-full h-auto min-h-[48px] text-base bg-green-600 hover:bg-green-700 whitespace-normal py-2"
                                         >
-                                            <CheckCircle2 className="h-5 w-5 mr-2" />
-                                            Revisar y Confirmar Salida
+                                            <CheckCircle2 className="h-5 w-5 mr-2 shrink-0" />
+                                            Confirmar Salida
                                         </Button>
                                     </Card>
                                 );

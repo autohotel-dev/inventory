@@ -82,7 +82,7 @@ export function RoomCard({
 
   return (
     <div
-      className={`relative rounded-lg p-2 text-sm flex flex-col h-[72px] cursor-pointer backdrop-blur-sm shadow-sm hover:shadow-md border transition-all ${containerClasses}`}
+      className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer backdrop-blur-sm shadow-sm hover:shadow-md border transition-all ${containerClasses}`}
     >
       {/* Indicador de pago pendiente (Solo si NO está la puerta abierta para no saturar) */}
       {hasPendingPayment && !isDoorOpen && (
@@ -99,8 +99,8 @@ export function RoomCard({
       )}
 
       {/* Fila superior: Número + Estado */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-start justify-between gap-1 mb-1">
+        <div className="flex items-center gap-1.5 shrink-0">
           <span className="font-bold text-lg leading-none">{number}</span>
 
           {/* Indicador de Vehículo */}
