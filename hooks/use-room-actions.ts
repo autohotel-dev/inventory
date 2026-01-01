@@ -299,18 +299,37 @@ export interface UseRoomActionsReturn {
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Agregar persona nueva (siempre cobra extra si >2)
+  /**
+   * Agregar persona a la habitación
+   * 
+   * Comportamiento:
+   * - Si hay tolerancia activa: La persona está REGRESANDO
+   *   - Si regresa a tiempo: Solo incrementa current_people
+   *   - Si tolerancia expiró: Cobra según tipo (habitación o persona extra)
+   * - Si NO hay tolerancia: Es persona NUEVA
+   *   - Incrementa current_people Y total_people
+   *   - Cobra extra si total > 2 personas diferentes
+   * 
+   * @param room - Habitación donde se agrega la persona
+   */
   const handleAddPerson = async (room: Room) => {
-    if (room.status !== "OCUPADA") return;
+    if (room.status !== "OCUPADA") {
+      logger.warn("Cannot add person to non-occupied room", { roomId: room.id, status: room.status });
+      return;
+    }
 
     const activeStay = getActiveStay(room);
     if (!activeStay) {
-      toast.error("No se encontró una estancia activa para esta habitación");
+      toast.error("No se encontró una estancia activa", {
+        description: "Verifica que la habitación esté correctamente ocupada"
+      });
       return;
     }
 
     if (!room.room_types) {
-      toast.error("No se encontró el tipo de habitación");
+      toast.error("Configuración incompleta", {
+        description: "No se encontró el tipo de habitación"
+      });
       return;
     }
 
@@ -318,9 +337,16 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const current = activeStay.current_people ?? 2;
     const next = current + 1;
 
+    // Validación: No exceder capacidad máxima del tipo de habitación
     if (next > maxPeople) {
-      toast.error("Límite de personas excedido", {
-        description: `Máximo ${maxPeople} personas para ${room.room_types.name}`,
+      toast.error("Capacidad máxima alcanzada", {
+        description: `Esta habitación ${room.room_types.name} permite máximo ${maxPeople} personas`,
+      });
+      logger.warn("Attempt to exceed room capacity", {
+        roomId: room.id,
+        current,
+        next,
+        maxPeople
       });
       return;
     }
@@ -480,29 +506,42 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   };
 
   /**
-   * Quitar persona de la habitación (se fue definitivamente, sin tolerancia)
-   * Esta función reduce el contador de personas actuales
-   * Nota: No reduce total_people (histórico de personas diferentes que han estado)
-   */
+ * Quitar persona de la habitación (salida definitiva, sin intención de regresar)
+ * 
+ * Comportamiento:
+ * - Reduce current_people en 1
+ * - NO modifica total_people (es un contador histórico acumulativo)
+ * - NO crea tolerancia
+ * - NO genera reembolsos (política: el cargo es permanente)
+ * 
+ * Nota: Esta acción es para personas que se van y NO regresarán.
+ * Para personas que salen temporalmente, usar "Persona Salió/Regresa"
+ * 
+ * @param room - Habitación de donde se quita la persona
+ */
   const handleRemovePerson = async (room: Room) => {
     if (room.status !== "OCUPADA") {
       logger.warn("Cannot remove person from non-occupied room", { roomId: room.id, status: room.status });
+      toast.info("Esta habitación no está ocupada");
       return;
     }
 
     const activeStay = getActiveStay(room);
     if (!activeStay) {
-      toast.error("No se encontró una estancia activa para esta habitación");
+      toast.error("No se encontró una estancia activa", {
+        description: "Verifica que la habitación esté correctamente ocupada"
+      });
       return;
     }
 
     const current = activeStay.current_people ?? 2;
 
-    // Validar que haya al menos 1 persona
+    // Validación: Debe quedar al menos 1 persona (si quedan 0, debe ser checkout)
     if (current <= 1) {
-      toast.error("Debe haber al menos 1 persona en la habitación", {
-        description: "Usa 'Salida' para hacer checkout si no queda nadie.",
+      toast.error("No se puede quitar la última persona", {
+        description: "Si la habitación quedará vacía, usa 'Salida' para hacer checkout.",
       });
+      logger.warn("Attempt to remove last person", { roomId: room.id, currentPeople: current });
       return;
     }
 
@@ -537,24 +576,53 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     }
   };
 
-  // Persona salió pero va a regresar (inicia tolerancia) O persona regresa (cancela tolerancia)
+  /**
+ * Toggle de salida/regreso con tolerancia (1 hora)
+ * 
+ * Comportamiento:
+ * - Si NO hay tolerancia activa → Persona SALE (inicia tolerancia)
+ *   - Reduce current_people
+ *   - Establece tolerance_started_at y tolerance_type
+ *   - Si current_people = 0: tipo ROOM_EMPTY (cobra habitación completa si expira)
+ *   - Si current_people > 0: tipo PERSON_LEFT (cobra persona extra si expira)
+ * 
+ * - Si SÍ hay tolerancia activa → Persona REGRESA (cancela tolerancia)
+ *   - Incrementa current_people
+ *   - Limpia tolerance_started_at y tolerance_type
+ *   - NO modifica total_people (es la misma persona)
+ * 
+ * Tolerancia: 1 hora para regresar sin cargo
+ * Si expira: Se cobra al agregar persona (ver handleAddPerson)
+ * 
+ * @param room - Habitación donde se aplica la acción
+ */
   const handlePersonLeftReturning = async (room: Room) => {
-    if (room.status !== "OCUPADA") return;
+    if (room.status !== "OCUPADA") {
+      logger.warn("Cannot toggle tolerance on non-occupied room", { roomId: room.id, status: room.status });
+      toast.error("No se puede aplicar tolerancia a una habitación no ocupada");
+      return;
+    }
 
     const activeStay = getActiveStay(room);
     if (!activeStay) {
-      toast.error("No se encontró una estancia activa para esta habitación");
+      toast.error("No se encontró una estancia activa", {
+        description: "Verifica que la habitación esté correctamente ocupada"
+      });
       return;
     }
 
     if (!room.room_types) {
-      toast.error("No se encontró el tipo de habitación");
+      toast.error("Configuración incompleta", {
+        description: "No se encontró el tipo de habitación"
+      });
       return;
     }
 
-    // No aplica para hotel/torre
+    // No aplica para habitaciones de hotel (solo motel)
     if (room.room_types.is_hotel) {
-      toast.info("Esta función no aplica para habitaciones de hotel");
+      toast.info("Tolerancia no disponible", {
+        description: "Esta función solo aplica para habitaciones tipo motel"
+      });
       return;
     }
 
@@ -566,8 +634,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       if (activeStay.tolerance_started_at) {
         const current = activeStay.current_people ?? 2;
         const newCurrentPeople = current + 1;
-        // NO incrementar total_people porque es la misma persona que ya había entrado
 
+        // Calcular tiempo de tolerancia usado
+        const toleranceStart = new Date(activeStay.tolerance_started_at);
+        const elapsed = Date.now() - toleranceStart.getTime();
+        const minutesElapsed = Math.floor(elapsed / 60000);
+        const minutesRemaining = Math.max(0, 60 - minutesElapsed);
+
+        // NO incrementar total_people porque es la misma persona que ya había entrado
         await supabase
           .from("room_stays")
           .update({
@@ -581,11 +655,12 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         logger.info("Person returned within tolerance", {
           roomId: room.id,
           roomNumber: room.number,
-          newCount: newCurrentPeople
+          newCount: newCurrentPeople,
+          toleranceUsedMinutes: minutesElapsed
         });
 
-        toast.success("Persona regresó a tiempo", {
-          description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Tolerancia cancelada.`,
+        toast.success("✅ Persona regresó a tiempo", {
+          description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Regresó en ${minutesElapsed} min (quedaban ${minutesRemaining} min).`,
         });
 
         await onRefresh();
@@ -594,8 +669,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       // CASO 2: No hay tolerancia → la persona SALE (iniciar tolerancia)
       const current = activeStay.current_people ?? 2;
+
+      // Validación: Debe haber al menos 1 persona para que salga
       if (current <= 0) {
-        toast.error("No hay personas en la habitación");
+        toast.error("No hay personas en la habitación", {
+          description: "La habitación ya está vacía"
+        });
+        logger.warn("Attempt to start tolerance with 0 people", { roomId: room.id });
         return;
       }
 
@@ -615,16 +695,21 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         roomId: room.id,
         roomNumber: room.number,
         toleranceType,
-        newCount: newCurrentPeople
+        newCount: newCurrentPeople,
+        expiresAt: new Date(Date.now() + 3600000).toISOString()
       });
 
       if (newCurrentPeople === 0) {
-        toast.warning("Tolerancia iniciada - Habitación vacía", {
-          description: `Hab. ${room.number}: 1 hora para regresar. Después se cobra habitación completa.`,
+        const expiryTime = new Date(Date.now() + 3600000).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        toast.warning("⏱️ Tolerancia iniciada - Habitación vacía", {
+          description: `Hab. ${room.number}: Tiene hasta las ${expiryTime} para regresar. Después se cobrará habitación completa (${formatCurrency(room.room_types.base_price ?? 0)}).`,
+          duration: 5000,
         });
       } else {
-        toast.warning("Tolerancia iniciada - Persona salió", {
-          description: `Hab. ${room.number}: 1 hora para regresar. Después se cobra persona extra.`,
+        const expiryTime = new Date(Date.now() + 3600000).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        toast.warning("⏱️ Tolerancia iniciada - Persona salió", {
+          description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''} en habitación. Tiene hasta las ${expiryTime} para regresar. Después se cobrará persona extra (${formatCurrency(room.room_types.extra_person_price ?? 0)}).`,
+          duration: 5000,
         });
       }
 
