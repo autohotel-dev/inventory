@@ -909,6 +909,7 @@ export default function PracticePage() {
                     onRemovePerson={handleManagePeople}
                     onPersonLeftReturning={handleNoOp}
                     onShowGuestPortal={handleNoOp}
+                    onRequestVehicle={handleNoOp}
                 />
 
                 {/* MODALES DE PRÁCTICA */}
@@ -977,9 +978,9 @@ export default function PracticePage() {
 
                         <CancelStayModal
                             isOpen={isCancelStayOpen}
+                            salesOrderId={`mock-order-${selectedRoom.id}`}
                             roomNumber={selectedRoom.number}
                             roomTypeName={selectedRoom.room_types.name}
-                            totalPaid={0}
                             elapsedMinutes={45} // Simulado
                             actionLoading={actionLoading}
                             onClose={() => setIsCancelStayOpen(false)}
