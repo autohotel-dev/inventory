@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { useValetActions } from "@/hooks/use-valet-actions";
+import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { ValetCheckInModal } from "./valet-checkin-modal";
 import { ValetCheckoutModal } from "./valet-checkout-modal";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [showCheckInModal, setShowCheckInModal] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+
+    useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
 
     const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout } = useValetActions(fetchRooms);
 
@@ -88,6 +91,14 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         // Aquí deberías tener una forma de saber si está en proceso de checkout
         // Por ahora, mostrar habitaciones con checkout_valet_employee_id null
         return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id;
+    }).sort((a, b) => {
+        const stayA = a.room_stays?.find(s => s.status === 'ACTIVA');
+        const stayB = b.room_stays?.find(s => s.status === 'ACTIVA');
+        // Priorizar vehículos solicitados
+        const reqA = stayA?.vehicle_requested_at ? 1 : 0;
+        const reqB = stayB?.vehicle_requested_at ? 1 : 0;
+        if (reqA !== reqB) return reqB - reqA; // Solicitados primero
+        return 0;
     });
 
     const handleOpenCheckIn = (room: Room) => {
@@ -230,9 +241,15 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                 const duration = now.getTime() - checkinTime.getTime();
                                 const hours = Math.floor(duration / (1000 * 60 * 60));
                                 const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
+                                const isRequested = !!stay?.vehicle_requested_at;
 
                                 return (
-                                    <Card key={room.id} className="p-4 space-y-3">
+                                    <Card key={room.id} className={`p-4 space-y-3 ${isRequested ? "border-red-500 bg-red-50 dark:bg-red-950/20 shadow-lg scale-[1.02] transition-transform" : ""}`}>
+                                        {isRequested && (
+                                            <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 px-3 py-1.5 rounded-md text-sm font-bold flex items-center justify-center gap-2 animate-pulse mb-2 border border-red-200 dark:border-red-800">
+                                                🚨 CLIENTE SOLICITÓ SU AUTO 🚨
+                                            </div>
+                                        )}
                                         <div className="flex items-start justify-between">
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">

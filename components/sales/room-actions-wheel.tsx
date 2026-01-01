@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -36,10 +36,11 @@ export interface RoomActionsWheelProps {
   onMarkDirty: () => void; // Marcar como sucia/mantenimiento
   onEditValet: () => void; // Editar cochero asignado
   onShowGuestPortal: () => void; // Mostrar QR del portal de huéspedes
+  onRequestVehicle: () => void; // Solicitar vehículo al valet
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle';
 
 interface ActionConfig {
   id: string;
@@ -50,6 +51,7 @@ interface ActionConfig {
   action: ActionKey;
   showOnlyWithExtra?: boolean; // Solo mostrar si hay cargos extra
   hideForHotel?: boolean; // Ocultar para habitaciones de hotel/torre
+  showOnlyWithVehicle?: boolean; // Solo mostrar si tiene vehículo registrado
 }
 
 // Configuración de acciones por estado
@@ -68,6 +70,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "payextra", label: "Pagar Todo", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
     { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
+    { id: "req_vehicle", label: "Pedir Auto", icon: <BellRing className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onRequestVehicle", showOnlyWithVehicle: true },
     { id: "valet", label: "Cochero", icon: <UserCog className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onEditValet" },
     { id: "changeroom", label: "Cambiar", icon: <ArrowRightLeft className="h-5 w-5" />, color: "text-indigo-400", hoverBg: "hover:bg-indigo-500/30", action: "onChangeRoom" },
     { id: "managePeople", label: "Personas", icon: <Users className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onManagePeople" },
@@ -166,9 +169,14 @@ export function RoomActionsWheel({
   onManagePeople,
   onMarkDirty,
   onEditValet,
-  onShowGuestPortal, // New prop
+  onShowGuestPortal,
+  onRequestVehicle,
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
+
+  // Compute vehicle status
+  const activeStay = room.room_stays?.find(s => s.status === 'ACTIVA');
+  const hasVehicle = !!activeStay?.vehicle_plate;
 
   // Filtrar acciones según condiciones
   const allActions = ACTIONS_BY_STATUS[room.status] || [];
@@ -177,6 +185,8 @@ export function RoomActionsWheel({
     if (action.showOnlyWithExtra && !hasExtraCharges) return false;
     // Ocultar acciones marcadas como hideForHotel si es hotel
     if (action.hideForHotel && isHotelRoom) return false;
+    // Mostrar Pedir Auto solo si tiene vehículo
+    if (action.showOnlyWithVehicle && !hasVehicle) return false;
     return true;
   });
   const actionCount = actions.length;
@@ -212,6 +222,7 @@ export function RoomActionsWheel({
     onMarkDirty,
     onEditValet,
     onShowGuestPortal,
+    onRequestVehicle,
   };
 
   return (

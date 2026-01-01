@@ -294,6 +294,7 @@ export interface UseRoomActionsReturn {
     payments?: PaymentEntry[],
     checkoutValetId?: string | null
   ) => Promise<boolean>;
+  requestVehicle: (stayId: string) => Promise<boolean>;
 }
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
@@ -1355,6 +1356,27 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     }
   };
 
+  const requestVehicle = async (stayId: string): Promise<boolean> => {
+    setActionLoading(true);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase
+        .from('room_stays')
+        .update({ vehicle_requested_at: new Date().toISOString() })
+        .eq('id', stayId);
+
+      if (error) throw error;
+      toast.success("Vehículo solicitado al valet 🚗");
+      return true;
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al solicitar vehículo");
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return {
     actionLoading,
     handleAddPerson,
@@ -1367,5 +1389,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     updateRoomStatus,
     prepareCheckout,
     processCheckout,
+    requestVehicle,
   };
 }

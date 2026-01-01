@@ -44,6 +44,7 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   return `${prefix}-${timestamp}-${random}`;
 }
 import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
+import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSensors } from "@/hooks/use-sensors";
 import { toast } from "sonner";
@@ -157,6 +158,9 @@ function RoomsBoardInternal() {
   const [consumptionOrderId, setConsumptionOrderId] = useState<string | null>(null);
   const [actionsDockVisible, setActionsDockVisible] = useState(false);
   const [startStayLoading, setStartStayLoading] = useState(false);
+
+  // Notificaciones de sonido
+  useSoundNotifications('receptionist', rooms.map(r => ({ id: r.id, number: r.number })));
   const [showQuickCheckinModal, setShowQuickCheckinModal] = useState(false);
   const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
   const [showEditValetModal, setShowEditValetModal] = useState(false);
@@ -265,6 +269,7 @@ function RoomsBoardInternal() {
     updateRoomStatus,
     prepareCheckout,
     processCheckout,
+    requestVehicle,
   } = useRoomActions(async () => await fetchRooms(true));
 
   // Abrir modal de checkout usando el hook
@@ -1777,8 +1782,16 @@ function RoomsBoardInternal() {
           setShowManagePeopleModal(true);
         }}
         onShowGuestPortal={() => {
-          setShowActionsModal(false);
           setShowGuestPortalQRModal(true);
+        }}
+        onRequestVehicle={async () => {
+          if (selectedRoom) {
+            const activeStay = getActiveStay(selectedRoom);
+            if (activeStay) {
+              await requestVehicle(activeStay.id);
+              setShowActionsModal(false);
+            }
+          }
         }}
       />
       <RoomPayExtraModal
