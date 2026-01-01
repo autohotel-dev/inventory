@@ -26,6 +26,7 @@ export interface RoomCheckoutModalProps {
   onAmountChange: (amount: number) => void;
   onClose: () => void;
   onConfirm: (data: { payments: PaymentEntry[]; checkoutValetId?: string | null }) => void;
+  defaultValetId?: string | null;
 }
 
 export function RoomCheckoutModal({
@@ -39,6 +40,7 @@ export function RoomCheckoutModal({
   onAmountChange,
   onClose,
   onConfirm,
+  defaultValetId,
 }: RoomCheckoutModalProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [showPendingWarning, setShowPendingWarning] = useState(false);
@@ -83,12 +85,12 @@ export function RoomCheckoutModal({
 
     if (isOpen) {
       loadValets();
-      setCheckoutValetId("none");
+      setCheckoutValetId(defaultValetId || "none");
       if (remainingAmount > 0) {
         setPayments(createInitialPayment(remainingAmount));
       }
     }
-  }, [isOpen, remainingAmount]);
+  }, [isOpen, remainingAmount, defaultValetId]);
 
   if (!isOpen) return null;
 
@@ -159,32 +161,40 @@ export function RoomCheckoutModal({
             />
           )}
 
-          {/* Cochero de Salida */}
           <div className="space-y-3 pt-2 border-t">
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <UserCog className="h-4 w-4" />
               Cochero de Salida
             </p>
-            <Select
-              value={checkoutValetId}
-              onValueChange={setCheckoutValetId}
-              disabled={actionLoading || valets.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={valets.length === 0 ? "No hay cocheros registrados" : "Selecciona cochero de salida"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin asignar</SelectItem>
-                {valets.map((valet) => (
-                  <SelectItem key={valet.id} value={valet.id}>
-                    {valet.first_name} {valet.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Opcional: Registra qué cochero entregó el vehículo al cliente
-            </p>
+            <div className="space-y-1">
+              <Select
+                value={checkoutValetId}
+                onValueChange={setCheckoutValetId}
+                disabled={actionLoading || valets.length === 0 || !!defaultValetId}
+              >
+                <SelectTrigger className={defaultValetId ? "bg-muted text-muted-foreground opacity-100" : ""}>
+                  <SelectValue placeholder={valets.length === 0 ? "No hay cocheros registrados" : "Selecciona cochero de salida"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {valets.map((valet) => (
+                    <SelectItem key={valet.id} value={valet.id}>
+                      {valet.first_name} {valet.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {defaultValetId ? (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Asignado automáticamente por revisión de salida
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Opcional: Registra qué cochero entregó el vehículo al cliente
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <div className="px-6 py-4 border-t flex justify-end gap-2 flex-shrink-0">

@@ -44,6 +44,7 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   return `${prefix}-${timestamp}-${random}`;
 }
 import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
+import { useUserRole } from "@/hooks/use-user-role";
 import { useSensors } from "@/hooks/use-sensors";
 import { toast } from "sonner";
 import { useRef } from "react";
@@ -97,8 +98,31 @@ const getCurrentEmployeeId = async (supabase: any) => {
 };
 
 
-export function RoomsBoard() {
+
+// Wrapper component para manejar la lógica de rol sin violar hooks rules
+function RoomsBoardWrapper() {
+  const { isValet, employeeId, isLoading: roleLoading } = useUserRole();
+
+  if (roleLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isValet && employeeId) {
+    const ValetDashboard = require("@/components/valet/valet-dashboard").ValetDashboard;
+    return <ValetDashboard employeeId={employeeId} />;
+  }
+
+  return <RoomsBoardInternal />;
+}
+
+// Componente principal sin lógica condicional de hooks
+function RoomsBoardInternal() {
   const router = useRouter();
+  const supabase = createClient();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -1639,6 +1663,7 @@ export function RoomsBoard() {
         onAmountChange={setCheckoutAmount}
         onClose={handleCloseCheckoutModal}
         onConfirm={handleCheckout}
+        defaultValetId={selectedRoom ? getActiveStay(selectedRoom)?.checkout_valet_employee_id : null}
       />
       <RoomActionsWheel
         room={selectedRoom}
@@ -2139,3 +2164,6 @@ export function RoomsBoard() {
     </div >
   );
 }
+
+// Export wrapper como componente principal
+export { RoomsBoardWrapper as RoomsBoard };

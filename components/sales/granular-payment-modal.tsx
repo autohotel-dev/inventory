@@ -147,18 +147,21 @@ export function GranularPaymentModal({
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
+  const [valetPayments, setValetPayments] = useState<any[]>([]); // Pagos cobrados por valet
+  const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [step, setStep] = useState<"select" | "pay">("select");
   const [discounts, setDiscounts] = useState<Record<string, number>>({});
   const [showDiscountInput, setShowDiscountInput] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Cargar items de la orden
+  // Cargar items de la orden y pagos pendientes de confirmación del valet
   const fetchItems = async () => {
     setLoading(true);
     const supabase = createClient();
 
     try {
+      // 1. Cargar items de la orden
       const { data, error } = await supabase
         .from("sales_order_items")
         .select(`
@@ -184,11 +187,61 @@ export function GranularPaymentModal({
       }));
 
       setItems(mappedItems as OrderItem[]);
+
+      // 2. Cargar pagos COBRADO_POR_VALET para este sales_order
+      const { data: valetPays, error: valetError } = await supabase
+        .from("payments")
+        .select(`
+          id,
+          amount,
+          payment_method,
+          reference,
+          collected_at,
+          collected_by,
+          employees:collected_by(first_name, last_name)
+        `)
+        .eq("sales_order_id", salesOrderId)
+        .eq("status", "COBRADO_POR_VALET");
+
+      if (valetError) {
+        console.error("Error loading valet payments:", valetError);
+      } else {
+        setValetPayments(valetPays || []);
+      }
+
     } catch (error) {
       console.error("Error fetching items:", error);
       toast.error("Error al cargar los conceptos");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const confirmValetPayment = async (paymentId: string) => {
+    setConfirmingPaymentId(paymentId);
+    const supabase = createClient();
+
+    try {
+      const employeeId = await getCurrentEmployeeId(supabase);
+
+      const { error } = await supabase
+        .from("payments")
+        .update({
+          status: "PAGADO",
+          confirmed_by: employeeId,
+          confirmed_at: new Date().toISOString()
+        })
+        .eq("id", paymentId);
+
+      if (error) throw error;
+
+      toast.success("Pago confirmado correctamente");
+      fetchItems();
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      toast.error("Error al confirmar el pago");
+    } finally {
+      setConfirmingPaymentId(null);
     }
   };
 
@@ -647,6 +700,59 @@ export function GranularPaymentModal({
                   Deseleccionar
                 </Button>
               </div>
+
+              {/* Pagos de Valet Pendientes */}
+              {valetPayments.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    <p className="text-sm font-medium">Pagos recolectados por Valet pendientes de confirmación</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {valetPayments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-background"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="border-green-500 text-green-500">
+                              {payment.payment_method}
+                            </Badge>
+                            <span className="font-bold text-lg">
+                              {formatCurrency(payment.amount)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Cobrado por <span className="font-medium text-foreground">{payment.employees?.first_name} {payment.employees?.last_name}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(payment.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {payment.reference ? ` • Ref: ${payment.reference}` : ''}
+                          </p>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => confirmValetPayment(payment.id)}
+                          disabled={confirmingPaymentId === payment.id}
+                        >
+                          {confirmingPaymentId === payment.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              Confirmar Recepción
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Lista de conceptos pendientes */}
               {pendingItems.length > 0 && (

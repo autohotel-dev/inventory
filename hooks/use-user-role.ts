@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export type UserRole = "admin" | "manager" | "receptionist" | null;
+export type UserRole = "admin" | "manager" | "receptionist" | "cochero" | null;
 
 interface UserRoleData {
   role: UserRole;
@@ -15,6 +15,7 @@ interface UserRoleData {
   isAdmin: boolean;
   isManager: boolean;
   isReceptionist: boolean;
+  isValet: boolean;
   canAccessAdmin: boolean;
   canAccessReports: boolean;
   canAccessEmployees: boolean;
@@ -35,11 +36,11 @@ export function useUserRole(): UserRoleData {
 
   const fetchUserRole = useCallback(async () => {
     const supabase = createClient();
-    
+
     try {
       // Obtener usuario autenticado
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
+
       if (userError || !user) {
         setRole(null);
         setUserId(null);
@@ -70,7 +71,7 @@ export function useUserRole(): UserRoleData {
 
         if (employeeByEmail) {
           employee = employeeByEmail;
-          
+
           // Auto-vincular si el empleado no tiene auth_user_id
           if (!employeeByEmail.auth_user_id) {
             await supabase
@@ -104,7 +105,7 @@ export function useUserRole(): UserRoleData {
   // Función para vincular manualmente el usuario actual con un empleado
   const linkEmployeeToUser = useCallback(async (): Promise<boolean> => {
     const supabase = createClient();
-    
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.email) return false;
@@ -151,6 +152,7 @@ export function useUserRole(): UserRoleData {
   const isAdmin = role === "admin";
   const isManager = role === "manager";
   const isReceptionist = role === "receptionist";
+  const isValet = role === "cochero";
   const canAccessAdmin = isAdmin || isManager;
 
   return {
@@ -163,13 +165,14 @@ export function useUserRole(): UserRoleData {
     isAdmin,
     isManager,
     isReceptionist,
+    isValet,
     canAccessAdmin,
     canAccessReports: canAccessAdmin,
     canAccessEmployees: canAccessAdmin,
     canAccessInventory: canAccessAdmin,
     canAccessPOS: true,
     canAccessRooms: true,
-    canAccessShiftClosing: true,
+    canAccessShiftClosing: !isValet, // Cocheros NO acceden a cortes
     linkEmployeeToUser,
   };
 }
