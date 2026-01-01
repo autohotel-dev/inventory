@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check } from "lucide-react";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
 
@@ -50,6 +50,11 @@ export interface RoomCardProps {
   roomTypeName?: string; // Nombre del tipo de habitación (Sencilla, Jacuzzi, etc)
   notes?: string | null; // Notas de mantenimiento o bloqueo
   sensorStatus?: { isOpen: boolean; batteryLevel?: number; isOnline: boolean } | null;
+  vehicleStatus?: {
+    hasVehicle: boolean;
+    isReady: boolean;
+    plate?: string;
+  } | null;
   onInfo: () => void;
   onActions: () => void;
 }
@@ -64,6 +69,7 @@ export function RoomCard({
   roomTypeName,
   notes,
   sensorStatus,
+  vehicleStatus,
   onInfo,
   onActions,
 }: RoomCardProps) {
@@ -94,7 +100,22 @@ export function RoomCard({
 
       {/* Fila superior: Número + Estado */}
       <div className="flex items-center justify-between">
-        <span className="font-bold text-lg leading-none">{number}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-lg leading-none">{number}</span>
+
+          {/* Indicador de Vehículo */}
+          {vehicleStatus?.hasVehicle && (
+            <div
+              className={`flex items-center justify-center h-5 w-5 rounded-md shadow-sm border ${vehicleStatus.isReady
+                ? "bg-emerald-500 border-emerald-400 text-white animate-pulse"
+                : "bg-blue-600 border-blue-500 text-white"
+                }`}
+              title={vehicleStatus.isReady ? `Auto listo! Placa: ${vehicleStatus.plate}` : `Auto en custodia. Placa: ${vehicleStatus.plate}`}
+            >
+              <Car className="h-3 w-3" />
+            </div>
+          )}
+        </div>
         {statusBadge}
       </div>
 

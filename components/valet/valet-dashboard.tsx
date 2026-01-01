@@ -34,8 +34,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
     const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout } = useValetActions(fetchRooms);
 
-    async function fetchRooms() {
-        setLoading(true);
+    async function fetchRooms(silent = false) {
+        if (!silent) setLoading(true);
         const supabase = createClient();
 
         try {
@@ -59,17 +59,22 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
             console.error("Error fetching rooms:", error);
             toast.error("Error al cargar habitaciones");
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }
 
     useEffect(() => {
-        fetchRooms();
+        fetchRooms(false);
 
-        // Auto-refresh cada 30 segundos
-        const interval = setInterval(fetchRooms, 30000);
+        // Auto-refresh cada 30 segundos (silencioso)
+        const interval = setInterval(() => {
+            // No refrescar si hay un modal abierto para evitar perder foco o datos
+            if (!showCheckInModal && !showCheckoutModal) {
+                fetchRooms(true);
+            }
+        }, 30000);
         return () => clearInterval(interval);
-    }, [employeeId]);
+    }, [employeeId, showCheckInModal, showCheckoutModal]);
 
     // Filtrar habitaciones sin vehículo (entradas pendientes)
     const roomsWithoutVehicle = rooms.filter(r => {

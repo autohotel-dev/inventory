@@ -1623,6 +1623,11 @@ function RoomsBoardInternal() {
                     if (!s) return null;
                     return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
                   })()}
+                  vehicleStatus={activeStay?.vehicle_plate ? {
+                    hasVehicle: true,
+                    plate: activeStay.vehicle_plate,
+                    isReady: !!activeStay.checkout_valet_employee_id
+                  } : null}
                   onInfo={() => {
                     setSelectedRoom(room);
                     setShowInfoModal(true);
