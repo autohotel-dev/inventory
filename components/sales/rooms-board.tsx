@@ -2000,16 +2000,9 @@ function RoomsBoardInternal() {
       />
       <CancelStayModal
         isOpen={showCancelStayModal && !!selectedRoom}
+        salesOrderId={selectedRoom ? getActiveStay(selectedRoom)?.sales_order_id || "" : ""}
         roomNumber={selectedRoom?.number || ""}
         roomTypeName={selectedRoom?.room_types?.name || ""}
-        totalPaid={(() => {
-          if (!selectedRoom) return 0;
-          const stay = getActiveStay(selectedRoom);
-          if (!stay?.sales_orders) return 0;
-          const total = Number(stay.sales_orders.remaining_amount) || 0;
-          // Total pagado = total - remaining
-          return 0; // Por ahora simplificado, se puede mejorar
-        })()}
         elapsedMinutes={(() => {
           if (!selectedRoom) return 0;
           const stay = getActiveStay(selectedRoom);

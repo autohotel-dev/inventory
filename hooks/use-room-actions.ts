@@ -1092,6 +1092,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         }
       }
 
+      // Validar ID de orden
+      if (!activeStay.sales_order_id) {
+        console.error("Critical: Active stay has no sales_order_id", activeStay);
+        toast.error("Error crítico: Estancia sin orden de venta");
+        return null;
+      }
+
       // Leer saldo pendiente actualizado
       const { data: order, error } = await supabase
         .from("sales_orders")
@@ -1100,8 +1107,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         .single();
 
       if (error || !order) {
-        console.error("Error fetching sales order:", error);
-        toast.error("No se pudo obtener el saldo pendiente");
+        console.error("Error fetching sales order:", error, "ID:", activeStay.sales_order_id);
+        toast.error("No se pudo obtener el saldo pendiente. Ver consola.");
         return null;
       }
 

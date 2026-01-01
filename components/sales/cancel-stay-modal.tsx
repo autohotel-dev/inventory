@@ -7,11 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { XCircle, X, DollarSign, AlertTriangle } from "lucide-react";
 
+import { createClient } from "@/lib/supabase/client";
+import { formatCurrency } from "@/lib/utils/formatters";
+
 interface CancelStayModalProps {
   isOpen: boolean;
+  roomsId?: string; // Optional context
+  salesOrderId: string;
   roomNumber: string;
   roomTypeName: string;
-  totalPaid: number;
+  // totalPaid removed, calculated internally
   elapsedMinutes: number;
   actionLoading: boolean;
   onClose: () => void;
@@ -24,9 +29,9 @@ interface CancelStayModalProps {
 
 export function CancelStayModal({
   isOpen,
+  salesOrderId,
   roomNumber,
   roomTypeName,
-  totalPaid,
   elapsedMinutes,
   actionLoading,
   onClose,
@@ -36,14 +41,37 @@ export function CancelStayModal({
   const [customRefund, setCustomRefund] = useState<number>(0);
   const [reason, setReason] = useState("");
 
-  // Reset al abrir
+  // Data state
+  const [loadingData, setLoadingData] = useState(false);
+  const [totalPaid, setTotalPaid] = useState(0);
+  const [valetPending, setValetPending] = useState(0);
+
+  // Fetch payments
   useEffect(() => {
-    if (isOpen) {
-      setRefundType("none");
-      setCustomRefund(Math.floor(totalPaid / 2));
+    if (isOpen && salesOrderId) {
+      const fetchPayments = async () => {
+        setLoadingData(true);
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("payments")
+          .select("amount, status")
+          .eq("sales_order_id", salesOrderId);
+
+        if (data) {
+          const paid = data.filter(p => p.status === 'PAGADO').reduce((sum, p) => sum + p.amount, 0);
+          const valet = data.filter(p => p.status === 'COBRADO_POR_VALET').reduce((sum, p) => sum + p.amount, 0);
+          setTotalPaid(paid);
+          setValetPending(valet);
+          setCustomRefund(Math.floor(paid / 2));
+          setRefundType("none");
+        }
+        setLoadingData(false);
+      };
+
+      fetchPayments();
       setReason("");
     }
-  }, [isOpen, totalPaid]);
+  }, [isOpen, salesOrderId]);
 
   if (!isOpen) return null;
 
@@ -111,17 +139,42 @@ export function CancelStayModal({
 
         {/* Info de la estancia */}
         <div className="bg-slate-800/50 rounded-lg p-3 mb-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Tiempo transcurrido:</span>
-            <span className="text-white font-medium">
-              {elapsedHours > 0 ? `${elapsedHours}h ` : ""}{elapsedMins} min
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Total pagado:</span>
-            <span className="text-emerald-400 font-medium">${totalPaid.toFixed(2)}</span>
-          </div>
+          {loadingData ? (
+            <p className="text-center text-xs text-muted-foreground">Cargando pagos...</p>
+          ) : (
+            <>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Tiempo transcurrido:</span>
+                <span className="text-white font-medium">
+                  {elapsedHours > 0 ? `${elapsedHours}h ` : ""}{elapsedMins} min
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Total pagado (Caja):</span>
+                <span className="text-emerald-400 font-medium">{formatCurrency(totalPaid)}</span>
+              </div>
+              {valetPending > 0 && (
+                <div className="flex justify-between text-sm border-t border-slate-700 pt-1 mt-1">
+                  <span className="text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    En poder de Valet:
+                  </span>
+                  <span className="text-amber-400 font-medium">{formatCurrency(valetPending)}</span>
+                </div>
+              )}
+            </>
+          )}
         </div>
+
+        {/* Advertencia Valet */}
+        {valetPending > 0 && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-200">
+            ⚠️ Hay dinero recolectado por valet que no ha sido confirmado.
+            Al cancelar, asegúrese de recuperar este dinero del cochero.
+            <br />
+            (Los pagos de valet pendientes se marcarán como cancelados).
+          </div>
+        )}
 
         {/* Opciones de reembolso */}
         {totalPaid > 0 && (
@@ -134,7 +187,7 @@ export function CancelStayModal({
                   <span className="text-sm text-white">Sin reembolso</span>
                   <span className="ml-auto text-xs text-slate-500">$0.00</span>
                 </label>
-                
+
                 <label className="flex items-center gap-3 p-2 rounded-lg border border-slate-600 hover:border-slate-500 cursor-pointer">
                   <RadioGroupItem value="partial" id="partial" />
                   <span className="text-sm text-white">Reembolso parcial</span>
@@ -147,7 +200,7 @@ export function CancelStayModal({
                     disabled={refundType !== "partial"}
                   />
                 </label>
-                
+
                 <label className="flex items-center gap-3 p-2 rounded-lg border border-slate-600 hover:border-slate-500 cursor-pointer">
                   <RadioGroupItem value="full" id="full" />
                   <span className="text-sm text-white">Reembolso total</span>
