@@ -29,7 +29,7 @@ const defaultUrl = getBaseUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Auto Hotel Luxor Manager",
+  title: "AHLM",
   description: "Sistema completo de gestión para Auto Hotel Luxor - Inventario, Ventas y Turnos",
   keywords: ["hotel", "autohotel", "luxor", "gestión", "pms", "inventario", "turnos"],
   authors: [{ name: "Ricardo Minor" }],
@@ -44,14 +44,14 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Luxor Manager',
+    title: 'AHLM',
   },
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "Luxor Manager",
-    "application-name": "Luxor Manager",
+    "apple-mobile-web-app-title": "AHLM",
+    "application-name": "AHLM",
     "msapplication-TileColor": "#2563eb",
     "msapplication-config": "/browserconfig.xml"
   },

@@ -1,7 +1,7 @@
 {
   "id": "luxor-manager",
-  "name": "Auto Hotel Luxor Manager",
-  "short_name": "Luxor Manager",
+  "name": "AHLM",
+  "short_name": "AHLM",
   "description": "Sistema completo de gestión para Auto Hotel Luxor",
   "start_url": "/dashboard",
   "display": "standalone",
