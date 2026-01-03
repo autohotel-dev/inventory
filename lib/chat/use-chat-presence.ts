@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 
 export interface PresenceState {
     user_id: string;
@@ -11,20 +12,28 @@ export interface PresenceState {
 }
 
 export function useChatPresence(
-    channel: RealtimeChannel | null,
     currentUser: { id: string; email?: string } | null
 ) {
     const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
     const [typingUsers, setTypingUsers] = useState<PresenceState[]>([]);
-
-    // Track typing timeout to clear status
+    const [channel, setChannel] = useState<RealtimeChannel | null>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Initialize Presence Channel
     useEffect(() => {
-        if (!channel || !currentUser) return;
+        if (!currentUser) return;
+
+        const supabase = createClient();
+        const newChannel = supabase.channel('presence:global', {
+            config: {
+                presence: {
+                    key: currentUser.id,
+                },
+            },
+        });
 
         const updateState = () => {
-            const state = channel.presenceState<PresenceState>();
+            const state = newChannel.presenceState<PresenceState>();
             const users: PresenceState[] = [];
 
             // Flatten state (Supabase returns object with keys per presence ref)
@@ -34,34 +43,36 @@ export function useChatPresence(
 
             // Deduplicate by user_id
             const uniqueUsers = Array.from(new Map(users.map(u => [u.user_id, u])).values());
-
             setOnlineUsers(uniqueUsers);
             setTypingUsers(uniqueUsers.filter(u => u.is_typing && u.user_id !== currentUser.id));
         };
 
-        channel
+        newChannel
             .on('presence', { event: 'sync' }, updateState)
             .on('presence', { event: 'join' }, updateState)
-            .on('presence', { event: 'leave' }, updateState);
+            .on('presence', { event: 'leave' }, updateState)
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await newChannel.track({
+                        user_id: currentUser.id,
+                        email: currentUser.email || 'Anónimo',
+                        is_typing: false,
+                        online_at: new Date().toISOString(),
+                    });
+                }
+            });
 
-        // Initial track
-        channel.track({
-            user_id: currentUser.id,
-            email: currentUser.email || 'Anónimo',
-            is_typing: false,
-            online_at: new Date().toISOString(),
-        });
+        setChannel(newChannel);
 
-    }, [channel, currentUser]);
+        return () => {
+            supabase.removeChannel(newChannel);
+        };
+    }, [currentUser?.id]); // Only re-run if user ID changes to avoid constant reconnections
 
     const setTyping = useCallback(async (isTyping: boolean) => {
         if (!channel || !currentUser) return;
 
-        // Debounce tracking calls if needed, but simply tracking state change is usually fine
-        // provided we don't spam it on every keystroke.
-        // We will manage the "stop typing" logic in the UI component calling this, 
-        // or we handle the timeout here.
-
+        // Track state with debounce/safety
         await channel.track({
             user_id: currentUser.id,
             email: currentUser.email || 'Anónimo',

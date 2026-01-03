@@ -14,52 +14,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
     const supabase = createClient();
 
-    // Get current user on mount and setup channel
+    // Get current user on mount
     useEffect(() => {
-        let activeChannel: RealtimeChannel | null = null;
-
         const init = async () => {
             const { data } = await supabase.auth.getUser();
             if (data.user) {
                 setCurrentUser(data.user);
-
-                // Initialize channel for both Messages and Presence
-                activeChannel = supabase.channel('public:messages');
-                setChannel(activeChannel);
-
-                // Subscription is handled in useChatMessages, but we need the channel instance for Presence
-                // Actually, useChatMessages creates its own subscription.
-                // It might be better to share one channel or have separate ones?
-                // 'public:messages' channel can handle both Postgres Changes and Presence.
-                // Let's pass this channel to the hooks if possible, otherwise they might create duplicates.
-                // For now, useChatPresence needs the channel object to track(). 
-                // useChatMessages uses .on(...).subscribe(). 
-
-                // To avoid multiple subscriptions to the same channel name, we should move the subscription logic here 
-                // or ensure we only subscribe once.
-                // The current useChatMessages subscribes internally. 
-                // Let's modify useChatMessages to accept an optional channel or just let it be independent (Postgres changes)
-                // while Presence uses this channel. Supabase handles multiplexing usually.
-                activeChannel.subscribe();
             }
         };
-
         init();
-
-        return () => {
-            if (activeChannel) supabase.removeChannel(activeChannel);
-        };
     }, [supabase]);
 
     const { messages, sendMessage: sendMsgFn, isLoading, hasMore, loadMore } = useChatMessages();
     // Note: useChatMessages currently creates its own subscription. This is fine for now but optimization for later.
 
     const { notifyNewMessage } = useChatNotifications(currentUser?.id, isOpen);
-    const { onlineUsers, typingUsers, handleTypingInput } = useChatPresence(channel, currentUser);
+    // Use dedicated presence hook which manages its own channel 'presence:global'
+    const { onlineUsers, typingUsers, handleTypingInput } = useChatPresence(currentUser);
 
     // Monitor for new messages to update unread count and notify
     const lastMessageIdRef = useRef<string | null>(null);
