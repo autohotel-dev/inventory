@@ -2,88 +2,81 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { ChatMessage, ChatContextType } from '@/lib/chat/chat-types';
-import { useSoundFeedback } from '@/hooks/use-sound-feedback';
-import { useToast } from '@/hooks/use-toast';
+import { ChatContextType } from '@/lib/chat/chat-types';
+import { useChatMessages } from '@/lib/chat/use-chat-messages';
+import { useChatNotifications } from '@/lib/chat/use-chat-notifications';
+import { useChatPresence } from '@/lib/chat/use-chat-presence';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
-    const { playClick, playSuccess: playNotificationSound } = useSoundFeedback();
-    const { success, error: showError, info } = useToast();
     const supabase = createClient();
-    const userRef = useRef<any>(null);
 
-    // Initial fetch and subscription
+    // Get current user on mount and setup channel
     useEffect(() => {
-        const fetchMessages = async () => {
-            // Get current user
-            const { data: { user } } = await supabase.auth.getUser();
-            userRef.current = user;
+        let activeChannel: RealtimeChannel | null = null;
 
-            const { data, error } = await supabase
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: true })
-                .limit(50);
+        const init = async () => {
+            const { data } = await supabase.auth.getUser();
+            if (data.user) {
+                setCurrentUser(data.user);
 
-            if (!error && data) {
-                setMessages(data as ChatMessage[]);
+                // Initialize channel for both Messages and Presence
+                activeChannel = supabase.channel('public:messages');
+                setChannel(activeChannel);
+
+                // Subscription is handled in useChatMessages, but we need the channel instance for Presence
+                // Actually, useChatMessages creates its own subscription.
+                // It might be better to share one channel or have separate ones?
+                // 'public:messages' channel can handle both Postgres Changes and Presence.
+                // Let's pass this channel to the hooks if possible, otherwise they might create duplicates.
+                // For now, useChatPresence needs the channel object to track(). 
+                // useChatMessages uses .on(...).subscribe(). 
+
+                // To avoid multiple subscriptions to the same channel name, we should move the subscription logic here 
+                // or ensure we only subscribe once.
+                // The current useChatMessages subscribes internally. 
+                // Let's modify useChatMessages to accept an optional channel or just let it be independent (Postgres changes)
+                // while Presence uses this channel. Supabase handles multiplexing usually.
+                activeChannel.subscribe();
             }
-            setIsLoading(false);
         };
 
-        fetchMessages();
-
-        // Realtime Subscription
-        const channel = supabase
-            .channel('public:messages')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'messages',
-                },
-                (payload) => {
-                    const newMessage = payload.new as ChatMessage;
-                    setMessages((current) => [...current, newMessage]);
-
-                    // If chat is closed and message is not mine, increment unread and play sound
-                    if ((!isOpen || document.hidden) && newMessage.user_id !== userRef.current?.id) {
-                        setUnreadCount(prev => prev + 1);
-                        playNotificationSound(); // Ding!
-
-                        // In-app Toast
-                        info("Nuevo mensaje", `${newMessage.user_email?.split('@')[0] || 'Alguien'} dice: ${newMessage.content.substring(0, 30)}...`);
-
-                        // Native Browser Notification (PWA)
-                        if (Notification.permission === "granted") {
-                            new Notification("Nuevo Mensaje - Luxor Manager", {
-                                body: newMessage.content,
-                                icon: "/luxor-logo.png", // Ensure this path is correct
-                                tag: "chat-message"
-                            });
-                        }
-                    }
-                }
-            )
-            .subscribe();
-
-        // Request permission on mount
-        if ("Notification" in window && Notification.permission === "default") {
-            Notification.requestPermission();
-        }
+        init();
 
         return () => {
-            supabase.removeChannel(channel);
+            if (activeChannel) supabase.removeChannel(activeChannel);
         };
-    }, [isOpen, playNotificationSound, info, supabase]);
+    }, [supabase]);
+
+    const { messages, sendMessage: sendMsgFn, isLoading, hasMore, loadMore } = useChatMessages();
+    // Note: useChatMessages currently creates its own subscription. This is fine for now but optimization for later.
+
+    const { notifyNewMessage } = useChatNotifications(currentUser?.id, isOpen);
+    const { onlineUsers, typingUsers, handleTypingInput } = useChatPresence(channel, currentUser);
+
+    // Monitor for new messages to update unread count and notify
+    const lastMessageIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            const lastMsg = messages[messages.length - 1];
+
+            if (lastMessageIdRef.current && lastMsg.id !== lastMessageIdRef.current) {
+                if ((!isOpen || (typeof document !== 'undefined' && document.hidden)) && lastMsg.user_id !== currentUser?.id) {
+                    setUnreadCount(prev => prev + 1);
+                    notifyNewMessage(lastMsg);
+                }
+            }
+            lastMessageIdRef.current = lastMsg.id;
+        }
+    }, [messages, isOpen, currentUser, notifyNewMessage]);
 
     // Reset unread count when opening
     useEffect(() => {
@@ -93,39 +86,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }, [isOpen]);
 
     const sendMessage = async (content: string) => {
-        if (!content.trim()) return;
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Check if user is admin (simple check by email or metadata if available, 
-        // for now we'll assume the 'hackm' user or specific email is admin, 
-        // OR we just pass a flag if we had it in the session)
-        // For this MVP, we'll check if email contains 'admin' or matches specific logic.
-        // Actually, let's just use the metadata or default to false.
-        const isAdmin = user.email?.includes('admin') || user.email === 'hackm@hotmail.com'; // Adjust as needed
-
-        const newMessage = {
-            content,
-            user_id: user.id,
-            user_email: user.email,
-            is_admin: isAdmin,
-        };
-
-        // Click sound for feedback
-        playClick();
-
-        // Optimistic update (optional, but Realtime is fast enough usually)
-        // But we rely on Realtime to add it to the list to ensure consistency
-
-        const { error } = await supabase
-            .from('messages')
-            .insert([newMessage]);
-
-        if (error) {
-            console.error("Error sending message:", error);
-            showError("Error", "No se pudo enviar el mensaje.");
-        }
+        if (!currentUser) return;
+        await sendMsgFn(content, currentUser);
     };
 
     const value = {
@@ -134,7 +96,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isLoading,
         isOpen,
         setIsOpen,
-        unreadCount
+        unreadCount,
+        hasMore,
+        loadMore,
+        onlineUsers,
+        typingUsers,
+        handleTypingInput
     };
 
     return (

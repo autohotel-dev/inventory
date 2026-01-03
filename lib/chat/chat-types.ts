@@ -14,4 +14,9 @@ export interface ChatContextType {
     isOpen: boolean;
     setIsOpen: (open: boolean) => void;
     unreadCount: number;
+    hasMore: boolean;
+    loadMore: () => void;
+    onlineUsers: { user_id: string; email: string }[];
+    typingUsers: { user_id: string; email: string }[];
+    handleTypingInput: () => void;
 }

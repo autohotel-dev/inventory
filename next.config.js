@@ -54,8 +54,9 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  importScripts: ['/chat-sw.js'],
 });
 
-module.exports = process.env.NODE_ENV === 'development' 
-  ? nextConfig 
+module.exports = process.env.NODE_ENV === 'development'
+  ? nextConfig
   : withPWA(nextConfig);
