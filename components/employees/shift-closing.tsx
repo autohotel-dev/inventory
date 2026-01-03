@@ -1285,71 +1285,44 @@ export function ShiftClosingHistory() {
 
     setSavingCorrection(true);
     try {
-      // Validación: Verificar que no exista ya una corrección para este corte
-      const { data: existingCorrection } = await supabase
-        .from("shift_closings")
-        .select("id, status")
-        .eq("original_closing_id", correctionClosing.id)
-        .maybeSingle();
+      // Update existing closing
 
-      if (existingCorrection) {
-        showError(
-          "Error",
-          `Ya existe una corrección ${existingCorrection.status === 'pending' ? 'pendiente' : existingCorrection.status} para este corte`
-        );
-        setSavingCorrection(false);
-        return;
-      }
 
       const correctionCashTotal = calculateCorrectionCashTotal();
       const expectedCash = correctionClosing.total_cash || 0;
       const cashDifference = correctionCashTotal - expectedCash;
 
       // Crear el corte corregido
+      // Actualizar el corte existente en lugar de crear uno nuevo
       const { data: newClosing, error } = await supabase
         .from("shift_closings")
-        .insert({
-          employee_id: currentEmployeeId,
-          shift_session_id: correctionClosing.shift_session_id,
-          shift_definition_id: correctionClosing.shift_definition_id,
-          period_start: correctionClosing.period_start,
-          period_end: correctionClosing.period_end,
-          total_cash: correctionClosing.total_cash,
-          total_card_bbva: correctionClosing.total_card_bbva,
-          total_card_getnet: correctionClosing.total_card_getnet,
-          total_sales: correctionClosing.total_sales,
+        .update({
+          // Campos actualizables
           counted_cash: correctionCashTotal,
           cash_difference: cashDifference,
           cash_breakdown: correctionCashBreakdown,
           notes: correctionNotes.trim() || null,
+
+          // Resetear estado para nueva revisión
           status: "pending",
-          is_correction: true,
-          original_closing_id: correctionClosing.id,
+          rejection_reason: null, // Limpiar razón de rechazo anterior
+          reviewed_by: null,
+          reviewed_at: null,
+
+          // Metadata de corrección
+          is_correction: true, // Marcar como corregido si no lo estaba
         })
+        .eq("id", correctionClosing.id) // Actualizar EL MISMO ID
         .select()
         .single();
 
       if (error) throw error;
 
       // Copiar los detalles del corte original al nuevo
-      const { data: originalDetails } = await supabase
-        .from("shift_closing_details")
-        .select("*")
-        .eq("shift_closing_id", correctionClosing.id);
+      // No necesitamos copiar detalles porque estamos actualizando el mismo registro
+      // y los detalles (pagos) siguen siendo válidos para este corte.
 
-      if (originalDetails && originalDetails.length > 0) {
-        const newDetails = originalDetails.map(d => ({
-          shift_closing_id: newClosing.id,
-          payment_id: d.payment_id,
-          payment_method: d.payment_method,
-          terminal_code: d.terminal_code,
-          amount: d.amount,
-        }));
-
-        await supabase.from("shift_closing_details").insert(newDetails);
-      }
-
-      success("Corrección creada", "El corte corregido ha sido creado y está pendiente de aprobación");
+      success("Corrección enviada", "El corte ha sido actualizado y enviado para revisión");
       setShowCorrectionModal(false);
       setCorrectionClosing(null);
       loadClosings();
