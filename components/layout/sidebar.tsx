@@ -56,11 +56,11 @@ function useResponsiveClasses(compact: boolean) {
 }
 
 // Navigation link type
-type NavLink = { href: string; label: string; icon: string; adminOnly?: boolean } | { divider: true; adminOnly?: boolean };
+type NavLink = { href: string; label: string; icon: string; adminOnly?: boolean; allowedForNonAdmin?: boolean; allowedForReceptionist?: boolean } | { divider: true; adminOnly?: boolean };
 
 // Links para administradores/managers
 const adminLinks: readonly NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "home" },
+  { href: "/dashboard", label: "Dashboard", icon: "home", allowedForNonAdmin: true, allowedForReceptionist: true },
   { href: "/products", label: "Productos", icon: "box", adminOnly: true },
   { href: "/categories", label: "Categorías", icon: "arrows", adminOnly: true },
   { href: "/warehouses", label: "Almacenes", icon: "building", adminOnly: true },
@@ -77,19 +77,21 @@ const adminLinks: readonly NavLink[] = [
   { divider: true, adminOnly: true },
   { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", adminOnly: true },
   { href: "/purchases", label: "Compras", icon: "cart", adminOnly: true },
-  { href: "/sales", label: "Ventas", icon: "cart" },
-  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building" },
+  { href: "/sales", label: "Ventas", icon: "cart", adminOnly: true },
+  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", allowedForNonAdmin: true, allowedForReceptionist: true },
   { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", adminOnly: true },
   { divider: true, adminOnly: true },
   { href: "/employees", label: "Empleados", icon: "users", adminOnly: true },
   { href: "/employees/schedules", label: "Horarios", icon: "activity", adminOnly: true },
-  { href: "/employees/closings", label: "Cortes de Caja", icon: "bag" },
+  { href: "/employees/closings", label: "Cortes de Caja", icon: "bag", allowedForReceptionist: true },
   { divider: true },
-  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText" },
+  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText", allowedForReceptionist: true },
   { divider: true },
-  { href: "/training", label: "Capacitación", icon: "graduation" },
+  { href: "/training", label: "Capacitación", icon: "graduation", allowedForReceptionist: true },
   { href: "/settings", label: "Configuración", icon: "settings", adminOnly: true },
+  { href: "/settings/roles", label: "Gestión de Roles", icon: "users", adminOnly: true },
   { href: "/settings/media", label: "Biblioteca de Medios", icon: "image", adminOnly: true },
+  { href: "/settings/permissions", label: "Permisos de Roles", icon: "settings", adminOnly: true },
 ] as const;
 
 // Reusable components
@@ -220,18 +222,43 @@ export function Sidebar() {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const classes = useResponsiveClasses(compact);
-  const { canAccessAdmin, isLoading: roleLoading } = useUserRole();
+  const { canAccessAdmin, isLoading: roleLoading, isReceptionist } = useUserRole();
 
   // Filtrar links según el rol del usuario
   const visibleLinks = React.useMemo(() => {
     if (roleLoading) return [];
+
+    // Si es admin o manager, mostrar todos los links
+    if (canAccessAdmin) {
+      return adminLinks;
+    }
+
+    // Si es recepcionista, mostrar items con allowedForReceptionist: true
+    if (isReceptionist) {
+      return adminLinks.filter(link => {
+        if ("allowedForReceptionist" in link && link.allowedForReceptionist) {
+          return true;
+        }
+        // Mostrar divisores solo si no están marcados como adminOnly
+        if ("divider" in link && !link.adminOnly) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    // Para otros usuarios no-admin (cochero), solo mostrar items con allowedForNonAdmin: true
     return adminLinks.filter(link => {
-      if ("adminOnly" in link && link.adminOnly) {
-        return canAccessAdmin;
+      if ("allowedForNonAdmin" in link && link.allowedForNonAdmin) {
+        return true;
       }
-      return true;
+      // Mostrar divisores solo si no están marcados como adminOnly
+      if ("divider" in link && !link.adminOnly) {
+        return true;
+      }
+      return false;
     });
-  }, [canAccessAdmin, roleLoading]);
+  }, [canAccessAdmin, roleLoading, isReceptionist]);
 
   React.useEffect(() => {
     setMounted(true);
