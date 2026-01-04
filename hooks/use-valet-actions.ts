@@ -31,7 +31,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         room: Room,
         vehicleData: VehicleData,
         paymentData: PaymentData,
-        valetId: string
+        valetId: string,
+        personCount: number
     ) => {
         setLoading(true);
         const supabase = createClient();
@@ -52,6 +53,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     vehicle_brand: vehicleData.brand.trim(),
                     vehicle_model: vehicleData.model.trim(),
                     valet_employee_id: valetId,
+                    current_people: personCount,
+                    total_people: Math.max(personCount, activeStay.total_people || 0),
                     vehicle_requested_at: null // Limpiar cualquier solicitud previa o estado inválido
                 })
                 .eq('id', activeStay.id);
@@ -118,7 +121,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      * 1. Asignar checkout_valet_employee_id
      * 2. Permitir que recepción finalice checkout
      */
-    const handleConfirmCheckout = async (room: Room, valetId: string) => {
+    const handleConfirmCheckout = async (room: Room, valetId: string, personCount: number) => {
         setLoading(true);
         const supabase = createClient();
 
@@ -133,7 +136,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { error } = await supabase
                 .from('room_stays')
                 .update({
-                    checkout_valet_employee_id: valetId
+                    checkout_valet_employee_id: valetId,
+                    current_people: personCount
                 })
                 .eq('id', activeStay.id);
 

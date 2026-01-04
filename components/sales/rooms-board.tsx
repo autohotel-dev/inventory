@@ -811,62 +811,23 @@ function RoomsBoardInternal() {
       const now = new Date();
 
       for (const room of rooms) {
-        // 1. CASO: Habitación OCUPADA pero con estancia FINALIZADA (Tolerancia de salida)
-        const latestStay = (room.room_stays || [])
-          .sort((a: any, b: any) => new Date(b.check_in_at).getTime() - new Date(a.check_in_at).getTime())[0];
-
-        if (room.status === "OCUPADA" && latestStay?.status === "FINALIZADA" && latestStay.actual_check_out_at) {
-          const checkoutTime = new Date(latestStay.actual_check_out_at);
-          const diffMs = now.getTime() - checkoutTime.getTime();
-
-          // Si pasó más del tiempo de tolerancia de salida (30 min), REACTIVAR estancia
-          if (diffMs > EXIT_TOLERANCE_MS) {
-            console.log(`Reactivando Hab. ${room.number}: Superó tolerancia de salida`);
-
-            // Reactivar estancia
-            await supabase
-              .from("room_stays")
-              .update({
-                status: "ACTIVA",
-                actual_check_out_at: null,
-                expected_check_out_at: now.toISOString(), // Vence ya, para que prepareCheckout cobre hora extra
-              })
-              .eq("id", latestStay.id);
-
-            // Regresar orden a OPEN si estaba ENDED
-            await supabase
-              .from("sales_orders")
-              .update({ status: "OPEN" })
-              .eq("id", latestStay.sales_order_id);
-
-            toast.info(`Habitación ${room.number}: Tiempo de salida agotado. Estancia reactivada.`);
-            await fetchRooms(true);
-            continue;
-          }
-        }
-
-        // 2. CASO: Habitación OCUPADA y ACTIVA (Tolerancia de cargos de hora extra)
+        // Enfoque en habitaciones OCUPADAS con estancia ACTIVA
         if (room.status === "OCUPADA" && !room.room_types?.is_hotel) {
           const activeStay = getActiveStay(room);
+          if (!activeStay) continue;
 
           // A. Verificar tolerancias de personas/vacío (EXISTENTE)
-          if (activeStay?.tolerance_started_at && activeStay.tolerance_type) {
-            if (isToleranceExpired(activeStay.tolerance_started_at)) {
-              // ... (vencimiento de tolerancia de salida temporal, ya implementado arriba)
-            }
+          if (activeStay.tolerance_started_at && activeStay.tolerance_type) {
+            // ... existente ...
           }
 
-          // B. Verificar vencimiento de tiempo y cobro automático si ya pasaron los 30 min
-          if (activeStay?.expected_check_out_at) {
+          // B. Verificar cobro automático si ya pasaron los 30 min de gracia
+          if (activeStay.expected_check_out_at) {
             const expected = new Date(activeStay.expected_check_out_at);
             const diffMs = now.getTime() - expected.getTime();
 
             if (diffMs > EXIT_TOLERANCE_MS) {
-              // Llamar a prepareCheckout silenciosamente para que genere los cargos si no existen
-              // prepareCheckout ya tiene la lógica de no duplicar items
-              // Usamos el hook aquí si es posible o replicamos la lógica mínima
-              // Para evitar loops, solo lo haremos si no hay pagos pendientes de EXTRA_HOUR ya creados.
-
+              // Verificar si ya existen cargos o pagos pendientes de EXTRA_HOUR
               const { data: existingExtraPayments } = await supabase
                 .from("payments")
                 .select("id")
@@ -875,9 +836,8 @@ function RoomsBoardInternal() {
                 .eq("status", "PENDIENTE");
 
               if (!existingExtraPayments || existingExtraPayments.length === 0) {
-                // Si no hay cobros pendientes de hora extra pero ya pasó el tiempo, forzar una actualización
-                // Esto se disparará cuando la recepcionista abra el menú o podemos automatizarlo aquí llamando a una función del hook
-                // Por ahora, prepareCheckout se encarga de esto al abrir el modal.
+                // Aquí se podría disparar el cargo automático si se desea, 
+                // por ahora se delega a prepareCheckout cuando se abre el modal.
               }
             }
           }
@@ -947,40 +907,26 @@ function RoomsBoardInternal() {
   const getRemainingTimeLabel = (room: Room) => {
     const activeStay = getActiveStay(room);
 
-    // Si no hay estancia activa pero la habitación está OCUPADA, 
-    // podría ser porque acaba de pagar (estado SALIENDO)
-    if (!activeStay) {
-      if (room.status === "OCUPADA") {
-        const latestStay = (room.room_stays || [])
-          .sort((a: any, b: any) => new Date(b.check_in_at).getTime() - new Date(a.check_in_at).getTime())[0];
-
-        if (latestStay?.status === "FINALIZADA" && latestStay.actual_check_out_at) {
-          const checkoutTime = new Date(latestStay.actual_check_out_at);
-          const now = new Date();
-          const diffMs = now.getTime() - checkoutTime.getTime();
-          const remainingMs = EXIT_TOLERANCE_MS - diffMs;
-
-          if (remainingMs > 0) {
-            const minutesLeft = Math.ceil(remainingMs / 60000);
-            return {
-              eta: "SALIENDO",
-              remaining: `${minutesLeft}m gracia`,
-              minutesToCheckout: 0,
-              isSaliendo: true
-            };
-          }
-        }
-      }
-      return null;
-    }
-
-    if (!activeStay.expected_check_out_at) return null;
+    if (!activeStay || !activeStay.expected_check_out_at) return null;
 
     const now = new Date();
     const checkout = new Date(activeStay.expected_check_out_at);
-    const diffMs = checkout.getTime() - now.getTime();
+    const diffMs = now.getTime() - checkout.getTime();
 
-    const diffMinutes = Math.floor(diffMs / 60000);
+    // TOLERANCIA DE SALIDA: Si el tiempo terminó pero pasaron <= 30 min y sigue ocupada
+    if (diffMs > 0 && diffMs <= EXIT_TOLERANCE_MS) {
+      const remainingGraceMs = EXIT_TOLERANCE_MS - diffMs;
+      const minutesLeft = Math.ceil(remainingGraceMs / 60000);
+      return {
+        eta: "TOLERANCIA",
+        remaining: `${minutesLeft}m gracia`,
+        minutesToCheckout: 0,
+        isSaliendo: true
+      };
+    }
+
+    const diffMsFromNow = checkout.getTime() - now.getTime();
+    const diffMinutes = Math.floor(diffMsFromNow / 60000);
     const absMinutes = Math.abs(diffMinutes);
     const hours = Math.floor(absMinutes / 60);
     const minutes = absMinutes % 60;

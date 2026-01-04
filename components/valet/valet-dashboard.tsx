@@ -171,18 +171,18 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         setShowCheckoutModal(true);
     };
 
-    const handleCheckIn = async (vehicleData: any, paymentData: any): Promise<void> => {
+    const handleCheckIn = async (vehicleData: any, paymentData: any, personCount: number): Promise<void> => {
         if (!selectedRoom) return;
-        const success = await handleRegisterVehicleAndPayment(selectedRoom, vehicleData, paymentData, employeeId);
+        const success = await handleRegisterVehicleAndPayment(selectedRoom, vehicleData, paymentData, employeeId, personCount);
         if (success) {
             setShowCheckInModal(false);
             setSelectedRoom(null);
         }
     };
 
-    const handleCheckout = async () => {
+    const handleCheckout = async (personCount: number) => {
         if (!selectedRoom) return;
-        const success = await handleConfirmCheckout(selectedRoom, employeeId);
+        const success = await handleConfirmCheckout(selectedRoom, employeeId, personCount);
         if (success) {
             setShowCheckoutModal(false);
             setSelectedRoom(null);

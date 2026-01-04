@@ -17,7 +17,7 @@ interface ValetCheckInModalProps {
     room: Room | null;
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (vehicleData: any, paymentData: any) => Promise<void>;
+    onConfirm: (vehicleData: any, paymentData: any, personCount: number) => Promise<void>;
     loading: boolean;
 }
 
@@ -35,10 +35,15 @@ export function ValetCheckInModal({
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
     const [reference, setReference] = useState("");
+    const [personCount, setPersonCount] = useState(2);
 
     if (!room) return null;
 
-    const amount = room.room_types?.base_price ?? 0;
+    const baseAmount = room.room_types?.base_price ?? 0;
+    const extraPersonPrice = room.room_types?.extra_person_price ?? 0;
+    const extraPeopleCount = Math.max(0, personCount - 2);
+    const amount = baseAmount + (extraPeopleCount * extraPersonPrice);
+
     const needsReference = paymentMethod !== 'EFECTIVO';
 
     const handleSubmit = async () => {
@@ -65,7 +70,7 @@ export function ValetCheckInModal({
             reference: needsReference ? reference.trim() : undefined
         };
 
-        await onConfirm(vehicleData, paymentData);
+        await onConfirm(vehicleData, paymentData, personCount);
 
         // Reset form
         setPlate("");
@@ -197,14 +202,48 @@ export function ValetCheckInModal({
                     {/* Cobro */}
                     <div className="space-y-3 border-t pt-4">
                         <div className="flex items-center gap-2">
-                            <CreditCard className="h-5 w-5 text-green-500" />
                             <h3 className="text-base font-semibold">Cobro al Cliente</h3>
                         </div>
 
-                        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
-                            <p className="text-sm text-muted-foreground mb-1">Monto a cobrar</p>
-                            <p className="text-3xl font-bold text-green-500">{formatCurrency(amount)}</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="people" className="text-sm text-muted-foreground uppercase font-bold tracking-wider">
+                                    Personas
+                                </Label>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0"
+                                        onClick={() => setPersonCount(prev => Math.max(1, prev - 1))}
+                                    >
+                                        -
+                                    </Button>
+                                    <div className="flex-1 bg-muted h-10 rounded-md flex items-center justify-center font-bold text-lg">
+                                        {personCount}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0"
+                                        onClick={() => setPersonCount(prev => prev + 1)}
+                                    >
+                                        +
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                                <p className="text-xs text-muted-foreground mb-1">Monto a cobrar</p>
+                                <p className="text-2xl font-bold text-green-500">{formatCurrency(amount)}</p>
+                            </div>
                         </div>
+
+                        {extraPeopleCount > 0 && (
+                            <div className="text-xs text-green-500/80 bg-green-500/5 px-2 py-1 rounded border border-green-500/10">
+                                Incluye {extraPeopleCount} {extraPeopleCount === 1 ? 'persona extra' : 'personas extras'} ({formatCurrency(extraPeopleCount * extraPersonPrice)})
+                            </div>
+                        )}
 
                         <div className="space-y-3">
                             <Label className="text-base">Método de pago</Label>

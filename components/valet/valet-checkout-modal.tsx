@@ -1,5 +1,4 @@
-"use client";
-
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Room } from "@/components/sales/room-types";
@@ -10,7 +9,7 @@ interface ValetCheckoutModalProps {
     room: Room | null;
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => Promise<void>;
+    onConfirm: (personCount: number) => Promise<void>;
     loading: boolean;
 }
 
@@ -21,10 +20,10 @@ export function ValetCheckoutModal({
     onConfirm,
     loading
 }: ValetCheckoutModalProps) {
-    if (!room) return null;
+    const activeStay = room?.room_stays?.find(s => s.status === 'ACTIVA');
+    const [personCount, setPersonCount] = useState(activeStay?.current_people ?? 2);
 
-    const activeStay = room.room_stays?.find(s => s.status === 'ACTIVA');
-    if (!activeStay) return null;
+    if (!room || !activeStay) return null;
 
     // Calcular duración
     const checkinTime = activeStay.check_in_at ? new Date(activeStay.check_in_at) : new Date();
@@ -39,7 +38,7 @@ export function ValetCheckoutModal({
     const hasBalance = remainingAmount > 0;
 
     const handleConfirm = async () => {
-        await onConfirm();
+        await onConfirm(personCount);
     };
 
     return (
@@ -92,28 +91,58 @@ export function ValetCheckoutModal({
                         </div>
                     )}
 
-                    {/* Checklist de revisión */}
-                    <div className="border rounded-lg p-4 space-y-3">
-                        <p className="font-semibold text-base">Checklist de Revisión</p>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded border-2 flex items-center justify-center">
-                                    <CheckCircle2 className="h-4 w-4" />
+                    {/* Checklist y Personas */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border rounded-lg p-4 space-y-3">
+                            <p className="font-semibold text-base">Checklist de Revisión</p>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                    </div>
+                                    <span>Habitación en orden</span>
                                 </div>
-                                <span>Habitación en orden</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded border-2 flex items-center justify-center">
-                                    <CheckCircle2 className="h-4 w-4" />
+                                <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                    </div>
+                                    <span>Sin daños o faltantes</span>
                                 </div>
-                                <span>Sin daños o faltantes</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded border-2 flex items-center justify-center">
-                                    <CheckCircle2 className="h-4 w-4" />
+                                <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                    </div>
+                                    <span>Artículos de baño</span>
                                 </div>
-                                <span>Artículos de baño completos</span>
                             </div>
+                        </div>
+
+                        <div className="border rounded-lg p-4 space-y-3">
+                            <p className="font-semibold text-base">Personas que salen</p>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0"
+                                    onClick={() => setPersonCount(prev => Math.max(1, prev - 1))}
+                                >
+                                    -
+                                </Button>
+                                <div className="flex-1 bg-muted h-10 rounded-md flex items-center justify-center font-bold text-lg">
+                                    {personCount}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0"
+                                    onClick={() => setPersonCount(prev => prev + 1)}
+                                >
+                                    +
+                                </Button>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground text-center">
+                                Registrado al entrar: {activeStay.current_people ?? 2}
+                            </p>
                         </div>
                     </div>
 

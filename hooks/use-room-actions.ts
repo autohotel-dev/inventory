@@ -1314,15 +1314,11 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             .eq("id", activeStay.id);
         }
 
-        // TOLERANCIA DE SALIDA: No marcar como SUCIA inmediatamente.
-        // La habitación queda OCUPADA pero con la estancia FINALIZADA.
-        // RoomsBoard se encargará de mostrar el estado "Saliendo" y de la limpieza automática.
-        /* 
+        // Marcar como SUCIA inmediatamente al dar salida (checkout manual)
         await supabase
           .from("rooms")
           .update({ status: "SUCIA" })
           .eq("id", room.id);
-        */
 
         await supabase
           .from("sales_orders")
