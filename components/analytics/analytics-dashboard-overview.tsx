@@ -87,8 +87,8 @@ export function AnalyticsDashboardOverview() {
                 .gte("created_at", startOfMonth);
 
             // Procesar datos
-            const currentRevenue = currentMonthSales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
-            const lastRevenue = lastMonthSales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+            const currentRevenue = currentMonthSales?.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || 0;
+            const lastRevenue = lastMonthSales?.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || 0;
 
             let growth = 0;
             if (lastRevenue > 0) {
@@ -97,7 +97,7 @@ export function AnalyticsDashboardOverview() {
                 growth = 100;
             }
 
-            const todayRevenue = todaySalesData?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+            const todayRevenue = todaySalesData?.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || 0;
             const todayOrdersCount = todaySalesData?.length || 0;
 
             // Procesar Top Productos
