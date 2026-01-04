@@ -72,7 +72,7 @@ export function ProfitabilityReport() {
 
             // Calcular rentabilidad por producto
             const productProfitability = products
-                .map(product => {
+                .map((product: any) => {
                     // Filtrar solo items de órdenes cerradas
                     const soldItems = (product.sales_items || []).filter(
                         (item: any) => item.sales_order?.status === 'CLOSED'
@@ -109,17 +109,17 @@ export function ProfitabilityReport() {
                         category_name: (product.category as any)?.name || 'Sin categoría'
                     };
                 })
-                .filter(p => p.quantity_sold > 0); // Solo productos vendidos
+                .filter((p: any) => p.quantity_sold > 0); // Solo productos vendidos
 
             // Calcular totales
-            const totalCost = productProfitability.reduce((sum, p) => sum + p.total_cost, 0);
-            const totalRevenue = productProfitability.reduce((sum, p) => sum + p.total_revenue, 0);
+            const totalCost = productProfitability.reduce((sum: number, p: any) => sum + p.total_cost, 0);
+            const totalRevenue = productProfitability.reduce((sum: number, p: any) => sum + p.total_revenue, 0);
             const totalProfit = totalRevenue - totalCost;
             const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
             // Rentabilidad por categoría
             const categoryMap = new Map<string, any>();
-            productProfitability.forEach(product => {
+            productProfitability.forEach((product: any) => {
                 const catName = product.category_name;
                 if (!categoryMap.has(catName)) {
                     categoryMap.set(catName, {
