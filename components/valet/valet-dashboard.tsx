@@ -66,6 +66,34 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         }
     }
 
+    const handleAcceptEntry = async (room: Room) => {
+        const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
+        if (!stay || !employeeId) return;
+
+        try {
+            const supabase = createClient();
+
+            // 1. Asignar el valet a la estancia
+            const { error } = await supabase
+                .from('room_stays')
+                .update({ valet_employee_id: employeeId })
+                .eq('id', stay.id);
+
+            if (error) throw error;
+
+            toast.success("Entrada aceptada", {
+                description: `Te has asignado la Habitación ${room.number}`
+            });
+
+            // Refrescar lista
+            fetchRooms(true);
+
+        } catch (error) {
+            console.error("Error accepting entry:", error);
+            toast.error("Error al aceptar la entrada");
+        }
+    };
+
     useEffect(() => {
         fetchRooms(false);
 
@@ -99,6 +127,20 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         const reqB = stayB?.vehicle_requested_at ? 1 : 0;
         if (reqA !== reqB) return reqB - reqA; // Solicitados primero
         return 0;
+        if (reqA !== reqB) return reqB - reqA; // Solicitados primero
+        return 0;
+    });
+
+    // 1. Entradas SIN valet asignado (Cualquiera puede aceptar)
+    const entriesToAccept = roomsWithoutVehicle.filter(r => {
+        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
+        return !stay?.valet_employee_id;
+    });
+
+    // 2. Mis entradas pendientes (Valet asignado = Yo, pero sin vehículo)
+    const myPendingEntries = roomsWithoutVehicle.filter(r => {
+        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
+        return stay?.valet_employee_id === employeeId;
     });
 
     const handleOpenCheckIn = (room: Room) => {
@@ -162,8 +204,12 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Entradas Pendientes</p>
-                        <p className="text-2xl font-bold text-blue-500">{roomsWithoutVehicle.length}</p>
+                        <p className="text-xs text-muted-foreground mb-1">Por Aceptar</p>
+                        <p className="text-2xl font-bold text-blue-500">{entriesToAccept.length}</p>
+                    </div>
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Mis Registros</p>
+                        <p className="text-2xl font-bold text-purple-500">{myPendingEntries.length}</p>
                     </div>
                     <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
                         <p className="text-xs text-muted-foreground mb-1">Salidas Pendientes</p>
@@ -174,23 +220,69 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
             {/* Content */}
             <div className="p-4 space-y-6">
-                {/* Entradas Pendientes */}
-                {roomsWithoutVehicle.length > 0 && (
+                {/* Sección 1: Entradas por Aceptar */}
+                {entriesToAccept.length > 0 && (
                     <section>
                         <div className="flex items-center gap-2 mb-3">
-                            <Car className="h-5 w-5 text-blue-500" />
-                            <h2 className="text-lg font-semibold">Entradas Pendientes</h2>
-                            <Badge variant="secondary">{roomsWithoutVehicle.length}</Badge>
+                            <Users className="h-5 w-5 text-blue-500" />
+                            <h2 className="text-lg font-semibold">Entradas Disponibles</h2>
+                            <Badge variant="secondary">{entriesToAccept.length}</Badge>
                         </div>
 
                         <div className="space-y-3">
-                            {roomsWithoutVehicle.map((room) => {
+                            {entriesToAccept.map((room) => {
                                 const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
-                                const basePrice = room.room_types?.base_price ?? 0;
-                                const people = stay?.current_people ?? 2;
+                                const checkin = stay?.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
 
                                 return (
-                                    <Card key={room.id} className="p-4 space-y-3">
+                                    <Card key={room.id} className="p-4 space-y-3 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-2xl font-bold">Hab. {room.number}</span>
+                                                    <Badge variant="outline">{room.room_types?.name}</Badge>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">Llegada: {checkin}</p>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={() => handleAcceptEntry(room)}
+                                            className="w-full bg-blue-600 hover:bg-blue-700"
+                                        >
+                                            <CheckCircle2 className="h-5 w-5 mr-2" />
+                                            Aceptar Entrada
+                                        </Button>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
+                {/* Sección 2: Mis Registros Pendientes */}
+                {myPendingEntries.length > 0 && (
+                    <section>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Car className="h-5 w-5 text-purple-500" />
+                            <h2 className="text-lg font-semibold">Mis Registros Pendientes</h2>
+                            <Badge variant="secondary">{myPendingEntries.length}</Badge>
+                        </div>
+
+                        <div className="space-y-3">
+                            {myPendingEntries.map((room) => {
+                                const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
+                                const people = stay?.current_people ?? 2;
+                                const isReminded = stay?.vehicle_requested_at; // Si recepción mandó recordatorio
+
+                                return (
+                                    <Card key={room.id} className={`p-4 space-y-3 ${isReminded ? 'border-red-400 bg-red-50 dark:bg-red-900/10' : 'border-purple-200 bg-purple-50/50 dark:bg-purple-900/10'}`}>
+                                        {isReminded && (
+                                            <div className="text-xs font-bold text-red-600 flex items-center gap-1 mb-1">
+                                                <Users className="h-3 w-3" />
+                                                RECEPCIÓN SOLICITA REGISTRO
+                                            </div>
+                                        )}
                                         <div className="flex items-start justify-between">
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
@@ -200,11 +292,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                                     <span className="flex items-center gap-1">
                                                         <Users className="h-4 w-4" />
-                                                        {people} {people === 1 ? 'persona' : 'personas'}
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <Receipt className="h-4 w-4" />
-                                                        {formatCurrency(basePrice)}
+                                                        {people} pax
                                                     </span>
                                                 </div>
                                             </div>
@@ -212,10 +300,10 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                                         <Button
                                             onClick={() => handleOpenCheckIn(room)}
-                                            className="w-full h-auto min-h-[48px] text-base bg-blue-600 hover:bg-blue-700 whitespace-normal py-2"
+                                            className="w-full h-auto min-h-[48px] text-base bg-purple-600 hover:bg-purple-700 whitespace-normal py-2"
                                         >
                                             <Car className="h-5 w-5 mr-2 shrink-0" />
-                                            Registrar y Cobrar
+                                            Registrar Vehículo
                                         </Button>
                                     </Card>
                                 );
@@ -283,7 +371,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 )}
 
                 {/* Empty state */}
-                {roomsWithoutVehicle.length === 0 && roomsPendingCheckout.length === 0 && (
+                {entriesToAccept.length === 0 && myPendingEntries.length === 0 && roomsPendingCheckout.length === 0 && (
                     <div className="text-center py-12">
                         <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
                         <h3 className="text-xl font-semibold mb-2">Sin tareas pendientes</h3>

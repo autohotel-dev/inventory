@@ -910,6 +910,8 @@ export default function PracticePage() {
                     onPersonLeftReturning={handleNoOp}
                     onShowGuestPortal={handleNoOp}
                     onRequestVehicle={handleNoOp}
+                    onAddDamageCharge={handleNoOp}
+                    onNotifyCheckout={handleNoOp}
                 />
 
                 {/* MODALES DE PRÁCTICA */}

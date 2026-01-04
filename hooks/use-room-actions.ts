@@ -1443,17 +1443,64 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     setActionLoading(true);
     const supabase = createClient();
     try {
+      // 1. Obtener la estancia para saber quién es el valet
+      const { data: stay, error: stayError } = await supabase
+        .from('room_stays')
+        .select('valet_employee_id, room:rooms(number)')
+        .eq('id', stayId)
+        .single();
+
+      if (stayError || !stay) throw new Error("No se encontró la estancia");
+
+      if (!stay.valet_employee_id) {
+        toast.error("No hay cochero asignado aún");
+        return false;
+      }
+
+      // 2. Verificar usuario del valet para notificar
+      const { data: valetUser } = await supabase
+        .from('employees')
+        .select('auth_user_id')
+        .eq('id', stay.valet_employee_id)
+        .single();
+
+      if (!valetUser?.auth_user_id) {
+        toast.error("No se pudo notificar al cochero (usuario no encontrado)");
+        return false;
+      }
+
+      // 3. Registrar solicitud en DB (timestamp)
       const { error } = await supabase
         .from('room_stays')
         .update({ vehicle_requested_at: new Date().toISOString() })
         .eq('id', stayId);
 
       if (error) throw error;
-      toast.success("Vehículo solicitado al valet 🚗");
+
+      // 4. Crear notificación para el cochero
+      // Asegurarse que `room` es un objeto y acceder a `number`
+      const roomNumber = (stay.room as any)?.number || "Desconocida";
+
+      const { error: notifError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: valetUser.auth_user_id,
+          type: 'system_alert',
+          title: '🚗 Registro Pendiente',
+          message: `Recepción te recuerda registrar el vehículo de la Habitación ${roomNumber}`,
+          data: { stay_id: stayId, room_number: roomNumber },
+          is_read: false
+        });
+
+      if (notifError) {
+        console.error("Error sending notification:", notifError);
+      }
+
+      toast.success("Recordatorio enviado al cochero 🔔");
       return true;
     } catch (e) {
       console.error(e);
-      toast.error("Error al solicitar vehículo");
+      toast.error("Error al enviar recordatorio");
       return false;
     } finally {
       setActionLoading(false);

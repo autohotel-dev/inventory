@@ -39,7 +39,10 @@ export interface RoomActionsWheelProps {
   onRequestVehicle: () => void; // Solicitar vehículo al valet
   onAddDamageCharge: () => void; // Agregar cargo por daño
   onNotifyCheckout: () => void; // Valet notifica salida
+  hasValetAssigned?: boolean; // Si ya tiene cochero asignado
+  hasVehicleRegistered?: boolean; // Si ya tiene vehículo registrado
   isValet?: boolean; // Indica si el usuario actual es valet
+  hasPendingValetPayment?: boolean; // Si hay pagos cobrados por valet sin confirmar
 }
 
 // Tipo para las acciones
@@ -74,7 +77,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "payextra", label: "Pagar Todo", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
     // { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
-    { id: "req_vehicle", label: "Pedir Auto", icon: <BellRing className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onRequestVehicle", showOnlyWithVehicle: true },
+    { id: "req_vehicle", label: "Recordar Registro", icon: <BellRing className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onRequestVehicle" },
     // { id: "valet", label: "Cochero", icon: <UserCog className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onEditValet" },
     { id: "changeroom", label: "Cambiar", icon: <ArrowRightLeft className="h-5 w-5" />, color: "text-indigo-400", hoverBg: "hover:bg-indigo-500/30", action: "onChangeRoom" },
     { id: "managePeople", label: "Personas", icon: <Users className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onManagePeople" },
@@ -180,6 +183,9 @@ export function RoomActionsWheel({
   onRequestVehicle,
   onAddDamageCharge,
   onNotifyCheckout,
+  hasValetAssigned = false,
+  hasVehicleRegistered = false,
+  hasPendingValetPayment = false,
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -194,9 +200,13 @@ export function RoomActionsWheel({
     if (action.showOnlyWithExtra && !hasExtraCharges) return false;
     // Ocultar acciones marcadas como hideForHotel si es hotel
     if (action.hideForHotel && isHotelRoom) return false;
-    // Mostrar Pedir Auto solo si tiene vehículo
-    // Mostrar Pedir Auto solo si tiene vehículo
-    if (action.showOnlyWithVehicle && !hasVehicle) return false;
+    // Mostrar "Recordar Registro" SOLO si:
+    // 1. Ya tiene cochero asignado (valet aceptó)
+    // 2. NO tiene vehículo registrado (se le olvidó o está en proceso)
+    if (action.action === 'onRequestVehicle') {
+      return hasValetAssigned && !hasVehicleRegistered;
+    }
+
     // Mostrar Solo Valet
     if (action.showOnlyValet && !isValet) return false;
     return true;
@@ -359,6 +369,11 @@ export function RoomActionsWheel({
                     >
                       {action.label}
                     </text>
+
+                    {/* Indicador de pago pendiente de valet */}
+                    {action.action === 'onGranularPayment' && hasPendingValetPayment && (
+                      <circle cx="12" cy="-24" r="5" fill="#ef4444" className="animate-pulse" />
+                    )}
                   </g>
                 </g>
               );

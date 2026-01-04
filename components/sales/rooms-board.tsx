@@ -176,6 +176,31 @@ function RoomsBoardInternal() {
   const [showGuestPortalQRModal, setShowGuestPortalQRModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Estado para pagos de valet pendientes
+  const [hasPendingValetPayment, setHasPendingValetPayment] = useState(false);
+
+  // Verificar pagos de valet cuando se abre el modal
+  useEffect(() => {
+    if (showActionsModal && selectedRoom) {
+      const activeStay = getActiveStay(selectedRoom);
+      if (activeStay?.sales_order_id) {
+        const checkValetPayments = async () => {
+          const { data } = await supabase
+            .from('payments')
+            .select('id')
+            .eq('sales_order_id', activeStay.sales_order_id)
+            .eq('status', 'COBRADO_POR_VALET')
+            .limit(1);
+
+          setHasPendingValetPayment(!!data && data.length > 0);
+        };
+        checkValetPayments();
+      } else {
+        setHasPendingValetPayment(false);
+      }
+    }
+  }, [showActionsModal, selectedRoom]);
+
   // Sensores
   const { sensors } = useSensors();
   const prevSensorsRef = useRef<Map<string, boolean>>(new Map());
@@ -1239,6 +1264,43 @@ function RoomsBoardInternal() {
         return;
       }
 
+      // -----------------------------------------------------
+      // NOTIFICAR A TODOS LOS COCHEROS (VALETS)
+      // -----------------------------------------------------
+      try {
+        // 1. Buscar empleados con rol 'cochero' o 'valet'
+        const { data: valets } = await supabase
+          .from("employees")
+          .select("auth_user_id")
+          .in("role", ["valet", "cochero", "Cochero"]) // Ajustar según tus roles reales
+          .not("auth_user_id", "is", null);
+
+        if (valets && valets.length > 0) {
+          const notifications = valets.map(v => ({
+            user_id: v.auth_user_id,
+            type: 'info',
+            title: '🚗 Nueva Entrada',
+            message: `Nueva estancia en Habitación ${selectedRoom.number}. Acepta la entrada para registrar vehículo.`,
+            data: {
+              room_id: selectedRoom.id,
+              room_number: selectedRoom.number,
+              stay_id: stayData.id
+            },
+            is_read: false
+          }));
+
+          const { error: notifError } = await supabase
+            .from("notifications")
+            .insert(notifications);
+
+          if (notifError) console.error("Error notifying valets:", notifError);
+        }
+      } catch (notifErr) {
+        console.error("Error in check-in notifications:", notifErr);
+        // No bloquear el flujo si falla la notificación
+      }
+      // -----------------------------------------------------
+
       toast.success("Estancia iniciada", {
         description: `Hab. ${selectedRoom.number} - ${roomType.name} (${initialPeople} persona${initialPeople > 1 ? 's' : ''}) hasta ${formatDateTime(
           expectedCheckout
@@ -1710,7 +1772,7 @@ function RoomsBoardInternal() {
         getExtraHoursLabel={getExtraHoursLabel}
       />
       <RoomCheckoutModal
-        isOpen={showCheckoutModal && !!selectedRoom && !!checkoutInfo}
+        isOpen={showCheckoutModal && !!selectedRoom}
         roomNumber={selectedRoom?.number || ""}
         roomTypeName={selectedRoom?.room_types?.name || ""}
         remainingAmount={checkoutInfo?.remainingAmount || 0}
@@ -1718,15 +1780,19 @@ function RoomsBoardInternal() {
         actionLoading={actionLoading}
         pendingItems={checkoutInfo?.pendingItems}
         onAmountChange={setCheckoutAmount}
-        onClose={handleCloseCheckoutModal}
+        onClose={() => {
+          setShowCheckoutModal(false);
+          setCheckoutInfo(null);
+        }}
         onConfirm={handleCheckout}
         defaultValetId={selectedRoom ? getActiveStay(selectedRoom)?.checkout_valet_employee_id : null}
       />
       <RoomActionsWheel
         room={selectedRoom}
-        isOpen={showActionsModal && !!selectedRoom}
+        isOpen={showActionsModal}
         isVisible={actionsDockVisible}
         actionLoading={actionLoading}
+        hasPendingValetPayment={hasPendingValetPayment}
         statusBadge={selectedRoom ? renderStatusBadge(selectedRoom.status) : null}
         hasExtraCharges={selectedRoom ? hasExtraCharges(selectedRoom) : false}
         isHotelRoom={selectedRoom?.room_types?.is_hotel === true}
@@ -1845,6 +1911,8 @@ function RoomsBoardInternal() {
         }}
         onNotifyCheckout={handleNotifyCheckout}
         isValet={isValet}
+        hasValetAssigned={selectedRoom ? !!getActiveStay(selectedRoom)?.valet_employee_id : false}
+        hasVehicleRegistered={selectedRoom ? !!getActiveStay(selectedRoom)?.vehicle_plate : false}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
@@ -2218,6 +2286,18 @@ function RoomsBoardInternal() {
         }}
       />
 
+      <AddDamageChargeModal
+        isOpen={showDamageModal && !!selectedRoom}
+        room={selectedRoom || null}
+        actionLoading={actionLoading}
+        onClose={() => setShowDamageModal(false)}
+        onConfirm={async (amount, reason) => {
+          if (selectedRoom) {
+            await handleAddDamageCharge(selectedRoom, amount, reason);
+            setShowDamageModal(false);
+          }
+        }}
+      />
       <GuestPortalQRModal
         isOpen={showGuestPortalQRModal && !!selectedRoom}
         onClose={() => setShowGuestPortalQRModal(false)}
