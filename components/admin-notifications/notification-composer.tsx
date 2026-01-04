@@ -37,9 +37,10 @@ export function NotificationComposer() {
 
             if (data) {
                 // Deduplicate rooms
-                const uniqueRooms = Array.from(new Set(data.map(item => item.room_number)))
+                // @ts-ignore
+                const uniqueRooms = Array.from(new Set(data.map((item: any) => item.room_number)))
                     .map(num => ({ room_number: num }));
-                setActiveRooms(uniqueRooms);
+                setActiveRooms(uniqueRooms as any);
             }
             setIsLoadingRooms(false);
         }
