@@ -60,6 +60,7 @@ export interface RoomStay {
   expected_check_out_at?: string | null;
   current_people?: number;
   total_people?: number;
+  actual_check_out_at?: string | null; // Hora real de salida definitiva
   // Campos para tolerancia de salida (solo motel, no torre/hotel)
   tolerance_started_at?: string | null; // Cuando inició la tolerancia de 1 hora
   tolerance_type?: 'PERSON_LEFT' | 'ROOM_EMPTY' | null; // Tipo de tolerancia activa

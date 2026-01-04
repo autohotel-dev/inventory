@@ -14,6 +14,16 @@ export const TOLERANCE_MS = 60 * 60 * 1000; // 1 hora
 export const TOLERANCE_MINUTES = 60;
 
 /**
+ * Tiempo de tolerancia de salida en minutos (después de pagar)
+ */
+export const EXIT_TOLERANCE_MINUTES = 30;
+
+/**
+ * Tiempo de tolerancia de salida en milisegundos
+ */
+export const EXIT_TOLERANCE_MS = EXIT_TOLERANCE_MINUTES * 60 * 1000;
+
+/**
  * Estados posibles de una habitación
  */
 export const ROOM_STATUS = {

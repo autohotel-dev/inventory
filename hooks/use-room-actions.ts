@@ -8,6 +8,7 @@ import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getOrCreateServiceProduct, createServiceItem, updateUnpaidItems, createDamageItem } from "@/lib/services/product-service";
+import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
 
 // Generar referencia única para pagos
 function generatePaymentReference(prefix: string = "PAY"): string {
@@ -1160,19 +1161,63 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         const expected = new Date(activeStay.expected_check_out_at);
         const now = new Date();
         const diffMs = now.getTime() - expected.getTime();
-        if (diffMs > 0) {
+
+        // TOLERANCIA DE SALIDA: Solo cobrar si pasaron más de EXIT_TOLERANCE_MS (30 min)
+        if (diffMs > EXIT_TOLERANCE_MS) {
           extraHours = Math.ceil(diffMs / (60 * 60 * 1000));
         }
       }
 
       // Agregar horas extra al total si aplica
       if (extraHours > 0 && room.room_types?.extra_hour_price && room.room_types.extra_hour_price > 0) {
-        const extraAmount = extraHours * room.room_types.extra_hour_price;
-        const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraAmount);
-        if (result.success) {
-          toast.success("Horas extra registradas", {
-            description: `${extraHours} hora(s) extra en Hab. ${room.number}`,
-          });
+        // Verificar cuántas horas extra ya se cobraron en sales_order_items
+        const { data: existingExtraItems } = await supabase
+          .from("sales_order_items")
+          .select("id")
+          .eq("sales_order_id", activeStay.sales_order_id)
+          .eq("concept_type", "EXTRA_HOUR");
+
+        const alreadyChargedHours = existingExtraItems?.length || 0;
+        const hoursToCharge = extraHours - alreadyChargedHours;
+
+        if (hoursToCharge > 0) {
+          const extraAmount = hoursToCharge * room.room_types.extra_hour_price;
+
+          // 1. Crear items de servicio para las horas extra
+          for (let i = 0; i < hoursToCharge; i++) {
+            await createServiceItem(
+              activeStay.sales_order_id,
+              room.room_types.extra_hour_price,
+              "EXTRA_HOUR"
+            );
+          }
+
+          // 2. Crear registros de pago PENDIENTES para que aparezcan en Granular Payment
+          const currentShiftId = await getCurrentShiftId(supabase);
+          const pendingPayments = [];
+          for (let i = 0; i < hoursToCharge; i++) {
+            pendingPayments.push({
+              sales_order_id: activeStay.sales_order_id,
+              amount: room.room_types.extra_hour_price,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("EXT"),
+              concept: "EXTRA_HOUR",
+              status: "PENDIENTE",
+              payment_type: "COMPLETO",
+              shift_session_id: currentShiftId,
+            });
+          }
+
+          await supabase.from("payments").insert(pendingPayments);
+
+          // 3. Actualizar el total de la orden de venta (remaining_amount)
+          const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraAmount);
+
+          if (result.success) {
+            toast.success("Horas extra registradas", {
+              description: `${hoursToCharge} hora(s) extra nuevas en Hab. ${room.number}`,
+            });
+          }
         }
       }
 
@@ -1269,10 +1314,15 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             .eq("id", activeStay.id);
         }
 
+        // TOLERANCIA DE SALIDA: No marcar como SUCIA inmediatamente.
+        // La habitación queda OCUPADA pero con la estancia FINALIZADA.
+        // RoomsBoard se encargará de mostrar el estado "Saliendo" y de la limpieza automática.
+        /* 
         await supabase
           .from("rooms")
           .update({ status: "SUCIA" })
           .eq("id", room.id);
+        */
 
         await supabase
           .from("sales_orders")

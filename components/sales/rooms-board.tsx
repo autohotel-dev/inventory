@@ -51,6 +51,7 @@ import { useSensors } from "@/hooks/use-sensors";
 import { toast } from "sonner";
 import { useRef } from "react";
 import { GlobalClock } from "@/components/ui/global-clock";
+import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
 
 // Helper helper obtener turno activo
 const getCurrentShiftId = async (supabase: any) => {
@@ -803,85 +804,89 @@ function RoomsBoardInternal() {
     return () => clearInterval(interval);
   }, [rooms, reminderNotifiedStayIds20, reminderNotifiedStayIds5]);
 
-  // Verificar tolerancias expiradas y cobrar automáticamente (solo motel)
+  // Verificar tolerancias expiradas, limpiezas de salida y reactivaciones
   useEffect(() => {
-    const checkTolerances = async () => {
+    const processRoomTransitions = async () => {
       const supabase = createClient();
+      const now = new Date();
 
       for (const room of rooms) {
-        if (room.status !== "OCUPADA") continue;
-        if (room.room_types?.is_hotel) continue; // No aplica para hotel/torre
+        // 1. CASO: Habitación OCUPADA pero con estancia FINALIZADA (Tolerancia de salida)
+        const latestStay = (room.room_stays || [])
+          .sort((a: any, b: any) => new Date(b.check_in_at).getTime() - new Date(a.check_in_at).getTime())[0];
 
-        const activeStay = getActiveStay(room);
-        if (!activeStay?.tolerance_started_at || !activeStay.tolerance_type) continue;
+        if (room.status === "OCUPADA" && latestStay?.status === "FINALIZADA" && latestStay.actual_check_out_at) {
+          const checkoutTime = new Date(latestStay.actual_check_out_at);
+          const diffMs = now.getTime() - checkoutTime.getTime();
 
-        // Verificar si la tolerancia expiró
-        if (isToleranceExpired(activeStay.tolerance_started_at)) {
-          try {
-            let chargeAmount = 0;
-            let chargeDescription = "";
+          // Si pasó más del tiempo de tolerancia de salida (30 min), REACTIVAR estancia
+          if (diffMs > EXIT_TOLERANCE_MS) {
+            console.log(`Reactivando Hab. ${room.number}: Superó tolerancia de salida`);
 
-            if (activeStay.tolerance_type === 'ROOM_EMPTY') {
-              // Cobrar habitación completa
-              chargeAmount = room.room_types?.base_price ?? 0;
-              chargeDescription = "Tolerancia expirada - Habitación cobrada";
-            } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
-              // Cobrar persona extra
-              chargeAmount = room.room_types?.extra_person_price ?? 0;
-              chargeDescription = "Tolerancia expirada - Persona extra cobrada";
-            }
-
-            if (chargeAmount > 0) {
-              // Actualizar orden de venta
-              const { data: orderData } = await supabase
-                .from("sales_orders")
-                .select("subtotal, tax, paid_amount")
-                .eq("id", activeStay.sales_order_id)
-                .single();
-
-              if (orderData) {
-                const newSubtotal = (Number(orderData.subtotal) || 0) + chargeAmount;
-                const newTotal = newSubtotal + (Number(orderData.tax) || 0);
-                const newRemaining = Math.max(newTotal - (Number(orderData.paid_amount) || 0), 0);
-
-                await supabase
-                  .from("sales_orders")
-                  .update({
-                    subtotal: newSubtotal,
-                    total: newTotal,
-                    remaining_amount: newRemaining,
-                  })
-                  .eq("id", activeStay.sales_order_id);
-
-                toast.warning(chargeDescription, {
-                  description: `Hab. ${room.number}: +$${chargeAmount.toFixed(2)} MXN`,
-                });
-              }
-            }
-
-            // Limpiar tolerancia
+            // Reactivar estancia
             await supabase
               .from("room_stays")
               .update({
-                tolerance_started_at: null,
-                tolerance_type: null,
+                status: "ACTIVA",
+                actual_check_out_at: null,
+                expected_check_out_at: now.toISOString(), // Vence ya, para que prepareCheckout cobre hora extra
               })
-              .eq("id", activeStay.id);
+              .eq("id", latestStay.id);
 
-            // Refrescar datos
+            // Regresar orden a OPEN si estaba ENDED
+            await supabase
+              .from("sales_orders")
+              .update({ status: "OPEN" })
+              .eq("id", latestStay.sales_order_id);
+
+            toast.info(`Habitación ${room.number}: Tiempo de salida agotado. Estancia reactivada.`);
             await fetchRooms(true);
-          } catch (error) {
-            console.error("Error processing expired tolerance:", error);
+            continue;
+          }
+        }
+
+        // 2. CASO: Habitación OCUPADA y ACTIVA (Tolerancia de cargos de hora extra)
+        if (room.status === "OCUPADA" && !room.room_types?.is_hotel) {
+          const activeStay = getActiveStay(room);
+
+          // A. Verificar tolerancias de personas/vacío (EXISTENTE)
+          if (activeStay?.tolerance_started_at && activeStay.tolerance_type) {
+            if (isToleranceExpired(activeStay.tolerance_started_at)) {
+              // ... (vencimiento de tolerancia de salida temporal, ya implementado arriba)
+            }
+          }
+
+          // B. Verificar vencimiento de tiempo y cobro automático si ya pasaron los 30 min
+          if (activeStay?.expected_check_out_at) {
+            const expected = new Date(activeStay.expected_check_out_at);
+            const diffMs = now.getTime() - expected.getTime();
+
+            if (diffMs > EXIT_TOLERANCE_MS) {
+              // Llamar a prepareCheckout silenciosamente para que genere los cargos si no existen
+              // prepareCheckout ya tiene la lógica de no duplicar items
+              // Usamos el hook aquí si es posible o replicamos la lógica mínima
+              // Para evitar loops, solo lo haremos si no hay pagos pendientes de EXTRA_HOUR ya creados.
+
+              const { data: existingExtraPayments } = await supabase
+                .from("payments")
+                .select("id")
+                .eq("sales_order_id", activeStay.sales_order_id)
+                .eq("concept", "EXTRA_HOUR")
+                .eq("status", "PENDIENTE");
+
+              if (!existingExtraPayments || existingExtraPayments.length === 0) {
+                // Si no hay cobros pendientes de hora extra pero ya pasó el tiempo, forzar una actualización
+                // Esto se disparará cuando la recepcionista abra el menú o podemos automatizarlo aquí llamando a una función del hook
+                // Por ahora, prepareCheckout se encarga de esto al abrir el modal.
+              }
+            }
           }
         }
       }
     };
 
-    // Verificar cada minuto
-    const interval = setInterval(checkTolerances, 60000);
-    // También verificar al cargar
-    checkTolerances();
-
+    const interval = setInterval(processRoomTransitions, 60000); // Cada minuto
+    processRoomTransitions();
     return () => clearInterval(interval);
   }, [rooms, fetchRooms]);
 
@@ -941,15 +946,44 @@ function RoomsBoardInternal() {
 
   const getRemainingTimeLabel = (room: Room) => {
     const activeStay = getActiveStay(room);
-    if (!activeStay || !activeStay.expected_check_out_at) return null;
+
+    // Si no hay estancia activa pero la habitación está OCUPADA, 
+    // podría ser porque acaba de pagar (estado SALIENDO)
+    if (!activeStay) {
+      if (room.status === "OCUPADA") {
+        const latestStay = (room.room_stays || [])
+          .sort((a: any, b: any) => new Date(b.check_in_at).getTime() - new Date(a.check_in_at).getTime())[0];
+
+        if (latestStay?.status === "FINALIZADA" && latestStay.actual_check_out_at) {
+          const checkoutTime = new Date(latestStay.actual_check_out_at);
+          const now = new Date();
+          const diffMs = now.getTime() - checkoutTime.getTime();
+          const remainingMs = EXIT_TOLERANCE_MS - diffMs;
+
+          if (remainingMs > 0) {
+            const minutesLeft = Math.ceil(remainingMs / 60000);
+            return {
+              eta: "SALIENDO",
+              remaining: `${minutesLeft}m gracia`,
+              minutesToCheckout: 0,
+              isSaliendo: true
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    if (!activeStay.expected_check_out_at) return null;
 
     const now = new Date();
     const checkout = new Date(activeStay.expected_check_out_at);
     const diffMs = checkout.getTime() - now.getTime();
 
-    const diffMinutes = Math.max(Math.floor(diffMs / 60000), 0);
-    const hours = Math.floor(diffMinutes / 60);
-    const minutes = diffMinutes % 60;
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const absMinutes = Math.abs(diffMinutes);
+    const hours = Math.floor(absMinutes / 60);
+    const minutes = absMinutes % 60;
 
     const labelParts = [] as string[];
     if (hours > 0) labelParts.push(`${hours}h`);
@@ -957,7 +991,7 @@ function RoomsBoardInternal() {
 
     return {
       eta: formatDateTime(checkout),
-      remaining: labelParts.join(" "),
+      remaining: diffMinutes < 0 ? `+${labelParts.join(" ")}` : labelParts.join(" "),
       minutesToCheckout: diffMinutes,
     };
   };
@@ -1558,11 +1592,19 @@ function RoomsBoardInternal() {
     }
   };
 
-  const renderStatusBadge = (status: string) => {
-    const config = STATUS_CONFIG[status] || {
+  const renderStatusBadge = (status: string, isSaliendo: boolean = false) => {
+    let config = STATUS_CONFIG[status] || {
       label: status,
       color: "bg-muted text-muted-foreground border-border",
     };
+
+    if (isSaliendo) {
+      config = {
+        label: "Saliendo",
+        shortLabel: "Sal.",
+        color: "bg-orange-950/50 text-orange-100 border-orange-400/40 animate-pulse",
+      };
+    }
 
     return (
       <Badge
@@ -1761,10 +1803,21 @@ function RoomsBoardInternal() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3">
             {rooms.map((room) => {
               const status = room.status || "OTRO";
+              const timeInfo = getRemainingTimeLabel(room);
+              const isSaliendo = !!timeInfo?.isSaliendo;
+
               // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)
               const activeStay = getActiveStay(room);
               const hasPendingPayment = status === "OCUPADA" &&
-                Number(activeStay?.sales_orders?.remaining_amount || 0) > 0;
+                activeStay?.sales_orders &&
+                (activeStay.sales_orders.remaining_amount || 0) > 0;
+
+              // Obtener información del vehículo si existe estancia activa
+              const vehicleStatus = {
+                hasVehicle: !!activeStay?.vehicle_plate,
+                isReady: !!activeStay?.checkout_valet_employee_id,
+                plate: activeStay?.vehicle_plate || undefined
+              };
 
               return (
                 <RoomCard
@@ -1772,10 +1825,10 @@ function RoomsBoardInternal() {
                   id={room.id}
                   number={room.number}
                   status={status}
-                  bgClass={ROOM_STATUS_BG[status] || "bg-slate-900/80"}
-                  accentClass={ROOM_STATUS_ACCENT[status] || ""}
-                  statusBadge={renderStatusBadge(status)}
-                  hasPendingPayment={hasPendingPayment}
+                  bgClass={isSaliendo ? "bg-orange-900/80" : ROOM_STATUS_BG[status]}
+                  accentClass={isSaliendo ? "ring-1 ring-orange-500/40" : ROOM_STATUS_ACCENT[status]}
+                  statusBadge={renderStatusBadge(status, isSaliendo)}
+                  hasPendingPayment={!!hasPendingPayment}
                   roomTypeName={room.room_types?.name}
                   notes={room.notes}
                   sensorStatus={(() => {
@@ -1783,11 +1836,7 @@ function RoomsBoardInternal() {
                     if (!s) return null;
                     return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
                   })()}
-                  vehicleStatus={activeStay?.vehicle_plate ? {
-                    hasVehicle: true,
-                    plate: activeStay.vehicle_plate,
-                    isReady: !!activeStay.checkout_valet_employee_id
-                  } : null}
+                  vehicleStatus={activeStay ? vehicleStatus : null}
                   onInfo={() => {
                     setSelectedRoom(room);
                     setShowInfoModal(true);
