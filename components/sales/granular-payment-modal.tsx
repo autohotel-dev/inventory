@@ -154,6 +154,7 @@ export function GranularPaymentModal({
   const [showDiscountInput, setShowDiscountInput] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [tipAmount, setTipAmount] = useState<number>(0);
 
   // Cargar items de la orden y pagos pendientes de confirmación del valet
   const fetchItems = async () => {
@@ -252,6 +253,7 @@ export function GranularPaymentModal({
       setDiscounts({});
       setShowDiscountInput(null);
       setConfirmDeleteId(null);
+      setTipAmount(0);
       setStep("select");
     }
   }, [isOpen, salesOrderId]);
@@ -325,7 +327,7 @@ export function GranularPaymentModal({
       toast.error("Selecciona al menos un concepto para pagar");
       return;
     }
-    setPayments(createInitialPayment(selectedTotal));
+    setPayments(createInitialPayment(selectedTotal + tipAmount));
     setStep("pay");
   };
 
@@ -414,9 +416,11 @@ export function GranularPaymentModal({
   // Procesar el pago
   const processPayment = async () => {
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalToPay = selectedTotal + tipAmount;
 
-    if (totalPaid < selectedTotal) {
-      toast.error("El monto pagado es menor al total seleccionado");
+    // Permitir una pequeña diferencia por redondeo
+    if (Math.abs(totalPaid - totalToPay) > 0.1) {
+      toast.error(`El monto pagado no coincide con el total (${formatCurrency(totalToPay)})`);
       return;
     }
 
@@ -560,6 +564,7 @@ export function GranularPaymentModal({
               payment_type: "COMPLETO",
               shift_session_id: currentShiftId,
               employee_id: currentEmployeeId,
+              tip_amount: tipAmount,
             })
             .select("id")
             .single();
@@ -599,6 +604,7 @@ export function GranularPaymentModal({
             payment_type: "COMPLETO",
             shift_session_id: currentShiftId,
             employee_id: currentEmployeeId,
+            tip_amount: tipAmount,
             card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
             card_type: p.method === "TARJETA" ? p.cardType : null,
           });
@@ -1003,10 +1009,46 @@ export function GranularPaymentModal({
                 <p className="text-sm text-muted-foreground mt-1">
                   {selectedItems.size} concepto(s) seleccionado(s)
                 </p>
+
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="tip-amount" className="text-sm font-medium">Propina (Opcional)</label>
+                    <div className="relative w-32">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                      <Input
+                        id="tip-amount"
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="pl-7 text-right"
+                        value={tipAmount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          const newTip = isNaN(val) ? 0 : val;
+                          setTipAmount(newTip);
+                          // Actualizar pagos para reflejar el nuevo total si hay un solo pago por defecto
+                          // o si payments coincide con el total anterior.
+                          // Pero MultiPaymentInput no reacciona automáticamente a cambios externos de totalAmount preservando distribución custom.
+                          // Sin embargo, si reseteamos payments cuando cambia el tip, perdemos entradas del usuario.
+                          // Lo ideal es dejar que el usuario ajuste los pagos en el componente MultiPaymentInput.
+                          // PERO hemos actualizado createInitialPayment en goToPayment, no aquí.
+                          // Al cambiar tipAmount, el totalToPay cambia.
+                          // MultiPaymentInput recibe totalAmount={selectedTotal + tipAmount} renderizado abajo.
+                          // Si el usuario cambia tipAmount aquí, el MultiPaymentInput mostrará "Faltan $X" o "Sobran $X".
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {tipAmount > 0 && (
+                    <p className="text-right text-xs text-green-500 font-medium mt-1">
+                      + {formatCurrency(tipAmount)} propina
+                    </p>
+                  )}
+                </div>
               </div>
 
               <MultiPaymentInput
-                totalAmount={selectedTotal}
+                totalAmount={selectedTotal + tipAmount}
                 payments={payments}
                 onPaymentsChange={setPayments}
                 disabled={processing}
@@ -1036,7 +1078,7 @@ export function GranularPaymentModal({
               </Button>
               <Button
                 onClick={processPayment}
-                disabled={processing || payments.reduce((s, p) => s + p.amount, 0) < selectedTotal}
+                disabled={processing || Math.abs(payments.reduce((s, p) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
               >
                 {processing ? (
                   <>

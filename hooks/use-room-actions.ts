@@ -7,7 +7,7 @@ import { Room, RoomStay } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { getOrCreateServiceProduct, createServiceItem, updateUnpaidItems } from "@/lib/services/product-service";
+import { getOrCreateServiceProduct, createServiceItem, updateUnpaidItems, createDamageItem } from "@/lib/services/product-service";
 
 // Generar referencia única para pagos
 function generatePaymentReference(prefix: string = "PAY"): string {
@@ -273,8 +273,9 @@ export interface UseRoomActionsReturn {
   handleAddPerson: (room: Room) => Promise<void>; // Persona nueva entra (cobra extra si >2)
   handleRemovePerson: (room: Room) => Promise<void>; // Persona sale definitivamente
   handlePersonLeftReturning: (room: Room) => Promise<void>; // Persona salió pero regresa (tolerancia 1h)
+  handleAddDamageCharge: (room: Room, amount: number, description: string) => Promise<void>; // Agregar cargo por daño
 
-  handleAddCustomHours: (room: Room, hours: number, payments: PaymentEntry[]) => Promise<void>; // Agregar horas personalizadas
+  handleAddCustomHours: (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => Promise<void>; // Agregar horas personalizadas
   handleRenewRoom: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Renovar habitación con precio base
   handleAdd4HourPromo: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Promoción de 4 horas
   updateRoomStatus: (
@@ -724,9 +725,81 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   };
 
   /**
+   * Agregar cargo por daño
+   */
+  const handleAddDamageCharge = async (room: Room, amount: number, description: string) => {
+    if (room.status !== "OCUPADA") return;
+
+    const activeStay = getActiveStay(room);
+    if (!activeStay) {
+      toast.error("No se encontró una estancia activa");
+      return;
+    }
+
+    if (amount <= 0 || !description) {
+      toast.error("Datos inválidos para el cargo");
+      return;
+    }
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      // 1. Crear item de daño
+      const itemResult = await createDamageItem(
+        activeStay.sales_order_id,
+        amount,
+        description
+      );
+
+      if (!itemResult.success) {
+        toast.error("Error al registrar el daño");
+        return;
+      }
+
+      // 2. Actualizar totales de la orden
+      const updateResult = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, amount);
+
+      if (!updateResult.success) {
+        // Log pero continuar
+        logger.error("Failed to update totals after creating damage item", { salesOrderId: activeStay.sales_order_id });
+      }
+
+      // 3. Crear pago pendiente
+      const { error: paymentError } = await supabase.from("payments").insert({
+        sales_order_id: activeStay.sales_order_id,
+        amount: amount,
+        payment_method: "PENDIENTE",
+        reference: generatePaymentReference("DMG"),
+        concept: "DAMAGE_CHARGE",
+        status: "PENDIENTE",
+        payment_type: "COMPLETO",
+        shift_session_id: await getCurrentShiftId(supabase),
+        notes: description
+      });
+
+      if (paymentError) {
+        logger.error("Error creating pending payment for damage", paymentError);
+      }
+
+      toast.success("Cargo por daño registrado", {
+        description: `Hab. ${room.number}: ${formatCurrency(amount)} - ${description}`,
+      });
+
+      await onRefresh();
+
+    } catch (error) {
+      logger.error("Error adding damage charge", error);
+      toast.error("Error al registrar cargo por daño");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /**
    * Agregar horas personalizadas con pago
    */
-  const handleAddCustomHours = async (room: Room, hours: number, payments: PaymentEntry[]) => {
+  const handleAddCustomHours = async (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => {
     if (room.status !== "OCUPADA") return;
 
     const activeStay = getActiveStay(room);
@@ -750,11 +823,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
     try {
       const extraHourPrice = room.room_types.extra_hour_price;
-      const totalPrice = extraHourPrice * hours;
+      const totalPrice = isCourtesy ? 0 : extraHourPrice * hours;
       const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
-      // Actualizar totales de la orden
-      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
+      // Actualizar totales de la orden (solo si hay costo)
+      let result = { success: true };
+      if (totalPrice > 0) {
+        result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
+      }
 
       if (result.success) {
         // Obtener o crear producto de servicio
@@ -771,32 +847,39 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             activeStay.sales_order_id,
             extraHourPrice,
             "EXTRA_HOUR",
-            1
+            1,
+            isCourtesy,
+            courtesyReason
           );
         }
 
-        // Procesar el pago
-        const remainingAfterPending = await updatePendingPaymentsHelper(
-          supabase,
-          activeStay.sales_order_id,
-          payments,
-          totalPaid,
-          "HEX"
-        );
+        // Procesar el pago (solo si no es cortesía)
+        let remainingAfterPending = 0;
+        if (!isCourtesy) {
+          remainingAfterPending = await updatePendingPaymentsHelper(
+            supabase,
+            activeStay.sales_order_id,
+            payments,
+            totalPaid,
+            "HEX"
+          );
+        }
 
         // Note: No bloqueamos por remainingAfterPending > 0
         if (remainingAfterPending > 0) {
           logger.warn("Remaining amount after custom hours payment", { remainingAfterPending, totalPaid });
         }
 
-        // Actualizar paid_amount en sales_orders
-        await supabase
-          .from("sales_orders")
-          .update({
-            paid_amount: supabase.rpc('increment', { x: totalPaid }),
-            remaining_amount: supabase.rpc('decrement', { x: totalPaid }),
-          })
-          .eq("id", activeStay.sales_order_id);
+        // Actualizar paid_amount en sales_orders si hubo pago
+        if (totalPaid > 0) {
+          await supabase
+            .from("sales_orders")
+            .update({
+              paid_amount: supabase.rpc('increment', { x: totalPaid }),
+              remaining_amount: supabase.rpc('decrement', { x: totalPaid }),
+            })
+            .eq("id", activeStay.sales_order_id);
+        }
 
         // Extender expected_check_out_at según las horas agregadas
         if (activeStay.expected_check_out_at) {
@@ -810,7 +893,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         }
 
         toast.success("Horas agregadas", {
-          description: `Hab. ${room.number}: +${hours} hora(s) - $${totalPrice.toFixed(2)} MXN`,
+          description: `Hab. ${room.number}: +${hours} hora(s) - ${isCourtesy ? 'Cortesía' : `$${totalPrice.toFixed(2)} MXN`}`,
         });
         await onRefresh();
       } else {
@@ -1382,6 +1465,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     handleAddPerson,
     handleRemovePerson,
     handlePersonLeftReturning,
+    handleAddDamageCharge,
     // handleAddExtraHour removida - usar handleAddCustomHours
     handleAddCustomHours,
     handleRenewRoom,

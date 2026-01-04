@@ -78,6 +78,8 @@ interface SalesOrderItem {
   paid_at?: string | null;
   concept_type?: string | null;
   products: { name: string; sku: string } | null;
+  is_courtesy?: boolean;
+  courtesy_reason?: string | null;
 }
 
 interface Product {
@@ -547,7 +549,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
     }
   };
 
-  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number; payments: PaymentEntry[] }[]) => {
+  const addProductToOrder = async (items: { product: Product; quantity: number; unit_price: number; payments: PaymentEntry[]; is_courtesy?: boolean; courtesy_reason?: string }[]) => {
     if (!order || items.length === 0) return;
 
     const supabase = createClient();
@@ -600,6 +602,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         product_id: item.product.id,
         qty: item.quantity,
         unit_price: item.unit_price,
+        is_courtesy: item.is_courtesy || false,
+        courtesy_reason: item.courtesy_reason || null
       }));
 
       const { error } = await supabase

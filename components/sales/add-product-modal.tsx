@@ -33,6 +33,8 @@ interface CartItem {
   quantity: number;
   unit_price: number;
   payments: PaymentEntry[];
+  is_courtesy?: boolean;
+  courtesy_reason?: string;
 }
 
 interface AddProductModalProps {
@@ -132,17 +134,24 @@ export function AddProductModal({
       if (existingIndex >= 0) {
         return prev.map((item, i) =>
           i === existingIndex
-            ? { 
-                ...item, 
-                quantity: item.quantity + 1,
-                payments: createInitialPayment((item.quantity + 1) * item.unit_price)
-              }
+            ? {
+              ...item,
+              quantity: item.quantity + 1,
+              payments: createInitialPayment((item.quantity + 1) * item.unit_price)
+            }
             : item
         );
       }
       return [
         ...prev,
-        { product, quantity: 1, unit_price: itemPrice, payments: createInitialPayment(itemPrice) },
+        {
+          product,
+          quantity: 1,
+          unit_price: itemPrice,
+          payments: createInitialPayment(itemPrice),
+          is_courtesy: false,
+          courtesy_reason: ""
+        },
       ];
     });
     setSearchTerm("");
@@ -158,6 +167,37 @@ export function AddProductModal({
     );
   };
 
+  const toggleCourtesy = (index: number, isCourtesy: boolean) => {
+    setCart((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+
+        const newPrice = isCourtesy ? 0 : (item.product.price || 0);
+        const newTotal = item.quantity * newPrice;
+
+        // Si es cortesía, forzamos un único "pago" (que será $0)
+        // Si se quita la cortesía, regeneramos el pago con el precio normal
+        const newPayments = createInitialPayment(newTotal);
+
+        return {
+          ...item,
+          is_courtesy: isCourtesy,
+          unit_price: newPrice,
+          payments: newPayments,
+          courtesy_reason: isCourtesy ? item.courtesy_reason : "" // Limpiar razón si se quita
+        };
+      })
+    );
+  };
+
+  const updateCourtesyReason = (index: number, reason: string) => {
+    setCart((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, courtesy_reason: reason } : item
+      )
+    );
+  };
+
   // Actualizar cantidad (usando índice para identificar item único)
   const updateQuantity = (index: number, delta: number) => {
     setCart((prev) =>
@@ -166,8 +206,8 @@ export function AddProductModal({
           if (i !== index) return item;
           const newQty = Math.max(0, item.quantity + delta);
           const newTotal = newQty * item.unit_price;
-          return { 
-            ...item, 
+          return {
+            ...item,
             quantity: newQty,
             payments: createInitialPayment(newTotal)
           };
@@ -214,7 +254,7 @@ export function AddProductModal({
       {/* Modal - Tema Next.js Dark */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div className="pointer-events-auto bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
-          
+
           {/* Header */}
           <div className="relative bg-neutral-900 border-b border-neutral-800 p-4">
             <div className="flex items-center justify-between">
@@ -352,7 +392,7 @@ export function AddProductModal({
                         <div className="w-7 h-7 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center">
                           {index + 1}
                         </div>
-                        
+
                         {/* Info del producto */}
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm text-neutral-100 truncate">
@@ -418,13 +458,43 @@ export function AddProductModal({
 
                       {/* Panel de multipagos expandible */}
                       {expandedItem === index && (
-                        <div className="p-3 border-t border-neutral-800 bg-neutral-950">
-                          <MultiPaymentInput
-                            totalAmount={item.quantity * item.unit_price}
-                            payments={item.payments}
-                            onPaymentsChange={(payments) => updateItemPayments(index, payments)}
-                            showReference={true}
-                          />
+                        <div className="p-3 border-t border-neutral-800 bg-neutral-950 space-y-4">
+                          {/* Control de Cortesía */}
+                          <div className="flex items-center gap-3 p-2 bg-neutral-900 rounded-lg border border-neutral-800">
+                            <div className="flex-1">
+                              <Label className="text-xs font-medium text-neutral-300">Es cortesía</Label>
+                              <p className="text-[10px] text-neutral-500">Marca este producto como gratuito</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500/20"
+                                checked={item.is_courtesy || false}
+                                onChange={(e) => toggleCourtesy(index, e.target.checked)}
+                              />
+                            </div>
+                          </div>
+
+                          {item.is_courtesy && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                              <Label className="text-xs text-neutral-400">Razón de la cortesía</Label>
+                              <Input
+                                placeholder="Ej. Compensación por demora..."
+                                value={item.courtesy_reason || ""}
+                                onChange={(e) => updateCourtesyReason(index, e.target.value)}
+                                className="h-8 text-xs bg-neutral-900 border-neutral-700"
+                              />
+                            </div>
+                          )}
+
+                          {!item.is_courtesy && (
+                            <MultiPaymentInput
+                              totalAmount={item.quantity * item.unit_price}
+                              payments={item.payments}
+                              onPaymentsChange={(payments) => updateItemPayments(index, payments)}
+                              showReference={true}
+                            />
+                          )}
                         </div>
                       )}
                     </CardContent>
@@ -446,12 +516,12 @@ export function AddProductModal({
                 {formatCurrency(cartTotal, currency)}
               </p>
             </div>
-            
+
             {/* Botones */}
             <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                className="flex-1 h-11 border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100" 
+              <Button
+                variant="outline"
+                className="flex-1 h-11 border-neutral-700 bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100"
                 onClick={onClose}
               >
                 Cancelar

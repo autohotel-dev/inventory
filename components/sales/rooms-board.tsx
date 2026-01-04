@@ -26,6 +26,7 @@ import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
 import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
 import { RoomStatusNoteModal } from "@/components/sales/room-status-note-modal";
 import { RoomHourManagementModal } from "@/components/sales/room-hour-management-modal";
+import { AddDamageChargeModal } from "@/components/sales/add-damage-charge-modal";
 import { GuestPortalQRModal } from "@/components/sales/guest-portal-qr-modal";
 import {
   Room,
@@ -158,6 +159,7 @@ function RoomsBoardInternal() {
   const [consumptionOrderId, setConsumptionOrderId] = useState<string | null>(null);
   const [actionsDockVisible, setActionsDockVisible] = useState(false);
   const [startStayLoading, setStartStayLoading] = useState(false);
+  const { isValet } = useUserRole();
 
   // Notificaciones de sonido
   useSoundNotifications('receptionist', rooms.map(r => ({ id: r.id, number: r.number })));
@@ -170,6 +172,7 @@ function RoomsBoardInternal() {
   const [showStatusNoteModal, setShowStatusNoteModal] = useState(false);
   const [statusNoteAction, setStatusNoteAction] = useState<"BLOCK" | "DIRTY" | null>(null);
   const [showHourManagementModal, setShowHourManagementModal] = useState(false);
+  const [showDamageModal, setShowDamageModal] = useState(false);
   const [showGuestPortalQRModal, setShowGuestPortalQRModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -270,6 +273,7 @@ function RoomsBoardInternal() {
     prepareCheckout,
     processCheckout,
     requestVehicle,
+    handleAddDamageCharge,
   } = useRoomActions(async () => await fetchRooms(true));
 
   // Abrir modal de checkout usando el hook
@@ -398,6 +402,42 @@ function RoomsBoardInternal() {
     setShowConsumptionModal(false);
     setConsumptionOrderId(null);
     fetchRooms(true);
+  };
+
+  // Manejar notificación de salida (Valet)
+  const handleNotifyCheckout = async () => {
+    if (!selectedRoom || !isValet) return;
+
+    // Obtener estancia activa
+    const activeStay = getActiveStay(selectedRoom);
+    if (!activeStay) {
+      toast.error("No hay estancia activa");
+      return;
+    }
+
+    try {
+      const currentEmployeeId = await getCurrentEmployeeId(supabase);
+      if (!currentEmployeeId) {
+        toast.error("No se pudo identificar al empleado");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("room_stays")
+        .update({ checkout_valet_employee_id: currentEmployeeId })
+        .eq("id", activeStay.id);
+
+      if (error) throw error;
+
+      toast.success("Salida notificada a recepción", {
+        description: `Habitación ${selectedRoom.number}`
+      });
+      setShowActionsModal(false);
+      fetchRooms(true);
+    } catch (error) {
+      console.error("Error notifying checkout:", error);
+      toast.error("Error al notificar salida");
+    }
   };
 
   // Cerrar modal de pagar extras
@@ -1800,6 +1840,11 @@ function RoomsBoardInternal() {
             }
           }
         }}
+        onAddDamageCharge={() => {
+          if (selectedRoom) setShowDamageModal(true);
+        }}
+        onNotifyCheckout={handleNotifyCheckout}
+        isValet={isValet}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
@@ -2150,9 +2195,9 @@ function RoomsBoardInternal() {
         room={selectedRoom}
         actionLoading={actionLoading}
         onClose={() => setShowHourManagementModal(false)}
-        onConfirmCustomHours={async (hours, payments) => {
+        onConfirmCustomHours={async (hours, payments, isCourtesy, courtesyReason) => {
           if (selectedRoom) {
-            await handleAddCustomHours(selectedRoom, hours, payments);
+            await handleAddCustomHours(selectedRoom, hours, payments, isCourtesy, courtesyReason);
             setShowHourManagementModal(false);
             setShowInfoModal(false); // Cerrar para refrescar tiempo
           }

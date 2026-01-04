@@ -45,6 +45,7 @@ export const PAYMENT_CONCEPT = {
     TOLERANCIA_EXPIRADA: "TOLERANCIA_EXPIRADA",
     CONSUMO: "CONSUMO",
     SERVICIO: "SERVICIO",
+    DAMAGE_CHARGE: "DAÑO",
 } as const;
 
 export type PaymentConcept = typeof PAYMENT_CONCEPT[keyof typeof PAYMENT_CONCEPT];
@@ -59,6 +60,7 @@ export const PAYMENT_REFERENCE_PREFIX = {
     TOLERANCIA: "TOL",
     SUBPAGO: "SUB",
     CONSUMO: "CON",
+    DAMAGE: "DMG",
 } as const;
 
 export type PaymentReferencePrefix = typeof PAYMENT_REFERENCE_PREFIX[keyof typeof PAYMENT_REFERENCE_PREFIX];
@@ -79,6 +81,21 @@ export const SERVICE_PRODUCT_NAME = "Servicio de Habitación";
 export const SERVICE_PRODUCT_DESCRIPTION = "Servicios de habitación (estancia, horas extra, personas extra)";
 
 /**
+ * SKU del producto de cargo por daños
+ */
+export const DAMAGE_PRODUCT_SKU = "SVC-DAMAGE";
+
+/**
+ * Nombre del producto de cargo por daños
+ */
+export const DAMAGE_PRODUCT_NAME = "Cargo por Daños";
+
+/**
+ * Descripción del producto de cargo por daños
+ */
+export const DAMAGE_PRODUCT_DESCRIPTION = "Cargos por daños o desperfectos en la habitación";
+
+/**
  * Tipos de concepto para items de venta
  */
 export const CONCEPT_TYPE = {
@@ -86,6 +103,7 @@ export const CONCEPT_TYPE = {
     EXTRA_HOUR: "EXTRA_HOUR",
     BASE_STAY: "BASE_STAY",
     CONSUMPTION: "CONSUMPTION",
+    DAMAGE_CHARGE: "DAMAGE_CHARGE",
 } as const;
 
 export type ConceptType = typeof CONCEPT_TYPE[keyof typeof CONCEPT_TYPE];

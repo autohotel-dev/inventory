@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Clock, RotateCcw, Zap } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { FOUR_HOUR_PROMO_PRICES } from "@/lib/constants/room-constants";
 import { Room } from "./room-types";
@@ -14,7 +15,7 @@ export interface RoomHourManagementModalProps {
     room: Room | null;
     actionLoading: boolean;
     onClose: () => void;
-    onConfirmCustomHours: (hours: number, payments: PaymentEntry[]) => Promise<void>;
+    onConfirmCustomHours: (hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => Promise<void>;
     onConfirmRenew: (payments: PaymentEntry[]) => Promise<void>;
     onConfirmPromo4H: (payments: PaymentEntry[]) => Promise<void>;
 }
@@ -32,6 +33,8 @@ export function RoomHourManagementModal({
 }: RoomHourManagementModalProps) {
     const [selectedOption, setSelectedOption] = useState<SelectedOption>(null);
     const [customHours, setCustomHours] = useState<string>("1");
+    const [isCourtesy, setIsCourtesy] = useState<boolean>(false);
+    const [courtesyReason, setCourtesyReason] = useState<string>("");
     const [payments, setPayments] = useState<PaymentEntry[]>([]);
 
     // Calcular precio según opción seleccionada
@@ -41,6 +44,7 @@ export function RoomHourManagementModal({
         switch (selectedOption) {
             case "custom": {
                 const hours = parseInt(customHours) || 0;
+                if (isCourtesy) return 0;
                 const pricePerHour = room.room_types.extra_hour_price || 0;
                 return hours * pricePerHour;
             }
@@ -69,6 +73,8 @@ export function RoomHourManagementModal({
         if (isOpen) {
             setSelectedOption(null);
             setCustomHours("1");
+            setIsCourtesy(false);
+            setCourtesyReason("");
             setPayments([]);
         }
     }, [isOpen]);
@@ -84,7 +90,7 @@ export function RoomHourManagementModal({
                 if (hours <= 0) {
                     return;
                 }
-                await onConfirmCustomHours(hours, payments);
+                await onConfirmCustomHours(hours, payments, isCourtesy, courtesyReason);
                 break;
             }
             case "renew":
@@ -140,8 +146,8 @@ export function RoomHourManagementModal({
                         {/* Opción 1: Horas Personalizadas */}
                         <div
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOption === "custom"
-                                    ? "border-pink-500 bg-pink-500/10"
-                                    : "border-border hover:border-pink-500/50"
+                                ? "border-pink-500 bg-pink-500/10"
+                                : "border-border hover:border-pink-500/50"
                                 }`}
                             onClick={() => setSelectedOption("custom")}
                         >
@@ -164,9 +170,35 @@ export function RoomHourManagementModal({
                                                     className="w-24"
                                                     placeholder="Horas"
                                                 />
-                                                <span className="text-sm text-muted-foreground">
-                                                    × ${room.room_types?.extra_hour_price?.toFixed(2)} = ${totalPrice.toFixed(2)}
-                                                </span>
+                                                {!isCourtesy && (
+                                                    <span className="text-sm text-muted-foreground">
+                                                        × ${room.room_types?.extra_hour_price?.toFixed(2)} = ${totalPrice.toFixed(2)}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="pt-2 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <Label htmlFor="courtesy-mode" className="text-sm">Es hora de cortesía</Label>
+                                                    <Switch
+                                                        id="courtesy-mode"
+                                                        checked={isCourtesy}
+                                                        onCheckedChange={setIsCourtesy}
+                                                    />
+                                                </div>
+
+                                                {isCourtesy && (
+                                                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                                                        <Label htmlFor="courtesy-reason" className="text-xs">Razón</Label>
+                                                        <Input
+                                                            id="courtesy-reason"
+                                                            placeholder="Ej. Compensación por demora..."
+                                                            value={courtesyReason}
+                                                            onChange={(e) => setCourtesyReason(e.target.value)}
+                                                            className="h-8 text-sm"
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}
@@ -177,8 +209,8 @@ export function RoomHourManagementModal({
                         {/* Opción 2: Renovar */}
                         <div
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOption === "renew"
-                                    ? "border-blue-500 bg-blue-500/10"
-                                    : "border-border hover:border-blue-500/50"
+                                ? "border-blue-500 bg-blue-500/10"
+                                : "border-border hover:border-blue-500/50"
                                 }`}
                             onClick={() => setSelectedOption("renew")}
                         >
@@ -201,8 +233,8 @@ export function RoomHourManagementModal({
                         {/* Opción 3: Promoción 4 Horas */}
                         <div
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOption === "promo4h"
-                                    ? "border-amber-500 bg-amber-500/10"
-                                    : "border-border hover:border-amber-500/50"
+                                ? "border-amber-500 bg-amber-500/10"
+                                : "border-border hover:border-amber-500/50"
                                 }`}
                             onClick={() => setSelectedOption("promo4h")}
                         >

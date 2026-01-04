@@ -7,6 +7,9 @@ import {
     SERVICE_PRODUCT_SKU,
     SERVICE_PRODUCT_NAME,
     SERVICE_PRODUCT_DESCRIPTION,
+    DAMAGE_PRODUCT_SKU,
+    DAMAGE_PRODUCT_NAME,
+    DAMAGE_PRODUCT_DESCRIPTION
 } from "@/lib/constants/payment-constants";
 import { logger } from "@/lib/utils/logger";
 
@@ -60,8 +63,108 @@ export async function getOrCreateServiceProduct(): Promise<Result<string>> {
         logger.info("Service product created", { productId: newProduct.id });
         return success(newProduct.id);
     } catch (error) {
-        logger.error("Unexpected error in getOrCreateServiceProduct", error);
         return failure("Error inesperado con producto de servicio", "PRODUCT_EXCEPTION");
+    }
+}
+
+/**
+ * Obtiene o crea el producto de cargo por daños
+ * @returns Resultado con el ID del producto de daño
+ */
+export async function getOrCreateDamageProduct(): Promise<Result<string>> {
+    const supabase = createClient();
+
+    try {
+        const { data: existingProducts, error: fetchError } = await supabase
+            .from("products")
+            .select("id")
+            .eq("sku", DAMAGE_PRODUCT_SKU)
+            .limit(1);
+
+        if (fetchError) {
+            logger.error("Error fetching damage product", fetchError);
+            return failure("Error al buscar producto de daños", "PRODUCT_FETCH_ERROR");
+        }
+
+        if (existingProducts && existingProducts.length > 0) {
+            return success(existingProducts[0].id);
+        }
+
+        const { data: newProduct, error: createError } = await supabase
+            .from("products")
+            .insert({
+                name: DAMAGE_PRODUCT_NAME,
+                sku: DAMAGE_PRODUCT_SKU,
+                description: DAMAGE_PRODUCT_DESCRIPTION,
+                price: 0,
+                cost: 0,
+                unit: "SVC",
+                min_stock: 0,
+                is_active: true,
+            })
+            .select("id")
+            .single();
+
+        if (createError || !newProduct) {
+            logger.error("Error creating damage product", createError);
+            return failure("Error al crear producto de daños", "PRODUCT_CREATE_ERROR");
+        }
+
+        logger.info("Damage product created", { productId: newProduct.id });
+        return success(newProduct.id);
+    } catch (error) {
+        logger.error("Unexpected error in getOrCreateDamageProduct", error);
+        return failure("Error inesperado con producto de daños", "PRODUCT_EXCEPTION");
+    }
+}
+
+/**
+ * Crea un item de venta para un cargo por daños
+ */
+export async function createDamageItem(
+    salesOrderId: string,
+    amount: number,
+    description: string,
+    qty: number = 1
+): Promise<Result<boolean>> {
+    const supabase = createClient();
+
+    try {
+        const productResult = await getOrCreateDamageProduct();
+        if (!productResult.success) {
+            return failure(productResult.error, productResult.code);
+        }
+
+        const damageProductId = productResult.data;
+
+        // Usamos el campo 'courtesy_reason' para guardar la descripción del daño por ahora,
+        // o 'notes' si existiera en sales_order_items (no recuerdo si existe, usaré courtesy_reason como descripción auxiliar o concept_type)
+        // Mejor: concept_type='DAMAGE_CHARGE' y la descripción podría ir en 'courtesy_reason' (aunque semánticamente raro, es un campo de texto libre)
+        // O podría concatenarse en el nombre del producto si fuera dinámico, pero el producto es fijo.
+        // sales_order_items NO tiene campo 'description' o 'notes'.
+        // Usaré 'courtesy_reason' como campo para guardar la descripción del daño, ya que es TEXT y nullable.
+        // Y pondré is_courtesy=false.
+
+        const { error } = await supabase.from("sales_order_items").insert({
+            sales_order_id: salesOrderId,
+            product_id: damageProductId,
+            qty,
+            unit_price: amount, // El precio es el monto del daño
+            concept_type: "DAMAGE_CHARGE",
+            is_paid: false,
+            courtesy_reason: description, // Guardamos la descripción del daño aquí
+            is_courtesy: false
+        });
+
+        if (error) {
+            logger.error("Error creating damage item", { salesOrderId, error });
+            return failure("Error al crear cargo por daño", "ITEM_CREATE_ERROR");
+        }
+
+        return success(true);
+    } catch (error) {
+        logger.error("Unexpected error creating damage item", error);
+        return failure("Error inesperado al crear daño", "ITEM_CREATE_EXCEPTION");
     }
 }
 
@@ -77,7 +180,9 @@ export async function createServiceItem(
     salesOrderId: string,
     unitPrice: number,
     conceptType: string,
-    qty: number = 1
+    qty: number = 1,
+    isCourtesy: boolean = false,
+    courtesyReason: string = ""
 ): Promise<Result<boolean>> {
     const supabase = createClient();
 
@@ -95,9 +200,12 @@ export async function createServiceItem(
             sales_order_id: salesOrderId,
             product_id: serviceProductId,
             qty,
-            unit_price: unitPrice,
+            unit_price: isCourtesy ? 0 : unitPrice,
             concept_type: conceptType,
-            is_paid: false,
+            is_paid: isCourtesy ? true : false, // Cortesías se marcan como pagadas (o equivalentes)
+            is_courtesy: isCourtesy,
+            courtesy_reason: isCourtesy ? courtesyReason : null,
+            payment_method: isCourtesy ? 'CORTESIA' : null
         });
 
         if (error) {

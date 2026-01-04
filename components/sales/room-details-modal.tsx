@@ -29,6 +29,8 @@ interface SalesOrderItem {
     name: string;
     sku: string;
   } | null;
+  is_courtesy?: boolean;
+  courtesy_reason?: string | null;
 }
 
 interface SalesOrder {
@@ -99,7 +101,7 @@ export function RoomDetailsModal({
     if (paymentsData) setPayments(paymentsData);
     if (itemsData) setItems(itemsData as unknown as SalesOrderItem[]);
     if (orderData) setSalesOrder(orderData);
-    
+
     setLoading(false);
   };
 
@@ -130,11 +132,11 @@ export function RoomDetailsModal({
 
   const formatDateTime = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleString("es-MX", { 
+    return date.toLocaleString("es-MX", {
       day: "2-digit",
       month: "short",
-      hour: "2-digit", 
-      minute: "2-digit" 
+      hour: "2-digit",
+      minute: "2-digit"
     });
   };
 
@@ -191,11 +193,10 @@ export function RoomDetailsModal({
               </div>
               <div>
                 <p className="text-xs text-slate-500">Estado</p>
-                <Badge variant="outline" className={`mt-1 ${
-                  salesOrder.status === 'COMPLETED' ? 'border-emerald-500 text-emerald-400' :
-                  salesOrder.status === 'OPEN' ? 'border-blue-500 text-blue-400' :
-                  'border-amber-500 text-amber-400'
-                }`}>
+                <Badge variant="outline" className={`mt-1 ${salesOrder.status === 'COMPLETED' ? 'border-emerald-500 text-emerald-400' :
+                    salesOrder.status === 'OPEN' ? 'border-blue-500 text-blue-400' :
+                      'border-amber-500 text-amber-400'
+                  }`}>
                   {salesOrder.status}
                 </Badge>
               </div>
@@ -244,7 +245,7 @@ export function RoomDetailsModal({
                   {(() => {
                     // Agrupar pagos: principales (sin parent) y subpagos
                     const mainPayments = payments.filter(p => !p.parent_payment_id);
-                    const getSubpayments = (parentId: string) => 
+                    const getSubpayments = (parentId: string) =>
                       payments.filter(p => p.parent_payment_id === parentId);
 
                     return (
@@ -265,13 +266,12 @@ export function RoomDetailsModal({
                                     <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-300">
                                       {getConceptLabel(payment.concept)}
                                     </Badge>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={`text-[10px] ${
-                                        payment.status === "PAGADO" 
-                                          ? "border-emerald-500/50 text-emerald-400" 
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] ${payment.status === "PAGADO"
+                                          ? "border-emerald-500/50 text-emerald-400"
                                           : "border-amber-500/50 text-amber-400"
-                                      }`}
+                                        }`}
                                     >
                                       {payment.status}
                                     </Badge>
@@ -302,11 +302,10 @@ export function RoomDetailsModal({
                               {hasSubpayments && (
                                 <div className="border-t border-slate-700">
                                   {subpayments.map((sub, idx) => (
-                                    <div 
-                                      key={sub.id} 
-                                      className={`px-3 py-2 flex items-center justify-between text-sm ${
-                                        idx !== subpayments.length - 1 ? 'border-b border-slate-800' : ''
-                                      }`}
+                                    <div
+                                      key={sub.id}
+                                      className={`px-3 py-2 flex items-center justify-between text-sm ${idx !== subpayments.length - 1 ? 'border-b border-slate-800' : ''
+                                        }`}
                                     >
                                       <div className="flex items-center gap-2 pl-4">
                                         <span className="text-slate-500">└</span>

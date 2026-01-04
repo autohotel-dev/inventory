@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import {
@@ -35,6 +37,8 @@ interface Product {
 interface CartItem {
   product: Product;
   qty: number;
+  is_courtesy?: boolean;
+  courtesy_reason?: string;
 }
 
 interface AddConsumptionModalProps {
@@ -66,6 +70,8 @@ export function AddConsumptionModal({
   const [selectedRow, setSelectedRow] = useState<number>(-1);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState<number>(1);
+  const [editIsCourtesy, setEditIsCourtesy] = useState<boolean>(false);
+  const [editCourtesyReason, setEditCourtesyReason] = useState<string>("");
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
@@ -316,7 +322,7 @@ export function AddConsumptionModal({
       if (existing) {
         newCart.set(product.id, { ...existing, qty: existing.qty + 1 });
       } else {
-        newCart.set(product.id, { product, qty: 1 });
+        newCart.set(product.id, { product, qty: 1, is_courtesy: false, courtesy_reason: "" });
       }
       return newCart;
     });
@@ -333,29 +339,35 @@ export function AddConsumptionModal({
     ensureFocus();
   };
 
-  const updateCartQty = (productId: string, qty: number) => {
-    if (qty <= 0) {
-      removeFromCart(productId);
-    } else {
-      setCartItems(prev => {
-        const newCart = new Map(prev);
-        const existing = newCart.get(productId);
-        if (existing) {
-          newCart.set(productId, { ...existing, qty });
+  const updateCartItem = (productId: string, updates: Partial<CartItem>) => {
+    setCartItems(prev => {
+      const newCart = new Map(prev);
+      const existing = newCart.get(productId);
+      if (existing) {
+        newCart.set(productId, { ...existing, ...updates });
+        // Si cantidad es 0, borrar
+        if ((updates.qty !== undefined && updates.qty <= 0)) {
+          newCart.delete(productId);
         }
-        return newCart;
-      });
-    }
+      }
+      return newCart;
+    });
   };
 
   const openEditQty = (item: CartItem) => {
     setEditingItemId(item.product.id);
     setEditQty(item.qty);
+    setEditIsCourtesy(item.is_courtesy || false);
+    setEditCourtesyReason(item.courtesy_reason || "");
   };
 
   const confirmEditQty = () => {
     if (editingItemId) {
-      updateCartQty(editingItemId, editQty);
+      updateCartItem(editingItemId, {
+        qty: editQty,
+        is_courtesy: editIsCourtesy,
+        courtesy_reason: editCourtesyReason
+      });
       setEditingItemId(null);
       playClick();
       ensureFocus();
@@ -392,8 +404,9 @@ export function AddConsumptionModal({
   const { totalAmount, totalItems } = useMemo(() => {
     let amount = 0;
     let items = 0;
-    cartItems.forEach(({ product, qty }) => {
-      amount += product.price * qty;
+    cartItems.forEach(({ product, qty, is_courtesy }) => {
+      const price = is_courtesy ? 0 : product.price;
+      amount += price * qty;
       items += qty;
     });
     return { totalAmount: amount, totalItems: items };
@@ -454,13 +467,15 @@ export function AddConsumptionModal({
       }
 
       // Insertar items en sales_order_items
-      const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty }) => ({
+      const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => ({
         sales_order_id: salesOrderId,
         product_id: product.id,
         qty,
-        unit_price: product.price,
+        unit_price: is_courtesy ? 0 : product.price,
         concept_type: "CONSUMPTION",
         is_paid: false,
+        is_courtesy: is_courtesy || false,
+        courtesy_reason: courtesy_reason || null
       }));
 
       const { error: itemsError } = await supabase
@@ -802,7 +817,7 @@ export function AddConsumptionModal({
             className="bg-background border border-border rounded-xl shadow-2xl p-6 w-80"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-4">Editar Cantidad</h3>
+            <h3 className="text-lg font-semibold mb-4">Editar Producto</h3>
             <p className="text-sm text-muted-foreground mb-4">
               {cartItems.get(editingItemId)?.product.name}
             </p>
@@ -838,6 +853,32 @@ export function AddConsumptionModal({
               >
                 <Plus className="h-5 w-5" />
               </Button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center justify-between space-x-2">
+                <Label htmlFor="courtesy-mode" className="flex flex-col space-y-1">
+                  <span>Es Cortesía</span>
+                  <span className="font-normal text-xs text-muted-foreground">Marcar como gratuito</span>
+                </Label>
+                <Switch
+                  id="courtesy-mode"
+                  checked={editIsCourtesy}
+                  onCheckedChange={setEditIsCourtesy}
+                />
+              </div>
+
+              {editIsCourtesy && (
+                <div className="space-y-2">
+                  <Label htmlFor="courtesy-reason">Razón</Label>
+                  <Input
+                    id="courtesy-reason"
+                    placeholder="Ej. Compensación..."
+                    value={editCourtesyReason}
+                    onChange={(e) => setEditCourtesyReason(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <Button

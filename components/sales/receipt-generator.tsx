@@ -23,6 +23,7 @@ interface ReceiptPayment {
   payment_method: string;
   reference: string;
   created_at: string;
+  tip_amount?: number;
 }
 
 interface ReceiptData {
@@ -77,7 +78,7 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
       // Obtener pagos
       const { data: payments } = await supabase
         .from("payments")
-        .select("id, amount, payment_method, reference, created_at")
+        .select("id, amount, payment_method, reference, created_at, tip_amount")
         .eq("sales_order_id", orderId)
         .order("created_at", { ascending: true });
 
@@ -180,9 +181,9 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
           ${receiptData.items.map(item => `
             <div class="item">
               <div class="item-name">
-                ${item.concept_type && item.concept_type !== 'PRODUCT' 
-                  ? conceptLabels[item.concept_type] 
-                  : item.products?.name || 'Producto'}
+                ${item.concept_type && item.concept_type !== 'PRODUCT'
+        ? conceptLabels[item.concept_type]
+        : item.products?.name || 'Producto'}
               </div>
               <div class="item-details">
                 <span>${item.qty} x ${formatCurrency(item.unit_price)}</span>
@@ -198,9 +199,20 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
             <span>Subtotal:</span>
             <span>${formatCurrency(receiptData.order.total)}</span>
           </div>
+            <span>${formatCurrency(receiptData.order.total)}</span>
+          </div>
+          ${(() => {
+        const totalTips = receiptData.payments.reduce((sum, p) => sum + (p.tip_amount || 0), 0);
+        return totalTips > 0 ? `
+              <div class="total-row">
+                <span>Propina:</span>
+                <span>${formatCurrency(totalTips)}</span>
+              </div>
+            ` : "";
+      })()}
           <div class="total-row">
             <span>Pagado:</span>
-            <span>${formatCurrency(receiptData.order.paid_amount || 0)}</span>
+            <span>${formatCurrency(receiptData.payments.reduce((sum, p) => sum + p.amount, 0))}</span>
           </div>
           <div class="total-row grand">
             <span>Saldo:</span>
@@ -308,11 +320,10 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
                   </div>
                 </div>
 
-                <div className={`text-center mt-3 py-1 rounded ${
-                  receiptData.order.remaining_amount <= 0 
-                    ? "bg-green-100 text-green-800" 
+                <div className={`text-center mt-3 py-1 rounded ${receiptData.order.remaining_amount <= 0
+                    ? "bg-green-100 text-green-800"
                     : "bg-amber-100 text-amber-800"
-                }`}>
+                  }`}>
                   {receiptData.order.remaining_amount <= 0 ? "✓ PAGADO" : "⏳ PENDIENTE"}
                 </div>
               </div>
