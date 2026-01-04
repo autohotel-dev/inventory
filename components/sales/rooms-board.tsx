@@ -297,6 +297,7 @@ function RoomsBoardInternal() {
         { event: '*', schema: 'public', table: 'rooms' },
         (payload: any) => {
           console.log("Realtime change received (rooms):", payload.eventType);
+          toast.success("🔄 Sincronizando: Cambios en Habitaciones detected");
           fetchRooms(true);
         }
       )
@@ -305,6 +306,7 @@ function RoomsBoardInternal() {
         { event: '*', schema: 'public', table: 'room_stays' },
         (payload: any) => {
           console.log("Realtime change received (room_stays):", payload.eventType);
+          toast.success("🔄 Sincronizando: Cambios en Estancias detected");
           fetchRooms(true);
         }
       )
@@ -312,12 +314,18 @@ function RoomsBoardInternal() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payments' },
         (payload: any) => {
-          // Si hay pagos (ej. valet confirma pago), actualizar
           console.log("Realtime change received (payments):", payload.eventType);
+          toast.success("🔄 Sincronizando: Pagos detectados");
           fetchRooms(true); // Para actualizar badges o estados que dependan de pagos (como sales_order.remaining)
         }
       )
-      .subscribe();
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          toast.success("🟢 Conexión en tiempo real ACTIVADA");
+        } else if (status === 'CHANNEL_ERROR') {
+          toast.error("🔴 Error de conexión en tiempo real");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -1830,6 +1838,8 @@ function RoomsBoardInternal() {
             const activeStay = getActiveStay(selectedRoom);
             if (activeStay) {
               await requestVehicle(activeStay.id);
+              setShowCheckoutModal(false);
+              toast.success("Solicitud enviada al cochero");
             }
           }
         }}
