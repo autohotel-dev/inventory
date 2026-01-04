@@ -297,6 +297,7 @@ export interface UseRoomActionsReturn {
     checkoutValetId?: string | null
   ) => Promise<boolean>;
   requestVehicle: (stayId: string) => Promise<boolean>;
+  handleAuthorizeValetCheckout: (room: Room) => Promise<boolean>;
 }
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
@@ -1553,6 +1554,35 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     }
   };
 
+  const handleAuthorizeValetCheckout = async (room: Room): Promise<boolean> => {
+    setActionLoading(true);
+    const supabase = createClient();
+    try {
+      const activeStay = getActiveStay(room);
+      if (!activeStay) throw new Error("No hay estancia activa");
+
+      // 1. Autorizar la salida poniendo vehicle_requested_at
+      const { error } = await supabase
+        .from('room_stays')
+        .update({
+          vehicle_requested_at: new Date().toISOString()
+        })
+        .eq('id', activeStay.id);
+
+      if (error) throw error;
+
+      toast.success("Salida autorizada ✅");
+      await onRefresh();
+      return true;
+    } catch (error) {
+      console.error("Error authorizing valet checkout:", error);
+      toast.error("Error al autorizar la salida");
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return {
     actionLoading,
     handleAddPerson,
@@ -1567,5 +1597,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     prepareCheckout,
     processCheckout,
     requestVehicle,
+    handleAuthorizeValetCheckout,
   };
 }

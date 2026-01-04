@@ -348,6 +348,7 @@ function RoomsBoardInternal() {
     processCheckout,
     requestVehicle,
     handleAddDamageCharge,
+    handleAuthorizeValetCheckout,
   } = useRoomActions(async () => await fetchRooms(true));
 
   // Abrir modal de checkout usando el hook
@@ -498,7 +499,10 @@ function RoomsBoardInternal() {
 
       const { error } = await supabase
         .from("room_stays")
-        .update({ checkout_valet_employee_id: currentEmployeeId })
+        .update({
+          valet_checkout_requested_at: new Date().toISOString(),
+          valet_employee_id: currentEmployeeId // Asegurar que el valet que notifica se asigne si no lo estaba
+        })
         .eq("id", activeStay.id);
 
       if (error) throw error;
@@ -1762,7 +1766,8 @@ function RoomsBoardInternal() {
               const vehicleStatus = {
                 hasVehicle: !!activeStay?.vehicle_plate,
                 isReady: !!activeStay?.checkout_valet_employee_id,
-                plate: activeStay?.vehicle_plate || undefined
+                plate: activeStay?.vehicle_plate || undefined,
+                isWaitingAuthorization: !!activeStay?.valet_checkout_requested_at && !activeStay?.vehicle_requested_at
               };
 
               return (
@@ -1965,6 +1970,13 @@ function RoomsBoardInternal() {
         isValet={isValet}
         hasValetAssigned={selectedRoom ? !!getActiveStay(selectedRoom)?.valet_employee_id : false}
         hasVehicleRegistered={selectedRoom ? !!getActiveStay(selectedRoom)?.vehicle_plate : false}
+        hasValetCheckoutRequest={selectedRoom ? !!getActiveStay(selectedRoom)?.valet_checkout_requested_at : false}
+        onAuthorizeValetCheckout={async () => {
+          if (selectedRoom) {
+            await handleAuthorizeValetCheckout(selectedRoom);
+            setShowActionsModal(false);
+          }
+        }}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}

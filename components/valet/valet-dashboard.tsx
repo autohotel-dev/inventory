@@ -64,7 +64,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
     useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
 
-    const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout } = useValetActions(fetchRooms);
+    const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout, handleProposeCheckout } = useValetActions(fetchRooms);
 
     // Suscripción en tiempo real
     useEffect(() => {
@@ -187,6 +187,10 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
             setShowCheckoutModal(false);
             setSelectedRoom(null);
         }
+    };
+
+    const handlePropose = async (room: Room) => {
+        await handleProposeCheckout(room, employeeId);
     };
 
     if (loading) {
@@ -357,6 +361,10 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                             <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 px-3 py-1.5 rounded-md text-sm font-bold flex items-center justify-center gap-2 animate-pulse mb-2 border border-red-200 dark:border-red-800">
                                                 🚨 SALIDA SOLICITADA - REVISAR HABITACIÓN 🚨
                                             </div>
+                                        ) : stay?.valet_checkout_requested_at ? (
+                                            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center justify-center gap-2 mb-2 border border-amber-200 dark:border-amber-800 animate-pulse">
+                                                ⏳ AVISO ENVIADO - ESPERANDO AUTORIZACIÓN
+                                            </div>
                                         ) : (
                                             <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-2 mb-2 border border-green-200 dark:border-green-800">
                                                 <CheckCircle2 className="h-3 w-3" />
@@ -381,13 +389,35 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                             </div>
                                         </div>
 
-                                        <Button
-                                            onClick={() => handleOpenCheckout(room)}
-                                            className={`w-full h-auto min-h-[48px] text-base whitespace-normal py-2 ${isRequested ? "bg-red-600 hover:bg-red-700 text-white" : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"}`}
-                                        >
-                                            <LogOut className="h-5 w-5 mr-2 shrink-0" />
-                                            {isRequested ? "Revisar y Entregar (PRIORIDAD)" : "Revisar / Entregar Auto"}
-                                        </Button>
+                                        {isRequested ? (
+                                            <Button
+                                                onClick={() => handleOpenCheckout(room)}
+                                                className="w-full h-auto min-h-[48px] text-base whitespace-normal py-2 bg-red-600 hover:bg-red-700 text-white"
+                                            >
+                                                <LogOut className="h-5 w-5 mr-2 shrink-0" />
+                                                Revisar y Entregar (PRIORIDAD)
+                                            </Button>
+                                        ) : (
+                                            <div className="flex flex-col gap-2">
+                                                <Button
+                                                    onClick={() => handleOpenCheckout(room)}
+                                                    variant="secondary"
+                                                    className="w-full h-auto min-h-[40px] text-sm whitespace-normal py-2"
+                                                >
+                                                    <LogOut className="h-4 w-4 mr-2" />
+                                                    Revisar / Entregar Auto
+                                                </Button>
+                                                <Button
+                                                    onClick={() => handlePropose(room)}
+                                                    disabled={!!stay?.valet_checkout_requested_at || actionLoading}
+                                                    variant="outline"
+                                                    className="w-full h-auto min-h-[40px] text-sm whitespace-normal py-2 border-amber-500/50 hover:bg-amber-500/10 text-amber-500"
+                                                >
+                                                    <Clock className="h-4 w-4 mr-2" />
+                                                    {stay?.valet_checkout_requested_at ? "Aviso enviado" : "Notificar Salida (Cochero)"}
+                                                </Button>
+                                            </div>
+                                        )}
                                     </Card>
                                 );
                             })}

@@ -162,9 +162,53 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         }
     };
 
+    /**
+     * Proponer salida (desde el cochero)
+     * 
+     * Flujo:
+     * 1. Registrar timestamp de propuesta
+     * 2. Notificar a recepción para autorización
+     */
+    const handleProposeCheckout = async (room: Room, valetId: string) => {
+        setLoading(true);
+        const supabase = createClient();
+
+        try {
+            const activeStay = room.room_stays?.find(s => s.status === 'ACTIVA');
+            if (!activeStay) {
+                toast.error('No se encontró estancia activa');
+                return false;
+            }
+
+            const { error } = await supabase
+                .from('room_stays')
+                .update({
+                    valet_checkout_requested_at: new Date().toISOString(),
+                    valet_employee_id: activeStay.valet_employee_id || valetId
+                })
+                .eq('id', activeStay.id);
+
+            if (error) throw error;
+
+            toast.success('✅ Salida notificada', {
+                description: `Hab. ${room.number}: Esperando autorización de recepción`
+            });
+
+            await onRefresh();
+            return true;
+        } catch (error) {
+            console.error('Error proposing checkout:', error);
+            toast.error('Error al notificar la salida');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         loading,
         handleRegisterVehicleAndPayment,
-        handleConfirmCheckout
+        handleConfirmCheckout,
+        handleProposeCheckout
     };
 }

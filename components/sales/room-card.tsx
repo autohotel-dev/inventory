@@ -54,6 +54,7 @@ export interface RoomCardProps {
     hasVehicle: boolean;
     isReady: boolean;
     plate?: string;
+    isWaitingAuthorization?: boolean;
   } | null;
   onInfo: () => void;
   onActions: () => void;
@@ -95,6 +96,13 @@ export function RoomCard({
       {isDoorOpen && (
         <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-30 animate-bounce">
           ¡PUERTA ABIERTA!
+        </div>
+      )}
+
+      {/* Indicador de Valet solicitando salida (Notificación del cochero) */}
+      {vehicleStatus?.isWaitingAuthorization && !isDoorOpen && (
+        <div className="absolute -top-2 -left-2 bg-amber-600 text-white p-1 rounded-md shadow-lg border border-amber-400 z-30 animate-pulse" title="Valet avisa que el cliente está saliendo">
+          <Car className="h-3.5 w-3.5" />
         </div>
       )}
 
