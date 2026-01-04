@@ -123,7 +123,7 @@ function IncomeReportContent() {
         }
 
         if (closedShifts) {
-            allShifts = [...allShifts, ...closedShifts.map(s => {
+            allShifts = [...allShifts, ...closedShifts.map((s: any) => {
                 // Extraer nombre del empleado de la relación
                 const emp = s.employees as any;
                 const empName = emp ? `${emp.first_name} ${emp.last_name}` : null;
@@ -152,7 +152,7 @@ function IncomeReportContent() {
             .select("number")
             .order("number");
 
-        if (data) setRooms(data.map(r => r.number));
+        if (data) setRooms(data.map((r: any) => r.number));
     };
 
     return (
