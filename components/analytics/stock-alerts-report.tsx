@@ -66,9 +66,9 @@ export function StockAlertsReport() {
             }
 
             // Procesar alertas
-            const stockAlerts: StockAlert[] = products.map(product => {
+            const stockAlerts: StockAlert[] = products.map((product: any) => {
                 const stockEntries = product.stock || [];
-                const current_stock = stockEntries.reduce((sum, s: any) => sum + (s.qty || 0), 0);
+                const current_stock = stockEntries.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
                 const min_stock = product.min_stock || 0;
                 const max_stock = product.max_stock || 0;
 
@@ -284,8 +284,8 @@ export function StockAlertsReport() {
                                 <div
                                     key={alert.product_id}
                                     className={`p-4 border rounded-lg ${alert.status === 'critical'
-                                            ? 'border-red-300 bg-red-50 dark:bg-red-950/20'
-                                            : 'border-orange-300 bg-orange-50 dark:bg-orange-950/20'
+                                        ? 'border-red-300 bg-red-50 dark:bg-red-950/20'
+                                        : 'border-orange-300 bg-orange-50 dark:bg-orange-950/20'
                                         }`}
                                 >
                                     <div className="flex items-start justify-between">

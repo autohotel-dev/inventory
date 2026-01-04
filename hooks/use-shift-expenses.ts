@@ -33,7 +33,7 @@ export function useShiftExpenses(sessionId: string | null) {
             const expensesList = data || [];
             setExpenses(expensesList);
 
-            const total = expensesList.reduce((sum, expense) => sum + Number(expense.amount), 0);
+            const total = expensesList.reduce((sum: number, expense: any) => sum + Number(expense.amount), 0);
             setTotalExpenses(total);
         } catch (error) {
             console.error('Error fetching expenses:', error);

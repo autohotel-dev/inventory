@@ -58,8 +58,8 @@ export function CancelStayModal({
           .eq("sales_order_id", salesOrderId);
 
         if (data) {
-          const paid = data.filter(p => p.status === 'PAGADO').reduce((sum, p) => sum + p.amount, 0);
-          const valet = data.filter(p => p.status === 'COBRADO_POR_VALET').reduce((sum, p) => sum + p.amount, 0);
+          const paid = data.filter((p: any) => p.status === 'PAGADO').reduce((sum: number, p: any) => sum + p.amount, 0);
+          const valet = data.filter((p: any) => p.status === 'COBRADO_POR_VALET').reduce((sum: number, p: any) => sum + p.amount, 0);
           setTotalPaid(paid);
           setValetPending(valet);
           setCustomRefund(Math.floor(paid / 2));

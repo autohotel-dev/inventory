@@ -100,7 +100,7 @@ export function useChatMessages() {
                     schema: 'public',
                     table: 'messages',
                 },
-                (payload) => {
+                (payload: any) => {
                     const newMessage = payload.new as ChatMessage;
                     setMessages(current => {
                         // Avoid duplicate if optimistic update already added it (check by ID)

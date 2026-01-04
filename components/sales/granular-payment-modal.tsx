@@ -278,10 +278,10 @@ export function GranularPaymentModal({
   };
 
   const selectedTotal = items
-    .filter(item => selectedItems.has(item.id))
-    .reduce((sum, item) => sum + getItemTotal(item), 0);
-  const pendingTotal = pendingItems.reduce((sum, item) => sum + getItemTotal(item), 0);
-  const totalDiscount = Object.values(discounts).reduce((sum, d) => sum + d, 0);
+    .filter((item: any) => selectedItems.has(item.id))
+    .reduce((sum: number, item: any) => sum + getItemTotal(item), 0);
+  const pendingTotal = pendingItems.reduce((sum: number, item: any) => sum + getItemTotal(item), 0);
+  const totalDiscount = Object.values(discounts).reduce((sum: number, d: any) => sum + d, 0);
 
   // Aplicar descuento a un item
   const applyDiscount = (itemId: string, discountAmount: number) => {
@@ -391,8 +391,8 @@ export function GranularPaymentModal({
         .select('total, is_paid')
         .eq('sales_order_id', salesOrderId);
 
-      const newSubtotal = remainingItems?.reduce((sum, i) => sum + (i.total || 0), 0) || 0;
-      const newRemaining = remainingItems?.filter(i => !i.is_paid).reduce((sum, i) => sum + (i.total || 0), 0) || 0;
+      const newSubtotal = remainingItems?.reduce((sum: number, i: any) => sum + (i.total || 0), 0) || 0;
+      const newRemaining = remainingItems?.filter((i: any) => !i.is_paid).reduce((sum: number, i: any) => sum + (i.total || 0), 0) || 0;
 
       await supabase
         .from('sales_orders')
@@ -423,7 +423,7 @@ export function GranularPaymentModal({
 
   // Procesar el pago
   const processPayment = async () => {
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
     const totalToPay = selectedTotal + tipAmount;
 
     // Permitir una pequeña diferencia por redondeo
@@ -626,7 +626,7 @@ export function GranularPaymentModal({
         .eq("sales_order_id", salesOrderId)
         .eq("is_paid", false);
 
-      const newRemaining = unpaidItems?.reduce((sum, item) => sum + (item.total || 0), 0) || 0;
+      const newRemaining = unpaidItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
 
       await supabase
         .from("sales_orders")
@@ -1095,7 +1095,7 @@ export function GranularPaymentModal({
               </Button>
               <Button
                 onClick={processPayment}
-                disabled={processing || Math.abs(payments.reduce((s, p) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
+                disabled={processing || Math.abs(payments.reduce((s: number, p: any) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
               >
                 {processing ? (
                   <>

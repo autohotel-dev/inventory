@@ -265,13 +265,13 @@ export function ReceptionistDashboard() {
 
       // Calcular totales
       const totalSales = sales?.length || 0;
-      const totalAmount = sales?.reduce((sum, s) => sum + (s.total || 0), 0) || 0;
+      const totalAmount = sales?.reduce((sum: number, s: any) => sum + (s.total || 0), 0) || 0;
 
       let cashAmount = 0;
       let cardBBVA = 0;
       let cardGetnet = 0;
 
-      payments?.forEach(p => {
+      payments?.forEach((p: any) => {
         if (p.payment_method === "EFECTIVO") {
           cashAmount += p.amount || 0;
         } else if (p.payment_method === "TARJETA_BBVA") {
@@ -281,10 +281,10 @@ export function ReceptionistDashboard() {
         }
       });
 
-      const completedCheckouts = sales?.filter(s => s.status === "COMPLETED" || s.status === "ENDED").length || 0;
+      const completedCheckouts = sales?.filter((s: any) => s.status === "COMPLETED" || s.status === "ENDED").length || 0;
 
       // Obtener desglose por concepto de items pagados
-      const salesIds = sales?.map(s => s.id) || [];
+      const salesIds = sales?.map((s: any) => s.id) || [];
       let conceptBreakdown = {
         ROOM_BASE: 0,
         EXTRA_HOUR: 0,

@@ -33,12 +33,12 @@ export function useChatPresence(
         });
 
         const updateState = () => {
-            const state = newChannel.presenceState<PresenceState>();
+            const state = newChannel.presenceState();
             const users: PresenceState[] = [];
 
             // Flatten state (Supabase returns object with keys per presence ref)
             for (const key in state) {
-                users.push(...state[key]);
+                users.push(...(state[key] as any));
             }
 
             // Deduplicate by user_id
@@ -51,7 +51,7 @@ export function useChatPresence(
             .on('presence', { event: 'sync' }, updateState)
             .on('presence', { event: 'join' }, updateState)
             .on('presence', { event: 'leave' }, updateState)
-            .subscribe(async (status) => {
+            .subscribe(async (status: any) => {
                 if (status === 'SUBSCRIBED') {
                     await newChannel.track({
                         user_id: currentUser.id,

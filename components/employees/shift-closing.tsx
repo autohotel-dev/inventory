@@ -147,7 +147,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       let total_card_bbva = 0;
       let total_card_getnet = 0;
 
-      (payments || []).forEach((payment) => {
+      (payments || []).forEach((payment: any) => {
         // Skip parent payments (multipago) to avoid double-counting
         if (payment.parent_payment_id) return;
 
@@ -190,8 +190,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       // Enriquecer pagos con detalles de items
       // Optimized: Get all sales_order_ids first, then fetch all items in ONE query
       const salesOrderIds = (payments || [])
-        .filter(p => p.sales_order_id)
-        .map(p => p.sales_order_id);
+        .filter((p: any) => p.sales_order_id)
+        .map((p: any) => p.sales_order_id);
 
       let allItems: any[] = [];
       if (salesOrderIds.length > 0) {
@@ -209,7 +209,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       }
 
       // Group items by sales_order_id
-      const itemsBySalesOrder = allItems.reduce((acc, item) => {
+      const itemsBySalesOrder = allItems.reduce((acc: any, item: any) => {
         if (!acc[item.sales_order_id]) {
           acc[item.sales_order_id] = [];
         }
@@ -218,7 +218,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       }, {} as Record<string, any[]>);
 
       // Enrich payments with their items
-      const enrichedPayments = (payments || []).map((payment) => {
+      const enrichedPayments = (payments || []).map((payment: any) => {
         if (!payment.sales_order_id) {
           return {
             ...payment,
@@ -294,7 +294,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         console.error("Error fetching expenses:", expensesError);
       }
 
-      const totalExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+      const totalExpenses = expenses?.reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
       const total_sales = total_cash + total_card_bbva + total_card_getnet;
 
       setSummary({
@@ -324,7 +324,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   // Calcular total contado basado en denominaciones
   useEffect(() => {
     let total = 0;
-    Object.entries(cashBreakdown).forEach(([denom, count]) => {
+    Object.entries(cashBreakdown).forEach(([denom, count]: [string, any]) => {
       total += parseFloat(denom) * (count || 0);
     });
     setCountedCash(total);
@@ -400,7 +400,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
       // Crear detalles del corte
       if (summary.payments.length > 0) {
-        const details = summary.payments.map((payment) => ({
+        const details = summary.payments.map((payment: any) => ({
           shift_closing_id: closing.id,
           payment_id: payment.id,
           sales_order_id: payment.sales_order_id,
@@ -467,7 +467,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         countedCash,
         cashDifference,
         notes: notes.trim() || undefined,
-        transactions: await Promise.all(summary.payments.map(async (payment) => {
+        transactions: await Promise.all(summary.payments.map(async (payment: any) => {
           // Si el pago tiene sales_order_id, buscar items
           let items: any[] = [];
           if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {
@@ -482,7 +482,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
               .not("paid_at", "is", null);
 
             const paymentTime = new Date(payment.created_at).getTime();
-            const relatedItems = (orderItems || []).filter(item => {
+            const relatedItems = (orderItems || []).filter((item: any) => {
               if (!item.paid_at) return false;
               const itemPaidTime = new Date(item.paid_at).getTime();
               const diffMinutes = Math.abs(paymentTime - itemPaidTime) / 1000 / 60;
@@ -497,7 +497,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
               PRODUCT: "Producto",
             };
 
-            items = relatedItems.map(item => {
+            items = relatedItems.map((item: any) => {
               const product = Array.isArray(item.products) ? item.products[0] : item.products;
               const name = product?.name || conceptLabels[item.concept_type || "PRODUCT"] || "Item";
               return {
@@ -842,7 +842,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                     Desglose de Ventas ({summary.salesOrders.length} órdenes)
                   </h3>
                   <Badge variant="outline" className="text-xs">
-                    Total: {formatCurrency(summary.salesOrders.reduce((sum, o) => sum + (o.total || 0), 0))}
+                    Total: {formatCurrency(summary.salesOrders.reduce((sum: number, o: any) => sum + (o.total || 0), 0))}
                   </Badge>
                 </div>
                 <div className="max-h-[400px] overflow-y-auto">
@@ -1274,7 +1274,7 @@ export function ShiftClosingHistory() {
 
   // Calcular total del arqueo de corrección
   const calculateCorrectionCashTotal = () => {
-    return Object.entries(correctionCashBreakdown).reduce((total, [denom, qty]) => {
+    return Object.entries(correctionCashBreakdown).reduce((total: number, [denom, qty]: [string, any]) => {
       return total + (parseFloat(denom) * (qty || 0));
     }, 0);
   };

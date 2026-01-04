@@ -81,7 +81,7 @@ export function AdvancedKardexView() {
       const movementCountMap = new Map();
 
       if (!movementsError && movementsData) {
-        movementsData.forEach(movement => {
+        movementsData.forEach((movement: any) => {
           if (!lastMovementMap.has(movement.product_id)) {
             lastMovementMap.set(movement.product_id, movement.created_at);
           }
@@ -371,7 +371,7 @@ export function AdvancedKardexView() {
                     // Exportar kardex (simplificado)
                     const csvContent = [
                       ['Fecha', 'Tipo', 'Cantidad', 'Razón', 'Almacén', 'Balance', 'Notas'].join(','),
-                      ...filteredEntries.map(entry => [
+                      ...filteredEntries.map((entry: any) => [
                         new Date(entry.created_at).toLocaleDateString(),
                         entry.movement_type,
                         entry.quantity,
@@ -448,7 +448,7 @@ export function AdvancedKardexView() {
 
                       <td className="p-4 text-right">
                         <div className={`font-medium ${entry.movement_type === 'IN' ? 'text-green-600' :
-                            entry.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
+                          entry.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
                           }`}>
                           {entry.movement_type === 'OUT' ? '-' : '+'}
                           {entry.quantity}

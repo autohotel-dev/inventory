@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Plus, 
-  Search, 
-  Users, 
-  Mail, 
-  Phone, 
+import {
+  Plus,
+  Search,
+  Users,
+  Mail,
+  Phone,
   MapPin,
   TrendingUp,
   DollarSign,
@@ -79,7 +79,7 @@ export function AdvancedCustomersTable() {
         if (statsError) throw statsError;
 
         // Combinar datos
-        const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
+        const enrichedCustomers: Customer[] = (customersData || []).map((customer: any) => {
           const stats = statsData?.find((s: any) => s.customer_id === customer.id);
 
           return {
@@ -97,7 +97,7 @@ export function AdvancedCustomersTable() {
       }
 
       // Usar datos de la vista directamente
-      const enrichedCustomers: Customer[] = (customersWithStats || []).map(customer => ({
+      const enrichedCustomers: Customer[] = (customersWithStats || []).map((customer: any) => ({
         id: customer.customer_id,
         name: customer.customer_name,
         email: customer.customer_email,
@@ -144,7 +144,7 @@ export function AdvancedCustomersTable() {
         .eq("id", customerId);
 
       if (error) throw error;
-      
+
       success("Cliente eliminado", "El cliente se eliminó correctamente");
       fetchCustomers();
     } catch (error) {
@@ -174,7 +174,7 @@ export function AdvancedCustomersTable() {
         if (error) throw error;
         success("Cliente creado", "El cliente se creó correctamente");
       }
-      
+
       setIsModalOpen(false);
       setEditingCustomer(null);
       fetchCustomers();
@@ -220,7 +220,7 @@ export function AdvancedCustomersTable() {
   const totalCustomers = customers.length;
   const activeCustomers = customers.filter(c => c.is_active).length;
   const vipCustomers = customers.filter(c => c.customer_type === 'vip').length;
-  const totalRevenue = customers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+  const totalRevenue = customers.reduce((sum: number, c: any) => sum + (c.total_spent || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -238,7 +238,7 @@ export function AdvancedCustomersTable() {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Clientes Activos</CardTitle>
@@ -251,7 +251,7 @@ export function AdvancedCustomersTable() {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Clientes VIP</CardTitle>
@@ -264,7 +264,7 @@ export function AdvancedCustomersTable() {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
@@ -291,7 +291,7 @@ export function AdvancedCustomersTable() {
               className="pl-10"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Button onClick={fetchCustomers} variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -334,8 +334,8 @@ export function AdvancedCustomersTable() {
           </div>
 
           <div className="flex items-end">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setSearch("");
                 setStatusFilter("");
@@ -384,7 +384,7 @@ export function AdvancedCustomersTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4">
                   <div className="space-y-1">
                     {(customer.customer_email || customer.email) && (
@@ -405,7 +405,7 @@ export function AdvancedCustomersTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="space-y-1">
                     <div className="font-medium">{customer.total_orders || 0} pedidos</div>
@@ -419,12 +419,12 @@ export function AdvancedCustomersTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
-                  <Badge 
+                  <Badge
                     variant={
                       customer.customer_type === 'vip' ? 'default' :
-                      customer.customer_type === 'regular' ? 'secondary' : 'outline'
+                        customer.customer_type === 'regular' ? 'secondary' : 'outline'
                     }
                   >
                     {customer.customer_type === 'vip' && '⭐ VIP'}
@@ -432,24 +432,24 @@ export function AdvancedCustomersTable() {
                     {customer.customer_type === 'new' && '🆕 Nuevo'}
                   </Badge>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <Badge variant={customer.is_active ? "default" : "secondary"}>
                     {customer.is_active ? "✅ Activo" : "❌ Inactivo"}
                   </Badge>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="flex justify-center gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleEdit(customer)}
                     >
                       Editar
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
                       onClick={() => {
                         if (confirm(`¿Estás seguro de eliminar "${customer.customer_name || customer.name}"?`)) {
@@ -459,8 +459,8 @@ export function AdvancedCustomersTable() {
                     >
                       Eliminar
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleViewSales(customer.id)}
                     >
@@ -477,14 +477,14 @@ export function AdvancedCustomersTable() {
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <div className="text-lg font-medium text-muted-foreground mb-2">
-              {customers.length === 0 
-                ? "No hay clientes registrados" 
+              {customers.length === 0
+                ? "No hay clientes registrados"
                 : "No se encontraron clientes"
               }
             </div>
             <div className="text-sm text-muted-foreground">
-              {customers.length === 0 
-                ? "Comienza agregando tu primer cliente" 
+              {customers.length === 0
+                ? "Comienza agregando tu primer cliente"
                 : "Intenta con otros términos de búsqueda"
               }
             </div>
@@ -518,7 +518,7 @@ export function AdvancedCustomersTable() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <CustomerForm
               customer={editingCustomer}
               onSave={handleSave}
@@ -532,11 +532,11 @@ export function AdvancedCustomersTable() {
 }
 
 // Formulario simple para clientes
-function CustomerForm({ 
-  customer, 
-  onSave, 
-  onCancel 
-}: { 
+function CustomerForm({
+  customer,
+  onSave,
+  onCancel
+}: {
   customer: Customer | null;
   onSave: (data: any) => void;
   onCancel: () => void;
@@ -561,7 +561,7 @@ function CustomerForm({
         <label className="block text-sm font-medium mb-1">Nombre *</label>
         <Input
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="Ej: Juan Pérez"
           required
         />
@@ -571,7 +571,7 @@ function CustomerForm({
         <label className="block text-sm font-medium mb-1">RFC/ID Fiscal</label>
         <Input
           value={formData.tax_id}
-          onChange={(e) => setFormData({...formData, tax_id: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
           placeholder="RFC o identificación fiscal"
         />
       </div>
@@ -581,7 +581,7 @@ function CustomerForm({
         <Input
           type="email"
           value={formData.email}
-          onChange={(e) => setFormData({...formData, email: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           placeholder="cliente@email.com"
         />
       </div>
@@ -591,7 +591,7 @@ function CustomerForm({
         <Input
           type="tel"
           value={formData.phone}
-          onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
           placeholder="+52 555 123 4567"
         />
       </div>
@@ -600,7 +600,7 @@ function CustomerForm({
         <label className="block text-sm font-medium mb-1">Dirección</label>
         <textarea
           value={formData.address}
-          onChange={(e) => setFormData({...formData, address: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           placeholder="Dirección completa del cliente"
           className="w-full px-3 py-2 border border-input rounded-md bg-background min-h-[80px] resize-none"
         />
@@ -611,7 +611,7 @@ function CustomerForm({
           type="checkbox"
           id="is_active"
           checked={formData.is_active}
-          onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+          onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
         />
         <label htmlFor="is_active" className="text-sm font-medium">Cliente activo</label>
       </div>

@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Download, 
-  FileSpreadsheet, 
-  FileText, 
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
   Database,
   Package,
   Warehouse,
@@ -45,11 +45,11 @@ export function ExportManager() {
   const exportData = async (options: ExportOptions) => {
     const supabase = createClient();
     setLoading(options.dataType);
-    
+
     try {
       let data: any[] = [];
       let filename = '';
-      
+
       switch (options.dataType) {
         case 'products':
           const { data: productsData } = await supabase
@@ -59,13 +59,13 @@ export function ExportManager() {
               category:categories(name),
               stock:stock(qty, warehouse:warehouses(name, code))
             `);
-          
-          data = (productsData || []).map(product => {
+
+          data = (productsData || []).map((product: any) => {
             const totalStock = product.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const stockByWarehouse = product.stock?.map((s: any) => 
+            const stockByWarehouse = product.stock?.map((s: any) =>
               `${s.warehouse?.name || 'N/A'}: ${s.qty || 0}`
             ).join('; ') || 'Sin stock';
-            
+
             return {
               'SKU': product.sku,
               'Nombre': product.name,
@@ -96,16 +96,16 @@ export function ExportManager() {
               warehouse:warehouses(name, code)
             `)
             .order("created_at", { ascending: false });
-          
-          data = (movementsData || []).map(movement => ({
+
+          data = (movementsData || []).map((movement: any) => ({
             'Fecha': new Date(movement.created_at).toLocaleDateString(),
             'Hora': new Date(movement.created_at).toLocaleTimeString(),
             'Producto': movement.product?.name || 'Producto eliminado',
             'SKU': movement.product?.sku || 'N/A',
             'Almacén': movement.warehouse?.name || 'Almacén eliminado',
             'Código Almacén': movement.warehouse?.code || 'N/A',
-            'Tipo': movement.movement_type === 'IN' ? 'Entrada' : 
-                   movement.movement_type === 'OUT' ? 'Salida' : 'Ajuste',
+            'Tipo': movement.movement_type === 'IN' ? 'Entrada' :
+              movement.movement_type === 'OUT' ? 'Salida' : 'Ajuste',
             'Cantidad': movement.quantity,
             'Razón': movement.reason,
             'Notas': movement.notes || ''
@@ -120,14 +120,14 @@ export function ExportManager() {
               *,
               stock:stock(qty, product:products(name, price))
             `);
-          
-          data = (warehousesData || []).map(warehouse => {
+
+          data = (warehousesData || []).map((warehouse: any) => {
             const totalProducts = warehouse.stock?.length || 0;
             const totalStock = warehouse.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const totalValue = warehouse.stock?.reduce((sum: number, s: any) => 
+            const totalValue = warehouse.stock?.reduce((sum: number, s: any) =>
               sum + ((s.qty || 0) * (s.product?.price || 0)), 0
             ) || 0;
-            
+
             return {
               'Código': warehouse.code,
               'Nombre': warehouse.name,
@@ -147,8 +147,8 @@ export function ExportManager() {
           const { data: suppliersData } = await supabase
             .from("suppliers")
             .select("*");
-          
-          data = (suppliersData || []).map(supplier => ({
+
+          data = (suppliersData || []).map((supplier: any) => ({
             'Nombre': supplier.name,
             'Email': supplier.email || '',
             'Teléfono': supplier.phone || '',
@@ -168,24 +168,24 @@ export function ExportManager() {
               category:categories(name),
               stock:stock(qty)
             `);
-          
+
           const { data: analyticsMovements } = await supabase
             .from("inventory_movements")
             .select("*")
             .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-          
+
           const totalProducts = analyticsProducts?.length || 0;
-          const totalValue = analyticsProducts?.reduce((sum, p) => {
+          const totalValue = analyticsProducts?.reduce((sum: number, p: any) => {
             const stock = p.stock?.reduce((s: number, st: any) => s + (st.qty || 0), 0) || 0;
             return sum + (stock * p.price);
           }, 0) || 0;
-          
+
           const movementsByType = {
-            IN: analyticsMovements?.filter(m => m.movement_type === 'IN').length || 0,
-            OUT: analyticsMovements?.filter(m => m.movement_type === 'OUT').length || 0,
-            ADJUSTMENT: analyticsMovements?.filter(m => m.movement_type === 'ADJUSTMENT').length || 0
+            IN: analyticsMovements?.filter((m: any) => m.movement_type === 'IN').length || 0,
+            OUT: analyticsMovements?.filter((m: any) => m.movement_type === 'OUT').length || 0,
+            ADJUSTMENT: analyticsMovements?.filter((m: any) => m.movement_type === 'ADJUSTMENT').length || 0
           };
-          
+
           data = [{
             'Fecha Reporte': new Date().toLocaleDateString(),
             'Total Productos': totalProducts,
@@ -194,8 +194,8 @@ export function ExportManager() {
             'Entradas (30 días)': movementsByType.IN,
             'Salidas (30 días)': movementsByType.OUT,
             'Ajustes (30 días)': movementsByType.ADJUSTMENT,
-            'Productos Activos': analyticsProducts?.filter(p => p.is_active).length || 0,
-            'Productos Inactivos': analyticsProducts?.filter(p => !p.is_active).length || 0
+            'Productos Activos': analyticsProducts?.filter((p: any) => p.is_active).length || 0,
+            'Productos Inactivos': analyticsProducts?.filter((p: any) => !p.is_active).length || 0
           }];
           filename = `reporte_analytics_${new Date().toISOString().split('T')[0]}`;
           break;
@@ -209,9 +209,9 @@ export function ExportManager() {
       } else if (options.format === 'pdf') {
         downloadPDF(data, filename, options.dataType);
       }
-      
+
       success("Exportación completada", `Archivo ${filename}.${options.format} descargado`);
-      
+
     } catch (error) {
       console.error("Error exporting data:", error);
       showError("Error", "No se pudo exportar los datos");
@@ -222,12 +222,12 @@ export function ExportManager() {
 
   const downloadCSV = (data: any[], filename: string) => {
     if (data.length === 0) return;
-    
+
     const headers = Object.keys(data[0]);
     const csvContent = [
       headers.join(','),
-      ...data.map(row => 
-        headers.map(header => {
+      ...data.map((row: any) =>
+        headers.map((header: any) => {
           const value = row[header];
           // Escapar comillas y envolver en comillas si contiene comas
           if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
@@ -237,7 +237,7 @@ export function ExportManager() {
         }).join(',')
       )
     ].join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -248,15 +248,15 @@ export function ExportManager() {
   const downloadExcel = (data: any[], filename: string) => {
     // Simulación de Excel usando CSV con formato mejorado
     if (data.length === 0) return;
-    
+
     const headers = Object.keys(data[0]);
     const csvContent = [
       headers.join('\t'), // Usar tabs para mejor compatibilidad con Excel
-      ...data.map(row => 
-        headers.map(header => row[header]).join('\t')
+      ...data.map((row: any) =>
+        headers.map((header: any) => row[header]).join('\t')
       )
     ].join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -274,7 +274,7 @@ export function ExportManager() {
       suppliers: 'Reporte de Proveedores',
       analytics: 'Reporte de Analytics'
     }[dataType] || 'Reporte';
-    
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -300,13 +300,13 @@ export function ExportManager() {
         <table>
           <thead>
             <tr>
-              ${headers.map(header => `<th>${header}</th>`).join('')}
+              ${headers.map((header: any) => `<th>${header}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
-            ${data.map(row => `
+            ${data.map((row: any) => `
               <tr>
-                ${headers.map(header => `<td>${row[header] || ''}</td>`).join('')}
+                ${headers.map((header: any) => `<td>${row[header] || ''}</td>`).join('')}
               </tr>
             `).join('')}
           </tbody>
@@ -314,7 +314,7 @@ export function ExportManager() {
       </body>
       </html>
     `;
-    
+
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -388,7 +388,7 @@ export function ExportManager() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3 p-3 border rounded-lg">
               <FileText className="h-8 w-8 text-blue-600" />
               <div>
@@ -398,7 +398,7 @@ export function ExportManager() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3 p-3 border rounded-lg">
               <FileText className="h-8 w-8 text-red-600" />
               <div>
@@ -442,7 +442,7 @@ export function ExportManager() {
                     )}
                     Excel
                   </Button>
-                  
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -458,7 +458,7 @@ export function ExportManager() {
                     CSV
                   </Button>
                 </div>
-                
+
                 <Button
                   size="sm"
                   variant="outline"
@@ -499,7 +499,7 @@ export function ExportManager() {
                 <li>• <strong>Analytics:</strong> KPIs y métricas principales</li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-medium mb-2">Formatos Recomendados:</h4>
               <ul className="text-sm text-muted-foreground space-y-1">

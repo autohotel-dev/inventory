@@ -28,7 +28,7 @@ export function ChatWidget() {
     // Get current user ID
     useEffect(() => {
         const supabase = createClient();
-        supabase.auth.getUser().then(({ data }) => {
+        supabase.auth.getUser().then(({ data }: any) => {
             if (data.user) setCurrentUserId(data.user.id);
         });
     }, []);

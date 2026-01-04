@@ -50,7 +50,7 @@ export function useSensors() {
                     schema: 'public',
                     table: 'sensors'
                 },
-                (payload) => {
+                (payload: any) => {
                     if (payload.eventType === 'INSERT') {
                         setSensors(prev => [...prev, payload.new as Sensor]);
                     } else if (payload.eventType === 'UPDATE') {

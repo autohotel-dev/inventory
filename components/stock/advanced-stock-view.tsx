@@ -99,7 +99,7 @@ export function AdvancedStockView() {
 
       const lastMovementMap = new Map();
       if (!movementsError && lastMovements) {
-        lastMovements.forEach(movement => {
+        lastMovements.forEach((movement: any) => {
           if (!lastMovementMap.has(movement.product_id)) {
             lastMovementMap.set(movement.product_id, movement.created_at);
           }

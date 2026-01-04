@@ -45,10 +45,10 @@ export function SimpleCategoriesTable() {
       }
 
       // Enriquecer categorías con estadísticas
-      const enrichedCategories = (categoriesData || []).map(category => {
-        const categoryProducts = productsData?.filter(p => p.category_id === category.id && p.is_active) || [];
+      const enrichedCategories = (categoriesData || []).map((category: any) => {
+        const categoryProducts = productsData?.filter((p: any) => p.category_id === category.id && p.is_active) || [];
         const productCount = categoryProducts.length;
-        const totalValue = categoryProducts.reduce((sum, p) => sum + (p.price || 0), 0);
+        const totalValue = categoryProducts.reduce((sum: number, p: any) => sum + (p.price || 0), 0);
         const averagePrice = productCount > 0 ? totalValue / productCount : 0;
         const isPopular = productCount >= 3; // Categoría popular si tiene 3+ productos
 
@@ -89,7 +89,7 @@ export function SimpleCategoriesTable() {
         .eq("id", categoryId);
 
       if (error) throw error;
-      
+
       success("Categoría eliminada", "La categoría se eliminó correctamente");
       fetchCategories();
     } catch (error) {
@@ -119,7 +119,7 @@ export function SimpleCategoriesTable() {
         if (error) throw error;
         success("Categoría creada", "La categoría se creó correctamente");
       }
-      
+
       setIsModalOpen(false);
       setEditingCategory(null);
       fetchCategories();
@@ -150,7 +150,7 @@ export function SimpleCategoriesTable() {
   const totalCategories = categories.length;
   const activeCategories = categories.filter(c => c.productCount && c.productCount > 0).length;
   const popularCategories = categories.filter(c => c.isPopular).length;
-  const totalProducts = categories.reduce((sum, c) => sum + (c.productCount || 0), 0);
+  const totalProducts = categories.reduce((sum: number, c: any) => sum + (c.productCount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -165,7 +165,7 @@ export function SimpleCategoriesTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Package className="h-5 w-5 text-green-600" />
@@ -175,7 +175,7 @@ export function SimpleCategoriesTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-5 w-5 text-orange-600" />
@@ -185,7 +185,7 @@ export function SimpleCategoriesTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Package className="h-5 w-5 text-purple-600" />
@@ -208,7 +208,7 @@ export function SimpleCategoriesTable() {
             className="pl-10"
           />
         </div>
-        
+
         <div className="flex gap-2">
           <Button onClick={fetchCategories} variant="outline">
             Actualizar
@@ -248,7 +248,7 @@ export function SimpleCategoriesTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="font-medium text-lg">
                     {category.productCount || 0}
@@ -257,7 +257,7 @@ export function SimpleCategoriesTable() {
                     productos
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-right">
                   <div className="font-medium">
                     ${(category.averagePrice || 0).toFixed(2)}
@@ -266,7 +266,7 @@ export function SimpleCategoriesTable() {
                     promedio
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="space-y-1">
                     <Badge variant={category.productCount && category.productCount > 0 ? "default" : "secondary"}>
@@ -279,18 +279,18 @@ export function SimpleCategoriesTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="flex justify-center gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleEdit(category)}
                     >
                       Editar
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
                       onClick={() => {
                         if (confirm(`¿Estás seguro de eliminar "${category.name}"?`)) {
@@ -311,14 +311,14 @@ export function SimpleCategoriesTable() {
           <div className="text-center py-12">
             <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <div className="text-lg font-medium text-muted-foreground mb-2">
-              {categories.length === 0 
-                ? "No hay categorías registradas" 
+              {categories.length === 0
+                ? "No hay categorías registradas"
                 : "No se encontraron categorías"
               }
             </div>
             <div className="text-sm text-muted-foreground">
-              {categories.length === 0 
-                ? "Comienza creando tu primera categoría" 
+              {categories.length === 0
+                ? "Comienza creando tu primera categoría"
                 : "Intenta con otros términos de búsqueda"
               }
             </div>
@@ -352,7 +352,7 @@ export function SimpleCategoriesTable() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <CategoryForm
               category={editingCategory}
               onSave={handleSave}
@@ -366,11 +366,11 @@ export function SimpleCategoriesTable() {
 }
 
 // Formulario simple para categorías
-function CategoryForm({ 
-  category, 
-  onSave, 
-  onCancel 
-}: { 
+function CategoryForm({
+  category,
+  onSave,
+  onCancel
+}: {
   category: EnrichedCategory | null;
   onSave: (data: any) => void;
   onCancel: () => void;
@@ -391,7 +391,7 @@ function CategoryForm({
         <label className="block text-sm font-medium mb-1">Nombre *</label>
         <Input
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="Ej: Bebidas, Alimentos, etc."
           required
         />
@@ -401,7 +401,7 @@ function CategoryForm({
         <label className="block text-sm font-medium mb-1">Descripción</label>
         <Input
           value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder="Descripción de la categoría"
         />
       </div>

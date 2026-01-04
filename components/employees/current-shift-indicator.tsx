@@ -135,7 +135,7 @@ export function CurrentShiftIndicator({
 
       // Determinar siguiente turno
       if (current) {
-        const currentIndex = allShifts.findIndex((s) => s.id === current!.id);
+        const currentIndex = allShifts.findIndex((s: any) => s.id === current!.id);
         next = allShifts[(currentIndex + 1) % allShifts.length];
       }
 

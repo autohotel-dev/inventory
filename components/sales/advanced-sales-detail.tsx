@@ -165,7 +165,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalAmount = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
 
     if (totalAmount <= 0) {
       toast.error('El monto debe ser mayor a 0');
@@ -198,7 +198,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         if (mainError) {
           console.error("Error inserting main payment:", mainError);
         } else if (mainPayment) {
-          const subpayments = validPayments.map(p => ({
+          const subpayments = validPayments.map((p: any) => ({
             sales_order_id: orderId,
             amount: p.amount,
             payment_method: p.method,
@@ -427,7 +427,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
         // Solo crear movimientos si NO existen aún
         if (!existingMovements || existingMovements.length === 0) {
-          const movements = items.map(item => ({
+          const movements = items.map((item: any) => ({
             product_id: item.product_id,
             warehouse_id: order.warehouse_id,
             quantity: item.qty, // Positive quantity, movement_type determines direction
@@ -475,7 +475,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
   const calculateProfitMargin = () => {
     if (!order || !items.length) return 0;
 
-    const totalCost = items.reduce((sum, item) => {
+    const totalCost = items.reduce((sum: number, item: any) => {
       // Assuming we have purchase_price in products, otherwise use a default margin
       const estimatedCost = item.unit_price * 0.7; // 70% of sale price as estimated cost
       return sum + (estimatedCost * item.qty);
@@ -524,7 +524,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
               </tr>
             </thead>
             <tbody>
-              ${items.map(item => `
+              ${items.map((item: any) => `
                 <tr>
                   <td>${item.products?.name || '-'}</td>
                   <td>${item.products?.sku || '-'}</td>
@@ -566,7 +566,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       // NUEVO: Validar stock disponible
       const { validateStockAvailability } = await import("@/lib/utils/stock-helpers");
 
-      const itemsToValidate = items.map(item => ({
+      const itemsToValidate = items.map((item: any) => ({
         product_id: item.product.id,
         product_name: item.product.name,
         quantity: item.quantity
@@ -587,17 +587,17 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       // Calcular el total de los nuevos items
       const newItemsTotal = items.reduce(
-        (sum, item) => sum + (item.quantity * item.unit_price),
+        (sum: number, item: any) => sum + (item.quantity * item.unit_price),
         0
       );
 
       // Crear descripción de los productos para las notas del pago
       const productosNota = items
-        .map(item => `${item.quantity}x ${item.product.name}`)
+        .map((item: any) => `${item.quantity}x ${item.product.name}`)
         .join(", ");
 
       // Insertar todos los productos
-      const insertData = items.map(item => ({
+      const insertData = items.map((item: any) => ({
         sales_order_id: orderId,
         product_id: item.product.id,
         qty: item.quantity,
@@ -614,7 +614,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       // Crear movimientos de inventario para descontar el stock
       if (order.warehouse_id) {
-        const movements = items.map(item => ({
+        const movements = items.map((item: any) => ({
           product_id: item.product.id,
           warehouse_id: order.warehouse_id,
           quantity: item.quantity,
@@ -674,7 +674,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
       // Cerrar modal
       setShowAddProduct(false);
 
-      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+      const totalItems = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
       toast.success(`${totalItems} producto(s) agregado(s)`, {
         description: `${productosNota} - Total: $${newItemsTotal.toFixed(2)} (pendiente de pago)`
       });
@@ -708,7 +708,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       const itemsSubtotal =
         itemsData?.reduce(
-          (sum, item: any) => sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0),
+          (sum: number, item: any) => sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0),
           0
         ) || 0;
 
@@ -720,7 +720,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         .is("parent_payment_id", null);
 
       // Sumar cargos que NO son consumos (estancia, hora extra, persona extra)
-      const nonItemCharges = paymentsData?.reduce((sum, p: any) => {
+      const nonItemCharges = paymentsData?.reduce((sum: number, p: any) => {
         if (p.concept !== "CONSUMO") {
           return sum + (Number(p.amount) || 0);
         }

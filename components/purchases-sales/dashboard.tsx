@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  ShoppingCart, 
-  Package, 
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  ShoppingCart,
+  Package,
   Users,
   Calendar,
   BarChart3,
@@ -58,7 +58,7 @@ export function PurchasesSalesDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     const supabase = createClient();
-    
+
     try {
       // Fechas para comparación
       const now = new Date();
@@ -100,8 +100,8 @@ export function PurchasesSalesDashboard() {
       const purchasesTotal = allPurchases?.length || 0;
       const purchasesThisMonth = thisMonthPurchases?.length || 0;
       const purchasesLastMonth = lastMonthPurchases?.length || 0;
-      const purchasesTotalAmount = allPurchases?.reduce((sum, p) => sum + (Number(p.total) || 0), 0) || 0;
-      const purchasesThisMonthAmount = thisMonthPurchases?.reduce((sum, p) => sum + (Number(p.total) || 0), 0) || 0;
+      const purchasesTotalAmount = allPurchases?.reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0) || 0;
+      const purchasesThisMonthAmount = thisMonthPurchases?.reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0) || 0;
       const purchasesAvgOrderValue = purchasesTotal > 0 ? purchasesTotalAmount / purchasesTotal : 0;
 
       // Top supplier
@@ -110,14 +110,14 @@ export function PurchasesSalesDashboard() {
         acc[supplierName] = (acc[supplierName] || 0) + (Number(order.total) || 0);
         return acc;
       }, {});
-      const topSupplier = supplierTotals ? Object.keys(supplierTotals).reduce((a, b) => supplierTotals[a] > supplierTotals[b] ? a : b, '') : 'N/A';
+      const topSupplier = supplierTotals ? Object.keys(supplierTotals).reduce((a: string, b: string) => supplierTotals[a] > supplierTotals[b] ? a : b, '') : 'N/A';
 
       // Calcular estadísticas de sales
       const salesTotal = allSales?.length || 0;
       const salesThisMonth = thisMonthSales?.length || 0;
       const salesLastMonth = lastMonthSales?.length || 0;
-      const salesTotalAmount = allSales?.reduce((sum, s) => sum + (Number(s.total) || 0), 0) || 0;
-      const salesThisMonthAmount = thisMonthSales?.reduce((sum, s) => sum + (Number(s.total) || 0), 0) || 0;
+      const salesTotalAmount = allSales?.reduce((sum: number, s: any) => sum + (Number(s.total) || 0), 0) || 0;
+      const salesThisMonthAmount = thisMonthSales?.reduce((sum: number, s: any) => sum + (Number(s.total) || 0), 0) || 0;
       const salesAvgOrderValue = salesTotal > 0 ? salesTotalAmount / salesTotal : 0;
 
       // Top customer
@@ -126,7 +126,7 @@ export function PurchasesSalesDashboard() {
         acc[customerName] = (acc[customerName] || 0) + (Number(order.total) || 0);
         return acc;
       }, {});
-      const topCustomer = customerTotals ? Object.keys(customerTotals).reduce((a, b) => customerTotals[a] > customerTotals[b] ? a : b, '') : 'N/A';
+      const topCustomer = customerTotals ? Object.keys(customerTotals).reduce((a: string, b: string) => customerTotals[a] > customerTotals[b] ? a : b, '') : 'N/A';
 
       // Calcular tendencias
       const purchasesTrend = purchasesLastMonth > 0 ? ((purchasesThisMonth - purchasesLastMonth) / purchasesLastMonth) * 100 : 0;

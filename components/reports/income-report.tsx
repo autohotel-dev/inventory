@@ -208,7 +208,7 @@ export function IncomeReport({
                 return;
             }
 
-            let processedEntries: IncomeEntry[] = (data || []).map((stay: any, index) => {
+            let processedEntries: IncomeEntry[] = (data || []).map((stay: any, index: number) => {
                 const order = stay.sales_orders;
                 const items = order?.sales_order_items || [];
                 const payments = order?.payments || [];
@@ -282,7 +282,7 @@ export function IncomeReport({
 
     const calculateTotals = () => {
         return entries.reduce(
-            (acc, entry) => ({
+            (acc: any, entry: any) => ({
                 roomPrice: acc.roomPrice + entry.room_price,
                 extra: acc.extra + entry.extra,
                 consumption: acc.consumption + entry.consumption,
@@ -524,7 +524,7 @@ export function IncomeReport({
                                                 <td colSpan={8} className="p-0 border-r border-border"></td>
                                                 <td className="p-2 border-b border-border bg-muted/30 shadow-inner">
                                                     <div className="space-y-1">
-                                                        {entry.payments.map((p, pIdx) => (
+                                                        {entry.payments.map((p: any, pIdx: number) => (
                                                             <div key={pIdx} className="flex justify-between items-center text-xs p-1 rounded hover:bg-background/50">
                                                                 <span className="text-muted-foreground font-medium flex items-center gap-1">
                                                                     {p.payment_method === "EFECTIVO" ? (

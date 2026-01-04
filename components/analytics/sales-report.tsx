@@ -89,12 +89,12 @@ export function SalesReport() {
 
             // Calcular métricas
             const totalSales = salesOrders.length;
-            const totalRevenue = salesOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+            const totalRevenue = salesOrders.reduce((sum: number, order: any) => sum + (order.total || 0), 0);
             const averageTicket = totalSales > 0 ? totalRevenue / totalSales : 0;
 
             // Top productos
             const productMap = new Map<string, any>();
-            salesOrders.forEach(order => {
+            salesOrders.forEach((order: any) => {
                 order.items?.forEach((item: any) => {
                     const key = item.product?.sku || 'Unknown';
                     if (!productMap.has(key)) {
@@ -118,7 +118,7 @@ export function SalesReport() {
 
             // Ventas por período (agrupar por día)
             const salesByDay = new Map<string, any>();
-            salesOrders.forEach(order => {
+            salesOrders.forEach((order: any) => {
                 const dateKey = order.created_at.split('T')[0];
                 if (!salesByDay.has(dateKey)) {
                     salesByDay.set(dateKey, {
@@ -137,7 +137,7 @@ export function SalesReport() {
 
             // Ventas por cliente
             const customerMap = new Map<string, any>();
-            salesOrders.forEach(order => {
+            salesOrders.forEach((order: any) => {
                 const customerName = (order.customer as any)?.name || 'Cliente general';
                 if (!customerMap.has(customerName)) {
                     customerMap.set(customerName, {

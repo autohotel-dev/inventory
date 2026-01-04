@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Package, 
-  Truck, 
-  Building, 
+import {
+  Package,
+  Truck,
+  Building,
   Calendar,
   DollarSign,
   Edit,
@@ -89,7 +89,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
   const fetchOrderDetail = async () => {
     setLoading(true);
     const supabase = createClient();
-    
+
     try {
       // Fetch order details
       const { data: orderData, error: orderError } = await supabase
@@ -156,10 +156,10 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       'RECEIVED': { variant: 'secondary' as const, icon: CheckCircle, label: 'Recibida' },
       'CANCELLED': { variant: 'destructive' as const, icon: XCircle, label: 'Cancelada' }
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.OPEN;
     const Icon = config.icon;
-    
+
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
@@ -189,7 +189,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
     if (!selectedProduct || !order) return;
 
     const supabase = createClient();
-    
+
     try {
       const { error } = await supabase
         .from("purchase_order_items")
@@ -204,19 +204,19 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
 
       // Recalcular totales de la orden
       await recalculateOrderTotals();
-      
+
       // Refrescar datos
       await fetchOrderDetail();
-      
+
       // Cerrar modal y resetear
       setShowAddProduct(false);
       setSelectedProduct(null);
       setNewItemData({ quantity: 1, unit_price: 0 });
-      
+
       toast.success("Producto agregado exitosamente", {
         description: `${selectedProduct.name} agregado a la orden`
       });
-      
+
     } catch (error) {
       console.error('Error adding product:', error);
       toast.error("Error al agregar el producto", {
@@ -227,14 +227,14 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
 
   const recalculateOrderTotals = async () => {
     const supabase = createClient();
-    
+
     try {
       const { data: itemsData } = await supabase
         .from("purchase_order_items")
         .select("total")
         .eq("purchase_order_id", orderId);
 
-      const subtotal = itemsData?.reduce((sum, item) => sum + (item.total || 0), 0) || 0;
+      const subtotal = itemsData?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
       const tax = 0; // Simplificado por ahora
       const total = subtotal + tax;
 
@@ -242,7 +242,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
         .from("purchase_orders")
         .update({ subtotal, tax, total })
         .eq("id", orderId);
-        
+
     } catch (error) {
       console.error('Error recalculating totals:', error);
     }
@@ -258,7 +258,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
 
   const removeItemFromOrder = async () => {
     const supabase = createClient();
-    
+
     try {
       const { error } = await supabase
         .from("purchase_order_items")
@@ -269,14 +269,14 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
 
       // Recalcular totales
       await recalculateOrderTotals();
-      
+
       // Refrescar datos
       await fetchOrderDetail();
-      
+
       toast.success("Producto eliminado", {
         description: "El producto ha sido removido de la orden"
       });
-      
+
     } catch (error) {
       console.error('Error removing item:', error);
       toast.error("Error al eliminar el producto", {
@@ -287,7 +287,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
 
   const updateOrderStatus = async (newStatus: string) => {
     const supabase = createClient();
-    
+
     try {
       const { error } = await supabase
         .from("purchase_orders")
@@ -320,7 +320,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       }
 
       await fetchOrderDetail();
-      
+
       toast.success("Estado actualizado", {
         description: `La orden ahora está en estado: ${newStatus}`
       });
@@ -544,8 +544,8 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
                     </div>
                     {order.status === 'OPEN' && (
                       <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveClick(item.id, item.products?.name || 'Producto')}
                         >
@@ -582,8 +582,8 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
           <div className="bg-background border rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Agregar Producto</h3>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setShowAddProduct(false);

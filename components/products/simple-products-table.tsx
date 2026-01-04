@@ -140,7 +140,7 @@ export function SimpleProductsTable() {
 
       if (err1 || err2 || err3 || err4 || err5) throw new Error("Error fetching stats");
 
-      const totalVal = (valueData || []).reduce((sum, item) => sum + (item.inventory_value || 0), 0);
+      const totalVal = (valueData || []).reduce((sum: number, item: any) => sum + (item.inventory_value || 0), 0);
 
       setStats({
         totalProducts: total || 0,
@@ -219,7 +219,7 @@ export function SimpleProductsTable() {
 
       if (data) {
         if (data.length < ITEMS_PER_PAGE) setHasMore(false);
-        setProducts(prev => isReset ? data : [...prev, ...data]);
+        setProducts((prev: ProductView[]) => isReset ? data : [...prev, ...data]);
         setPage(pageNumber);
       }
     } catch (error) {

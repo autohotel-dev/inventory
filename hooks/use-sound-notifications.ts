@@ -74,7 +74,7 @@ export function useSoundNotifications(
                     schema: 'public',
                     table: 'room_stays',
                 },
-                (payload) => {
+                (payload: any) => {
                     const newData = payload.new as any;
                     const oldData = payload.old as any;
                     // Usar roomsRef para buscar el número, evitando dependencias

@@ -59,7 +59,7 @@ export async function getMenuPermissions(role: UserRole): Promise<string[]> {
     }
 
     // Extract resource names (e.g., 'menu.dashboard' -> 'dashboard')
-    return data?.map(p => p.resource.replace('menu.', '')) || [];
+    return data?.map((p: any) => p.resource.replace('menu.', '')) || [];
 }
 
 /**
@@ -81,7 +81,7 @@ export async function getPagePermissions(role: UserRole): Promise<string[]> {
     }
 
     // Extract resource names (e.g., 'page./dashboard' -> '/dashboard')
-    return data?.map(p => p.resource.replace('page.', '')) || [];
+    return data?.map((p: any) => p.resource.replace('page.', '')) || [];
 }
 
 /**

@@ -72,7 +72,8 @@ export function useNotifications(): UseNotificationsReturn {
         // Subscribe to real-time changes
         let channel: RealtimeChannel;
 
-        supabase.auth.getUser().then(({ data: { user } }) => {
+        supabase.auth.getUser().then(({ data }: any) => {
+            const user = data?.user;
             if (!user) return;
 
             channel = supabase
@@ -85,7 +86,7 @@ export function useNotifications(): UseNotificationsReturn {
                         table: 'notifications',
                         filter: `user_id=eq.${user.id}`
                     },
-                    (payload) => {
+                    (payload: any) => {
                         console.log('Notification change received:', payload);
                         fetchNotifications(); // Refresh on any change
                     }

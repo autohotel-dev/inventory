@@ -46,10 +46,10 @@ export function SimpleSuppliersTable() {
       }
 
       // Enriquecer proveedores con estadísticas
-      const enrichedSuppliers = (suppliersData || []).map(supplier => {
-        const supplierProducts = productsData?.filter(p => p.supplier_id === supplier.id && p.is_active) || [];
+      const enrichedSuppliers = (suppliersData || []).map((supplier: any) => {
+        const supplierProducts = productsData?.filter((p: any) => p.supplier_id === supplier.id && p.is_active) || [];
         const productCount = supplierProducts.length;
-        const totalValue = supplierProducts.reduce((sum, p) => sum + (p.price || 0), 0);
+        const totalValue = supplierProducts.reduce((sum: number, p: any) => sum + (p.price || 0), 0);
         const averagePrice = productCount > 0 ? totalValue / productCount : 0;
         const isPreferred = productCount >= 5; // Proveedor preferido si tiene 5+ productos
 
@@ -90,7 +90,7 @@ export function SimpleSuppliersTable() {
         .eq("id", supplierId);
 
       if (error) throw error;
-      
+
       success("Proveedor eliminado", "El proveedor se eliminó correctamente");
       fetchSuppliers();
     } catch (error) {
@@ -120,7 +120,7 @@ export function SimpleSuppliersTable() {
         if (error) throw error;
         success("Proveedor creado", "El proveedor se creó correctamente");
       }
-      
+
       setIsModalOpen(false);
       setEditingSupplier(null);
       fetchSuppliers();
@@ -152,7 +152,7 @@ export function SimpleSuppliersTable() {
   const totalSuppliers = suppliers.length;
   const activeSuppliers = suppliers.filter(s => s.is_active).length;
   const preferredSuppliers = suppliers.filter(s => s.isPreferred).length;
-  const totalProducts = suppliers.reduce((sum, s) => sum + (s.productCount || 0), 0);
+  const totalProducts = suppliers.reduce((sum: number, s: any) => sum + (s.productCount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -167,7 +167,7 @@ export function SimpleSuppliersTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Building2 className="h-5 w-5 text-green-600" />
@@ -177,7 +177,7 @@ export function SimpleSuppliersTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Building2 className="h-5 w-5 text-orange-600" />
@@ -187,7 +187,7 @@ export function SimpleSuppliersTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Package className="h-5 w-5 text-purple-600" />
@@ -210,7 +210,7 @@ export function SimpleSuppliersTable() {
             className="pl-10"
           />
         </div>
-        
+
         <div className="flex gap-2">
           <Button onClick={fetchSuppliers} variant="outline">
             Actualizar
@@ -250,7 +250,7 @@ export function SimpleSuppliersTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4">
                   <div className="space-y-1">
                     {supplier.email && (
@@ -271,7 +271,7 @@ export function SimpleSuppliersTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="font-medium text-lg">
                     {supplier.productCount || 0}
@@ -280,7 +280,7 @@ export function SimpleSuppliersTable() {
                     productos
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="space-y-1">
                     <Badge variant={supplier.is_active ? "default" : "secondary"}>
@@ -293,18 +293,18 @@ export function SimpleSuppliersTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="flex justify-center gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleEdit(supplier)}
                     >
                       Editar
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
                       onClick={() => {
                         if (confirm(`¿Estás seguro de eliminar "${supplier.name}"?`)) {
@@ -325,14 +325,14 @@ export function SimpleSuppliersTable() {
           <div className="text-center py-12">
             <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <div className="text-lg font-medium text-muted-foreground mb-2">
-              {suppliers.length === 0 
-                ? "No hay proveedores registrados" 
+              {suppliers.length === 0
+                ? "No hay proveedores registrados"
                 : "No se encontraron proveedores"
               }
             </div>
             <div className="text-sm text-muted-foreground">
-              {suppliers.length === 0 
-                ? "Comienza agregando tu primer proveedor" 
+              {suppliers.length === 0
+                ? "Comienza agregando tu primer proveedor"
                 : "Intenta con otros términos de búsqueda"
               }
             </div>
@@ -366,7 +366,7 @@ export function SimpleSuppliersTable() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <SupplierForm
               supplier={editingSupplier}
               onSave={handleSave}
@@ -380,11 +380,11 @@ export function SimpleSuppliersTable() {
 }
 
 // Formulario simple para proveedores
-function SupplierForm({ 
-  supplier, 
-  onSave, 
-  onCancel 
-}: { 
+function SupplierForm({
+  supplier,
+  onSave,
+  onCancel
+}: {
   supplier: EnrichedSupplier | null;
   onSave: (data: any) => void;
   onCancel: () => void;
@@ -408,7 +408,7 @@ function SupplierForm({
         <label className="block text-sm font-medium mb-1">Nombre *</label>
         <Input
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="Ej: Distribuidora ABC"
           required
         />
@@ -419,7 +419,7 @@ function SupplierForm({
         <Input
           type="email"
           value={formData.email}
-          onChange={(e) => setFormData({...formData, email: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           placeholder="contacto@proveedor.com"
         />
       </div>
@@ -429,7 +429,7 @@ function SupplierForm({
         <Input
           type="tel"
           value={formData.phone}
-          onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
           placeholder="+52 555 123 4567"
         />
       </div>
@@ -438,7 +438,7 @@ function SupplierForm({
         <label className="block text-sm font-medium mb-1">Dirección</label>
         <textarea
           value={formData.address}
-          onChange={(e) => setFormData({...formData, address: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           placeholder="Dirección completa del proveedor"
           className="w-full px-3 py-2 border border-input rounded-md bg-background min-h-[80px] resize-none"
         />
@@ -449,7 +449,7 @@ function SupplierForm({
           type="checkbox"
           id="is_active"
           checked={formData.is_active}
-          onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+          onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
         />
         <label htmlFor="is_active" className="text-sm font-medium">Proveedor activo</label>
       </div>

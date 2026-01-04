@@ -61,13 +61,13 @@ export function SimpleWarehousesTable() {
       const enrichedWarehouses = (warehousesData || []).map((warehouse: any) => {
         const warehouseStock = (stockData as any[])?.filter((s: any) => s.warehouse_id === warehouse.id) || [];
         const activeProductStock = warehouseStock.filter((s: any) => s.product && (s.product as any).is_active);
-        
+
         const productCount = new Set(activeProductStock.map((s: any) => (s.product as any).id)).size;
         const totalStock = activeProductStock.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
-        const stockValue = activeProductStock.reduce((sum: number, s: any) => 
+        const stockValue = activeProductStock.reduce((sum: number, s: any) =>
           sum + ((s.qty || 0) * ((s.product as any).price || 0)), 0
         );
-        
+
         // Tasa de utilización basada en productos únicos (máximo 100 productos por almacén)
         const utilizationRate = Math.min((productCount / 100) * 100, 100);
 
@@ -108,7 +108,7 @@ export function SimpleWarehousesTable() {
         .eq("id", warehouseId);
 
       if (error) throw error;
-      
+
       success("Almacén eliminado", "El almacén se eliminó correctamente");
       fetchWarehouses();
     } catch (error) {
@@ -138,7 +138,7 @@ export function SimpleWarehousesTable() {
         if (error) throw error;
         success("Almacén creado", "El almacén se creó correctamente");
       }
-      
+
       setIsModalOpen(false);
       setEditingWarehouse(null);
       fetchWarehouses();
@@ -174,8 +174,8 @@ export function SimpleWarehousesTable() {
 
   const totalWarehouses = warehouses.length;
   const activeWarehouses = warehouses.filter(w => w.is_active).length;
-  const totalStock = warehouses.reduce((sum, w) => sum + (w.totalStock || 0), 0);
-  const totalValue = warehouses.reduce((sum, w) => sum + (w.stockValue || 0), 0);
+  const totalStock = warehouses.reduce((sum: number, w: any) => sum + (w.totalStock || 0), 0);
+  const totalValue = warehouses.reduce((sum: number, w: any) => sum + (w.stockValue || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -190,7 +190,7 @@ export function SimpleWarehousesTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Warehouse className="h-5 w-5 text-green-600" />
@@ -200,7 +200,7 @@ export function SimpleWarehousesTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <Package className="h-5 w-5 text-orange-600" />
@@ -210,7 +210,7 @@ export function SimpleWarehousesTable() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-card p-6 rounded-lg border">
           <div className="flex items-center space-x-2">
             <BarChart3 className="h-5 w-5 text-purple-600" />
@@ -233,7 +233,7 @@ export function SimpleWarehousesTable() {
             className="pl-10"
           />
         </div>
-        
+
         <div className="flex gap-2">
           <Button onClick={fetchWarehouses} variant="outline">
             Actualizar
@@ -278,7 +278,7 @@ export function SimpleWarehousesTable() {
                     )}
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="font-medium text-lg">
                     {warehouse.totalStock || 0}
@@ -287,7 +287,7 @@ export function SimpleWarehousesTable() {
                     {warehouse.productCount || 0} productos únicos
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-right">
                   <div className="font-medium">
                     ${(warehouse.stockValue || 0).toFixed(2)}
@@ -296,15 +296,14 @@ export function SimpleWarehousesTable() {
                     valor inventario
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="flex items-center justify-center">
                     <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all ${
-                          (warehouse.utilizationRate || 0) > 80 ? 'bg-red-500' :
-                          (warehouse.utilizationRate || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
-                        }`}
+                      <div
+                        className={`h-full transition-all ${(warehouse.utilizationRate || 0) > 80 ? 'bg-red-500' :
+                            (warehouse.utilizationRate || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
                         style={{ width: `${warehouse.utilizationRate || 0}%` }}
                       />
                     </div>
@@ -313,31 +312,31 @@ export function SimpleWarehousesTable() {
                     {(warehouse.utilizationRate || 0).toFixed(1)}%
                   </div>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <Badge variant={warehouse.is_active ? "default" : "secondary"}>
                     {warehouse.is_active ? "Activo" : "Inactivo"}
                   </Badge>
                 </td>
-                
+
                 <td className="p-4 text-center">
                   <div className="flex justify-center gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleViewStock(warehouse)}
                     >
                       Ver Stock
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleEdit(warehouse)}
                     >
                       Editar
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
                       onClick={() => {
                         if (confirm(`¿Estás seguro de eliminar "${warehouse.name}"?`)) {
@@ -358,14 +357,14 @@ export function SimpleWarehousesTable() {
           <div className="text-center py-12">
             <Warehouse className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <div className="text-lg font-medium text-muted-foreground mb-2">
-              {warehouses.length === 0 
-                ? "No hay almacenes registrados" 
+              {warehouses.length === 0
+                ? "No hay almacenes registrados"
                 : "No se encontraron almacenes"
               }
             </div>
             <div className="text-sm text-muted-foreground">
-              {warehouses.length === 0 
-                ? "Comienza creando tu primer almacén" 
+              {warehouses.length === 0
+                ? "Comienza creando tu primer almacén"
                 : "Intenta con otros términos de búsqueda"
               }
             </div>
@@ -399,7 +398,7 @@ export function SimpleWarehousesTable() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <WarehouseForm
               warehouse={editingWarehouse}
               onSave={handleSave}
@@ -421,11 +420,11 @@ export function SimpleWarehousesTable() {
 }
 
 // Formulario para almacenes
-function WarehouseForm({ 
-  warehouse, 
-  onSave, 
-  onCancel 
-}: { 
+function WarehouseForm({
+  warehouse,
+  onSave,
+  onCancel
+}: {
   warehouse: WarehouseWithStats | null;
   onSave: (data: any) => void;
   onCancel: () => void;
@@ -448,7 +447,7 @@ function WarehouseForm({
         <label className="block text-sm font-medium mb-1">Código *</label>
         <Input
           value={formData.code}
-          onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})}
+          onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
           placeholder="Ej: ALM001"
           required
         />
@@ -458,7 +457,7 @@ function WarehouseForm({
         <label className="block text-sm font-medium mb-1">Nombre *</label>
         <Input
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="Ej: Almacén Principal"
           required
         />
@@ -468,7 +467,7 @@ function WarehouseForm({
         <label className="block text-sm font-medium mb-1">Dirección</label>
         <textarea
           value={formData.address}
-          onChange={(e) => setFormData({...formData, address: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           placeholder="Dirección completa del almacén"
           className="w-full px-3 py-2 border border-input rounded-md bg-background min-h-[80px] resize-none"
         />
@@ -479,7 +478,7 @@ function WarehouseForm({
           type="checkbox"
           id="is_active"
           checked={formData.is_active}
-          onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+          onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
         />
         <label htmlFor="is_active" className="text-sm font-medium">Almacén activo</label>
       </div>
@@ -497,10 +496,10 @@ function WarehouseForm({
 }
 
 // Componente para mostrar detalle de stock por almacén
-function WarehouseStockDetail({ 
-  warehouse, 
-  onClose 
-}: { 
+function WarehouseStockDetail({
+  warehouse,
+  onClose
+}: {
   warehouse: WarehouseWithStats;
   onClose: () => void;
 }) {
@@ -551,7 +550,7 @@ function WarehouseStockDetail({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        
+
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -594,7 +593,7 @@ function WarehouseStockDetail({
                 ))}
               </tbody>
             </table>
-            
+
             {stockDetails.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 No hay stock en este almacén

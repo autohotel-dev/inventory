@@ -89,7 +89,7 @@ export function SensorsTable() {
                     schema: 'public',
                     table: 'sensors'
                 },
-                (payload) => {
+                (payload: any) => {
                     const newSensor = payload.new as SensorWithRoom;
                     setSensors((prev) =>
                         prev.map((s) => {
