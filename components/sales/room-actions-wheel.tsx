@@ -64,7 +64,7 @@ interface ActionConfig {
 // Configuración de acciones por estado
 const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   LIBRE: [
-    { id: "start", label: "Entrada", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onStartStay" },
+    // { id: "start", label: "Entrada", icon: <DoorOpen className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onStartStay" },
     { id: "quickcheckin", label: "Rápida", icon: <Zap className="h-5 w-5" />, color: "text-amber-400", hoverBg: "hover:bg-amber-500/30", action: "onQuickCheckin" },
     { id: "block", label: "Mantenimiento", icon: <Lock className="h-5 w-5" />, color: "text-gray-400", hoverBg: "hover:bg-gray-500/30", action: "onBlock" },
     { id: "dirty", label: "Sucia", icon: <Sparkles className="h-5 w-5" />, color: "text-purple-400", hoverBg: "hover:bg-purple-500/30", action: "onMarkDirty" },

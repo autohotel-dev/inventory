@@ -51,7 +51,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     vehicle_plate: vehicleData.plate.trim().toUpperCase(),
                     vehicle_brand: vehicleData.brand.trim(),
                     vehicle_model: vehicleData.model.trim(),
-                    valet_employee_id: valetId
+                    valet_employee_id: valetId,
+                    vehicle_requested_at: null // Limpiar cualquier solicitud previa o estado inválido
                 })
                 .eq('id', activeStay.id);
 

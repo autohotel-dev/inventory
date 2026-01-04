@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { useValetActions } from "@/hooks/use-valet-actions";
@@ -33,11 +33,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const [showCheckInModal, setShowCheckInModal] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
-    useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
-
-    const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout } = useValetActions(fetchRooms);
-
-    async function fetchRooms(silent = false) {
+    const fetchRooms = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         const supabase = createClient();
 
@@ -64,7 +60,30 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         } finally {
             if (!silent) setLoading(false);
         }
-    }
+    }, []);
+
+    useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
+
+    const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout } = useValetActions(fetchRooms);
+
+    // Suscripción en tiempo real
+    useEffect(() => {
+        const supabase = createClient();
+        console.log("Setting up realtime subscription for ValetDashboard");
+        const channel = supabase
+            .channel('valet-dashboard-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' },
+                () => fetchRooms(true))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' },
+                () => fetchRooms(true))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' },
+                () => fetchRooms(true))
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchRooms]);
 
     const handleAcceptEntry = async (room: Room) => {
         const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
@@ -127,8 +146,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         const reqB = stayB?.vehicle_requested_at ? 1 : 0;
         if (reqA !== reqB) return reqB - reqA; // Solicitados primero
         return 0;
-        if (reqA !== reqB) return reqB - reqA; // Solicitados primero
-        return 0;
+
     });
 
     // 1. Entradas SIN valet asignado (Cualquiera puede aceptar)
@@ -312,12 +330,12 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                     </section>
                 )}
 
-                {/* Salidas Pendientes */}
+                {/* Vehículos bajo custodia */}
                 {roomsPendingCheckout.length > 0 && (
                     <section>
                         <div className="flex items-center gap-2 mb-3">
-                            <LogOut className="h-5 w-5 text-green-500" />
-                            <h2 className="text-lg font-semibold">Salidas Pendientes</h2>
+                            <Car className="h-5 w-5 text-green-500" />
+                            <h2 className="text-lg font-semibold">Vehículos Bajo Custodia</h2>
                             <Badge variant="secondary">{roomsPendingCheckout.length}</Badge>
                         </div>
 
@@ -329,13 +347,20 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                 const duration = now.getTime() - checkinTime.getTime();
                                 const hours = Math.floor(duration / (1000 * 60 * 60));
                                 const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
+
+                                // Solicitado si existe fecha Y es distinta de check_in (por si acaso se copió)
                                 const isRequested = !!stay?.vehicle_requested_at;
 
                                 return (
-                                    <Card key={room.id} className={`p-4 space-y-3 ${isRequested ? "border-red-500 bg-red-50 dark:bg-red-950/20 shadow-lg scale-[1.02] transition-transform" : ""}`}>
-                                        {isRequested && (
+                                    <Card key={room.id} className={`p-4 space-y-3 ${isRequested ? "border-red-500 bg-red-50 dark:bg-red-950/20 shadow-lg scale-[1.02] transition-transform" : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/10"}`}>
+                                        {isRequested ? (
                                             <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 px-3 py-1.5 rounded-md text-sm font-bold flex items-center justify-center gap-2 animate-pulse mb-2 border border-red-200 dark:border-red-800">
-                                                🚨 CLIENTE SOLICITÓ SU AUTO 🚨
+                                                🚨 SALIDA SOLICITADA - REVISAR HABITACIÓN 🚨
+                                            </div>
+                                        ) : (
+                                            <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-2 mb-2 border border-green-200 dark:border-green-800">
+                                                <CheckCircle2 className="h-3 w-3" />
+                                                Cliente en estancia - Vehículo estacionado
                                             </div>
                                         )}
                                         <div className="flex items-start justify-between">
@@ -349,7 +374,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                                     <span>Duración: {hours}h {minutes}m</span>
                                                 </div>
                                                 {stay?.vehicle_plate && (
-                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                    <p className="text-sm text-muted-foreground mt-1 font-mono bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded inline-block">
                                                         🚗 {stay.vehicle_plate}
                                                     </p>
                                                 )}
@@ -358,10 +383,10 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                                         <Button
                                             onClick={() => handleOpenCheckout(room)}
-                                            className="w-full h-auto min-h-[48px] text-base bg-green-600 hover:bg-green-700 whitespace-normal py-2"
+                                            className={`w-full h-auto min-h-[48px] text-base whitespace-normal py-2 ${isRequested ? "bg-red-600 hover:bg-red-700 text-white" : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"}`}
                                         >
-                                            <CheckCircle2 className="h-5 w-5 mr-2 shrink-0" />
-                                            Confirmar Salida
+                                            <LogOut className="h-5 w-5 mr-2 shrink-0" />
+                                            {isRequested ? "Revisar y Entregar (PRIORIDAD)" : "Revisar / Entregar Auto"}
                                         </Button>
                                     </Card>
                                 );

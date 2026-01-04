@@ -284,6 +284,46 @@ function RoomsBoardInternal() {
     }
   }, []);
 
+  // Suscripción a cambios en tiempo real
+  useEffect(() => {
+    const supabase = createClient();
+
+    console.log("Setting up realtime subscription for RoomsBoard");
+
+    const channel = supabase
+      .channel('rooms-board-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rooms' },
+        (payload: any) => {
+          console.log("Realtime change received (rooms):", payload.eventType);
+          fetchRooms(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'room_stays' },
+        (payload: any) => {
+          console.log("Realtime change received (room_stays):", payload.eventType);
+          fetchRooms(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        (payload: any) => {
+          // Si hay pagos (ej. valet confirma pago), actualizar
+          console.log("Realtime change received (payments):", payload.eventType);
+          fetchRooms(true); // Para actualizar badges o estados que dependan de pagos (como sales_order.remaining)
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchRooms]);
+
   // Hook de acciones de habitación
   const {
     actionLoading,
@@ -1276,7 +1316,7 @@ function RoomsBoardInternal() {
           .not("auth_user_id", "is", null);
 
         if (valets && valets.length > 0) {
-          const notifications = valets.map(v => ({
+          const notifications = valets.map((v: any) => ({
             user_id: v.auth_user_id,
             type: 'info',
             title: '🚗 Nueva Entrada',
@@ -1323,9 +1363,7 @@ function RoomsBoardInternal() {
   // Entrada rápida sin pago (para cuando el cochero aún no llega con el dinero)
   const handleQuickCheckin = async (data: {
     initialPeople: number;
-    vehicle: { plate: string; brand: string; model: string };
     actualEntryTime: Date;
-    valetEmployeeId?: string | null;
   }) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
@@ -1476,10 +1514,10 @@ function RoomsBoardInternal() {
         expected_check_out_at: expectedCheckout.toISOString(),
         current_people: data.initialPeople,
         total_people: data.initialPeople,
-        vehicle_plate: data.vehicle.plate.trim() || null,
-        vehicle_brand: data.vehicle.brand.trim() || null,
-        vehicle_model: data.vehicle.model.trim() || null,
-        valet_employee_id: data.valetEmployeeId || null,
+        vehicle_plate: null,
+        vehicle_brand: null,
+        vehicle_model: null,
+        valet_employee_id: null,
         shift_session_id: currentShiftId
       });
 
@@ -1786,6 +1824,15 @@ function RoomsBoardInternal() {
         }}
         onConfirm={handleCheckout}
         defaultValetId={selectedRoom ? getActiveStay(selectedRoom)?.checkout_valet_employee_id : null}
+        vehiclePlate={selectedRoom ? getActiveStay(selectedRoom)?.vehicle_plate || null : null}
+        onRequestValet={async () => {
+          if (selectedRoom) {
+            const activeStay = getActiveStay(selectedRoom);
+            if (activeStay) {
+              await requestVehicle(activeStay.id);
+            }
+          }
+        }}
       />
       <RoomActionsWheel
         room={selectedRoom}

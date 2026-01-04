@@ -3,29 +3,17 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RoomType } from "@/components/sales/room-types";
-import { Employee } from "@/components/employees/types";
-import { createClient } from "@/lib/supabase/client";
 import {
   Minus,
   Plus,
   Users,
-  Car,
   Clock,
   Zap,
   AlertTriangle,
   DollarSign,
-  UserCog
 } from "lucide-react";
-
-export interface VehicleInfo {
-  plate: string;
-  brand: string;
-  model: string;
-}
 
 export interface QuickCheckinModalProps {
   isOpen: boolean;
@@ -35,9 +23,7 @@ export interface QuickCheckinModalProps {
   onClose: () => void;
   onConfirm: (data: {
     initialPeople: number;
-    vehicle: VehicleInfo;
     actualEntryTime: Date;
-    valetEmployeeId?: string | null;
   }) => void;
 }
 
@@ -66,13 +52,10 @@ export function QuickCheckinModal({
   onClose,
   onConfirm,
 }: QuickCheckinModalProps) {
-  const [initialPeople, setInitialPeople] = useState(2);
-  const [vehicle, setVehicle] = useState<VehicleInfo>({ plate: "", brand: "", model: "" });
+  const [initialPeople, setInitialPeople] = useState(1);
   const [useCustomTime, setUseCustomTime] = useState(false);
   const [customHour, setCustomHour] = useState("");
   const [customMinute, setCustomMinute] = useState("");
-  const [valetEmployeeId, setValetEmployeeId] = useState<string>("");
-  const [valets, setValets] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
 
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
@@ -128,31 +111,12 @@ export function QuickCheckinModal({
   const expectedCheckout = getExpectedCheckout(actualEntryTime);
   const timeDifference = Math.round((new Date().getTime() - actualEntryTime.getTime()) / 60000);
 
-  // Cargar cocheros disponibles
-  useEffect(() => {
-    const loadValets = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name')
-        .eq('role', 'cochero')
-        .eq('is_active', true)
-        .order('first_name');
 
-      if (data) {
-        setValets(data);
-      }
-    };
-
-    loadValets();
-  }, []);
 
   // Reset al abrir
   useEffect(() => {
     if (isOpen) {
-      setInitialPeople(2);
-      setVehicle({ plate: "", brand: "", model: "" });
-      setValetEmployeeId("none");
+      setInitialPeople(1);
       setUseCustomTime(false);
       const now = new Date();
       setCustomHour(now.getHours().toString().padStart(2, "0"));
@@ -165,9 +129,7 @@ export function QuickCheckinModal({
   const handleConfirm = () => {
     onConfirm({
       initialPeople,
-      vehicle,
       actualEntryTime,
-      valetEmployeeId: valetEmployeeId === "none" ? null : valetEmployeeId,
     });
   };
 
@@ -312,66 +274,7 @@ export function QuickCheckinModal({
             </p>
           </div>
 
-          {/* Información del vehículo */}
-          <div className="space-y-3 pt-2 border-t">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Car className="h-4 w-4" />
-              Datos del vehículo (opcional)
-            </p>
-            <div className="grid grid-cols-1 gap-3">
-              <Input
-                placeholder="Placas (ej: ABC-123)"
-                value={vehicle.plate}
-                onChange={(e) => setVehicle({ ...vehicle, plate: e.target.value.toUpperCase() })}
-                disabled={actionLoading}
-                className="uppercase"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Marca"
-                  value={vehicle.brand}
-                  onChange={(e) => setVehicle({ ...vehicle, brand: e.target.value })}
-                  disabled={actionLoading}
-                />
-                <Input
-                  placeholder="Modelo"
-                  value={vehicle.model}
-                  onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
-                  disabled={actionLoading}
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* Cochero (opcional) */}
-          <div className="space-y-3 pt-2 border-t">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <UserCog className="h-4 w-4" />
-              Cochero (opcional)
-            </p>
-            <Select
-              value={valetEmployeeId}
-              onValueChange={setValetEmployeeId}
-              disabled={actionLoading || valets.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={valets.length === 0 ? "No hay cocheros registrados" : "Selecciona un cochero"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin asignar</SelectItem>
-                {valets.map((valet) => (
-                  <SelectItem key={valet.id} value={valet.id}>
-                    {valet.first_name} {valet.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(valetEmployeeId === "none" || valetEmployeeId === "") && (
-              <p className="text-xs text-muted-foreground">
-                Puedes asignar el cochero después cuando traiga la comanda
-              </p>
-            )}
-          </div>
         </div>
 
         <div className="px-6 py-4 border-t flex justify-end gap-2 flex-shrink-0">

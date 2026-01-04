@@ -27,6 +27,8 @@ export interface RoomCheckoutModalProps {
   onClose: () => void;
   onConfirm: (data: { payments: PaymentEntry[]; checkoutValetId?: string | null }) => void;
   defaultValetId?: string | null;
+  vehiclePlate?: string | null;
+  onRequestValet?: () => Promise<void>;
 }
 
 export function RoomCheckoutModal({
@@ -41,6 +43,8 @@ export function RoomCheckoutModal({
   onClose,
   onConfirm,
   defaultValetId,
+  vehiclePlate,
+  onRequestValet,
 }: RoomCheckoutModalProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [showPendingWarning, setShowPendingWarning] = useState(false);
@@ -54,6 +58,8 @@ export function RoomCheckoutModal({
     CONSUMPTION: "Consumos",
     PRODUCT: "Productos",
     OTHER: "Otros",
+    DAMAGE_CHARGE: "Cargos por Daños",
+    TOLERANCE_EXPIRED: "Tolerancia Expirada",
   };
 
   const conceptIcons: Record<string, React.ReactNode> = {
@@ -63,6 +69,8 @@ export function RoomCheckoutModal({
     CONSUMPTION: <ShoppingBag className="h-3 w-3" />,
     PRODUCT: <ShoppingBag className="h-3 w-3" />,
     OTHER: <ShoppingBag className="h-3 w-3" />,
+    DAMAGE_CHARGE: <AlertTriangle className="h-3 w-3" />,
+    TOLERANCE_EXPIRED: <Clock className="h-3 w-3" />,
   };
 
   const hasPendingItems = pendingItems.length > 0 && pendingItems.some(item => item.total > 0);
@@ -139,6 +147,42 @@ export function RoomCheckoutModal({
             </div>
           )}
 
+          {/* Validación de Vehículo - Muestra advertencia si hay auto pero no cochero de salida */}
+          {!!vehiclePlate && !defaultValetId && (
+            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-red-700 dark:text-red-300">
+                    Vehículo en resguardo ({vehiclePlate})
+                  </p>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/80">
+                    El cochero debe confirmar la revisión y entrega del vehículo antes de finalizar la salida.
+                  </p>
+                </div>
+              </div>
+
+              {onRequestValet && (
+                <Button
+                  variant="outline"
+                  className="w-full border-red-200 hover:bg-red-100 text-red-700"
+                  onClick={onRequestValet}
+                >
+                  📡 Solicitar Revisión al Cochero
+                </Button>
+              )}
+            </div>
+          )}
+
+          {!!vehiclePlate && !!defaultValetId && (
+            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                Vehículo verificado por cochero
+              </span>
+            </div>
+          )}
+
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Saldo pendiente</p>
             <p className={`text-base font-semibold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
@@ -167,33 +211,28 @@ export function RoomCheckoutModal({
               Cochero de Salida
             </p>
             <div className="space-y-1">
-              <Select
-                value={checkoutValetId}
-                onValueChange={setCheckoutValetId}
-                disabled={actionLoading || valets.length === 0 || !!defaultValetId}
-              >
-                <SelectTrigger className={defaultValetId ? "bg-muted text-muted-foreground opacity-100" : ""}>
-                  <SelectValue placeholder={valets.length === 0 ? "No hay cocheros registrados" : "Selecciona cochero de salida"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin asignar</SelectItem>
-                  {valets.map((valet) => (
-                    <SelectItem key={valet.id} value={valet.id}>
-                      {valet.first_name} {valet.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               {defaultValetId ? (
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Asignado automáticamente por revisión de salida
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Opcional: Registra qué cochero entregó el vehículo al cliente
-                </p>
-              )}
+                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <div>
+                    <span className="text-sm font-medium text-green-700 dark:text-green-300 block">
+                      Cochero asignado para salida
+                    </span>
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      {valets.find(v => v.id === defaultValetId)
+                        ? `${valets.find(v => v.id === defaultValetId)?.first_name} ${valets.find(v => v.id === defaultValetId)?.last_name}`
+                        : "Cochero verificado"}
+                    </span>
+                  </div>
+                </div>
+              ) : vehiclePlate ? (
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-amber-600" />
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                    Esperando confirmación del cochero...
+                  </span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -205,7 +244,7 @@ export function RoomCheckoutModal({
           >
             Cancelar
           </Button>
-          <Button onClick={() => onConfirm({ payments, checkoutValetId: checkoutValetId === "none" ? null : checkoutValetId })} disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) <= 0)}>
+          <Button onClick={() => onConfirm({ payments, checkoutValetId: checkoutValetId === "none" ? null : checkoutValetId })} disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) <= 0) || (!!vehiclePlate && !defaultValetId)}>
             {actionLoading
               ? "Procesando..."
               : remainingAmount <= 0

@@ -90,6 +90,8 @@ const CONCEPT_ICONS: Record<string, React.ReactNode> = {
   RENEWAL: <Receipt className="h-4 w-4" />,
   PROMO_4H: <Clock className="h-4 w-4" />,
   OTHER: <MoreHorizontal className="h-4 w-4" />,
+  DAMAGE_CHARGE: <AlertTriangle className="h-4 w-4" />,
+  TOLERANCE_EXPIRED: <Clock className="h-4 w-4" />,
 };
 
 const CONCEPT_LABELS: Record<string, string> = {
@@ -101,6 +103,8 @@ const CONCEPT_LABELS: Record<string, string> = {
   RENEWAL: "Renovación",
   PROMO_4H: "Promo 4 Horas",
   OTHER: "Otro",
+  DAMAGE_CHARGE: "Cargo por Daños",
+  TOLERANCE_EXPIRED: "Tolerancia Expirada",
 };
 
 const CONCEPT_COLORS: Record<string, string> = {
@@ -112,6 +116,8 @@ const CONCEPT_COLORS: Record<string, string> = {
   RENEWAL: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
   PROMO_4H: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   OTHER: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  DAMAGE_CHARGE: "bg-red-500/20 text-red-400 border-red-500/30",
+  TOLERANCE_EXPIRED: "bg-orange-500/20 text-orange-400 border-orange-500/30",
 };
 
 interface OrderItem {
@@ -124,6 +130,7 @@ interface OrderItem {
   paid_at: string | null;
   concept_type: string;
   payment_method: string | null;
+  courtesy_reason?: string;
   products: { name: string; sku: string } | null;
 }
 
@@ -175,6 +182,7 @@ export function GranularPaymentModal({
           paid_at,
           concept_type,
           payment_method,
+          courtesy_reason,
           products:product_id(name, sku)
         `)
         .eq("sales_order_id", salesOrderId);
@@ -802,22 +810,31 @@ export function GranularPaymentModal({
                               <p className="font-medium truncate">
                                 {item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
                               </p>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Badge variant="outline" className={`text-xs border ${CONCEPT_COLORS[item.concept_type || "PRODUCT"]}`}>
+                              {item.courtesy_reason && (
+                                <div className="flex items-start gap-1.5 mt-1">
+                                  <div className="min-w-[4px] h-[4px] mt-1.5 rounded-full bg-muted-foreground/40" />
+                                  <p className="text-xs text-muted-foreground/80 leading-snug">
+                                    {item.courtesy_reason}
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${CONCEPT_COLORS[item.concept_type || "PRODUCT"]}`}>
                                   {CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
                                 </Badge>
-                                <span>×{item.qty}</span>
-                                <span>@ {formatCurrency(item.unit_price)}</span>
+                                <span className="text-xs">×{item.qty}</span>
+                                <span className="text-xs">•</span>
+                                <span className="text-xs">@ {formatCurrency(item.unit_price)}</span>
                               </div>
                             </div>
                             <div className="text-right">
                               {itemDiscount > 0 ? (
                                 <>
-                                  <p className="text-sm line-through text-muted-foreground">{formatCurrency(item.total)}</p>
-                                  <p className="font-bold text-green-500">{formatCurrency(finalTotal)}</p>
+                                  <p className="text-xs line-through text-muted-foreground">{formatCurrency(item.total)}</p>
+                                  <p className="font-bold text-green-600 dark:text-green-400 text-sm">{formatCurrency(finalTotal)}</p>
                                 </>
                               ) : (
-                                <p className="font-bold">{formatCurrency(item.total)}</p>
+                                <p className="font-bold text-sm">{formatCurrency(item.total)}</p>
                               )}
                             </div>
                           </div>
