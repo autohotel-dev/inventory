@@ -52,7 +52,7 @@ export function GuestList() {
                     schema: 'public',
                     table: 'guest_subscriptions'
                 },
-                (payload) => {
+                (payload: any) => {
                     console.log('Realtime change:', payload);
 
                     if (payload.eventType === 'INSERT') {
