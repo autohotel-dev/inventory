@@ -1224,7 +1224,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         .from("room_stays")
         .select("tolerance_started_at, tolerance_type")
         .eq("sales_order_id", checkoutInfo.salesOrderId)
-        .eq("status", "active")
+        .eq("status", "ACTIVA")
         .single();
 
       if (!stayError && freshStay) {
