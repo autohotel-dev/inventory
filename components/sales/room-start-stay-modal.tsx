@@ -261,17 +261,36 @@ export function RoomStartStayModal({
             Se creará una orden de venta en estado "Abierta" vinculada a esta habitación.
           </p>
         </div>
-        <div className="px-6 py-4 border-t flex justify-end gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={actionLoading}
-          >
-            Cancelar
-          </Button>
-          <Button onClick={() => onConfirm(initialPeople, payments, vehicle)} disabled={actionLoading}>
-            {actionLoading ? "Iniciando..." : "Iniciar estancia"}
-          </Button>
+        <div className="px-6 py-4 border-t flex-shrink-0">
+          {/* FIX #6: Payment validation warning */}
+          {(() => {
+            const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+            if (totalPaid < totalPrice) {
+              return (
+                <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    ⚠️ Pago incompleto
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    Total a pagar: ${totalPrice.toFixed(2)} | Pagado: ${totalPaid.toFixed(2)} | Faltante: ${(totalPrice - totalPaid).toFixed(2)}
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          <div className="flex justify-end gap-2 w-full">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={actionLoading}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={() => onConfirm(initialPeople, payments, vehicle)} disabled={actionLoading}>
+              {actionLoading ? "Iniciando..." : "Iniciar estancia"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

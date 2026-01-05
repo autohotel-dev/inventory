@@ -45,7 +45,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 return false;
             }
 
-            // 1. Actualizar vehículo y asignar valet
+            // 1. Actualizar vehículo y asignar valet (FIX #3: Solo si no tiene valet asignado)
             const { error: stayError } = await supabase
                 .from('room_stays')
                 .update({
@@ -57,10 +57,27 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     total_people: Math.max(personCount, activeStay.total_people || 0),
                     vehicle_requested_at: null // Limpiar cualquier solicitud previa o estado inválido
                 })
-                .eq('id', activeStay.id);
+                .eq('id', activeStay.id)
+                .is('valet_employee_id', null); // Solo actualizar si NO tiene valet asignado
 
             if (stayError) {
+                // Verificar si fue un error de condición (ninguna fila afectada)
                 console.error('Error updating room stay:', stayError);
+
+                // Verificar si otro valet ya tomó la entrada
+                const { data: updatedStay } = await supabase
+                    .from('room_stays')
+                    .select('valet_employee_id')
+                    .eq('id', activeStay.id)
+                    .single();
+
+                if (updatedStay?.valet_employee_id && updatedStay.valet_employee_id !== valetId) {
+                    toast.warning('Entrada ya asignada', {
+                        description: 'Otro cochero ya aceptó esta entrada.'
+                    });
+                    return false;
+                }
+
                 throw stayError;
             }
 

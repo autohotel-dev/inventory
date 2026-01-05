@@ -690,7 +690,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         .from("room_stays")
         .update({
           current_people: newCurrentPeople,
-          tolerance_started_at: new Date().toISOString(),
+          tolerance_started_at: new Date().toISOString(), // Iniciar tolerancia
           tolerance_type: toleranceType,
         })
         .eq("id", activeStay.id);
@@ -1025,25 +1025,31 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       return;
     }
 
-    // Importar constantes en el scope
-    const FOUR_HOUR_PROMO_PRICES: Record<string, number> = {
-      "Alberca": 1000,
-      "Jacuzzi y Sauna": 600,
-      "Jacuzzi": 440,
-      "Sencilla": 300,
-      "Torre": 270,
-    };
-
-    const promoPrice = FOUR_HOUR_PROMO_PRICES[room.room_types.name];
-    if (!promoPrice || promoPrice <= 0) {
-      toast.error("No hay precio de promoción configurado para este tipo");
-      return;
-    }
-
     setActionLoading(true);
     const supabase = createClient();
 
     try {
+      // FIX #12: Fetch promo price from database instead of hardcoded
+      const { data: pricingData, error: pricingError } = await supabase
+        .from('pricing_config')
+        .select('price')
+        .eq('room_type_name', room.room_types.name)
+        .eq('promo_type', '4H_PROMO')
+        .eq('is_active', true)
+        .single();
+
+      if (pricingError || !pricingData) {
+        logger.error("No pricing found for room type", {
+          roomType: room.room_types.name,
+          error: pricingError
+        });
+        toast.error("No hay precio de promoción configurado", {
+          description: `Tipo: ${room.room_types.name}. Contacta al administrador.`
+        });
+        return;
+      }
+
+      const promoPrice = pricingData.price;
       const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
       // Actualizar totales de la orden
@@ -1493,11 +1499,19 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       // 1. Obtener la estancia para saber quién es el valet
       const { data: stay, error: stayError } = await supabase
         .from('room_stays')
-        .select('valet_employee_id, room:rooms(number)')
+        .select('valet_employee_id, vehicle_requested_at, room:rooms(number)')
         .eq('id', stayId)
         .single();
 
       if (stayError || !stay) throw new Error("No se encontró la estancia");
+
+      // FIX #8: Verificar si ya se solicitó el vehículo
+      if (stay.vehicle_requested_at) {
+        toast.info("Vehículo ya solicitado", {
+          description: "El vehículo para esta habitación ya fue solicitado anteriormente."
+        });
+        return true; // No es error, solo ya está solicitado
+      }
 
       if (!stay.valet_employee_id) {
         toast.error("No hay cochero asignado aún");

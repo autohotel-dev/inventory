@@ -100,6 +100,42 @@ const getCurrentEmployeeId = async (supabase: any) => {
   }
 };
 
+// FIX #4: Helper para notificar a valets después de un check-in
+const notifyValetsOfNewEntry = async (supabase: any, roomNumber: string, roomId: string, stayId: string) => {
+  try {
+    // Buscar empleados con rol 'cochero' o 'valet'
+    const { data: valets } = await supabase
+      .from("employees")
+      .select("auth_user_id")
+      .in("role", ["valet", "cochero", "Cochero"])
+      .not("auth_user_id", "is", null);
+
+    if (valets && valets.length > 0) {
+      const notifications = valets.map((v: any) => ({
+        user_id: v.auth_user_id,
+        type: 'info',
+        title: '🚗 Nueva Entrada',
+        message: `Nueva estancia en Habitación ${roomNumber}. Acepta la entrada para registrar vehículo.`,
+        data: {
+          room_id: roomId,
+          room_number: roomNumber,
+          stay_id: stayId
+        },
+        is_read: false
+      }));
+
+      const { error: notifError } = await supabase
+        .from("notifications")
+        .insert(notifications);
+
+      if (notifError) console.error("Error notifying valets:", notifError);
+    }
+  } catch (notifErr) {
+    console.error("Error in valet notifications:", notifErr);
+    // No bloquear el flujo si falla la notificación
+  }
+};
+
 
 
 // Wrapper component para manejar la lógica de rol sin violar hooks rules
@@ -1060,6 +1096,27 @@ function RoomsBoardInternal() {
       const currentShiftId = await getCurrentShiftId(supabase);
       const currentEmployeeId = await getCurrentEmployeeId(supabase);
 
+      // FIX #1: Verificar que la habitación siga disponible antes de proceder
+      const { data: currentRoomStatus, error: statusCheckError } = await supabase
+        .from("rooms")
+        .select("status")
+        .eq("id", selectedRoom.id)
+        .single();
+
+      if (statusCheckError || !currentRoomStatus) {
+        toast.error("Error al verificar disponibilidad", {
+          description: "No se pudo comprobar el estado actual de la habitación.",
+        });
+        return;
+      }
+
+      if (currentRoomStatus.status !== "LIBRE") {
+        toast.error("Habitación no disponible", {
+          description: `La habitación ${selectedRoom.number} ya NO está disponible. Estado actual: ${currentRoomStatus.status}`,
+        });
+        return;
+      }
+
       // Crear orden de venta básica para la estancia
       const { data: salesOrder, error: orderError } = await supabase
         .from("sales_orders")
@@ -1296,42 +1353,8 @@ function RoomsBoardInternal() {
         return;
       }
 
-      // -----------------------------------------------------
-      // NOTIFICAR A TODOS LOS COCHEROS (VALETS)
-      // -----------------------------------------------------
-      try {
-        // 1. Buscar empleados con rol 'cochero' o 'valet'
-        const { data: valets } = await supabase
-          .from("employees")
-          .select("auth_user_id")
-          .in("role", ["valet", "cochero", "Cochero"]) // Ajustar según tus roles reales
-          .not("auth_user_id", "is", null);
-
-        if (valets && valets.length > 0) {
-          const notifications = valets.map((v: any) => ({
-            user_id: v.auth_user_id,
-            type: 'info',
-            title: '🚗 Nueva Entrada',
-            message: `Nueva estancia en Habitación ${selectedRoom.number}. Acepta la entrada para registrar vehículo.`,
-            data: {
-              room_id: selectedRoom.id,
-              room_number: selectedRoom.number,
-              stay_id: stayData.id
-            },
-            is_read: false
-          }));
-
-          const { error: notifError } = await supabase
-            .from("notifications")
-            .insert(notifications);
-
-          if (notifError) console.error("Error notifying valets:", notifError);
-        }
-      } catch (notifErr) {
-        console.error("Error in check-in notifications:", notifErr);
-        // No bloquear el flujo si falla la notificación
-      }
-      // -----------------------------------------------------
+      // FIX #4: Notificar a todos los cocheros (VALETS) usando helper
+      await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id);
 
       toast.success("Estancia iniciada", {
         description: `Hab. ${selectedRoom.number} - ${roomType.name} (${initialPeople} persona${initialPeople > 1 ? 's' : ''}) hasta ${formatDateTime(
@@ -1499,7 +1522,7 @@ function RoomsBoardInternal() {
       });
 
       // Registrar la estancia con la hora REAL de entrada
-      const { error: stayError } = await supabase.from("room_stays").insert({
+      const { data: stayData, error: stayError } = await supabase.from("room_stays").insert({
         room_id: selectedRoom.id,
         sales_order_id: salesOrder.id,
         check_in_at: entryTime.toISOString(), // Hora real de entrada
@@ -1511,9 +1534,11 @@ function RoomsBoardInternal() {
         vehicle_model: null,
         valet_employee_id: null,
         shift_session_id: currentShiftId
-      });
+      })
+        .select()
+        .single();
 
-      if (stayError) {
+      if (stayError || !stayData) {
         console.error("Error creating room stay:", stayError);
         toast.error("Error al registrar la estancia");
         return;
@@ -1524,6 +1549,9 @@ function RoomsBoardInternal() {
         .from("rooms")
         .update({ status: "OCUPADA" })
         .eq("id", selectedRoom.id);
+
+      // FIX #4: Notificar a valets también en quick check-in
+      await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id);
 
       const timeDiff = Math.round((new Date().getTime() - entryTime.getTime()) / 60000);
 
