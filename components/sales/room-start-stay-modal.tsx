@@ -75,7 +75,7 @@ export function RoomStartStayModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-background border rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
           <h2 className="text-lg font-semibold">Iniciar estancia</h2>
           <Button

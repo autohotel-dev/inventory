@@ -1271,32 +1271,31 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
     try {
-      // REVALIDAR TOLERANCIA: Obtener datos frescos de la estancia
+      // 1. REVALIDAR TOLERANCIA
       const { data: freshStay, error: stayError } = await supabase
         .from("room_stays")
-        .select("tolerance_started_at, tolerance_type")
+        .select("tolerance_started_at, tolerance_type, id")
         .eq("sales_order_id", checkoutInfo.salesOrderId)
         .eq("status", "ACTIVA")
         .single();
 
       if (!stayError && freshStay) {
-        // Verificar si la tolerancia expiró DURANTE el modal
         if (freshStay.tolerance_started_at && freshStay.tolerance_type) {
-          const toleranceExpired = isToleranceExpired(freshStay.tolerance_started_at);
-
-          if (toleranceExpired) {
-            // Tolerancia expiró mientras el modal estaba abierto
+          if (isToleranceExpired(freshStay.tolerance_started_at)) {
             setActionLoading(false);
             toast.error("La tolerancia ha expirado", {
               description: "Se requiere cobrar hora extra. Por favor, cierre y vuelva a abrir el checkout.",
               duration: 6000
             });
-            return false; // Abortar checkout
+            return false;
           }
         }
+      } else {
+        toast.error("No se encontró la estancia activa o ya fue finalizada.");
+        return false;
       }
 
-      // PRIVACIDAD: Desactivar notificaciones para esta habitación
+      // 2. PRIVACIDAD (Desactivar notificaciones)
       try {
         await fetch('/api/guest/unsubscribe-all', {
           method: 'POST',
@@ -1305,187 +1304,125 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         });
       } catch (privacyError) {
         console.error("Error disabling notifications:", privacyError);
-        // No bloqueamos el checkout por esto, pero lo logueamos
       }
 
-      const finalizeStay = async () => {
-        const activeStay = getActiveStay(room);
-        if (activeStay) {
-          await supabase
-            .from("room_stays")
-            .update({
-              status: "FINALIZADA",
-              actual_check_out_at: new Date().toISOString(),
-              checkout_valet_employee_id: checkoutValetId || null,
-            })
-            .eq("id", activeStay.id);
-        }
-
-        // Marcar como SUCIA inmediatamente al dar salida (checkout manual)
-        await supabase
-          .from("rooms")
-          .update({ status: "SUCIA" })
-          .eq("id", room.id);
-
-        await supabase
-          .from("sales_orders")
-          .update({ status: "ENDED" })
-          .eq("id", checkoutInfo.salesOrderId);
-      };
-
-      // Insertar pagos en la tabla payments
-      if (payments && payments.length > 0) {
-        const validPayments = payments.filter(p => p.amount > 0);
-
-        // 1. Primero actualizar pagos pendientes existentes
-        const remainingAfterPending = await updatePendingPaymentsHelper(
-          supabase,
-          checkoutInfo.salesOrderId,
-          validPayments,
-          totalPaid,
-          "CHK" // Prefix para checkout
-        );
-
-        logger.info("Pending payments updated in checkout", {
-          totalPaid,
-          remainingAfterPending,
-          salesOrderId: checkoutInfo.salesOrderId
-        });
-
-        // 2. Solo crear nuevo pago si sobra monto después de actualizar pendientes
-        if (remainingAfterPending > 0) {
-          const isMultipago = validPayments.length > 1;
-
-          if (isMultipago) {
-            // MULTIPAGO: Crear cargo principal + subpagos
-            const currentShiftId = await getCurrentShiftId(supabase);
-            const { data: mainPayment, error: mainError } = await supabase
-              .from("payments")
-              .insert({
-                sales_order_id: checkoutInfo.salesOrderId,
-                amount: remainingAfterPending,  // ✅ Usar monto restante
-                payment_method: "PENDIENTE",
-                reference: generatePaymentReference("CHK"),
-                concept: "CHECKOUT",
-                status: "PAGADO",
-                payment_type: "COMPLETO",
-                shift_session_id: currentShiftId,
-              })
-              .select("id")
-              .single();
-
-            if (mainError) {
-              logger.error("Error inserting main payment", mainError);
-            } else if (mainPayment) {
-              // currentShiftId ya obtenido arriba
-              const subpayments = validPayments.map(p => ({
-                sales_order_id: checkoutInfo.salesOrderId,
-                amount: p.amount,
-                payment_method: p.method,
-                reference: p.reference || generatePaymentReference("SUB"),
-                concept: "CHECKOUT",
-                status: "PAGADO",
-                payment_type: "PARCIAL",
-                parent_payment_id: mainPayment.id,
-                shift_session_id: currentShiftId, // Vinculado al turno
-                // Agregar terminal si es pago con tarjeta
-                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              }));
-
-              const { error: subError } = await supabase
-                .from("payments")
-                .insert(subpayments);
-
-              if (subError) {
-                logger.error("Error inserting subpayments", subError);
-              }
-            }
-          } else if (validPayments.length === 1) {
-            // PAGO ÚNICO
-            const p = validPayments[0];
-            const currentShiftId = await getCurrentShiftId(supabase);
-            const { error: paymentsError } = await supabase
-              .from("payments")
-              .insert({
-                sales_order_id: checkoutInfo.salesOrderId,
-                amount: remainingAfterPending,  // ✅ Usar monto restante
-                payment_method: p.method,
-                reference: p.reference || generatePaymentReference("CHK"),
-                concept: "CHECKOUT",
-                status: "PAGADO",
-                payment_type: "COMPLETO",
-                shift_session_id: currentShiftId,
-                // Agregar terminal si es pago con tarjeta
-                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              });
-
-            if (paymentsError) {
-              console.error("Error inserting payment:", paymentsError);
-            }
-          }
-        }
-      }
-
-      // Determinar método de pago para actualizar items
+      // 3. ACTUALIZAR ITEMS (Estado a PAGADO para evitar duplicados en reportes)
+      // Esto es seguro hacerlo antes porque si falla el checkout, siguen estando "pagados" (o por pagar)
+      // pero asociados a una orden abierta.
       const paymentMethod = payments && payments.length > 0
         ? (payments.length > 1 ? "MULTIPAGO" : payments[0].method)
         : "EFECTIVO";
 
-      // Actualizar items no pagados a pagados (evita duplicados)
       await updateUnpaidItems(checkoutInfo.salesOrderId, "EXTRA_PERSON", paymentMethod);
       await updateUnpaidItems(checkoutInfo.salesOrderId, "EXTRA_HOUR", paymentMethod);
       await updateUnpaidItems(checkoutInfo.salesOrderId, "ROOM_BASE", paymentMethod);
       await updateUnpaidItems(checkoutInfo.salesOrderId, "TOLERANCE_EXPIRED", paymentMethod);
 
-      if (checkoutInfo.remainingAmount <= 0 || totalPaid <= 0) {
-        await finalizeStay();
-        toast.success("Check-out completado", {
-          description: `Hab. ${room.number} → SUCIA`,
-        });
-      } else {
-        const { data, error } = await supabase.rpc("process_payment", {
-          order_id: checkoutInfo.salesOrderId,
-          payment_amount: totalPaid,
-        });
+      // 4. PREPARAR PAGOS PARA RPC
+      // Primero limpiamos los pagos pendientes existentes
+      let remainingAfterPending = totalPaid;
+      if (payments && payments.length > 0) {
+        const validPayments = payments.filter(p => p.amount > 0);
+        remainingAfterPending = await updatePendingPaymentsHelper(
+          supabase,
+          checkoutInfo.salesOrderId,
+          validPayments,
+          totalPaid,
+          "CHK"
+        );
+      }
 
-        if (error) {
-          logger.error("Error processing payment", error);
-          toast.error("Error al procesar el pago");
-          return false;
-        }
+      // Preparamos los "Nuevos Pagos" que la RPC debe insertar
+      // Solo si sobra dinero después de cubrir los pendientes
+      const newPaymentsToInsert: any[] = [];
+      const currentShiftId = await getCurrentShiftId(supabase);
 
-        const result = (data as any)?.[0];
-        if (result?.success === false) {
-          toast.error(result.message || "No se pudo procesar el pago");
-          return false;
-        }
+      if (remainingAfterPending > 0 && payments && payments.length > 0) {
+        const validPayments = payments.filter(p => p.amount > 0);
+        const isMultipago = validPayments.length > 1;
 
-        const { data: orderAfter } = await supabase
-          .from("sales_orders")
-          .select("remaining_amount")
-          .eq("id", checkoutInfo.salesOrderId)
-          .single();
+        if (isMultipago) {
+          // Lógica compleja de multipago: Creamos un "dummy" entry en el array para que la RPC lo procese?
+          // La RPC espera un array flat de pagos.
+          // Para simplificar la RPC, le enviaremos los subpagos desglosados directamente.
+          // Ojo: En el código original creábamos un PARENT pago. 
+          // Para mantener la atomicidad real, la RPC debería soportar parent/child, pero eso complica el JSON.
+          // ESTRATEGIA: Insertamos pagos individuales en la RPC. Si se requiere agrupación visual, se maneja después.
+          // Por consistencia con updatePendingPaymentsHelper, usaremos lógica simplificada:
 
-        const remaining = Number(orderAfter?.remaining_amount) || 0;
+          // Calculamos proporción para los nuevos pagos
+          const proportion = remainingAfterPending / totalPaid; // Cuánto de lo pagado es "nuevo"
 
-        if (remaining <= 0) {
-          await finalizeStay();
-          toast.success("Check-out completado", {
-            description: `Hab. ${room.number} → SUCIA`,
+          validPayments.forEach(p => {
+            newPaymentsToInsert.push({
+              sales_order_id: checkoutInfo.salesOrderId,
+              amount: Number((p.amount * proportion).toFixed(2)),
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("CHK"),
+              concept: "CHECKOUT",
+              status: "PAGADO",
+              payment_type: "PARCIAL", // Marcamos como parciales para indicar desglose
+              shift_session_id: currentShiftId,
+              terminal_code: p.terminal,
+              card_last_4: p.cardLast4,
+              card_type: p.cardType
+            });
           });
+
         } else {
-          const methodsSummary = payments?.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ') || '';
-          toast.success("Pago registrado", {
-            description: `Pagado: $${totalPaid.toFixed(2)} (${methodsSummary}). Saldo: $${remaining.toFixed(2)}`,
+          // Pago Único
+          const p = validPayments[0];
+          newPaymentsToInsert.push({
+            sales_order_id: checkoutInfo.salesOrderId,
+            amount: remainingAfterPending,
+            payment_method: p.method,
+            reference: p.reference || generatePaymentReference("CHK"),
+            concept: "CHECKOUT",
+            status: "PAGADO",
+            payment_type: "COMPLETO",
+            shift_session_id: currentShiftId,
+            terminal_code: p.terminal,
+            card_last_4: p.cardLast4,
+            card_type: p.cardType
           });
         }
       }
 
+
+      // 5. LLAMADA ATÓMICA RPC (COMMIT)
+      // Si esto falla, NADA se guarda (excepto los items actualizados y pagos pendientes, que son safe)
+      const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout_transaction', {
+        p_stay_id: freshStay!.id,
+        p_sales_order_id: checkoutInfo.salesOrderId,
+        p_payment_data: newPaymentsToInsert,
+        p_checkout_valet_id: checkoutValetId || null
+      });
+
+      if (rpcError) {
+        logger.error("RPC Checkout Failed", rpcError);
+        toast.error("Error crítico en checkout", { description: rpcError.message });
+        return false;
+      }
+
+      if (rpcData && (rpcData as any).success === false) {
+        toast.error("Error en checkout", { description: (rpcData as any).error });
+        return false;
+      }
+
+      // 6. ÉXITO
+      const remainingTotal = Math.max(0, checkoutInfo.remainingAmount - totalPaid);
+      toast.success("Check-out completado exitosamente", {
+        description: remainingTotal > 0
+          ? `Saldo restante: $${remainingTotal.toFixed(2)}`
+          : `Hab. ${room.number} → SUCIA`
+      });
+
       await onRefresh();
       return true;
+
     } catch (error) {
-      logger.error("Error during checkout", error);
-      toast.error("Error al realizar el check-out");
+      logger.error("Error unhandled in checkout", error);
+      toast.error("Error inesperado en checkout");
       return false;
     } finally {
       setActionLoading(false);

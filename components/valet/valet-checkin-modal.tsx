@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,20 @@ export function ValetCheckInModal({
     const [paymentMethod, setPaymentMethod] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
     const [reference, setReference] = useState("");
     const [personCount, setPersonCount] = useState(2);
+
+    // Reset form cuando el modal se abre
+    useEffect(() => {
+        if (isOpen) {
+            setPlate("");
+            setBrand("");
+            setModel("");
+            setVehicleSearch("");
+            setShowSearchResults(false);
+            setPaymentMethod('EFECTIVO');
+            setReference("");
+            setPersonCount(2);
+        }
+    }, [isOpen]);
 
     if (!room) return null;
 

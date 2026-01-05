@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Room } from "@/components/sales/room-types";
@@ -22,6 +22,13 @@ export function ValetCheckoutModal({
 }: ValetCheckoutModalProps) {
     const activeStay = room?.room_stays?.find(s => s.status === 'ACTIVA');
     const [personCount, setPersonCount] = useState(activeStay?.current_people ?? 2);
+
+    // Reset person count cuando el modal se abre
+    useEffect(() => {
+        if (isOpen && activeStay) {
+            setPersonCount(activeStay.current_people ?? 2);
+        }
+    }, [isOpen, activeStay]);
 
     if (!room || !activeStay) return null;
 

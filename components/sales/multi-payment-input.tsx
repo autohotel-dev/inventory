@@ -4,17 +4,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, CreditCard } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { PaymentMethod, PAYMENT_METHODS, PaymentTerminal, PAYMENT_TERMINALS, CardType, CARD_TYPES } from "@/components/sales/room-types";
 
 export interface PaymentEntry {
   id: string;
   amount: number;
   method: PaymentMethod;
-  terminal?: PaymentTerminal; // Solo aplica cuando method = 'TARJETA'
+  terminal?: PaymentTerminal;
   reference?: string;
-  cardLast4?: string; // Últimos 4 dígitos de la tarjeta
-  cardType?: CardType; // CREDITO o DEBITO
+  cardLast4?: string;
+  cardType?: CardType;
 }
 
 interface MultiPaymentInputProps {
@@ -32,8 +32,19 @@ export function MultiPaymentInput({
   disabled = false,
   showReference = false,
 }: MultiPaymentInputProps) {
+  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set(payments.map(p => p.id)));
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
   const remaining = totalAmount - totalPaid;
+  const isComplete = totalPaid >= totalAmount;
+
+  const toggleExpanded = (id: string) => {
+    setExpandedPayments(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const addPayment = () => {
     const newPayment: PaymentEntry = {
@@ -46,6 +57,7 @@ export function MultiPaymentInput({
       cardType: undefined,
     };
     onPaymentsChange([...payments, newPayment]);
+    setExpandedPayments(prev => new Set([...prev, newPayment.id]));
   };
 
   const updatePayment = (id: string, field: keyof PaymentEntry, value: any) => {
@@ -53,13 +65,11 @@ export function MultiPaymentInput({
       payments.map((p) => {
         if (p.id !== id) return p;
         const updated = { ...p, [field]: field === "amount" ? parseFloat(value) || 0 : value };
-        // Si cambia a EFECTIVO, limpiar terminal y detalles de tarjeta
         if (field === "method" && value === "EFECTIVO") {
           updated.terminal = undefined;
           updated.cardLast4 = undefined;
           updated.cardType = undefined;
         }
-        // Si cambia a TARJETA y no tiene terminal, asignar BBVA por defecto
         if (field === "method" && value === "TARJETA" && !updated.terminal) {
           updated.terminal = "BBVA";
         }
@@ -70,207 +80,189 @@ export function MultiPaymentInput({
 
   const removePayment = (id: string) => {
     onPaymentsChange(payments.filter((p) => p.id !== id));
-  };
-
-  const getMethodIcon = (method: PaymentMethod) => {
-    const found = PAYMENT_METHODS.find((m) => m.value === method);
-    return found?.icon || "💰";
+    setExpandedPayments(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   return (
     <div className="space-y-3">
-      {/* Lista de pagos - scrolleable */}
-      <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
-        {payments.map((payment, index) => (
-          <div
-            key={payment.id}
-            className="p-3 rounded-lg border bg-muted/30 space-y-2"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">
-                Pago #{index + 1}
-              </span>
-              {payments.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-red-500 hover:text-red-400"
-                  onClick={() => removePayment(payment.id)}
-                  disabled={disabled}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-
-            {/* Método de pago */}
-            <div className="flex gap-1">
-              {PAYMENT_METHODS.map((method) => (
-                <Button
-                  key={method.value}
-                  type="button"
-                  variant={payment.method === method.value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => updatePayment(payment.id, "method", method.value)}
-                  disabled={disabled}
-                  className="flex-1 text-xs px-2"
-                >
-                  <span className="mr-1">{method.icon}</span>
-                  {method.label}
-                </Button>
-              ))}
-            </div>
-
-            {/* Selector de terminal (solo para tarjeta) */}
-            {payment.method === "TARJETA" && (
-              <div className="flex gap-1">
-                {PAYMENT_TERMINALS.map((terminal) => (
-                  <Button
-                    key={terminal.value}
-                    type="button"
-                    variant={payment.terminal === terminal.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updatePayment(payment.id, "terminal", terminal.value)}
-                    disabled={disabled}
-                    className={`flex-1 text-xs px-2 ${payment.terminal === terminal.value ? terminal.color + " text-white" : ""}`}
-                  >
-                    {terminal.label}
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            {/* Detalles de tarjeta (solo para tarjeta) */}
-            {payment.method === "TARJETA" && (
-              <>
-                {/* Últimos 4 dígitos */}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Últimos 4 dígitos</Label>
-                  <Input
-                    type="text"
-                    maxLength={4}
-                    value={payment.cardLast4 || ""}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "");
-                      updatePayment(payment.id, "cardLast4", value);
-                    }}
-                    disabled={disabled}
-                    placeholder="1234"
-                    className="h-9"
-                  />
-                </div>
-
-                {/* Tipo de tarjeta */}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Tipo de tarjeta</Label>
-                  <div className="flex gap-1">
-                    {CARD_TYPES.map((cardType) => (
-                      <Button
-                        key={cardType.value}
-                        type="button"
-                        variant={payment.cardType === cardType.value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => updatePayment(payment.id, "cardType", cardType.value)}
-                        disabled={disabled}
-                        className="flex-1 text-xs px-2"
-                      >
-                        <span className="mr-1">{cardType.icon}</span>
-                        {cardType.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Monto */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={payment.amount || ""}
-                  onChange={(e) => updatePayment(payment.id, "amount", e.target.value)}
-                  disabled={disabled}
-                  placeholder="Monto"
-                  className="h-9"
-                />
-              </div>
-              {showReference && (
-                <div className="flex-1">
-                  <Input
-                    type="text"
-                    value={payment.reference || ""}
-                    onChange={(e) => updatePayment(payment.id, "reference", e.target.value)}
-                    disabled={disabled}
-                    placeholder="Referencia (opcional)"
-                    className="h-9"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+      {/* Resumen compacto */}
+      <div className={`grid grid-cols-3 gap-2 p-3 rounded-lg border ${isComplete ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500' :
+        remaining > 0 ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-400' :
+          'bg-muted border-border'
+        }`}>
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Total</p>
+          <p className="text-lg font-bold">${totalAmount.toFixed(2)}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Pagado</p>
+          <p className={`text-lg font-bold ${isComplete ? 'text-emerald-600' : ''}`}>
+            ${totalPaid.toFixed(2)}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">{remaining > 0 ? 'Falta' : 'Cambio'}</p>
+          <p className={`text-lg font-bold ${remaining > 0 ? 'text-amber-600' : 'text-blue-600'}`}>
+            ${Math.abs(remaining).toFixed(2)}
+          </p>
+        </div>
       </div>
 
-      {/* Botón agregar pago */}
+      {/* Lista de pagos compacta */}
+      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        {payments.map((payment, index) => {
+          const isExpanded = expandedPayments.has(payment.id);
+          return (
+            <div key={payment.id} className="border rounded-lg bg-card">
+              {/* Header compacto clickeable */}
+              <button
+                type="button"
+                onClick={() => toggleExpanded(payment.id)}
+                className="w-full p-2 flex items-center justify-between hover:bg-muted/50 rounded-t-lg transition-colors"
+              >
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-sm font-semibold">#{index + 1}</span>
+                  <span className="text-lg">{payment.method === "EFECTIVO" ? "💵" : "💳"}</span>
+                  <span className="text-sm">{PAYMENT_METHODS.find(m => m.value === payment.method)?.label}</span>
+                  {payment.amount > 0 && (
+                    <span className="text-sm font-bold text-primary ml-auto mr-2">
+                      ${payment.amount.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+
+              {/* Detalles expandibles */}
+              {isExpanded && (
+                <div className="p-3 pt-2 space-y-2 border-t">
+                  {/* Monto y método en una fila */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs mb-1">Monto</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={payment.amount || ""}
+                        onChange={(e) => updatePayment(payment.id, "amount", e.target.value)}
+                        disabled={disabled}
+                        placeholder="0.00"
+                        className="h-9 font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs mb-1">Método</Label>
+                      <div className="grid grid-cols-2 gap-1">
+                        {PAYMENT_METHODS.map((method) => (
+                          <Button
+                            key={method.value}
+                            type="button"
+                            variant={payment.method === method.value ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => updatePayment(payment.id, "method", method.value)}
+                            disabled={disabled}
+                            className="h-9 text-xs px-1"
+                          >
+                            {method.icon}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detalles de tarjeta */}
+                  {payment.method === "TARJETA" && (
+                    <div className="space-y-2 pt-1">
+                      {/* Terminales */}
+                      <div className="grid grid-cols-2 gap-1">
+                        {PAYMENT_TERMINALS.map((terminal) => (
+                          <Button
+                            key={terminal.value}
+                            type="button"
+                            variant={payment.terminal === terminal.value ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => updatePayment(payment.id, "terminal", terminal.value)}
+                            disabled={disabled}
+                            className={`h-8 text-xs ${payment.terminal === terminal.value ? terminal.color + " text-white" : ""
+                              }`}
+                          >
+                            {terminal.label}
+                          </Button>
+                        ))}
+                      </div>
+
+                      {/* Últimos 4 y tipo */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          type="text"
+                          maxLength={4}
+                          value={payment.cardLast4 || ""}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            updatePayment(payment.id, "cardLast4", value);
+                          }}
+                          disabled={disabled}
+                          placeholder="Últimos 4"
+                          className="h-8 text-center text-sm"
+                        />
+                        <div className="grid grid-cols-2 gap-1">
+                          {CARD_TYPES.map((cardType) => (
+                            <Button
+                              key={cardType.value}
+                              type="button"
+                              variant={payment.cardType === cardType.value ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => updatePayment(payment.id, "cardType", cardType.value)}
+                              disabled={disabled}
+                              className="h-8 text-[10px] px-1 flex flex-col items-center justify-center gap-0"
+                            >
+                              <span className="text-xs">{cardType.icon}</span>
+                              <span className="leading-none">{cardType.label}</span>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botón eliminar */}
+                  {payments.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePayment(payment.id)}
+                      disabled={disabled}
+                      className="w-full h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Eliminar
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Botón agregar */}
       <Button
         type="button"
         variant="outline"
         size="sm"
         onClick={addPayment}
         disabled={disabled}
-        className="w-full"
+        className="w-full border-dashed"
       >
-        <Plus className="h-4 w-4 mr-2" />
-        Agregar otro método de pago
+        <Plus className="h-4 w-4 mr-1" />
+        Agregar pago
       </Button>
-
-      {/* Resumen */}
-      <div className="p-3 rounded-lg bg-muted/50 space-y-1">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Total a pagar:</span>
-          <span className="font-medium">${totalAmount.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Total pagado:</span>
-          <span className={`font-medium ${totalPaid >= totalAmount ? "text-emerald-500" : ""}`}>
-            ${totalPaid.toFixed(2)}
-          </span>
-        </div>
-        {remaining > 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Restante:</span>
-            <span className="font-medium text-amber-500">${remaining.toFixed(2)}</span>
-          </div>
-        )}
-        {remaining < 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Cambio:</span>
-            <span className="font-medium text-blue-500">${Math.abs(remaining).toFixed(2)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Desglose por método */}
-      {payments.length > 1 && (
-        <div className="text-xs text-muted-foreground space-y-1">
-          {PAYMENT_METHODS.map((method) => {
-            const methodTotal = payments
-              .filter((p) => p.method === method.value)
-              .reduce((sum, p) => sum + p.amount, 0);
-            if (methodTotal === 0) return null;
-            return (
-              <div key={method.value} className="flex justify-between">
-                <span>{method.icon} {method.label}:</span>
-                <span>${methodTotal.toFixed(2)}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

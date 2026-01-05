@@ -104,8 +104,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 description: `Te has asignado la Habitación ${room.number}`
             });
 
-            // Refrescar lista
-            fetchRooms(true);
+            // Refrescar lista - con await para asegurar actualización
+            await fetchRooms(true);
 
         } catch (error) {
             console.error("Error accepting entry:", error);
@@ -177,6 +177,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         if (success) {
             setShowCheckInModal(false);
             setSelectedRoom(null);
+            // Forzar actualización inmediata del dashboard
+            await fetchRooms(true);
         }
     };
 
@@ -186,11 +188,15 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         if (success) {
             setShowCheckoutModal(false);
             setSelectedRoom(null);
+            // Forzar actualización inmediata del dashboard
+            await fetchRooms(true);
         }
     };
 
     const handlePropose = async (room: Room) => {
         await handleProposeCheckout(room, employeeId);
+        // Forzar actualización inmediata del dashboard
+        await fetchRooms(true);
     };
 
     if (loading) {

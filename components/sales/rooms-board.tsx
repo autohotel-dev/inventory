@@ -325,7 +325,7 @@ function RoomsBoardInternal() {
   useEffect(() => {
     const supabase = createClient();
 
-    console.log("Setting up realtime subscription for RoomsBoard");
+    console.log("🔌 [RoomBoard] Configurando suscripción en tiempo real...");
 
     const channel = supabase
       .channel('rooms-board-realtime')
@@ -333,8 +333,11 @@ function RoomsBoardInternal() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'rooms' },
         (payload: any) => {
-          console.log("Realtime change received (rooms):", payload.eventType);
-          toast.success("🔄 Sincronizando: Cambios en Habitaciones detected");
+          console.log("📡 [RoomBoard] Cambio detectado en 'rooms':", {
+            event: payload.eventType,
+            roomId: payload.new?.id || payload.old?.id,
+            status: payload.new?.status || payload.old?.status,
+          });
           fetchRooms(true);
         }
       )
@@ -342,8 +345,14 @@ function RoomsBoardInternal() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'room_stays' },
         (payload: any) => {
-          console.log("Realtime change received (room_stays):", payload.eventType);
-          toast.success("🔄 Sincronizando: Cambios en Estancias detected");
+          console.log("📡 [RoomBoard] Cambio detectado en 'room_stays':", {
+            event: payload.eventType,
+            stayId: payload.new?.id || payload.old?.id,
+            vehiclePlate: payload.new?.vehicle_plate,
+            valetId: payload.new?.valet_employee_id,
+            checkoutValetId: payload.new?.checkout_valet_employee_id,
+            valetCheckoutRequested: payload.new?.valet_checkout_requested_at,
+          });
           fetchRooms(true);
         }
       )
@@ -351,21 +360,45 @@ function RoomsBoardInternal() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payments' },
         (payload: any) => {
-          console.log("Realtime change received (payments):", payload.eventType);
-          toast.success("🔄 Sincronizando: Pagos detectados");
-          fetchRooms(true); // Para actualizar badges o estados que dependan de pagos (como sales_order.remaining)
+          console.log("📡 [RoomBoard] Cambio detectado en 'payments':", {
+            event: payload.eventType,
+            paymentId: payload.new?.id || payload.old?.id,
+            status: payload.new?.status,
+          });
+          fetchRooms(true);
         }
       )
       .subscribe((status: string) => {
+        console.log("🔌 [RoomBoard] Estado de suscripción:", status);
         if (status === 'SUBSCRIBED') {
-          toast.success("🟢 Conexión en tiempo real ACTIVADA");
+          console.log("✅ [RoomBoard] Conexión en tiempo real ACTIVADA");
         } else if (status === 'CHANNEL_ERROR') {
-          toast.error("🔴 Error de conexión en tiempo real");
+          console.error("❌ [RoomBoard] Error de conexión en tiempo real");
+        } else if (status === 'TIMED_OUT') {
+          console.warn("⏱️ [RoomBoard] Timeout de conexión en tiempo real");
+        } else if (status === 'CLOSED') {
+          console.warn("🚪 [RoomBoard] Conexión cerrada");
         }
       });
 
     return () => {
+      console.log("🔌 [RoomBoard] Cerrando suscripción en tiempo real...");
       supabase.removeChannel(channel);
+    };
+  }, [fetchRooms]);
+
+  // Auto-refresh cada 3 segundos como fallback si Realtime falla
+  useEffect(() => {
+    console.log("⏰ [RoomBoard] Activando auto-refresh cada 3 segundos como fallback");
+
+    const interval = setInterval(() => {
+      console.log("🔄 [RoomBoard] Auto-refresh ejecutándose...");
+      fetchRooms(true); // Silencioso
+    }, 3000); // 3 segundos - prácticamente tiempo real
+
+    return () => {
+      console.log("⏰ [RoomBoard] Desactivando auto-refresh");
+      clearInterval(interval);
     };
   }, [fetchRooms]);
 

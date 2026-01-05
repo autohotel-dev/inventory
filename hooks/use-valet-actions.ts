@@ -45,8 +45,9 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 return false;
             }
 
-            // 1. Actualizar vehículo y asignar valet (FIX #3: Solo si no tiene valet asignado)
-            const { error: stayError } = await supabase
+            // 1. Actualizar vehículo y asignar valet
+            // Permitir actualización si: NO tiene valet O el valet soy YO
+            const { error: stayError, count } = await supabase
                 .from('room_stays')
                 .update({
                     vehicle_plate: vehicleData.plate.trim().toUpperCase(),
@@ -55,30 +56,23 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     valet_employee_id: valetId,
                     current_people: personCount,
                     total_people: Math.max(personCount, activeStay.total_people || 0),
-                    vehicle_requested_at: null // Limpiar cualquier solicitud previa o estado inválido
+                    vehicle_requested_at: null // Limpiar cualquier solicitud previa
                 })
                 .eq('id', activeStay.id)
-                .is('valet_employee_id', null); // Solo actualizar si NO tiene valet asignado
+                .or(`valet_employee_id.is.null,valet_employee_id.eq.${valetId}`); // Permitir si es null O es el mismo valet
 
+            // Verificar si la actualización afectó alguna fila
             if (stayError) {
-                // Verificar si fue un error de condición (ninguna fila afectada)
                 console.error('Error updating room stay:', stayError);
-
-                // Verificar si otro valet ya tomó la entrada
-                const { data: updatedStay } = await supabase
-                    .from('room_stays')
-                    .select('valet_employee_id')
-                    .eq('id', activeStay.id)
-                    .single();
-
-                if (updatedStay?.valet_employee_id && updatedStay.valet_employee_id !== valetId) {
-                    toast.warning('Entrada ya asignada', {
-                        description: 'Otro cochero ya aceptó esta entrada.'
-                    });
-                    return false;
-                }
-
                 throw stayError;
+            }
+
+            // Si count es 0, significa que otro valet ya está asignado
+            if (count === 0) {
+                toast.warning('Entrada ya asignada', {
+                    description: 'Otro cochero ya aceptó esta entrada.'
+                });
+                return false;
             }
 
             // 2. Obtener shift actual del valet
