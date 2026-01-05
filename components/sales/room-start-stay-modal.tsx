@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
+import { formatDateTime } from "@/lib/export-utils"; // FIX #9: Use centralized date formatter
 
 export interface VehicleInfo {
   plate: string;
@@ -25,15 +26,7 @@ export interface RoomStartStayModalProps {
   onConfirm: (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => void;
 }
 
-function formatDateTime(date: Date) {
-  return date.toLocaleString("es-MX", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+// FIX #9: Removed local formatDateTime - using centralized utility from export-utils
 
 export function RoomStartStayModal({
   isOpen,

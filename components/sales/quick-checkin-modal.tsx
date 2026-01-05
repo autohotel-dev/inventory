@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RoomType } from "@/components/sales/room-types";
+import { Label } from "@/components/ui/label";
+import { formatDateTime } from "@/lib/export-utils"; // FIX #9: Use centralized date formatter
 import {
   Minus,
   Plus,
@@ -34,15 +36,7 @@ function formatTime(date: Date) {
   });
 }
 
-function formatDateTime(date: Date) {
-  return date.toLocaleString("es-MX", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+// FIX #9: Removed local formatDateTime - using centralized utility from export-utils
 
 export function QuickCheckinModal({
   isOpen,
