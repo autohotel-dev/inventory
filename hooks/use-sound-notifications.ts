@@ -29,36 +29,60 @@ export function useSoundNotifications(
         if (!ctx) return;
         if (ctx.state === 'suspended') ctx.resume();
 
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        const now = ctx.currentTime;
 
         if (type === 'alert') {
-            // Tono de alarma (Sirena)
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(600, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
-            osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.2);
-            osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.3);
+            // Tono: "Professional Chime" (Ding-Dong suave)
+            // Tono 1: G4 (392Hz)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(392, now);
 
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            gain1.gain.setValueAtTime(0, now);
+            gain1.gain.linearRampToValueAtTime(0.3, now + 0.05); // Attack suave
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.8); // Decay largo
 
-            osc.start();
-            osc.stop(ctx.currentTime + 0.5);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 1);
+
+            // Tono 2: E4 (329.63Hz) - Retardado
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(329.63, now + 0.6); // Entra después
+
+            gain2.gain.setValueAtTime(0, now + 0.6);
+            gain2.gain.linearRampToValueAtTime(0.3, now + 0.65);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(now + 0.6);
+            osc2.stop(now + 2.5);
+
         } else if (type === 'success') {
-            // Tono de éxito (Ding)
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+            // Tono: "Glass Ping" (Acorde Mayor brillante)
+            // C5 (523.25), E5 (659.25), G5 (783.99)
+            const freqs = [523.25, 659.25, 783.99];
 
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            freqs.forEach((f, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle'; // Un poco más de brillo que sine
+                osc.frequency.setValueAtTime(f, now + (i * 0.05)); // Arpegio muy rápido
 
-            osc.start();
-            osc.stop(ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0, now + (i * 0.05));
+                gain.gain.linearRampToValueAtTime(0.15, now + (i * 0.05) + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + (i * 0.05));
+                osc.stop(now + 1.5);
+            });
         }
     };
 
@@ -92,13 +116,23 @@ export function useSoundNotifications(
                         }
                     }
 
-                    // Lógica para RECEPCION (Escuchar autos listos)
+                    // Lógica para RECEPCION (Escuchar autos listos y solicitudes de salida)
                     if (role === 'receptionist') {
+                        // Auto listo para entrega
                         if (!oldData.checkout_valet_employee_id && newData.checkout_valet_employee_id) {
                             playTone('success');
                             toast.success(`🚗 Auto listo para entrega: Habitación ${roomNumber}`, {
                                 duration: 5000,
                                 position: 'top-right'
+                            });
+                        }
+                        // Solicitud de salida (Valet en puerta)
+                        if (!oldData.valet_checkout_requested_at && newData.valet_checkout_requested_at) {
+                            playTone('alert');
+                            toast.warning(`🔔 SOLICITUD DE SALIDA: Habitación ${roomNumber}`, {
+                                duration: 10000,
+                                position: 'top-center',
+                                style: { fontSize: '1.2rem', fontWeight: 'bold' }
                             });
                         }
                         // También escuchar nuevas entradas (vehículo registrado)
@@ -116,5 +150,10 @@ export function useSoundNotifications(
         };
     }, [role]); // Array de dependencias limpio
 
-    return { playTone };
+    return {
+        playTone,
+        playSuccess: () => playTone('success'),
+        playError: () => playTone('alert'),
+        playAlert: () => playTone('alert')
+    };
 }

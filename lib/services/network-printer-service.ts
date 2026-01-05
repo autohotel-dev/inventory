@@ -57,6 +57,8 @@ export interface ConsumptionTicketData {
     subtotal: number;
     total: number;
     hotelName?: string;
+    entranceValet?: string;
+    exitValet?: string;
 }
 
 export interface ClosingTicketData {
@@ -227,6 +229,14 @@ function buildReceptionTicket(data: ConsumptionTicketData): string {
 
     // Totales
     ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+
+    if (data.entranceValet || data.exitValet) {
+        ticket += COMMANDS.BOLD_ON + 'VALETS:' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        if (data.entranceValet) ticket += `Entrada: ${data.entranceValet}` + COMMANDS.NEW_LINE;
+        if (data.exitValet) ticket += `Salida:  ${data.exitValet}` + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+    }
+
     ticket += formatLine('SUBTOTAL:', formatMoney(data.subtotal)) + COMMANDS.NEW_LINE;
     ticket += COMMANDS.BOLD_ON;
     ticket += formatLine('TOTAL:', formatMoney(data.total)) + COMMANDS.NEW_LINE;
@@ -297,6 +307,13 @@ function buildClientTicket(data: ConsumptionTicketData): string {
 
     // Totales
     ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+
+    if (data.entranceValet || data.exitValet) {
+        if (data.entranceValet) ticket += `Valet Ent: ${data.entranceValet}` + COMMANDS.NEW_LINE;
+        if (data.exitValet) ticket += `Valet Sal: ${data.exitValet}` + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+    }
+
     ticket += formatLine('SUBTOTAL:', formatMoney(data.subtotal)) + COMMANDS.NEW_LINE;
     ticket += COMMANDS.BOLD_ON;
     ticket += formatLine('TOTAL:', formatMoney(data.total)) + COMMANDS.NEW_LINE;

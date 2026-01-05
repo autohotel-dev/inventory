@@ -19,6 +19,8 @@ interface ConsumptionTicketData {
     subtotal: number;
     total: number;
     hotelName?: string;
+    entranceValet?: string;
+    exitValet?: string;
 }
 
 interface UseThermalPrinterReturn {

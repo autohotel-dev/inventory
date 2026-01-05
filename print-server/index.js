@@ -134,17 +134,6 @@ function buildReceptionTicket(data) {
     t += CMD.BOLD_ON + 'CONSUMOS:' + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
-    data.items.forEach(item => {
-        t += formatLine(`${item.qty}x ${item.name}`, formatMoney(item.total)) + CMD.NEW_LINE;
-    });
-
-    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
-    t += formatLine('SUBTOTAL:', formatMoney(data.subtotal)) + CMD.NEW_LINE;
-    t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.total)) + CMD.NEW_LINE + CMD.BOLD_OFF;
-    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
-
-    t += CMD.ALIGN_CENTER;
-    t += 'Entregar ticket al cliente' + CMD.NEW_LINE;
     t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
     return t;
@@ -166,17 +155,6 @@ function buildClientTicket(data) {
     t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CONSUMO' + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += CMD.ALIGN_LEFT;
 
-    data.items.forEach(item => {
-        t += formatLine(`${item.qty}x ${item.name}`, formatMoney(item.total)) + CMD.NEW_LINE;
-    });
-
-    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
-    t += formatLine('SUBTOTAL:', formatMoney(data.subtotal)) + CMD.NEW_LINE;
-    t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.total)) + CMD.NEW_LINE + CMD.BOLD_OFF;
-    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
-
-    t += CMD.ALIGN_CENTER;
-    t += 'Gracias por su preferencia' + CMD.NEW_LINE;
     t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
     return t;

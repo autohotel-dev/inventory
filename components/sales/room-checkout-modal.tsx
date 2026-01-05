@@ -25,7 +25,7 @@ export interface RoomCheckoutModalProps {
   pendingItems?: PendingItem[];
   onAmountChange: (amount: number) => void;
   onClose: () => void;
-  onConfirm: (data: { payments: PaymentEntry[]; checkoutValetId?: string | null }) => void;
+  onConfirm: (data: { payments: PaymentEntry[]; checkoutValetId?: string | null; checkoutValetName?: string }) => void;
   defaultValetId?: string | null;
   vehiclePlate?: string | null;
   onRequestValet?: () => Promise<void>;
@@ -126,22 +126,20 @@ export function RoomCheckoutModal({
 
           {/* Alerta de items pendientes */}
           {hasPendingItems && (
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
-              <div className="flex items-center gap-2 text-amber-600">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-medium">
                 <AlertTriangle className="h-4 w-4" />
-                <span className="font-medium text-sm">Conceptos pendientes de pago</span>
+                <span>Conceptos pendientes por pagar</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {pendingItems.filter(item => item.total > 0).map((item, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="outline"
-                    className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30"
-                  >
-                    {conceptIcons[item.concept_type]}
-                    <span className="ml-1">{conceptLabels[item.concept_type] || item.concept_type}</span>
-                    <span className="ml-1 font-bold">${item.total.toFixed(0)}</span>
-                  </Badge>
+                  <div key={idx} className="flex items-center justify-between bg-background/50 p-2 rounded border border-amber-200/50">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {conceptIcons[item.concept_type]}
+                      <span>{conceptLabels[item.concept_type] || item.concept_type}</span>
+                    </div>
+                    <span className="font-bold text-sm text-amber-600">${item.total.toFixed(0)}</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -183,17 +181,17 @@ export function RoomCheckoutModal({
             </div>
           )}
 
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Saldo pendiente</p>
-            <p className={`text-base font-semibold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-              {remainingAmount > 0 ? (
-                <>{remainingAmount.toFixed(2)} MXN</>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Todo pagado
-                </span>
+          <div className="flex flex-col gap-1 p-4 bg-muted/20 rounded-lg border">
+            <div className="flex justify-between items-center">
+              <p className="text-sm font-medium text-muted-foreground">Saldo pendiente</p>
+              {remainingAmount <= 0 && (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Pagado
+                </Badge>
               )}
+            </div>
+            <p className={`text-3xl font-bold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+              ${remainingAmount.toFixed(2)}
             </p>
           </div>
           {remainingAmount > 0 && (
@@ -244,12 +242,19 @@ export function RoomCheckoutModal({
           >
             Cancelar
           </Button>
-          <Button onClick={() => onConfirm({ payments, checkoutValetId: checkoutValetId === "none" ? null : checkoutValetId })} disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) <= 0) || (!!vehiclePlate && !defaultValetId)}>
-            {actionLoading
-              ? "Procesando..."
-              : remainingAmount <= 0
-                ? "Dar salida"
-                : "Confirmar pago"}
+          <Button
+            onClick={() => {
+              const selectedValet = valets.find(v => v.id === checkoutValetId);
+              const valetName = selectedValet ? `${selectedValet.first_name} ${selectedValet.last_name}` : undefined;
+              onConfirm({
+                payments,
+                checkoutValetId: checkoutValetId === "none" ? null : checkoutValetId,
+                checkoutValetName: valetName
+              });
+            }}
+            disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) < remainingAmount)}
+          >
+            {actionLoading ? "Procesando..." : "Confirmar Salida"}
           </Button>
         </div>
       </div>

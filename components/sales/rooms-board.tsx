@@ -44,6 +44,7 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `${prefix}-${timestamp}-${random}`;
 }
+import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
 import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -239,6 +240,8 @@ function RoomsBoardInternal() {
   }, [showActionsModal, selectedRoom]);
 
   // Sensores
+  const { playSuccess, playError, playAlert } = useSoundNotifications("receptionist", rooms);
+  const { isPrinting, printConsumptionTickets } = useThermalPrinter();
   const { sensors } = useSensors();
   const prevSensorsRef = useRef<Map<string, boolean>>(new Map());
 
@@ -257,12 +260,8 @@ function RoomsBoardInternal() {
           description: "La puerta ha sido abierta.",
         });
 
-        try {
-          const audio = new Audio("/room-alert.mp3");
-          audio.play().catch(() => { });
-        } catch (e) {
-          console.error(e);
-        }
+        // Usar sonido centralizado
+        playError();
       }
       // Actualizar ref
       prevSensorsRef.current.set(sensor.id, sensor.is_open);
@@ -469,10 +468,34 @@ function RoomsBoardInternal() {
   };
 
   // Procesar checkout usando el hook
-  const handleCheckout = async (data: { payments: PaymentEntry[]; checkoutValetId?: string | null }) => {
+  // Procesar checkout usando el hook
+  const handleCheckout = async (data: { payments: PaymentEntry[]; checkoutValetId?: string | null; checkoutValetName?: string }) => {
     if (!checkoutInfo || !selectedRoom) return;
     const success = await processCheckout(selectedRoom, checkoutInfo, checkoutAmount, data.payments, data.checkoutValetId);
     if (success) {
+      // Imprimir ticket de salida
+      try {
+        const activeStay = getActiveStay(selectedRoom);
+        const printData: ConsumptionTicketData = {
+          roomNumber: selectedRoom.number,
+          folio: `${checkoutInfo.salesOrderId.slice(0, 8)}`,
+          date: new Date(),
+          items: checkoutInfo.pendingItems ? checkoutInfo.pendingItems.map(item => ({
+            name: `${item.concept_type} x${item.count}`,
+            qty: item.count,
+            price: item.total / item.count,
+            total: item.total
+          })) : [],
+          subtotal: checkoutAmount,
+          total: checkoutAmount,
+          entranceValet: activeStay?.vehicle_plate ? 'Solicitado' : undefined,
+          exitValet: data.checkoutValetName // Nombre del valet de salida
+        };
+        printConsumptionTickets(printData);
+      } catch (e) {
+        console.error("Error printing exit ticket", e);
+      }
+
       setShowCheckoutModal(false);
       setSelectedRoom(null);
       setCheckoutInfo(null);
@@ -857,14 +880,8 @@ function RoomsBoardInternal() {
               description: `La habitación ${room.number} está por terminar su tiempo. Restante: ${diffMinutes} minutos`,
             });
 
-            try {
-              const audio = new Audio("/room-alert.mp3");
-              audio.play().catch(() => {
-                // Ignorar errores de reproducción (por permisos del navegador)
-              });
-            } catch (e) {
-              console.error("Error reproduciendo sonido de alerta", e);
-            }
+            // Usar sonido centralizado
+            playAlert();
 
             setReminderAlert({ roomNumber: room.number, minutes: diffMinutes, level: "5" });
           }
@@ -1388,6 +1405,25 @@ function RoomsBoardInternal() {
 
       // FIX #4: Notificar a todos los cocheros (VALETS) usando helper
       await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id);
+
+      // Imprimir ticket de entrada
+      try {
+        const printData: ConsumptionTicketData = {
+          roomNumber: selectedRoom.number,
+          folio: `ENT-${selectedRoom.number}`,
+          date: new Date(),
+          items: [
+            { name: `Renta Habitación ${roomType.name}`, qty: 1, price: basePrice, total: basePrice },
+            ...(extraPeopleCount > 0 ? [{ name: `Personas Extra (${extraPeopleCount})`, qty: extraPeopleCount, price: extraPersonPrice, total: extraPeopleCost }] : [])
+          ],
+          subtotal: totalPrice,
+          total: totalPrice,
+          entranceValet: vehicle.plate ? 'Solicitado' : undefined
+        };
+        printConsumptionTickets(printData);
+      } catch (e) {
+        console.error("Error printing entry ticket", e);
+      }
 
       toast.success("Estancia iniciada", {
         description: `Hab. ${selectedRoom.number} - ${roomType.name} (${initialPeople} persona${initialPeople > 1 ? 's' : ''}) hasta ${formatDateTime(

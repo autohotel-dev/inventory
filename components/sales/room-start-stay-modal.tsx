@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { RoomType } from "@/components/sales/room-types";
-import { Minus, Plus, Users, Car, Search } from "lucide-react";
+import { Minus, Plus, Users, Car, Search, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
@@ -88,93 +90,117 @@ export function RoomStartStayModal({
           </Button>
         </div>
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Habitación</p>
-            <p className="text-base font-semibold">
-              Hab. {roomNumber} – {roomType.name}
-            </p>
-          </div>
-
-          {/* Selector de personas */}
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Personas que entran
-            </p>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setInitialPeople(Math.max(1, initialPeople - 1))}
-                disabled={actionLoading || initialPeople <= 1}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <span className="text-2xl font-bold w-12 text-center">{initialPeople}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setInitialPeople(Math.min(maxPeople, initialPeople + 1))}
-                disabled={actionLoading || initialPeople >= maxPeople}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                (máx. {maxPeople})
-              </span>
+          <div className="bg-muted/30 p-4 rounded-lg flex items-center justify-between border">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Habitación</p>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold">{roomNumber}</span>
+                <Badge variant="secondary" className="text-sm border-border/50">{roomType.name}</Badge>
+              </div>
             </div>
-            {extraPeopleCount > 0 && (
-              <p className="text-sm text-amber-500">
-                +{extraPeopleCount} persona{extraPeopleCount > 1 ? 's' : ''} extra = +${extraPeopleCost.toFixed(2)} MXN
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Precio base</p>
-            <p className="text-base font-semibold">
-              $ {roomType.base_price?.toFixed(2) ?? "0.00"} MXN
-            </p>
-          </div>
-
-          {extraPeopleCost > 0 && (
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Total inicial</p>
-              <p className="text-lg font-bold text-emerald-500">
-                $ {totalPrice.toFixed(2)} MXN
+            <div className="text-right">
+              <p className="text-sm font-medium text-muted-foreground">Salida estimada</p>
+              <div className="flex items-center justify-end gap-1.5 text-blue-600 dark:text-blue-400">
+                <Clock className="h-4 w-4" />
+                <span className="text-lg font-bold">
+                  {expectedCheckout.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {expectedCheckout.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </p>
             </div>
-          )}
-
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Salida estimada</p>
-            <p className="text-base font-medium">
-              {formatDateTime(expectedCheckout)}
-            </p>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Selector de personas */}
+            <div className="space-y-3 p-4 border rounded-lg bg-card shadow-sm">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <Users className="h-4 w-4" />
+                <span className="text-sm font-medium">Ocupación</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10"
+                  onClick={() => setInitialPeople(Math.max(1, initialPeople - 1))}
+                  disabled={actionLoading || initialPeople <= 1}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <div className="text-center">
+                  <span className="text-3xl font-bold tabular-nums">{initialPeople}</span>
+                  <span className="text-xs text-muted-foreground block">personas</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10"
+                  onClick={() => setInitialPeople(Math.min(maxPeople, initialPeople + 1))}
+                  disabled={actionLoading || initialPeople >= maxPeople}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {extraPeopleCount > 0 && (
+                <div className="text-center p-1.5 bg-amber-500/10 rounded text-amber-600 text-xs font-medium border border-amber-200 dark:border-amber-800">
+                  +{extraPeopleCount} extra (+${extraPeopleCost.toFixed(2)})
+                </div>
+              )}
+            </div>
+
+            {/* Resumen de Costos */}
+            <div className="space-y-3 p-4 border rounded-lg bg-card shadow-sm flex flex-col justify-center">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Precio base:</span>
+                <span className="font-medium">${roomType.base_price?.toFixed(2)}</span>
+              </div>
+
+              {extraPeopleCost > 0 && (
+                <div className="flex justify-between items-center text-sm text-amber-600">
+                  <span>Personas extra:</span>
+                  <span>+${extraPeopleCost.toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="border-t pt-2 mt-1 flex justify-between items-center">
+                <span className="font-bold text-lg">Total</span>
+                <span className="font-bold text-2xl text-emerald-600">${totalPrice.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+
 
           {/* Información del vehículo */}
-          <div className="space-y-3 pt-2 border-t">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <div className="space-y-2 pt-2">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-2">
               <Car className="h-4 w-4" />
-              Datos del vehículo (opcional)
-            </p>
-            <div className="grid grid-cols-1 gap-3">
-              <Input
-                placeholder="Placas (ej: ABC-123)"
-                value={vehicle.plate}
-                onChange={(e) => setVehicle({ ...vehicle, plate: e.target.value.toUpperCase() })}
-                disabled={actionLoading}
-                className="uppercase"
-              />
+              Datos del vehículo <Badge variant="outline" className="text-[10px] h-5">Opcional</Badge>
+            </h3>
 
-              {/* Búsqueda rápida por modelo */}
-              <div className="relative">
-                <div className="flex items-center gap-2 border rounded px-3 py-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-muted/10 rounded-lg border border-dashed">
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-muted-foreground">Placas</Label>
+                <Input
+                  placeholder="ej: ABC-123"
+                  value={vehicle.plate}
+                  onChange={(e) => setVehicle({ ...vehicle, plate: e.target.value.toUpperCase() })}
+                  disabled={actionLoading}
+                  className="uppercase tracking-widest font-mono border-muted-foreground/30 focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-muted-foreground">Buscar Modelo</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
-                    className="outline-none flex-1 bg-transparent text-sm"
-                    placeholder="Buscar por modelo (ej: Corolla, Versa)..."
+                    className="w-full h-10 pl-9 pr-3 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="ej: Corolla, Versa..."
                     value={vehicleSearch}
                     onChange={(e) => {
                       setVehicleSearch(e.target.value);
@@ -182,35 +208,36 @@ export function RoomStartStayModal({
                     }}
                     onFocus={() => vehicleSearch.length >= 2 && setShowSearchResults(true)}
                   />
-                </div>
 
-                {showSearchResults && vehicleSearch.length >= 2 && (
-                  <div className="absolute z-10 w-full mt-1 border rounded bg-background max-h-48 overflow-auto shadow-lg">
-                    {searchVehicles(vehicleSearch).map((result, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                        onClick={() => {
-                          setVehicle({ ...vehicle, brand: result.brand.value, model: result.model });
-                          setVehicleSearch(`${result.brand.label} ${result.model}`);
-                          setShowSearchResults(false);
-                        }}
-                      >
-                        <span className="font-medium text-blue-500">{result.brand.label}</span>
-                        <span className="text-muted-foreground">{result.model}</span>
-                      </button>
-                    ))}
-                    {searchVehicles(vehicleSearch).length === 0 && (
-                      <div className="px-3 py-2 text-sm text-muted-foreground text-center">
-                        No se encontraron resultados
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {showSearchResults && vehicleSearch.length >= 2 && (
+                    <div className="absolute z-10 w-full mt-1 border rounded-md bg-popover text-popover-foreground shadow-md max-h-48 overflow-auto">
+                      {searchVehicles(vehicleSearch).map((result, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                          onClick={() => {
+                            setVehicle({ ...vehicle, brand: result.brand.value, model: result.model });
+                            setVehicleSearch(`${result.brand.label} ${result.model}`);
+                            setShowSearchResults(false);
+                          }}
+                        >
+                          <span className="font-medium text-blue-500">{result.brand.label}</span>
+                          <span className="text-muted-foreground">{result.model}</span>
+                        </button>
+                      ))}
+                      {searchVehicles(vehicleSearch).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                          Sin resultados
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Marca</Label>
                 <SearchableSelect
                   id="vehicle-brand"
                   name="vehicle-brand"
@@ -219,9 +246,13 @@ export function RoomStartStayModal({
                   onChange={(value) => {
                     setVehicle({ brand: value, model: "", plate: vehicle.plate });
                   }}
-                  placeholder="O selecciona marca..."
+                  placeholder="Marca..."
                   className="w-full"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Modelo</Label>
                 {vehicle.brand ? (
                   <SearchableSelect
                     id="vehicle-model"
@@ -229,14 +260,14 @@ export function RoomStartStayModal({
                     options={getModelsForBrand(vehicle.brand).map(m => ({ value: m, label: m }))}
                     defaultValue={vehicle.model}
                     onChange={(value) => setVehicle({ ...vehicle, model: value })}
-                    placeholder="Seleccionar modelo..."
+                    placeholder="Modelo..."
                     className="w-full"
                   />
                 ) : (
                   <Input
-                    placeholder="Primero selecciona marca"
+                    placeholder="Selecciona marca"
                     disabled
-                    className="bg-muted"
+                    className="bg-muted text-xs"
                   />
                 )}
               </div>
