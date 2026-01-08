@@ -167,6 +167,31 @@ export function CurrentShiftIndicator({
 
     setActionLoading(true);
     try {
+      // 🔒 VALIDACIÓN: Verificar que no haya otro turno activo
+      const { data: activeSessions, error: checkError } = await supabase
+        .from("shift_sessions")
+        .select("*, employees(*)")
+        .eq("status", "active")
+        .is("clock_out_at", null);
+
+      if (checkError) throw checkError;
+
+      // Si ya existe un turno activo, prevenir el inicio de uno nuevo
+      if (activeSessions && activeSessions.length > 0) {
+        const activeEmployee = activeSessions[0].employees;
+        const employeeName = activeEmployee
+          ? `${activeEmployee.first_name} ${activeEmployee.last_name}`
+          : "Otro empleado";
+
+        showError(
+          "Ya hay un turno activo",
+          `${employeeName} ya tiene un turno iniciado. Debe cerrar su turno antes de que puedas iniciar uno nuevo.`
+        );
+        setActionLoading(false);
+        return;
+      }
+
+      // Si no hay turnos activos, proceder normalmente
       const { data, error } = await supabase
         .from("shift_sessions")
         .insert({
