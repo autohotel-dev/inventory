@@ -218,6 +218,29 @@ export function ReceptionistDashboard() {
       setPinCode("");
     } catch (err: any) {
       console.error("Error starting shift:", err);
+
+      // Detectar error de constraint único (código 23505)
+      if (err.code === "23505") {
+        showError(
+          "No se puede iniciar turno",
+          "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
+        );
+        return;
+      }
+
+      // También verificar por mensaje
+      const errorMessage = String(err.message || err.details || "");
+      if (errorMessage.includes("idx_single_active_shift_session") ||
+        errorMessage.includes("duplicate key") ||
+        errorMessage.includes("unique constraint")) {
+        showError(
+          "No se puede iniciar turno",
+          "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
+        );
+        return;
+      }
+
+      // Otros errores
       showError("Error", err.message || "No se pudo iniciar el turno");
     } finally {
       setStartingShift(false);

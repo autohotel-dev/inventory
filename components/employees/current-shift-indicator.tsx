@@ -212,11 +212,22 @@ export function CurrentShiftIndicator({
       setSelectedEmployeeId("");
     } catch (err: any) {
       console.error("Error clocking in:", err);
+      console.log("Error details:", {
+        message: err.message,
+        code: err.code,
+        details: err.details,
+        hint: err.hint,
+        fullError: err
+      });
 
       // Detectar error de constraint único (otro turno activo)
-      if (err.message?.includes("idx_single_active_shift_session") ||
-        err.message?.includes("duplicate key") ||
-        err.code === "23505") {
+      const errorMessage = err.message || err.details || "";
+      const errorCode = err.code || "";
+
+      if (errorMessage.includes("idx_single_active_shift_session") ||
+        errorMessage.includes("duplicate key") ||
+        errorMessage.includes("unique constraint") ||
+        errorCode === "23505") {
         showError(
           "No se puede iniciar turno",
           "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
