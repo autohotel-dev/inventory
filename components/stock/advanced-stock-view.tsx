@@ -20,6 +20,12 @@ import {
   Eye,
   X
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface StockItem {
   product_id: string;
@@ -428,26 +434,16 @@ export function AdvancedStockView() {
       </div>
 
       {/* Modal de detalle */}
-      {showDetail && selectedItem && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">
-                Detalle de Stock - {selectedItem.name}
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDetail(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <StockDetailView item={selectedItem} />
-          </div>
-        </div>
-      )}
+      <Dialog open={showDetail} onOpenChange={setShowDetail}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detalle de Stock - {selectedItem?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedItem && <StockDetailView item={selectedItem} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

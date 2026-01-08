@@ -30,6 +30,7 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -62,58 +63,94 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Bloquear scroll del body cuando hay un modal abierto */
+  body[data-scroll-locked],
+  body:has([data-state="open"][role="dialog"]),
+  html:has([data-state="open"][role="dialog"]) body {
+    overflow: hidden !important;
+    touch-action: none;
+    position: fixed;
+    width: 100%;
   }
 }
 
 @layer utilities {
+
   /* Mejoras para móviles */
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Ocultar barras de scroll pero mantener funcionalidad */
   .scrollbar-hide {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
+    /* Chrome, Safari, Opera */
   }
-  
+
   /* Mejorar el tap target en móviles */
   @media (max-width: 768px) {
-    button, a, [role="button"] {
+
+    /* Solo links normales, no botones dentro de modales */
+    a:not([class*="radix"]) {
       min-height: 44px;
       min-width: 44px;
-      @apply flex items-center justify-center;
     }
-    
+
     /* Mejorar inputs en móviles */
-    input, select, textarea {
-      font-size: 16px; /* Previene zoom en iOS */
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+      /* Previene zoom en iOS */
     }
-    
+
     /* Mejorar tablas en móviles */
     .table-responsive {
       @apply overflow-x-auto;
       -webkit-overflow-scrolling: touch;
     }
-    
+
     .table-responsive table {
       @apply min-w-full;
     }
   }
-  
+
   /* Animación shake para feedback de error */
   @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-    20%, 40%, 60%, 80% { transform: translateX(4px); }
+
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+      transform: translateX(-4px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+      transform: translateX(4px);
+    }
   }
-  
+
   .animate-shake {
     animation: shake 0.5s ease-in-out;
   }

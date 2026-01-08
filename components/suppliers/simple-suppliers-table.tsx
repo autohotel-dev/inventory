@@ -8,6 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Building2, Package, Mail, Phone, X } from "lucide-react";
 import type { Supplier } from "@/lib/types/inventory";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface EnrichedSupplier extends Supplier {
   productCount?: number;
@@ -351,30 +357,20 @@ export function SimpleSuppliersTable() {
       </div>
 
       {/* Modal para crear/editar proveedor */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">
-                {editingSupplier ? "Editar Proveedor" : "Nuevo Proveedor"}
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsModalOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <SupplierForm
-              supplier={editingSupplier}
-              onSave={handleSave}
-              onCancel={() => setIsModalOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingSupplier ? "Editar Proveedor" : "Nuevo Proveedor"}
+            </DialogTitle>
+          </DialogHeader>
+          <SupplierForm
+            supplier={editingSupplier}
+            onSave={handleSave}
+            onCancel={() => setIsModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

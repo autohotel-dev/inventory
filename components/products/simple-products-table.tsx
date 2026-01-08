@@ -22,6 +22,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -700,34 +706,23 @@ export function SimpleProductsTable() {
       </div>
 
       {/* Modal para crear/editar producto */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">
-                {editingProduct ? "Editar Producto" : "Nuevo Producto"}
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsModalOpen(false)}
-                disabled={isSaving}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <ProductModalForm
-              product={editingProduct}
-              categories={categories}
-              suppliers={suppliers}
-              onSave={handleSave}
-              onCancel={() => setIsModalOpen(false)}
-              isLoading={isSaving}
-            />
-          </div>
-        </div>
-      )}
+      <Dialog open={isModalOpen} onOpenChange={(open) => !isSaving && setIsModalOpen(open)}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProduct ? "Editar Producto" : "Nuevo Producto"}
+            </DialogTitle>
+          </DialogHeader>
+          <ProductModalForm
+            product={editingProduct}
+            categories={categories}
+            suppliers={suppliers}
+            onSave={handleSave}
+            onCancel={() => setIsModalOpen(false)}
+            isLoading={isSaving}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Dialogo de Confirmación de Eliminación */}
       <AlertDialog open={!!deleteProduct} onOpenChange={(open) => !isDeleting && setDeleteProduct(open ? deleteProduct : null)}>

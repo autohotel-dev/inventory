@@ -21,6 +21,12 @@ import {
   Building,
   RefreshCw
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 
 interface Customer {
@@ -503,30 +509,20 @@ export function AdvancedCustomersTable() {
       </div>
 
       {/* Modal para crear/editar cliente */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">
-                {editingCustomer ? "Editar Cliente" : "Nuevo Cliente"}
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsModalOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <CustomerForm
-              customer={editingCustomer}
-              onSave={handleSave}
-              onCancel={() => setIsModalOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCustomer ? "Editar Cliente" : "Nuevo Cliente"}
+            </DialogTitle>
+          </DialogHeader>
+          <CustomerForm
+            customer={editingCustomer}
+            onSave={handleSave}
+            onCancel={() => setIsModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

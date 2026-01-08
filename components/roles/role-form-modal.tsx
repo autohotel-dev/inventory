@@ -1,6 +1,12 @@
 "use client";
 
 import * as React from "react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Role {
     id: string;
@@ -70,14 +76,14 @@ export function RoleFormModal({ isOpen, onClose, onSave, role, mode }: RoleFormM
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-background border rounded-lg max-w-md w-full p-6">
-                <h2 className="text-2xl font-bold mb-4">
-                    {mode === "create" ? "Crear Nuevo Rol" : "Editar Rol"}
-                </h2>
+        <Dialog open={isOpen} onOpenChange={(open) => !saving && !open && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>
+                        {mode === "create" ? "Crear Nuevo Rol" : "Editar Rol"}
+                    </DialogTitle>
+                </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {mode === "create" && (
@@ -90,7 +96,7 @@ export function RoleFormModal({ isOpen, onClose, onSave, role, mode }: RoleFormM
                                 id="name"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
-                                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background"
                                 placeholder="ej: supervisor"
                                 required
                                 pattern="[a-z0-9_]+"
@@ -111,7 +117,7 @@ export function RoleFormModal({ isOpen, onClose, onSave, role, mode }: RoleFormM
                             id="display_name"
                             value={formData.display_name}
                             onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-                            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background"
                             placeholder="ej: Supervisor"
                             required
                         />
@@ -125,14 +131,14 @@ export function RoleFormModal({ isOpen, onClose, onSave, role, mode }: RoleFormM
                             id="description"
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none bg-background"
                             placeholder="Descripción del rol..."
                             rows={3}
                         />
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm">
+                        <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
                             {error}
                         </div>
                     )}
@@ -155,7 +161,8 @@ export function RoleFormModal({ isOpen, onClose, onSave, role, mode }: RoleFormM
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
+

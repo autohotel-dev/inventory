@@ -547,76 +547,62 @@ export function CurrentShiftIndicator({
 
       {/* Modal de Opciones de Clock Out */}
       <Dialog open={showClockOutOptions} onOpenChange={setShowClockOutOptions}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <LogOut className="h-5 w-5" />
-              Cerrar Turno
-            </DialogTitle>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center mb-3">
+              <LogOut className="h-6 w-6 text-white" />
+            </div>
+            <DialogTitle className="text-xl">Cerrar Turno</DialogTitle>
             <DialogDescription>
-              ¿Cómo deseas proceder con el cierre de tu turno?
+              Selecciona cómo deseas proceder
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-4">
-            <div className="space-y-2">
-              <Button
-                className="w-full justify-start h-auto py-4"
-                variant="outline"
-                onClick={handleClockOutWithClosing}
-                disabled={actionLoading}
-              >
-                <div className="flex items-start gap-3 text-left">
-                  <Receipt className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="font-medium">Hacer corte ahora</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Completar el corte de caja inmediatamente
-                    </p>
-                  </div>
-                  <span className="text-xs bg-amber-500/10 text-amber-600 px-2 py-1 rounded">
-                    ~5 min
-                  </span>
+          <div className="space-y-2 py-3">
+            <button
+              className="w-full p-3 rounded-lg border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 hover:border-amber-400 dark:hover:border-amber-600 transition-all flex items-center justify-between group disabled:opacity-50"
+              onClick={handleClockOutWithClosing}
+              disabled={actionLoading}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Receipt className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
-              </Button>
+                <span className="font-medium text-amber-700 dark:text-amber-300">Hacer corte ahora</span>
+              </div>
+              <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200 px-2 py-1 rounded-full">
+                ~5 min
+              </span>
+            </button>
 
-              <Button
-                className="w-full justify-start h-auto py-4"
-                variant="outline"
-                onClick={handleClockOutDeferred}
-                disabled={actionLoading}
-              >
-                <div className="flex items-start gap-3 text-left">
-                  <Clock className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="font-medium">Hacer corte después</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Libera la recepción y completa el corte cuando quieras
-                    </p>
-                  </div>
-                  <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded">
-                    Recomendado
-                  </span>
+            <button
+              className="w-full p-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-600 transition-all flex items-center justify-between group disabled:opacity-50"
+              onClick={handleClockOutDeferred}
+              disabled={actionLoading}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 </div>
-              </Button>
-            </div>
-
-            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-              <p className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>
-                  Si eliges "Hacer corte después", podrás completarlo desde cualquier
-                  computadora iniciando sesión en el sistema.
-                </span>
-              </p>
-            </div>
+                <span className="font-medium text-emerald-700 dark:text-emerald-300">Hacer corte después</span>
+              </div>
+              <span className="text-xs bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200 px-2 py-1 rounded-full">
+                ✓ Rápido
+              </span>
+            </button>
           </div>
 
-          <DialogFooter>
+          <p className="text-xs text-muted-foreground text-center pb-2">
+            Si eliges "después", podrás completar el corte desde cualquier dispositivo.
+          </p>
+
+          <DialogFooter className="sm:justify-center">
             <Button
               variant="ghost"
+              size="sm"
               onClick={() => setShowClockOutOptions(false)}
               disabled={actionLoading}
+              className="text-muted-foreground hover:text-foreground"
             >
               Cancelar
             </Button>

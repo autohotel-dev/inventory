@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -452,8 +452,8 @@ export function IncomeReport({
                             </thead>
                             <tbody>
                                 {entries.map((entry, idx) => (
-                                    <>
-                                        <tr key={entry.no} className={`border-b border-border hover:bg-muted/30 transition-colors print:border-b print:border-black ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                                    <React.Fragment key={entry.no}>
+                                        <tr className={`border-b border-border hover:bg-muted/30 transition-colors print:border-b print:border-black ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
                                             <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{entry.no}</td>
                                             <td className="border-r border-border p-2 text-center print:border-r print:border-black">{entry.time}</td>
                                             <td className="border-r border-border p-2 text-center uppercase print:border-r print:border-black">{entry.vehicle_plate}</td>
@@ -546,7 +546,7 @@ export function IncomeReport({
                                                 </td>
                                             </tr>
                                         )}
-                                    </>
+                                    </React.Fragment>
                                 ))}
 
                                 {entries.length === 0 && (

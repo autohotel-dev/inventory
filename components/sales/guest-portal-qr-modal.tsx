@@ -10,6 +10,12 @@ import { X, Copy, Check, Download, Printer } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { generateGuestPortalQR, getGuestPortalURL } from '@/lib/utils/guest-portal-qr';
 import { printHTML } from '@/lib/utils/print-helper';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 interface GuestPortalQRModalProps {
     isOpen: boolean;
@@ -163,31 +169,20 @@ export function GuestPortalQRModal({
         }
     }
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            Portal de Huéspedes
-                        </h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Habitación {roomNumber}
-                        </p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                        <X className="w-6 h-6 text-gray-600 dark:text-gray-400" />
-                    </button>
-                </div>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl">
+                        Portal de Huéspedes
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                        Habitación {roomNumber}
+                    </p>
+                </DialogHeader>
 
                 {/* Content */}
-                <div className="p-6">
+                <div className="py-2">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
                             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -268,7 +263,8 @@ export function GuestPortalQRModal({
                         </>
                     )}
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
+

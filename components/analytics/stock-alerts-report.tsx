@@ -44,21 +44,26 @@ export function StockAlertsReport() {
 
         try {
             // Obtener productos con su stock
-            const { data: products } = await supabase
+            const { data: products, error } = await supabase
                 .from("products")
                 .select(`
-          id,
-          name,
-          sku,
-          min_stock,
-          max_stock,
-          category:categories(name),
-          stock:stock(
-            qty,
-            warehouse:warehouses(name, code)
-          )
-        `)
+                    id,
+                    name,
+                    sku,
+                    min_stock,
+                    category:categories(name),
+                    stock(
+                        qty,
+                        warehouse:warehouses(name, code)
+                    )
+                `)
                 .eq("is_active", true);
+
+            if (error) {
+                console.error("Error en query de stock:", error);
+            }
+
+            console.log("Productos obtenidos:", products?.length || 0);
 
             if (!products) {
                 setLoading(false);
@@ -70,16 +75,14 @@ export function StockAlertsReport() {
                 const stockEntries = product.stock || [];
                 const current_stock = stockEntries.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
                 const min_stock = product.min_stock || 0;
-                const max_stock = product.max_stock || 0;
 
                 let status: 'critical' | 'low' | 'normal' | 'overstocked' = 'normal';
                 if (current_stock === 0) {
                     status = 'critical';
                 } else if (current_stock <= min_stock) {
                     status = 'low';
-                } else if (max_stock > 0 && current_stock > max_stock) {
-                    status = 'overstocked';
                 }
+                // Note: max_stock doesn't exist in DB, so overstocked status is disabled
 
                 const deficit = Math.max(0, min_stock - current_stock);
 
@@ -100,7 +103,7 @@ export function StockAlertsReport() {
                     category_name: (product.category as any)?.name || 'Sin categoría',
                     current_stock,
                     min_stock,
-                    max_stock,
+                    max_stock: 0, // Field doesn't exist in DB
                     status,
                     deficit,
                     days_until_stockout,

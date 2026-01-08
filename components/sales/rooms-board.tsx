@@ -323,66 +323,107 @@ function RoomsBoardInternal() {
   // Suscripción a cambios en tiempo real
   useEffect(() => {
     const supabase = createClient();
+    let isSubscribed = true;
+    let channel: any = null;
 
     console.log("🔌 [RoomBoard] Configurando suscripción en tiempo real...");
 
-    const channel = supabase
-      .channel('rooms-board-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rooms' },
-        (payload: any) => {
-          console.log("📡 [RoomBoard] Cambio detectado en 'rooms':", {
-            event: payload.eventType,
-            roomId: payload.new?.id || payload.old?.id,
-            status: payload.new?.status || payload.old?.status,
-          });
-          fetchRooms(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'room_stays' },
-        (payload: any) => {
-          console.log("📡 [RoomBoard] Cambio detectado en 'room_stays':", {
-            event: payload.eventType,
-            stayId: payload.new?.id || payload.old?.id,
-            vehiclePlate: payload.new?.vehicle_plate,
-            valetId: payload.new?.valet_employee_id,
-            checkoutValetId: payload.new?.checkout_valet_employee_id,
-            valetCheckoutRequested: payload.new?.valet_checkout_requested_at,
-          });
-          fetchRooms(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'payments' },
-        (payload: any) => {
-          console.log("📡 [RoomBoard] Cambio detectado en 'payments':", {
-            event: payload.eventType,
-            paymentId: payload.new?.id || payload.old?.id,
-            status: payload.new?.status,
-          });
-          fetchRooms(true);
-        }
-      )
-      .subscribe((status: string) => {
-        console.log("🔌 [RoomBoard] Estado de suscripción:", status);
-        if (status === 'SUBSCRIBED') {
-          console.log("✅ [RoomBoard] Conexión en tiempo real ACTIVADA");
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error("❌ [RoomBoard] Error de conexión en tiempo real");
-        } else if (status === 'TIMED_OUT') {
-          console.warn("⏱️ [RoomBoard] Timeout de conexión en tiempo real");
-        } else if (status === 'CLOSED') {
-          console.warn("🚪 [RoomBoard] Conexión cerrada");
-        }
-      });
+    // Función para configurar el canal con autenticación
+    const setupRealtimeChannel = async () => {
+      try {
+        // Obtener sesión actual y configurar auth para Realtime
+        const { data: { session } } = await supabase.auth.getSession();
 
+        if (session?.access_token) {
+          // IMPORTANTE: Vincular el token de auth al cliente Realtime
+          supabase.realtime.setAuth(session.access_token);
+          console.log("🔑 [RoomBoard] Token de autenticación configurado para Realtime");
+        } else {
+          console.warn("⚠️ [RoomBoard] No hay sesión activa - Realtime puede fallar con RLS");
+        }
+
+        channel = supabase
+          .channel('rooms-board-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'rooms' },
+            (payload: any) => {
+              if (!isSubscribed) return;
+              console.log("📡 [RoomBoard] Cambio detectado en 'rooms':", {
+                event: payload.eventType,
+                roomId: payload.new?.id || payload.old?.id,
+                status: payload.new?.status || payload.old?.status,
+              });
+              fetchRooms(true);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'room_stays' },
+            (payload: any) => {
+              if (!isSubscribed) return;
+              console.log("📡 [RoomBoard] Cambio detectado en 'room_stays':", {
+                event: payload.eventType,
+                stayId: payload.new?.id || payload.old?.id,
+                vehiclePlate: payload.new?.vehicle_plate,
+                valetId: payload.new?.valet_employee_id,
+                checkoutValetId: payload.new?.checkout_valet_employee_id,
+                valetCheckoutRequested: payload.new?.valet_checkout_requested_at,
+              });
+              fetchRooms(true);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'payments' },
+            (payload: any) => {
+              if (!isSubscribed) return;
+              console.log("📡 [RoomBoard] Cambio detectado en 'payments':", {
+                event: payload.eventType,
+                paymentId: payload.new?.id || payload.old?.id,
+                status: payload.new?.status,
+              });
+              fetchRooms(true);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'sales_orders' },
+            (payload: any) => {
+              if (!isSubscribed) return;
+              console.log("📡 [RoomBoard] Cambio detectado en 'sales_orders':", {
+                event: payload.eventType,
+                orderId: payload.new?.id || payload.old?.id,
+              });
+              fetchRooms(true);
+            }
+          )
+          .subscribe((status: string, err?: Error) => {
+            if (status === 'SUBSCRIBED') {
+              console.log("✅ [RoomBoard] Conexión en tiempo real ACTIVADA");
+            } else if (status === 'CHANNEL_ERROR') {
+              console.warn("⚠️ [RoomBoard] Realtime no disponible (usando auto-refresh como fallback)", err?.message || '');
+            } else if (status === 'TIMED_OUT') {
+              console.warn("⏱️ [RoomBoard] Timeout de conexión - usando auto-refresh como fallback");
+            } else if (status === 'CLOSED') {
+              console.log("🚪 [RoomBoard] Conexión cerrada");
+            }
+          });
+      } catch (error) {
+        console.error("❌ [RoomBoard] Error configurando Realtime:", error);
+      }
+    };
+
+    // Ejecutar la configuración
+    setupRealtimeChannel();
+
+    // Cleanup function
     return () => {
+      isSubscribed = false;
       console.log("🔌 [RoomBoard] Cerrando suscripción en tiempo real...");
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [fetchRooms]);
 
@@ -802,44 +843,9 @@ function RoomsBoardInternal() {
     return (activeStay.sales_orders.remaining_amount || 0) > 0;
   };
 
-  // Cargar habitaciones al montar
+  // Cargar habitaciones al montar (la suscripción realtime está en el useEffect anterior)
   useEffect(() => {
     fetchRooms();
-
-    // SUCURSAL REALTIME: Suscripción a cambios
-    const supabase = createClient();
-    const channel = supabase
-      .channel('rooms-board-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rooms' },
-        () => {
-          console.log("Realtime: Room updated");
-          fetchRooms(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'room_stays' },
-        () => {
-          console.log("Realtime: Stay updated");
-          fetchRooms(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'sales_orders' },
-        () => {
-          console.log("Realtime: Order updated");
-          // Si cambia una orden (ej. pagada en otro lado), refrescar para ver saldos
-          fetchRooms(true);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [fetchRooms]);
 
   // Recordatorios 20 minutos antes de la salida

@@ -7,6 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Warehouse, Package, MapPin, BarChart3, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface WarehouseWithStats {
   id: string;
@@ -302,7 +308,7 @@ export function SimpleWarehousesTable() {
                     <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all ${(warehouse.utilizationRate || 0) > 80 ? 'bg-red-500' :
-                            (warehouse.utilizationRate || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                          (warehouse.utilizationRate || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
                           }`}
                         style={{ width: `${warehouse.utilizationRate || 0}%` }}
                       />
@@ -383,38 +389,34 @@ export function SimpleWarehousesTable() {
       </div>
 
       {/* Modal para crear/editar almacén */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">
-                {editingWarehouse ? "Editar Almacén" : "Nuevo Almacén"}
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsModalOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <WarehouseForm
-              warehouse={editingWarehouse}
-              onSave={handleSave}
-              onCancel={() => setIsModalOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingWarehouse ? "Editar Almacén" : "Nuevo Almacén"}
+            </DialogTitle>
+          </DialogHeader>
+          <WarehouseForm
+            warehouse={editingWarehouse}
+            onSave={handleSave}
+            onCancel={() => setIsModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Modal para ver detalle de stock */}
-      {showStockDetail && selectedWarehouse && (
-        <WarehouseStockDetail
-          warehouse={selectedWarehouse}
-          onClose={() => setShowStockDetail(false)}
-        />
-      )}
+      <Dialog open={showStockDetail} onOpenChange={setShowStockDetail}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Stock en {selectedWarehouse?.name} ({selectedWarehouse?.code})
+            </DialogTitle>
+          </DialogHeader>
+          {selectedWarehouse && (
+            <WarehouseStockDetailContent warehouse={selectedWarehouse} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -495,13 +497,11 @@ function WarehouseForm({
   );
 }
 
-// Componente para mostrar detalle de stock por almacén
-function WarehouseStockDetail({
-  warehouse,
-  onClose
+// Componente para mostrar detalle de stock por almacén - contenido interno
+function WarehouseStockDetailContent({
+  warehouse
 }: {
   warehouse: WarehouseWithStats;
-  onClose: () => void;
 }) {
   const [stockDetails, setStockDetails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -539,69 +539,59 @@ function WarehouseStockDetail({
     fetchStockDetails();
   }, [warehouse.id]);
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background p-6 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">
-            Stock en {warehouse.name} ({warehouse.code})
-          </h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <div className="overflow-y-auto flex-1">
-            <table className="w-full">
-              <thead className="bg-muted/50 sticky top-0">
-                <tr>
-                  <th className="text-left p-3">Producto</th>
-                  <th className="text-left p-3">SKU</th>
-                  <th className="text-left p-3">Categoría</th>
-                  <th className="text-right p-3">Cantidad</th>
-                  <th className="text-right p-3">Precio Unit.</th>
-                  <th className="text-right p-3">Valor Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockDetails.map((item, index) => (
-                  <tr key={index} className="border-t">
-                    <td className="p-3 font-medium">{item.product?.name}</td>
-                    <td className="p-3">
-                      <code className="bg-muted px-2 py-1 rounded text-xs">
-                        {item.product?.sku}
-                      </code>
-                    </td>
-                    <td className="p-3">
-                      {item.product?.category?.name || "Sin categoría"}
-                    </td>
-                    <td className="p-3 text-right">
-                      {item.qty} {item.product?.unit}
-                    </td>
-                    <td className="p-3 text-right">
-                      ${item.product?.price?.toFixed(2)}
-                    </td>
-                    <td className="p-3 text-right font-medium">
-                      ${(item.qty * item.product?.price).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {stockDetails.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No hay stock en este almacén
-              </div>
-            )}
-          </div>
-        )}
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
+    );
+  }
+
+  return (
+    <div className="overflow-y-auto flex-1">
+      <table className="w-full">
+        <thead className="bg-muted/50 sticky top-0">
+          <tr>
+            <th className="text-left p-3">Producto</th>
+            <th className="text-left p-3">SKU</th>
+            <th className="text-left p-3">Categoría</th>
+            <th className="text-right p-3">Cantidad</th>
+            <th className="text-right p-3">Precio Unit.</th>
+            <th className="text-right p-3">Valor Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stockDetails.map((item, index) => (
+            <tr key={index} className="border-t">
+              <td className="p-3 font-medium">{item.product?.name}</td>
+              <td className="p-3">
+                <code className="bg-muted px-2 py-1 rounded text-xs">
+                  {item.product?.sku}
+                </code>
+              </td>
+              <td className="p-3">
+                {item.product?.category?.name || "Sin categoría"}
+              </td>
+              <td className="p-3 text-right">
+                {item.qty} {item.product?.unit}
+              </td>
+              <td className="p-3 text-right">
+                ${item.product?.price?.toFixed(2)}
+              </td>
+              <td className="p-3 text-right font-medium">
+                ${(item.qty * item.product?.price).toFixed(2)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {stockDetails.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          No hay stock en este almacén
+        </div>
+      )}
     </div>
   );
 }
+

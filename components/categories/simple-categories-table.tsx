@@ -8,6 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Tag, Package, TrendingUp, X } from "lucide-react";
 import type { Category } from "@/lib/types/inventory";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface EnrichedCategory extends Category {
   productCount?: number;
@@ -337,30 +343,20 @@ export function SimpleCategoriesTable() {
       </div>
 
       {/* Modal para crear/editar categoría */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">
-                {editingCategory ? "Editar Categoría" : "Nueva Categoría"}
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsModalOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <CategoryForm
-              category={editingCategory}
-              onSave={handleSave}
-              onCancel={() => setIsModalOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? "Editar Categoría" : "Nueva Categoría"}
+            </DialogTitle>
+          </DialogHeader>
+          <CategoryForm
+            category={editingCategory}
+            onSave={handleSave}
+            onCancel={() => setIsModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
