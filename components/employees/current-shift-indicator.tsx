@@ -184,8 +184,8 @@ export function CurrentShiftIndicator({
           : "Otro empleado";
 
         showError(
-          "Ya hay un turno activo",
-          `${employeeName} ya tiene un turno iniciado. Debe cerrar su turno antes de que puedas iniciar uno nuevo.`
+          "No se puede iniciar turno",
+          `${employeeName} ya tiene un turno activo. Primero debe cerrar su turno para que puedas iniciar uno nuevo.`
         );
         setActionLoading(false);
         return;
@@ -212,7 +212,18 @@ export function CurrentShiftIndicator({
       setSelectedEmployeeId("");
     } catch (err: any) {
       console.error("Error clocking in:", err);
-      showError("Error", err.message || "No se pudo registrar la entrada");
+
+      // Detectar error de constraint único (otro turno activo)
+      if (err.message?.includes("idx_single_active_shift_session") ||
+        err.message?.includes("duplicate key") ||
+        err.code === "23505") {
+        showError(
+          "No se puede iniciar turno",
+          "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
+        );
+      } else {
+        showError("Error", err.message || "No se pudo registrar la entrada");
+      }
     } finally {
       setActionLoading(false);
     }
