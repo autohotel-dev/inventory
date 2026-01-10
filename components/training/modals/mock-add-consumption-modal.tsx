@@ -39,7 +39,7 @@ interface MockAddConsumptionModalProps {
     isOpen: boolean;
     roomNumber?: string;
     onClose: () => void;
-    onComplete: (products: { product: Product; qty: number }[]) => void;
+    onComplete: (products: { product: Product; qty: number }[], methods: { usedSearch: boolean; usedScan: boolean; usedEditQty: boolean; usedRemoveItem: boolean }) => void;
 }
 
 export function MockAddConsumptionModal({
@@ -59,6 +59,12 @@ export function MockAddConsumptionModal({
     const [selectedRow, setSelectedRow] = useState<number>(-1);
     const [editingItemId, setEditingItemId] = useState<string | null>(null);
     const [editQty, setEditQty] = useState<number>(1);
+
+    // Tracking de métodos de entrada
+    const [usedSearchMethod, setUsedSearchMethod] = useState(false);
+    const [usedScanMethod, setUsedScanMethod] = useState(false);
+    const [usedEditQty, setUsedEditQty] = useState(false);
+    const [usedRemoveItem, setUsedRemoveItem] = useState(false);
 
     // Refs
     const inputRef = useRef<HTMLInputElement>(null);
@@ -200,6 +206,13 @@ export function MockAddConsumptionModal({
             setLastAddedId(product.id);
             setInputError(false);
             toast.success(`"${product.name}" agregado`, { duration: 1000 });
+
+            // Marcar método usado
+            if (rapidInputRef.current) {
+                setUsedScanMethod(true);
+            } else {
+                setUsedSearchMethod(true);
+            }
         } else {
             if (posConfig.soundEnabled) playError();
             setInputError(true);
@@ -212,6 +225,7 @@ export function MockAddConsumptionModal({
     // Manejar cambio de input con detección de escaneo automático
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newValue = e.target.value;
+        const oldLength = searchValue.length;
         const now = Date.now();
         const timeSinceLastInput = now - lastInputTimeRef.current;
 
@@ -222,7 +236,14 @@ export function MockAddConsumptionModal({
             clearTimeout(scanTimeoutRef.current);
         }
 
+        // Detectar entrada rápida (escritura rápida o escaneo con pistola)
         if (timeSinceLastInput < SCAN_SPEED_THRESHOLD && newValue.length > 1) {
+            rapidInputRef.current = true;
+        }
+
+        // Detectar pegado: si el texto salta de 0-2 caracteres a MIN_SCAN_LENGTH o más
+        const isPaste = oldLength <= 2 && newValue.length >= MIN_SCAN_LENGTH;
+        if (isPaste) {
             rapidInputRef.current = true;
         }
 
@@ -274,6 +295,7 @@ export function MockAddConsumptionModal({
             newCart.delete(productId);
             return newCart;
         });
+        setUsedRemoveItem(true);
         setSelectedRow(-1);
         ensureFocus();
     };
@@ -290,6 +312,7 @@ export function MockAddConsumptionModal({
                 }
                 return newCart;
             });
+            setUsedEditQty(true);
         }
     };
 
@@ -364,7 +387,12 @@ export function MockAddConsumptionModal({
                 description: `${productNames} - Total: ${formatCurrency(totalAmount)}`,
             });
 
-            onComplete(Array.from(cartItems.values()));
+            onComplete(Array.from(cartItems.values()), {
+                usedSearch: usedSearchMethod,
+                usedScan: usedScanMethod,
+                usedEditQty: usedEditQty,
+                usedRemoveItem: usedRemoveItem
+            });
             setProcessing(false);
         }, 1000);
     };

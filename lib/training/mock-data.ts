@@ -106,12 +106,12 @@ export const mockValets = [
 
 // Productos de muestra
 export const mockProducts = [
-    { id: 'prod-1', name: 'Cerveza Corona', price: 35, category: 'Bebidas' },
-    { id: 'prod-2', name: 'Refresco Coca-Cola', price: 25, category: 'Bebidas' },
-    { id: 'prod-3', name: 'Agua Natural', price: 15, category: 'Bebidas' },
-    { id: 'prod-4', name: 'Papas Fritas', price: 40, category: 'Snacks' },
-    { id: 'prod-5', name: 'Hamburguesa', price: 85, category: 'Comida' },
-    { id: 'prod-6', name: 'Pizza Personal', price: 120, category: 'Comida' }
+    { id: 'prod-1', name: 'Cerveza Corona', price: 35, category: 'Bebidas', sku: 'COR001', barcode: '7501055303502' },
+    { id: 'prod-2', name: 'Refresco Coca-Cola', price: 25, category: 'Bebidas', sku: 'COC001', barcode: '7501055363100' },
+    { id: 'prod-3', name: 'Agua Natural', price: 15, category: 'Bebidas', sku: 'AGU001', barcode: '7501055300111' },
+    { id: 'prod-4', name: 'Papas Fritas', price: 40, category: 'Snacks', sku: 'PAP001', barcode: '7501055555501' },
+    { id: 'prod-5', name: 'Hamburguesa', price: 85, category: 'Comida', sku: 'HAM001', barcode: '7501055666601' },
+    { id: 'prod-6', name: 'Pizza Personal', price: 120, category: 'Comida', sku: 'PIZ001', barcode: '7501055777701' }
 ];
 
 // Turno de ejemplo

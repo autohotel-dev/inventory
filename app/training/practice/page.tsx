@@ -28,6 +28,7 @@ import { RoomPayExtraModal } from '@/components/sales/room-pay-extra-modal';
 import { PracticeIntro } from '@/components/training/practice-intro';
 import { MockGranularPaymentModal, MockOrderItem } from '@/components/training/modals/mock-granular-payment-modal';
 import { MockExpenseModal } from '@/components/training/modals/mock-expense-modal';
+import { MockBlockRoomModal } from '@/components/training/modals/mock-block-room-modal';
 import {
     MockInventoryPanel,
     MockSensorsPanel,
@@ -155,6 +156,7 @@ export default function PracticePage() {
     const [isPayExtraOpen, setIsPayExtraOpen] = useState(false);
     const [isGranularPaymentOpen, setIsGranularPaymentOpen] = useState(false);
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+    const [isBlockRoomOpen, setIsBlockRoomOpen] = useState(false);
     const [mockExpense, setMockExpense] = useState<any>(null);
 
     // Inicializar escenario según módulo
@@ -331,6 +333,8 @@ export default function PracticePage() {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 1500)); // Simular red
 
+        checkPaymentExercises(payments);
+
         const result = mockOperations.checkIn(selectedRoom.id, 'Cliente Normal', initialPeople, vehicle.plate || 'SIN-PLACAS');
         toast.success(result.message);
 
@@ -368,11 +372,11 @@ export default function PracticePage() {
         setIsStartStayOpen(false);
     };
 
-    const confirmQuickCheckin = async (data: any) => {
+    const confirmQuickCheckin = async (data: { initialPeople: number; actualEntryTime: Date }) => {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 1500));
 
-        const result = mockOperations.checkIn(selectedRoom.id, 'Cliente Rápido', data.initialPeople, data.vehicle?.plate || 'PENDIENTE');
+        mockOperations.checkIn(selectedRoom.id, 'Cliente Rápido', data.initialPeople, 'PENDIENTE');
         toast.success('Entrada Rápida registrada con éxito');
 
         // Precio total queda pendiente
@@ -388,7 +392,7 @@ export default function PracticePage() {
             expected_check_out_at: null,
             current_people: data.initialPeople,
             total_people: data.initialPeople,
-            vehicle_plate: data.vehicle?.plate || 'PENDIENTE',
+            vehicle_plate: 'PENDIENTE',
             sales_orders: { remaining_amount: total }
         };
 
@@ -435,10 +439,30 @@ export default function PracticePage() {
         setIsCheckoutOpen(false);
     };
 
-    const confirmConsumption = () => {
+    const confirmConsumption = (products: any[], methods?: { usedSearch: boolean; usedScan: boolean; usedEditQty: boolean; usedRemoveItem: boolean }) => {
         // Marcamos consumo
         const newCompleted = [...completedExercises];
         if (!newCompleted.includes('add-consumption')) newCompleted.push('add-consumption');
+
+        // Marcamos métodos de entrada usados
+        if (methods?.usedSearch && !newCompleted.includes('search-product')) {
+            newCompleted.push('search-product');
+            toast.success("✓ Objetivo: Búsqueda de productos completado");
+        }
+        if (methods?.usedScan && !newCompleted.includes('scan-product')) {
+            newCompleted.push('scan-product');
+            toast.success("✓ Objetivo: Escaneo de código completado");
+        }
+
+        // Marcamos gestión del carrito
+        if (methods?.usedEditQty && !newCompleted.includes('edit-qty')) {
+            newCompleted.push('edit-qty');
+            toast.success("✓ Objetivo: Ajustar cantidades completado");
+        }
+        if (methods?.usedRemoveItem && !newCompleted.includes('remove-item')) {
+            newCompleted.push('remove-item');
+            toast.success("✓ Objetivo: Eliminar del carrito completado");
+        }
 
         // Marcamos ticket (automático, como indica el tutorial)
         if (!newCompleted.includes('print-ticket')) {
@@ -450,18 +474,116 @@ export default function PracticePage() {
             setCompletedExercises(newCompleted);
         }
 
+        // --- FIX: Actualizar deuda de la habitación para permitir más prácticas de pago ---
+        const totalAmount = products.reduce((acc, item) => acc + (item.product.price * item.qty), 0);
+
+        setPracticeRooms(rooms => rooms.map(r => {
+            if (r.id === selectedRoom.id && r.room_stays?.[0]) {
+                const currentDebt = r.room_stays[0].sales_orders?.remaining_amount || 0;
+                const currentItems = (r.room_stays[0] as any).mockItems || [];
+
+                // Crear nuevos items para el mock de pago granular
+                const newItems = products.map((p, idx) => ({
+                    id: `mock-item-${Date.now()}-${idx}`,
+                    description: p.product.name,
+                    amount: p.product.price * p.qty,
+                    is_paid: false
+                }));
+
+                return {
+                    ...r,
+                    room_stays: [{
+                        ...r.room_stays[0],
+                        sales_orders: {
+                            remaining_amount: currentDebt + totalAmount
+                        },
+                        // Extendemos el objeto stay con los items simulados
+                        ...({ mockItems: [...currentItems, ...newItems] } as any)
+                    }]
+                };
+            }
+            return r;
+        }));
+
         setIsConsumptionOpen(false);
     };
 
-    const confirmAddHours = async (hours: number, payments: any[]) => {
+    const confirmAddHours = async (hours: number, payments: any[], isCourtesy?: boolean, courtesyReason?: string) => {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 1000));
 
         const result = mockOperations.addHours(selectedRoom.id, hours);
-        toast.success(result.message);
 
-        if (!completedExercises.includes('add-hours')) {
-            setCompletedExercises(prev => [...prev, 'add-hours']);
+        if (isCourtesy) {
+            toast.success(`${hours} hora(s) de cortesía añadida(s)${courtesyReason ? `: ${courtesyReason}` : ''}`);
+            if (!completedExercises.includes('courtesy-hour')) {
+                setCompletedExercises(prev => [...prev, 'courtesy-hour']);
+            }
+        } else {
+            toast.success(result.message);
+            checkPaymentExercises(payments);
+            if (!completedExercises.includes('add-hours')) {
+                setCompletedExercises(prev => [...prev, 'add-hours']);
+            }
+
+            // --- FIX: Actualizar deuda por horas extra ---
+            setPracticeRooms(rooms => rooms.map(r => {
+                if (r.id === selectedRoom.id && r.room_stays?.[0]) {
+                    const currentDebt = r.room_stays[0].sales_orders?.remaining_amount || 0;
+                    const currentItems = (r.room_stays[0] as any).mockItems || [];
+                    const charge = result.charge || (hours * 80); // Fallback mock price
+
+                    // Añadir item de horas
+                    const newItem = {
+                        id: `mock-hour-${Date.now()}`,
+                        description: `Horas Extra (${hours}h)`,
+                        amount: charge,
+                        is_paid: false
+                    };
+
+                    return {
+                        ...r,
+                        room_stays: [{
+                            ...r.room_stays[0],
+                            sales_orders: {
+                                remaining_amount: currentDebt + charge
+                            },
+                            ...({ mockItems: [...currentItems, newItem] } as any)
+                        }]
+                    };
+                }
+                return r;
+            }));
+        }
+
+        setActionLoading(false);
+        setIsHourManagementOpen(false);
+    };
+
+    const confirmRenewShift = async (payments: any[]) => {
+        setActionLoading(true);
+        await new Promise(r => setTimeout(r, 1000));
+
+        toast.success("Turno renovado exitosamente");
+        checkPaymentExercises(payments);
+
+        if (!completedExercises.includes('renew-shift')) {
+            setCompletedExercises(prev => [...prev, 'renew-shift']);
+        }
+
+        setActionLoading(false);
+        setIsHourManagementOpen(false);
+    };
+
+    const confirmPromo4H = async (payments: any[]) => {
+        setActionLoading(true);
+        await new Promise(r => setTimeout(r, 1000));
+
+        toast.success("Promoción 4 Horas aplicada");
+        checkPaymentExercises(payments);
+
+        if (!completedExercises.includes('promos')) {
+            setCompletedExercises(prev => [...prev, 'promos']);
         }
 
         setActionLoading(false);
@@ -583,17 +705,64 @@ export default function PracticePage() {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 500));
 
+        const extraPrice = selectedRoom.room_types.extra_person_price || 0;
+        const currentPeople = selectedRoom.room_stays?.[0]?.current_people || 0;
+        const totalPeople = selectedRoom.room_stays?.[0]?.total_people || 0;
+        const shouldCharge = currentPeople >= 2 || totalPeople >= 2;
+
         setPracticeRooms(rooms => rooms.map(r => {
             if (r.id === selectedRoom.id && r.room_stays?.[0]) {
-                return { ...r, room_stays: [{ ...r.room_stays[0], current_people: (r.room_stays[0].current_people || 0) + 1 }] };
+                const newCurrent = (r.room_stays[0].current_people || 0) + 1;
+                const newTotal = Math.max(newCurrent, (r.room_stays[0].total_people || 0) + 1);
+                const currentDebt = r.room_stays[0].sales_orders?.remaining_amount || 0;
+                return {
+                    ...r,
+                    room_stays: [{
+                        ...r.room_stays[0],
+                        current_people: newCurrent,
+                        total_people: newTotal,
+                        sales_orders: {
+                            remaining_amount: shouldCharge ? currentDebt + extraPrice : currentDebt
+                        }
+                    }]
+                };
             }
             return r;
         }));
 
-        toast.success("Persona añadida (Cargo extra aplicado)");
-        if (!completedExercises.includes('manage-people')) setCompletedExercises(prev => [...prev, 'manage-people']);
+        if (shouldCharge && extraPrice > 0) {
+            toast.success(`Persona NUEVA añadida (+$${extraPrice} cargo extra)`);
+        } else {
+            toast.success("Persona NUEVA añadida (sin cargo adicional)");
+        }
+        if (!completedExercises.includes('add-person-new')) setCompletedExercises(prev => [...prev, 'add-person-new']);
         setActionLoading(false);
-        // No cerramos el modal para permitir más ediciones o ver el resultado
+        setIsManagePeopleOpen(false);
+    };
+
+    const handleAddPersonReturning = async () => {
+        setActionLoading(true);
+        await new Promise(r => setTimeout(r, 500));
+
+        setPracticeRooms(rooms => rooms.map(r => {
+            if (r.id === selectedRoom.id && r.room_stays?.[0]) {
+                return {
+                    ...r,
+                    room_stays: [{
+                        ...r.room_stays[0],
+                        current_people: (r.room_stays[0].current_people || 0) + 1,
+                        // No incrementamos total_people porque ya estaba contada
+                        hasActiveTolerance: false // Cancela la tolerancia
+                    }]
+                };
+            }
+            return r;
+        }));
+
+        toast.success("Persona REGRESÓ (tolerancia cancelada, sin cargo extra)");
+        if (!completedExercises.includes('add-person-returning')) setCompletedExercises(prev => [...prev, 'add-person-returning']);
+        setActionLoading(false);
+        setIsManagePeopleOpen(false);
     };
 
     const handleRemovePerson = async (willReturn: boolean) => {
@@ -603,14 +772,28 @@ export default function PracticePage() {
         setPracticeRooms(rooms => rooms.map(r => {
             if (r.id === selectedRoom.id && r.room_stays?.[0]) {
                 const current = r.room_stays[0].current_people || 0;
-                return { ...r, room_stays: [{ ...r.room_stays[0], current_people: Math.max(0, current - 1) }] };
+                return {
+                    ...r,
+                    room_stays: [{
+                        ...r.room_stays[0],
+                        current_people: Math.max(0, current - 1),
+                        hasActiveTolerance: willReturn, // Activa tolerancia si va a regresar
+                        toleranceMinutesLeft: willReturn ? 60 : undefined
+                    }]
+                };
             }
             return r;
         }));
 
-        toast.success(willReturn ? "Persona salió (con tolerancia)" : "Persona salió definitivamente");
-        if (!completedExercises.includes('manage-people')) setCompletedExercises(prev => [...prev, 'manage-people']);
+        if (willReturn) {
+            toast.success("Persona SALIÓ temporalmente (tolerancia 1 hora activa)");
+            if (!completedExercises.includes('remove-person-temp')) setCompletedExercises(prev => [...prev, 'remove-person-temp']);
+        } else {
+            toast.success("Persona SALIÓ definitivamente");
+            if (!completedExercises.includes('remove-person-definitive')) setCompletedExercises(prev => [...prev, 'remove-person-definitive']);
+        }
         setActionLoading(false);
+        setIsManagePeopleOpen(false);
     };
 
     // Handlers de Apertura (Openers)
@@ -666,14 +849,27 @@ export default function PracticePage() {
 
     const handleBlockRoom = () => {
         if (!selectedRoom) return;
-        // Podríamos hacer modal de motivo, pero por ahora directo con motivo fijo es aceptable para bloqueo mantenimiento
-        const result = mockOperations.blockRoom(selectedRoom.id, 'Mantenimiento');
-        toast.success(result.message);
-        if (!completedExercises.includes('block-room')) setCompletedExercises(prev => [...prev, 'block-room']);
-        setPracticeRooms(rooms => rooms.map(r =>
-            r.id === selectedRoom.id ? { ...r, status: 'BLOQUEADA' as any, notes: 'Mantenimiento (Simulado)' } : r
-        ));
+        setIsBlockRoomOpen(true);
         closeWheel();
+    };
+
+    const confirmBlockRoom = (reason: string) => {
+        if (!selectedRoom) return;
+        setActionLoading(true);
+
+        const result = mockOperations.blockRoom(selectedRoom.id, reason);
+        toast.success(`Habitación bloqueada: ${reason}`);
+
+        if (!completedExercises.includes('block-room')) {
+            setCompletedExercises(prev => [...prev, 'block-room']);
+        }
+
+        setPracticeRooms(rooms => rooms.map(r =>
+            r.id === selectedRoom.id ? { ...r, status: 'BLOQUEADA' as any, notes: reason } : r
+        ));
+
+        setActionLoading(false);
+        setIsBlockRoomOpen(false);
     };
 
     const handleUnblockRoom = () => {
@@ -827,6 +1023,7 @@ export default function PracticePage() {
                                 toast.success(`Lección completada: ${stepId}`);
                             }
                         }}
+                        moduleId={activeModule.id}
                     />
                 ) : ['shift-control', 'reports-basic', 'inventory-stock', 'inventory-movements', 'inventory-purchases', 'sensors-monitoring', 'customer-management', 'analytics-financial'].includes(activeModule.id) ? (
                     <PracticeGenericModule
@@ -961,8 +1158,8 @@ export default function PracticePage() {
                             actionLoading={actionLoading}
                             onClose={() => setIsHourManagementOpen(false)}
                             onConfirmCustomHours={confirmAddHours}
-                            onConfirmRenew={async (pay) => await confirmAddHours(0, pay)}
-                            onConfirmPromo4H={async (pay) => await confirmAddHours(4, pay)}
+                            onConfirmRenew={confirmRenewShift}
+                            onConfirmPromo4H={confirmPromo4H}
                         />
 
                         <EditVehicleModal
@@ -994,13 +1191,14 @@ export default function PracticePage() {
                             currentPeople={selectedRoom.room_stays?.[0]?.current_people || 1}
                             totalPeople={selectedRoom.room_stays?.[0]?.total_people || 1}
                             maxPeople={selectedRoom.room_types.max_people || 4}
-                            hasActiveTolerance={false}
+                            hasActiveTolerance={(selectedRoom.room_stays?.[0] as any)?.hasActiveTolerance || false}
+                            toleranceMinutesLeft={(selectedRoom.room_stays?.[0] as any)?.toleranceMinutesLeft}
                             extraPersonPrice={selectedRoom.room_types.extra_person_price || 0}
                             isHotelRoom={false}
                             actionLoading={actionLoading}
                             onClose={() => setIsManagePeopleOpen(false)}
                             onAddPersonNew={handleAddPersonNew}
-                            onAddPersonReturning={handleAddPersonNew}
+                            onAddPersonReturning={handleAddPersonReturning}
                             onRemovePerson={handleRemovePerson}
                         />
 
@@ -1052,6 +1250,14 @@ export default function PracticePage() {
                             items={(selectedRoom.room_stays?.[0] as any)?.mockItems || []}
                             onClose={() => setIsGranularPaymentOpen(false)}
                             onConfirm={confirmGranularPayment}
+                        />
+
+                        <MockBlockRoomModal
+                            isOpen={isBlockRoomOpen}
+                            roomNumber={selectedRoom.number}
+                            actionLoading={actionLoading}
+                            onClose={() => setIsBlockRoomOpen(false)}
+                            onConfirm={confirmBlockRoom}
                         />
                     </>
                 )}

@@ -81,21 +81,33 @@ export const trainingModules: TrainingModule[] = [
         title: 'Control de Huéspedes',
         description: 'Gestión de personas extra y visitas.',
         icon: 'Users',
-        duration: 20,
+        duration: 25,
         difficulty: 'intermediate',
         category: 'rooms',
         steps: [
             {
-                id: 'add-person',
-                title: 'Persona Extra',
-                description: 'Registrar ingreso adicional a habitación ocupada.',
-                tips: ['Genera cargo automático a la cuenta', 'Verifica límite de personas por habitación']
+                id: 'add-person-new',
+                title: 'Entrada Persona Nueva',
+                description: 'Registrar ingreso de una persona adicional.',
+                tips: ['Genera cargo automático si hay más de 2 personas', 'Verifica límite máximo de la habitación']
             },
             {
-                id: 'remove-person',
-                title: 'Salida de Persona',
-                description: 'Registrar salida parcial de un grupo.',
-                tips: ['Importante para control de seguridad']
+                id: 'remove-person-temp',
+                title: 'Salida Temporal',
+                description: 'Persona sale pero regresará pronto.',
+                tips: ['Activa tolerancia de 1 hora', 'No se cobra extra si regresa a tiempo']
+            },
+            {
+                id: 'add-person-returning',
+                title: 'Regreso de Persona',
+                description: 'Registrar cuando regresa alguien que salió temporalmente.',
+                tips: ['Cancela la tolerancia activa', 'No genera cargo adicional']
+            },
+            {
+                id: 'remove-person-definitive',
+                title: 'Salida Definitiva',
+                description: 'Persona se va y no regresará.',
+                tips: ['Importante para control de seguridad', 'Si es la última, considerar checkout']
             }
         ]
     },
@@ -110,9 +122,9 @@ export const trainingModules: TrainingModule[] = [
         steps: [
             {
                 id: 'renew-shift',
-                title: 'Renovar Turno',
-                description: 'Extender la estancia por un turno completo.',
-                tips: ['Se cobra tarifa completa de nuevo turno']
+                title: 'Renovar Habitación',
+                description: 'Extender la estancia.',
+                tips: ['Se cobra tarifa completa de nuevo']
             },
             {
                 id: 'add-hours',
@@ -121,10 +133,16 @@ export const trainingModules: TrainingModule[] = [
                 tips: ['Útil para clientes que se quedan "un rato más"']
             },
             {
+                id: 'courtesy-hour',
+                title: 'Hora de Cortesía',
+                description: 'Agregar tiempo sin costo como compensación.',
+                tips: ['Requiere especificar razón', 'Se registra en auditoría']
+            },
+            {
                 id: 'promos',
-                title: 'Aplicar Promociones',
-                description: 'Uso de promos (ej. 4 Horas).',
-                tips: ['Verificar horarios válidos para promociones']
+                title: 'Aplicar Promocion de 4 Horas',
+                description: 'Uso de promociones (ej. 4 Horas).',
+                tips: ['Verificar horarios válidos']
             }
         ]
     },
