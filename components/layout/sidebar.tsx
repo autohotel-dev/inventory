@@ -328,6 +328,7 @@ export function Sidebar() {
       )}
 
       <aside
+        id="tour-sidebar"
         className={`fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none transition-all duration-200 ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
         style={{ width: compact ? SIDEBAR_WIDTHS.COMPACT : SIDEBAR_WIDTHS.EXPANDED }}
       >

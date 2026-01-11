@@ -83,6 +83,8 @@ export function RoomCard({
 
   return (
     <div
+      id="tour-room-card"
+      data-room-status={status}
       className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer backdrop-blur-sm shadow-sm hover:shadow-md border transition-all ${containerClasses}`}
     >
       {/* Indicador de pago pendiente (Solo si NO está la puerta abierta para no saturar) */}

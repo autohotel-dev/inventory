@@ -105,10 +105,11 @@ export default async function Home() {
         </div>
 
         {/* Indicador de Turno Actual */}
-        <ShiftIndicatorWrapper />
-
+        <div id="tour-dashboard-shift-indicator" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+          <ShiftIndicatorWrapper />
+        </div>
         {/* KPIs principales */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div id="tour-dashboard-kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Productos Activos</CardTitle>
@@ -203,24 +204,54 @@ export default async function Home() {
           </Card>
 
           {/* Acciones Rápidas */}
+          <div id="tour-dashboard-quick-actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Acciones Rápidas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {quickLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group"
+                    >
+                      <span className="text-2xl">{link.icon}</span>
+                      <span className="font-medium group-hover:text-primary transition-colors">
+                        {link.label}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Módulos del Sistema */}
+        <div id="tour-dashboard-modules" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Acciones Rápidas
+                <Package className="h-5 w-5" />
+                Módulos del Sistema
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {quickLinks.map((link) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {modules.map((module) => (
                   <Link
-                    key={link.href}
-                    href={link.href}
-                    className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group"
+                    key={module.href}
+                    href={module.href}
+                    className="flex flex-col items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group text-center"
                   >
-                    <span className="text-2xl">{link.icon}</span>
+                    <span className="text-3xl">{module.icon}</span>
                     <span className="font-medium group-hover:text-primary transition-colors">
-                      {link.label}
+                      {module.label}
                     </span>
                   </Link>
                 ))}
@@ -228,32 +259,6 @@ export default async function Home() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Módulos del Sistema */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Módulos del Sistema
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {modules.map((module) => (
-                <Link
-                  key={module.href}
-                  href={module.href}
-                  className="flex flex-col items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group text-center"
-                >
-                  <span className="text-3xl">{module.icon}</span>
-                  <span className="font-medium group-hover:text-primary transition-colors">
-                    {module.label}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </DashboardWrapper>
   );

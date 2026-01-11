@@ -34,7 +34,14 @@ export function ModuleCard({ module }: ModuleCardProps) {
     const IconComponent = (Icons as any)[module.icon] || Icons.BookOpen;
 
     const handleStartInteractive = () => {
-        startModule(module.id, 'interactive');
+        if (module.route) {
+            // Navigate with query param to indicate tour should start
+            const url = `${module.route}?startTour=${module.id}`;
+            router.push(url);
+        } else {
+            startModule(module.id, 'interactive');
+            router.push('/training/practice');
+        }
     };
 
     const handleStartPractice = () => {

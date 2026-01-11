@@ -2,6 +2,7 @@
 
 import { useUserRole } from "@/hooks/use-user-role";
 import { ReceptionistDashboard } from "./receptionist-dashboard";
+import { TourAutoStart } from "@/components/training/tour-auto-start";
 import { Loader2 } from "lucide-react";
 
 interface DashboardWrapperProps {
@@ -21,9 +22,19 @@ export function DashboardWrapper({ children }: DashboardWrapperProps) {
 
   // Si es recepcionista, mostrar dashboard simplificado
   if (!canAccessAdmin) {
-    return <ReceptionistDashboard />;
+    return (
+      <>
+        <TourAutoStart />
+        <ReceptionistDashboard />
+      </>
+    );
   }
 
   // Si es admin/manager, mostrar dashboard completo
-  return <>{children}</>;
+  return (
+    <>
+      <TourAutoStart />
+      {children}
+    </>
+  );
 }

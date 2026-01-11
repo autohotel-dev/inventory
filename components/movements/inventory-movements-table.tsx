@@ -164,7 +164,7 @@ export function InventoryMovementsTable() {
               Actualizar
             </Button>
             <Link href="/movements/new">
-              <Button>
+              <Button id="btn-new-transfer">
                 <Plus className="h-4 w-4 mr-2" />
                 Nuevo Movimiento
               </Button>
@@ -274,7 +274,7 @@ export function InventoryMovementsTable() {
 
                 <td className="p-4 text-right">
                   <div className={`font-medium ${movement.movement_type === 'IN' ? 'text-green-600' :
-                      movement.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
+                    movement.movement_type === 'OUT' ? 'text-red-600' : 'text-orange-600'
                     }`}>
                     {movement.movement_type === 'OUT' ? '-' : '+'}{movement.quantity}
                   </div>

@@ -257,7 +257,7 @@ export function AdvancedPurchasesTable() {
             <Download className="h-4 w-4 mr-2" />
             Exportar
           </Button>
-          <Button asChild>
+          <Button asChild id="btn-new-purchase">
             <Link href="/purchases/new">
               <Plus className="h-4 w-4 mr-2" />
               Nueva Compra

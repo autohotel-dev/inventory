@@ -111,7 +111,10 @@ export function RoomHourManagementModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-background border rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+            <div
+                id="tour-hour-management-modal"
+                className="bg-background border rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col"
+            >
                 <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2">
                         <Clock className="h-5 w-5 text-pink-500" />
@@ -145,6 +148,7 @@ export function RoomHourManagementModal({
 
                         {/* Opción 1: Horas Personalizadas */}
                         <div
+                            id="tour-custom-hours-option"
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOption === "custom"
                                 ? "border-pink-500 bg-pink-500/10"
                                 : "border-border hover:border-pink-500/50"
@@ -208,6 +212,7 @@ export function RoomHourManagementModal({
 
                         {/* Opción 2: Renovar */}
                         <div
+                            id="tour-renew-option"
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOption === "renew"
                                 ? "border-blue-500 bg-blue-500/10"
                                 : "border-border hover:border-blue-500/50"
@@ -232,6 +237,7 @@ export function RoomHourManagementModal({
 
                         {/* Opción 3: Promoción 4 Horas */}
                         <div
+                            id="tour-promo4h-option"
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOption === "promo4h"
                                 ? "border-amber-500 bg-amber-500/10"
                                 : "border-border hover:border-amber-500/50"

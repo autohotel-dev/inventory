@@ -15,6 +15,8 @@ export interface TrainingStep {
     videoUrl?: string;
     // Tips and shortcuts
     tips?: string[];
+    // Delay before showing highlight (ms) - useful for animations
+    highlightDelay?: number;
 }
 
 export interface TrainingModule {
@@ -25,6 +27,8 @@ export interface TrainingModule {
     duration: number; // in minutes
     difficulty: TrainingDifficulty;
     category: 'rooms' | 'payments' | 'sales' | 'shifts' | 'reports' | 'config' | 'intro' | 'inventory' | 'sensors' | 'admin';
+    // Production route for Product Tour mode
+    route?: string;
     // Main video tutorial
     videoUrl?: string;
     videoDuration?: string; // e.g., "3:45"

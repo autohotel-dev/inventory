@@ -74,7 +74,10 @@ export function ManagePeopleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
+      <div
+        id="tour-manage-people-modal"
+        className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 p-6"
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -136,8 +139,11 @@ export function ManagePeopleModal({
           <RadioGroup value={action || ""} onValueChange={(v: string) => setAction(v as "add" | "remove")}>
             <div className="space-y-3">
               {/* Opción: Agregar persona */}
-              <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${action === "add" ? "border-purple-500 bg-purple-500/10" : "hover:border-purple-500/50"
-                } ${currentPeople >= maxPeople ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <label
+                id="tour-add-person-radio"
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${action === "add" ? "border-purple-500 bg-purple-500/10" : "hover:border-purple-500/50"
+                  } ${currentPeople >= maxPeople ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
                 <RadioGroupItem value="add" id="add" disabled={currentPeople >= maxPeople} className="mt-0.5" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -158,8 +164,11 @@ export function ManagePeopleModal({
               </label>
 
               {/* Opción: Quitar persona */}
-              <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${action === "remove" ? "border-orange-500 bg-orange-500/10" : "hover:border-orange-500/50"
-                } ${currentPeople <= 0 ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <label
+                id="tour-remove-person-radio"
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${action === "remove" ? "border-orange-500 bg-orange-500/10" : "hover:border-orange-500/50"
+                  } ${currentPeople <= 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
                 <RadioGroupItem value="remove" id="remove" disabled={currentPeople <= 0} className="mt-0.5" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">

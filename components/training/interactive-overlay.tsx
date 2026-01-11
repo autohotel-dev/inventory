@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { ArrowLeft, ArrowRight, X, Lightbulb } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { useSoundFeedback } from '@/hooks/use-sound-feedback';
 export function InteractiveOverlay() {
     const { activeModule, currentStepIndex, currentMode, nextStep, prevStep, stopTraining, completeModule } = useTraining();
     const { playVictory } = useSoundFeedback();
+    const router = useRouter();
     const highlightRef = useRef<HTMLDivElement>(null);
     const [showVictory, setShowVictory] = useState(false);
 
@@ -18,7 +20,42 @@ export function InteractiveOverlay() {
     const isFirstStep = currentStepIndex === 0;
     const isLastStep = activeModule ? currentStepIndex === activeModule.steps.length - 1 : false;
 
-    // Hook must be called unconditionally
+    // Block user scroll and interactions when tour is active
+    useEffect(() => {
+        if (!activeModule || currentMode !== 'interactive') {
+            return;
+        }
+
+        // Save current scroll position
+        const scrollY = window.scrollY;
+
+        // Prevent user scroll while allowing programmatic scroll
+        const preventScroll = (e: Event) => {
+            // Only prevent if it's a user-initiated scroll
+            if (e.cancelable) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+
+        // Add event listeners to block user scroll
+        document.addEventListener('wheel', preventScroll, { passive: false });
+        document.addEventListener('touchmove', preventScroll, { passive: false });
+        document.addEventListener('keydown', (e) => {
+            // Block arrow keys, page up/down, space, home, end
+            if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+
+        return () => {
+            // Remove event listeners when tour ends
+            document.removeEventListener('wheel', preventScroll);
+            document.removeEventListener('touchmove', preventScroll);
+        };
+    }, [activeModule, currentMode]);
+
+    // Highlight and auto-scroll to target element
     useEffect(() => {
         // Only run if we have an active module and current step
         if (!activeModule || !currentStep || currentMode !== 'interactive') {
@@ -27,23 +64,63 @@ export function InteractiveOverlay() {
 
         // Find and highlight the target element
         if (currentStep.targetSelector) {
-            const targetElement = document.querySelector(currentStep.targetSelector);
+            const selector = currentStep.targetSelector;
+            if (!selector) return;
 
-            if (targetElement) {
-                const rect = targetElement.getBoundingClientRect();
+            let attempts = 0;
+            const maxAttempts = 20; // Try for up to 2 seconds
 
-                if (highlightRef.current) {
-                    // Position the highlight
-                    highlightRef.current.style.top = `${rect.top - 8}px`;
-                    highlightRef.current.style.left = `${rect.left - 8}px`;
-                    highlightRef.current.style.width = `${rect.width + 16}px`;
-                    highlightRef.current.style.height = `${rect.height + 16}px`;
-                    highlightRef.current.style.display = 'block';
+            const findAndHighlight = () => {
+                const targetElement = document.querySelector(selector) as HTMLElement;
+
+                if (targetElement) {
+                    // Found it! Scroll into view
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'center'
+                    });
+
+                    // Start tracking position
+                    const updatePosition = () => {
+                        if (!targetElement || !highlightRef.current) return;
+
+                        const rect = targetElement.getBoundingClientRect();
+
+                        // Check if element is still visible/connected
+                        if (rect.width === 0 && rect.height === 0) {
+                            if (highlightRef.current) highlightRef.current.style.display = 'none';
+                            return;
+                        }
+
+                        highlightRef.current.style.top = `${rect.top - 8}px`;
+                        highlightRef.current.style.left = `${rect.left - 8}px`;
+                        highlightRef.current.style.width = `${rect.width + 16}px`;
+                        highlightRef.current.style.height = `${rect.height + 16}px`;
+                        highlightRef.current.style.display = 'block';
+
+                        // Continue tracking
+                        requestAnimationFrame(updatePosition);
+                    };
+
+                    // Initial wait for delay if specified, otherwise start immediately
+                    if (currentStep.highlightDelay) {
+                        if (highlightRef.current) highlightRef.current.style.display = 'none';
+                        setTimeout(() => {
+                            requestAnimationFrame(updatePosition);
+                        }, currentStep.highlightDelay);
+                    } else {
+                        requestAnimationFrame(updatePosition);
+                    }
+                } else if (attempts < maxAttempts) {
+                    // Element not found yet, try again
+                    attempts++;
+                    setTimeout(findAndHighlight, 100);
                 }
+            };
 
-                // Scroll into view
-                targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            // Start trying to find the element
+            setTimeout(findAndHighlight, 100);
         } else {
             if (highlightRef.current) {
                 highlightRef.current.style.display = 'none';
@@ -90,18 +167,41 @@ export function InteractiveOverlay() {
     const handleCloseVictory = () => {
         completeModule();
         setShowVictory(false);
+        // Navigate back to training menu
+        router.push('/training');
+    }
+
+    const handleCloseDismiss = () => {
+        setShowVictory(false);
+        stopTraining();
+        // Navigate back to training menu
+        router.push('/training');
     }
 
     return (
         <>
-            {/* Dark overlay */}
-            <div className="fixed inset-0 bg-black/70 z-[9998]" />
+            {/* Invisible overlay to block all user interactions */}
+            <div
+                className="fixed inset-0 z-[9998]"
+                style={{
+                    pointerEvents: 'all',
+                    userSelect: 'none',
+                    touchAction: 'none',
+                    cursor: 'default'
+                }}
+                onClick={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
+            />
 
-            {/* Highlight box */}
+            {/* Highlight box with cutout effect */}
             <div
                 ref={highlightRef}
-                className="fixed z-[9999] border-4 border-blue-500 rounded-lg shadow-2xl shadow-blue-500/50 pointer-events-none transition-all duration-300"
-                style={{ display: 'none' }}
+                className="fixed z-[9999] border-4 border-red-500 rounded-lg pointer-events-none transition-all duration-300"
+                style={{
+                    display: 'none',
+                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 20px rgba(246, 59, 59, 1)'
+                }}
             />
 
             {/* Victory Dialog */}
@@ -127,66 +227,65 @@ export function InteractiveOverlay() {
                 </div>
             )}
 
-            {/* Instruction card (Hide if Victory) */}
+            {/* Instruction card (Hide if Victory) - Compact version */}
             {!showVictory && (
-                <Card className="fixed top-4 right-4 w-96 z-[10000] shadow-2xl">
-                    <CardContent className="p-6 space-y-4">
+                <Card className="fixed bottom-4 right-4 w-80 z-[10000] shadow-2xl">
+                    <CardContent className="p-4 space-y-3">
                         {/* Header */}
-                        <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                                <h3 className="font-bold text-lg">{activeModule.title}</h3>
-                                <p className="text-sm text-muted-foreground">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-base truncate">{activeModule.title}</h3>
+                                <p className="text-xs text-muted-foreground">
                                     Paso {currentStepIndex + 1} de {activeModule.steps.length}
                                 </p>
                             </div>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={stopTraining}
-                                className="h-8 w-8"
+                                onClick={handleCloseDismiss}
+                                className="h-6 w-6 flex-shrink-0"
                             >
-                                <X className="h-4 w-4" />
+                                <X className="h-3 w-3" />
                             </Button>
                         </div>
 
                         {/* Progress bar */}
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-blue-500 transition-all duration-300"
+                                className="h-full bg-red-500 transition-all duration-300"
                                 style={{ width: `${((currentStepIndex + 1) / activeModule.steps.length) * 100}%` }}
                             />
                         </div>
 
                         {/* Current step */}
-                        <div className="space-y-2">
-                            <h4 className="font-semibold">{currentStep.title}</h4>
-                            <p className="text-sm text-muted-foreground">{currentStep.description}</p>
+                        <div className="space-y-1">
+                            <h4 className="font-semibold text-sm">{currentStep.title}</h4>
+                            <p className="text-xs text-muted-foreground leading-tight">{currentStep.description}</p>
                         </div>
 
-                        {/* Tips */}
+                        {/* Tips - Collapsed by default */}
                         {currentStep.tips && currentStep.tips.length > 0 && (
-                            <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg space-y-2">
-                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                                    <Lightbulb className="h-4 w-4" />
-                                    <span className="text-sm font-medium">Consejos:</span>
+                            <div className="bg-red-50 dark:bg-red-950/30 p-2 rounded-md">
+                                <div className="flex items-start gap-1.5 text-red-700 dark:text-red-300">
+                                    <Lightbulb className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-xs font-medium block mb-1">Consejo:</span>
+                                        <p className="text-xs leading-tight">{currentStep.tips[0]}</p>
+                                    </div>
                                 </div>
-                                <ul className="text-sm space-y-1 ml-6 list-disc text-blue-700 dark:text-blue-300">
-                                    {currentStep.tips.map((tip: string, idx: number) => (
-                                        <li key={idx}>{tip}</li>
-                                    ))}
-                                </ul>
                             </div>
                         )}
 
                         {/* Navigation */}
-                        <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center justify-between pt-1">
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={prevStep}
                                 disabled={isFirstStep}
+                                className="h-8 text-xs"
                             >
-                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                <ArrowLeft className="h-3 w-3 mr-1" />
                                 Anterior
                             </Button>
 
@@ -194,17 +293,19 @@ export function InteractiveOverlay() {
                                 <Button
                                     size="sm"
                                     onClick={handleComplete}
-                                    className="bg-green-600 hover:bg-green-700"
+                                    className="h-8 text-xs bg-red-600 hover:bg-red-700"
                                 >
-                                    Completar
+                                    Finalizar
+                                    <ArrowRight className="h-3 w-3 ml-1" />
                                 </Button>
                             ) : (
                                 <Button
                                     size="sm"
                                     onClick={nextStep}
+                                    className="h-8 text-xs bg-red-600 hover:bg-red-700"
                                 >
                                     Siguiente
-                                    <ArrowRight className="h-4 w-4 ml-2" />
+                                    <ArrowRight className="h-3 w-3 ml-1" />
                                 </Button>
                             )}
                         </div>

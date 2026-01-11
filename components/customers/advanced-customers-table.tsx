@@ -303,7 +303,7 @@ export function AdvancedCustomersTable() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Actualizar
             </Button>
-            <Button onClick={handleNew}>
+            <Button onClick={handleNew} id="btn-add-customer">
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Cliente
             </Button>

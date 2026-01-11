@@ -205,7 +205,7 @@ export function SensorsTable() {
                 </div>
             </div>
 
-            <div className="rounded-md border bg-card">
+            <div id="sensor-grid" className="rounded-md border bg-card">
                 <table className="w-full text-sm">
                     <thead className="bg-muted/50 border-b">
                         <tr>

@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Plus, 
-  Trash2, 
-  Search, 
-  Calculator, 
-  ShoppingBag, 
-  Building, 
-  Users, 
+import {
+  Plus,
+  Trash2,
+  Search,
+  Calculator,
+  ShoppingBag,
+  Building,
+  Users,
   Save,
   X,
   AlertTriangle
@@ -86,7 +86,7 @@ export function AdvancedSalesForm() {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showProductSearch, setShowProductSearch] = useState(false);
-  
+
   const [formData, setFormData] = useState<SalesFormData>({
     customer_id: "",
     warehouse_id: "",
@@ -116,7 +116,7 @@ export function AdvancedSalesForm() {
 
   const fetchInitialData = async () => {
     const supabase = createClient();
-    
+
     try {
       const [
         { data: customersData },
@@ -154,16 +154,16 @@ export function AdvancedSalesForm() {
 
   const addProduct = (product: Product) => {
     const existingItemIndex = formData.items.findIndex(item => item.product_id === product.id);
-    
+
     if (existingItemIndex >= 0) {
       // Si ya existe, incrementar cantidad (verificando stock)
       const existingItem = formData.items[existingItemIndex];
       // Simplificado: sin verificación de stock por ahora
-      
+
       const updatedItems = [...formData.items];
       updatedItems[existingItemIndex].quantity += 1;
       updatedItems[existingItemIndex].total = updatedItems[existingItemIndex].quantity * updatedItems[existingItemIndex].unit_price;
-      
+
       setFormData(prev => ({ ...prev, items: updatedItems }));
     } else {
       // Agregar nuevo producto (sin verificación de stock por ahora)
@@ -176,13 +176,13 @@ export function AdvancedSalesForm() {
         total: product.price || 0,
         available_stock: 999 // Valor temporal
       };
-      
+
       setFormData(prev => ({
         ...prev,
         items: [...prev.items, newItem]
       }));
     }
-    
+
     setShowProductSearch(false);
     setSearchTerm("");
   };
@@ -202,7 +202,7 @@ export function AdvancedSalesForm() {
     const updatedItems = [...formData.items];
     updatedItems[index].quantity = quantity;
     updatedItems[index].total = quantity * updatedItems[index].unit_price;
-    
+
     setFormData(prev => ({ ...prev, items: updatedItems }));
   };
 
@@ -210,7 +210,7 @@ export function AdvancedSalesForm() {
     const updatedItems = [...formData.items];
     updatedItems[index].unit_price = price;
     updatedItems[index].total = updatedItems[index].quantity * price;
-    
+
     setFormData(prev => ({ ...prev, items: updatedItems }));
   };
 
@@ -226,7 +226,7 @@ export function AdvancedSalesForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.warehouse_id || formData.items.length === 0) {
       alert("Por favor completa todos los campos requeridos y agrega al menos un producto");
       return;
@@ -353,7 +353,7 @@ export function AdvancedSalesForm() {
 
       if (itemsError) throw itemsError;
 
-      const methodsSummary = payments.length > 0 
+      const methodsSummary = payments.length > 0
         ? payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ')
         : 'Sin pago inicial';
       toast.success("¡Orden de venta creada exitosamente!", {
@@ -489,12 +489,14 @@ export function AdvancedSalesForm() {
 
             <div className="space-y-2 md:col-span-2">
               <Label>Pagos (opcional - puede pagar después)</Label>
-              <MultiPaymentInput
-                totalAmount={formData.total}
-                payments={payments}
-                onPaymentsChange={setPayments}
-                showReference={true}
-              />
+              <div id="tour-payment-methods">
+                <MultiPaymentInput
+                  totalAmount={formData.total}
+                  payments={payments}
+                  onPaymentsChange={setPayments}
+                  showReference={true}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -524,6 +526,7 @@ export function AdvancedSalesForm() {
                 <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
+                    id="tour-product-search"
                     placeholder="Buscar productos por nombre o SKU..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -568,7 +571,7 @@ export function AdvancedSalesForm() {
                 <p className="text-sm">Haz clic en "Agregar Producto" para comenzar</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div id="tour-cart-items" className="space-y-3">
                 {formData.items.map((item, index) => (
                   <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
                     <div className="flex-1">
@@ -583,7 +586,7 @@ export function AdvancedSalesForm() {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <Label className="text-xs">Cantidad:</Label>
                       <Input
@@ -595,7 +598,7 @@ export function AdvancedSalesForm() {
                         className={`w-20 ${item.quantity > item.available_stock ? 'border-red-500' : ''}`}
                       />
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <Label className="text-xs">Precio:</Label>
                       <Input
@@ -606,11 +609,11 @@ export function AdvancedSalesForm() {
                         className="w-24"
                       />
                     </div>
-                    
+
                     <div className="text-right min-w-[80px]">
                       <div className="font-medium">{formatCurrency(item.total)}</div>
                     </div>
-                    
+
                     <Button
                       type="button"
                       variant="ghost"
@@ -647,12 +650,12 @@ export function AdvancedSalesForm() {
                     <span className="font-medium">-{formatCurrency(formData.discount_amount)}</span>
                   </div>
                 )}
-                
+
                 {/* Tax Toggle */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="includeTax" 
+                    <Checkbox
+                      id="includeTax"
                       checked={includeTax}
                       onCheckedChange={(checked) => setIncludeTax(checked === true)}
                     />

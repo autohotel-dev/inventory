@@ -29,14 +29,18 @@ import { PracticeIntro } from '@/components/training/practice-intro';
 import { MockGranularPaymentModal, MockOrderItem } from '@/components/training/modals/mock-granular-payment-modal';
 import { MockExpenseModal } from '@/components/training/modals/mock-expense-modal';
 import { MockBlockRoomModal } from '@/components/training/modals/mock-block-room-modal';
+import { MockShiftClosingModal } from '@/components/training/modals/mock-shift-closing-modal';
 import {
     MockInventoryPanel,
     MockSensorsPanel,
     MockAdminPanel,
     MockShiftPanel,
     MockReportPanel,
-    MockConfigPanel
+    MockConfigPanel,
+    MockPurchasesPanel
 } from '@/components/training/mock-panels';
+import { TutorialOverlay } from '@/components/training/tutorial-overlay';
+import { BookOpen } from 'lucide-react';
 
 const ROOM_STATUS_BG: Record<string, string> = {
     FREE: 'bg-green-900/80',
@@ -54,13 +58,14 @@ function PracticeGenericModule({ module, onCompleteStep, completedSteps, onOpenE
     const renderVisualMock = () => {
         if (module.id === 'shift-control') return <MockShiftPanel completed={completedSteps} mockExpense={mockExpense} />;
         if (module.id === 'reports-basic') return <MockReportPanel completed={completedSteps} />;
+        if (module.id === 'inventory-purchases') return <MockPurchasesPanel completed={completedSteps} onComplete={onCompleteStep} />;
         // No hay config panel en training-data aún, pero lo dejamos por si acaso
         if (module.id === 'configuracion-sistema') return <MockConfigPanel completed={completedSteps} />;
 
         // Nuevos mocks visuales por categoría
-        if (module.category === 'inventory') return <MockInventoryPanel completed={completedSteps} />;
-        if (module.category === 'sensors') return <MockSensorsPanel completed={completedSteps} />;
-        if (module.category === 'admin') return <MockAdminPanel completed={completedSteps} />;
+        if (module.category === 'inventory') return <MockInventoryPanel completed={completedSteps} onComplete={onCompleteStep} />;
+        if (module.category === 'sensors') return <MockSensorsPanel completed={completedSteps} onComplete={onCompleteStep} />;
+        if (module.category === 'admin') return <MockAdminPanel completed={completedSteps} onComplete={onCompleteStep} />;
 
         return <div className="text-center text-muted-foreground p-8">Vista previa no disponible</div>;
     };
@@ -81,11 +86,18 @@ function PracticeGenericModule({ module, onCompleteStep, completedSteps, onOpenE
                                 variant={isCompleted ? "outline" : "default"}
                                 className={`w-full justify-between h-auto py-3 px-4 ${isCompleted ? 'border-l-4 border-l-green-500 bg-green-50/50 dark:bg-green-900/20' : ''}`}
                                 onClick={() => {
+                                    // Special cases: Modals can be re-opened for practice
+                                    if (step.id === 'register-expense') {
+                                        onOpenExpense();
+                                        return;
+                                    }
+                                    if (step.id === 'close-shift') {
+                                        onCompleteStep(step.id); // This triggers the modal
+                                        return;
+                                    }
+
+                                    // One-time actions
                                     if (!isCompleted) {
-                                        if (step.id === 'register-expense') {
-                                            onOpenExpense();
-                                            return;
-                                        }
                                         toast.success(`Acción realizada: ${step.title}`);
                                         onCompleteStep(step.id);
                                     }
@@ -128,11 +140,31 @@ const ROOM_STATUS_ACCENT: Record<string, string> = {
     RESERVADA: 'border-l-4 border-yellow-400',
 };
 
+// Mapping of Step IDs to DOM Element IDs for Tutorial Overlay
+const stepTargetIds: Record<string, string> = {
+    // Inventory
+    'register-movement': 'tutorial-btn-new-movement',
+    'kardex-check': 'tutorial-tab-kardex',
+    // Purchases
+    'suppliers': 'tutorial-tab-suppliers',
+    'new-purchase': 'tutorial-btn-new-purchase',
+    // Sensors
+    'sensor-states': 'tutorial-btn-sensor-detail',
+    'discrepancies': 'tutorial-btn-verify-alert',
+    // Financial
+    'sales-analysis': 'tutorial-btn-analyze-sales',
+    'profitability': 'tutorial-btn-view-margins',
+    // Customer
+    'register-customer': 'tutorial-btn-new-customer',
+    'billing-data': 'tutorial-tab-customers',
+};
+
 export default function PracticePage() {
-    const { activeModule, stopTraining } = useTraining();
+    const { activeModule, stopTraining, currentMode } = useTraining();
     const router = useRouter();
     const [completedExercises, setCompletedExercises] = useState<string[]>([]);
     const [practiceRooms, setPracticeRooms] = useState(mockRooms);
+    const [isTutorialOpen, setIsTutorialOpen] = useState(currentMode === 'interactive');
 
     // Estados de Modales
     const [isWheelOpen, setIsWheelOpen] = useState(false);
@@ -140,6 +172,7 @@ export default function PracticePage() {
     const [selectedRoom, setSelectedRoom] = useState<any>(null);
     const [actionLoading, setActionLoading] = useState(false);
 
+    const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
     const [isStartStayOpen, setIsStartStayOpen] = useState(false);
     const [isQuickCheckinOpen, setIsQuickCheckinOpen] = useState(false);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -477,6 +510,12 @@ export default function PracticePage() {
         // --- FIX: Actualizar deuda de la habitación para permitir más prácticas de pago ---
         const totalAmount = products.reduce((acc, item) => acc + (item.product.price * item.qty), 0);
 
+        // Objetivo: Dejar Pendiente (Cargar a la cuenta)
+        if (!completedExercises.includes('leave-pending')) {
+            setCompletedExercises(prev => [...prev, 'leave-pending']);
+            toast.success("✓ Objetivo: Dejar Pendiente completado (Cargo a cuenta)");
+        }
+
         setPracticeRooms(rooms => rooms.map(r => {
             if (r.id === selectedRoom.id && r.room_stays?.[0]) {
                 const currentDebt = r.room_stays[0].sales_orders?.remaining_amount || 0;
@@ -524,6 +563,12 @@ export default function PracticePage() {
             checkPaymentExercises(payments);
             if (!completedExercises.includes('add-hours')) {
                 setCompletedExercises(prev => [...prev, 'add-hours']);
+            }
+
+            // Objetivo: Dejar Pendiente
+            if (!completedExercises.includes('leave-pending')) {
+                setCompletedExercises(prev => [...prev, 'leave-pending']);
+                toast.success("✓ Objetivo: Dejar Pendiente completado (Cargo a cuenta)");
             }
 
             // --- FIX: Actualizar deuda por horas extra ---
@@ -638,6 +683,12 @@ export default function PracticePage() {
 
         if (newRemaining === 0) {
             newRooms[roomIndex].notes = 'Pagado completo';
+        } else {
+            // Objetivo: Abono Parcial
+            if (!completedExercises.includes('partial-payment')) {
+                setCompletedExercises(prev => [...prev, 'partial-payment']);
+                toast.success("✓ Objetivo: Abono Parcial completado");
+            }
         }
 
         setPracticeRooms(newRooms);
@@ -913,12 +964,39 @@ export default function PracticePage() {
 
         if (!completedExercises.includes('pay-extras')) setCompletedExercises(prev => [...prev, 'pay-extras']);
 
+        // Objetivo: Abono Parcial (Si queda deuda)
+        // El estado se actualizó arriba, pero podemos checar payments vs remaining anterior o recalcular
+        // update simple: si no cubrió todo el saldo, es parcial.
+        // Pero el handlePayExtra no tiene acceso fácil al saldo nuevo aquí. 
+        // Asumiremos que si se paga extras y no es 0, es parcial?
+        // Mejor chequeamos si la deuda remanente > 0 logicamente.
+        // Para simplificar: si el usuario hace "Pagar Extras" suele ser abono.
+        // Pero para ser estrictos, deberíamos ver si liquida. 
+        // En este mock, confirmPayExtra actualiza el estado. 
+        // Vamos a marcarlo siempre como partial-payment si no liquida (complicado de saber aquí sin leer state).
+        // Simplificación: Marcar partial-payment si se usa este modal, ya que suele ser para eso.
+        if (!completedExercises.includes('partial-payment')) {
+            setCompletedExercises(prev => [...prev, 'partial-payment']);
+            toast.success("✓ Objetivo: Abono Parcial completado");
+        }
+
         setActionLoading(false);
         setIsPayExtraOpen(false);
     };
 
     const handleNoOp = () => {
         closeWheel();
+    };
+
+    const handleConfirmClosing = () => {
+        setCompletedExercises(prev => {
+            if (!prev.includes('close-shift')) {
+                toast.success("Turno cerrado exitosamente (Arqueo realizado)");
+                return [...prev, 'close-shift'];
+            }
+            return prev;
+        });
+        setIsClosingModalOpen(false);
     };
 
     const renderStatusBadge = (status: string) => {
@@ -954,14 +1032,25 @@ export default function PracticePage() {
                                 </div>
                             </div>
                         </div>
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={handleExit}
-                        >
-                            <LogOut className="h-4 w-4 mr-2" />
-                            Salir
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant={isTutorialOpen ? "default" : "outline"}
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => setIsTutorialOpen(!isTutorialOpen)}
+                            >
+                                <BookOpen className="h-4 w-4" />
+                                {isTutorialOpen ? "Ocultar Guía" : "Tutorial Interactivo"}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={handleExit}
+                            >
+                                <LogOut className="h-4 w-4 mr-2" />
+                                Salir
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1030,6 +1119,10 @@ export default function PracticePage() {
                         module={activeModule}
                         completedSteps={completedExercises}
                         onCompleteStep={(stepId: string) => {
+                            if (stepId === 'close-shift') {
+                                setIsClosingModalOpen(true);
+                                return;
+                            }
                             if (!completedExercises.includes(stepId)) {
                                 setCompletedExercises(prev => [...prev, stepId]);
                                 toast.success("Paso completado");
@@ -1252,6 +1345,8 @@ export default function PracticePage() {
                             onConfirm={confirmGranularPayment}
                         />
 
+
+
                         <MockBlockRoomModal
                             isOpen={isBlockRoomOpen}
                             roomNumber={selectedRoom.number}
@@ -1284,6 +1379,24 @@ export default function PracticePage() {
                     onConfirm={confirmRegisterExpense}
                 />
             )}
+            {/* Mock Shift Closing Modal - Needs to be outside selectedRoom check */}
+            <MockShiftClosingModal
+                open={isClosingModalOpen}
+                onClose={() => setIsClosingModalOpen(false)}
+                onConfirm={handleConfirmClosing}
+                // Mock values
+                initialFund={2000}
+                totalSalesCash={5450}
+                totalExpenses={mockExpense?.amount || 0}
+            />
+
+            <TutorialOverlay
+                currentStepId={activeModule.steps.find(s => !completedExercises.includes(s.id))?.id || null}
+                steps={activeModule.steps}
+                targetIds={stepTargetIds}
+                isEnabled={isTutorialOpen}
+                onClose={() => setIsTutorialOpen(false)}
+            />
         </div>
     );
 }

@@ -6,24 +6,41 @@ export const trainingModules: TrainingModule[] = [
     {
         id: 'intro-basica',
         title: 'Conceptos Básicos',
-        description: 'Primeros pasos: Login, Dashboard y Roles de Usuario.',
+        description: 'Primeros pasos: Dashboard y navegación del sistema.',
         icon: 'BookOpen',
         duration: 15,
         difficulty: 'beginner',
         category: 'intro',
+        route: '/dashboard',
         videoUrl: '/videos/intro-sistema.mp4',
         steps: [
             {
-                id: 'login',
-                title: 'Iniciar Sesión',
-                description: 'Acceso seguro con credenciales.',
-                tips: ['Verifica estar en el turno correcto', 'Nunca compartas tu contraseña']
+                id: 'shift-indicator',
+                title: 'Indicador de Turno',
+                description: 'Muestra el turno actual, empleado y tiempo restante.',
+                targetSelector: '#tour-dashboard-shift-indicator',
+                tips: ['Verifica que estés en el turno correcto', 'El tiempo se actualiza automáticamente']
             },
             {
-                id: 'dashboard',
-                title: 'Lectura del Dashboard',
-                description: 'Interpretación de indicadores clave (KPIs).',
-                tips: ['Revisa ocupación % al iniciar', 'Identifica alertas de limpieza urgente']
+                id: 'dashboard-kpis',
+                title: 'Indicadores Clave (KPIs)',
+                description: 'Productos activos, stock total, compras y ventas abiertas.',
+                targetSelector: '#tour-dashboard-kpis',
+                tips: ['Revisa estos números al iniciar tu turno', 'Identifica rápidamente si hay problemas de stock']
+            },
+            {
+                id: 'quick-actions',
+                title: 'Acciones Rápidas',
+                description: 'Accesos directos para crear productos, compras, ventas y movimientos.',
+                targetSelector: '#tour-dashboard-quick-actions',
+                tips: ['Usa estos botones para tareas frecuentes', 'Ahorra tiempo en tu flujo de trabajo diario']
+            },
+            {
+                id: 'system-modules',
+                title: 'Módulos del Sistema',
+                description: 'Acceso a todas las funcionalidades del sistema.',
+                targetSelector: '#tour-dashboard-modules',
+                tips: ['Explora cada módulo para conocer todas las funciones', 'Cada icono te lleva a una sección diferente']
             }
         ]
     },
@@ -35,17 +52,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 10,
         difficulty: 'beginner',
         category: 'intro',
+        route: '/dashboard',
         steps: [
             {
                 id: 'sidebar',
                 title: 'Menú Lateral',
                 description: 'Acceso a módulos principales.',
+                targetSelector: '#tour-sidebar',
                 tips: ['Puedes colapsar el menú para tener más espacio']
             },
             {
                 id: 'notifications',
                 title: 'Centro de Notificaciones',
                 description: 'Alertas de stock y mensajes del sistema.',
+                targetSelector: '#tour-notifications',
                 tips: ['Las notificaciones rojas requieren acción inmediata']
             }
         ]
@@ -60,18 +80,28 @@ export const trainingModules: TrainingModule[] = [
         duration: 25,
         difficulty: 'beginner',
         category: 'rooms',
+        route: '/sales/pos',
         prerequisites: ['intro-basica'],
         steps: [
             {
-                id: 'check-in-normal',
-                title: 'Check-in Estándar',
-                description: 'Entrada con pago inmediato y registro completo.',
-                tips: ['Ideal para clientes que pagan al llegar', 'Registra placas si es posible']
+                id: 'select-room',
+                title: 'Seleccionar Habitación',
+                description: 'Primero clickea una habitación libre para ver opciones de entrada.',
+                targetSelector: '[data-room-status="LIBRE"]',
+                tips: ['Busca habitaciones con estado "Libre"', 'Las habitaciones verdes están disponibles']
+            },
+            {
+                id: 'action-wheel',
+                title: 'Rueda de Acciones',
+                description: 'Al clickear una habitación, aparece la rueda con las opciones de check-in.',
+                targetSelector: '#tour-action-wheel',
+                tips: ['Cada opción tiene un icono diferente', 'La rueda aparece automáticamente']
             },
             {
                 id: 'check-in-rapido',
                 title: 'Check-in Rápido',
-                description: 'Entrada express sin cobro inicial.',
+                description: 'Entrada express sin cobro inicial (icono de rayo).',
+                targetSelector: '#tour-quick-checkin-modal',
                 tips: ['Usar en horas pico para no detener el flujo', 'La cuenta queda pendiente de pago']
             }
         ]
@@ -84,30 +114,42 @@ export const trainingModules: TrainingModule[] = [
         duration: 25,
         difficulty: 'intermediate',
         category: 'rooms',
+        route: '/sales/pos',
         steps: [
             {
-                id: 'add-person-new',
-                title: 'Entrada Persona Nueva',
-                description: 'Registrar ingreso de una persona adicional.',
-                tips: ['Genera cargo automático si hay más de 2 personas', 'Verifica límite máximo de la habitación']
+                id: 'select-occupied-room',
+                title: 'Seleccionar Habitación Ocupada',
+                description: 'Clickea una habitación ocupada para gestionar los huéspedes.',
+                targetSelector: '[data-room-status="OCUPADA"]',
+                tips: ['Busca habitaciones con estado "Ocupada"', 'Las habitaciones rojas están ocupadas']
             },
             {
-                id: 'remove-person-temp',
-                title: 'Salida Temporal',
-                description: 'Persona sale pero regresará pronto.',
-                tips: ['Activa tolerancia de 1 hora', 'No se cobra extra si regresa a tiempo']
+                id: 'action-wheel-occupied',
+                title: 'Rueda de Acciones',
+                description: 'Aparece la rueda con opciones para habitaciones ocupadas.',
+                targetSelector: '#tour-action-wheel',
+                tips: ['Hay más opciones que para habitaciones libres', 'Busca el botón de "Personas"']
             },
             {
-                id: 'add-person-returning',
-                title: 'Regreso de Persona',
-                description: 'Registrar cuando regresa alguien que salió temporalmente.',
-                tips: ['Cancela la tolerancia activa', 'No genera cargo adicional']
+                id: 'manage-people',
+                title: 'Gestionar Personas',
+                description: 'Abre el modal para controlar entradas y salidas de huéspedes.',
+                targetSelector: '#tour-manage-people-modal',
+                tips: ['Puedes registrar entradas y salidas', 'Controla el número de personas en la habitación']
             },
             {
-                id: 'remove-person-definitive',
-                title: 'Salida Definitiva',
-                description: 'Persona se va y no regresará.',
-                tips: ['Importante para control de seguridad', 'Si es la última, considerar checkout']
+                id: 'add-person-option',
+                title: 'Opción: Entra una Persona',
+                description: 'Selecciona esta opción cuando ingresa un nuevo huésped.',
+                targetSelector: '#tour-add-person-radio',
+                tips: ['Se cobrará extra si hay más de 2 personas', 'Verifica el límite máximo de la habitación']
+            },
+            {
+                id: 'remove-person-option',
+                title: 'Opción: Sale una Persona',
+                description: 'Selecciona esta opción cuando un huésped se retira.',
+                targetSelector: '#tour-remove-person-radio',
+                tips: ['Puedes indicar si va a regresar', 'Si es temporal, se activa tolerancia de 1 hora']
             }
         ]
     },
@@ -119,30 +161,52 @@ export const trainingModules: TrainingModule[] = [
         duration: 20,
         difficulty: 'intermediate',
         category: 'rooms',
+        route: '/sales/pos',
         steps: [
             {
-                id: 'renew-shift',
+                id: 'select-occupied-room-time',
+                title: 'Seleccionar Habitación Ocupada',
+                description: 'Clickea una habitación ocupada para gestionar el tiempo.',
+                targetSelector: '[data-room-status="OCUPADA"]',
+                tips: ['Busca habitaciones con estado "Ocupada"', 'Gestiona extensiones o cortesías']
+            },
+            {
+                id: 'action-wheel-time',
+                title: 'Rueda de Acciones',
+                description: 'Aparece la rueda. Busca el icono de reloj (Gestión).',
+                targetSelector: '#tour-action-wheel',
+                tips: ['El icono rosa de reloj permite gestionar tiempos', 'Puedes agregar horas o renovar']
+            },
+            {
+                id: 'manage-time-modal',
+                title: 'Gestionar Horas',
+                description: 'Abre el modal para controlar el tiempo de estancia.',
+                targetSelector: '#tour-hour-management-modal',
+                tips: ['Opciones para extender, renovar o aplicar promociones', 'Control total sobre la duración']
+            },
+            {
+                id: 'custom-hours-option',
+                title: 'Horas Personalizadas',
+                description: 'Permite agregar un número específico de horas extra.',
+                targetSelector: '#tour-custom-hours-option',
+                highlightDelay: 250,
+                tips: ['Calcula automáticamente el costo extra', 'Puedes marcarlo como cortesía si es necesario']
+            },
+            {
+                id: 'renew-option',
                 title: 'Renovar Habitación',
-                description: 'Extender la estancia.',
-                tips: ['Se cobra tarifa completa de nuevo']
-            },
-            {
-                id: 'add-hours',
-                title: 'Horas Extra',
-                description: 'Agregar horas específicas a la estancia.',
-                tips: ['Útil para clientes que se quedan "un rato más"']
-            },
-            {
-                id: 'courtesy-hour',
-                title: 'Hora de Cortesía',
-                description: 'Agregar tiempo sin costo como compensación.',
-                tips: ['Requiere especificar razón', 'Se registra en auditoría']
+                description: 'Reinicia el ciclo de alquiler con tarifa base.',
+                targetSelector: '#tour-renew-option',
+                highlightDelay: 250,
+                tips: ['Útil cuando el cliente decide quedarse otro ciclo completo', 'Cobra el precio base nuevamente']
             },
             {
                 id: 'promos',
                 title: 'Aplicar Promocion de 4 Horas',
                 description: 'Uso de promociones (ej. 4 Horas).',
-                tips: ['Verificar horarios válidos']
+                targetSelector: '#tour-promo4h-option',
+                highlightDelay: 250,
+                tips: ['Verificar horarios válidos', 'Aplica automáticamente el precio promocional']
             }
         ]
     },
@@ -154,23 +218,27 @@ export const trainingModules: TrainingModule[] = [
         duration: 15,
         difficulty: 'beginner',
         category: 'rooms',
+        route: '/',
         steps: [
             {
                 id: 'mark-dirty',
                 title: 'Marcar Sucia',
                 description: 'Solicitar limpieza tras salida.',
+                targetSelector: '#tour-room-card',
                 tips: ['Indispensable para rotación de habitaciones']
             },
             {
                 id: 'mark-clean',
                 title: 'Liberar (Limpieza)',
                 description: 'Habilitar habitación para venta.',
+                targetSelector: '#tour-room-card',
                 tips: ['Solo marcar cuando camatista confirme']
             },
             {
                 id: 'block-room',
                 title: 'Bloqueo / Mantenimiento',
                 description: 'Inhabilitar habitación por reparaciones.',
+                targetSelector: '#tour-room-card',
                 tips: ['Agregar nota con motivo del bloqueo']
             }
         ]
@@ -183,17 +251,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 30,
         difficulty: 'advanced',
         category: 'rooms',
+        route: '/',
         steps: [
             {
                 id: 'change-room',
                 title: 'Cambio de Habitación',
                 description: 'Mover cuenta activa a otra habitación.',
+                targetSelector: '#tour-action-wheel',
                 tips: ['El saldo se transfiere automáticamente', 'Confirmar si hay diferencia de tarifa']
             },
             {
                 id: 'cancel-stay',
                 title: 'Cancelar Estancia',
                 description: 'Anulación de entrada (Error o Salida inmediata).',
+                targetSelector: '#tour-action-wheel',
                 tips: ['Requiere justificación', 'Queda registrado en auditoría']
             }
         ]
@@ -208,17 +279,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 30,
         difficulty: 'beginner',
         category: 'sales',
+        route: '/sales/new',
         steps: [
             {
                 id: 'search-product',
                 title: 'Búsqueda de Productos',
                 description: 'Encontrar items por nombre o código.',
+                targetSelector: '#tour-product-search',
                 tips: ['Usa palabras clave cortas']
             },
             {
                 id: 'scan-product',
                 title: 'Escaneo (Código de Barras)',
                 description: 'Venta rápida con pistola escáner.',
+                targetSelector: '#tour-product-search',
                 tips: ['Mantén el cursor en el campo de búsqueda', 'Configura "Auto-scan" en ajustes']
             }
         ]
@@ -231,17 +305,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 15,
         difficulty: 'intermediate',
         category: 'sales',
+        route: '/sales/new',
         steps: [
             {
                 id: 'edit-qty',
                 title: 'Ajustar Cantidades',
                 description: 'Cambiar número de items.',
+                targetSelector: '#tour-cart-items',
                 tips: ['Usa botones +/- para ajustes rápidos']
             },
             {
                 id: 'remove-item',
                 title: 'Eliminar del Carrito',
                 description: 'Quitar productos antes de confirmar.',
+                targetSelector: '#tour-cart-items',
                 tips: ['Verifica el total antes de procesar']
             }
         ]
@@ -256,46 +333,53 @@ export const trainingModules: TrainingModule[] = [
         duration: 25,
         difficulty: 'beginner',
         category: 'payments',
+        route: '/sales/new',
         steps: [
             {
                 id: 'pay-cash',
                 title: 'Efectivo',
                 description: 'Cobro con billetes/monedas.',
+                targetSelector: '#tour-payment-methods',
                 tips: ['Verifica billetes falsos', 'Entrega ticket de cambio']
             },
             {
                 id: 'pay-card',
                 title: 'Tarjeta (Terminal)',
                 description: 'Cobro con TPV bancaria.',
+                targetSelector: '#tour-payment-methods',
                 tips: ['Verifica conexión de terminal', 'Selecciona banco correcto (BBVA/GetNet)']
             },
             {
                 id: 'pay-mixed',
                 title: 'Pago Mixto',
                 description: 'Dividir cuenta (Parte Efectivo / Parte Tarjeta).',
+                targetSelector: '#tour-payment-methods',
                 tips: ['Registra primero el efectivo, luego el saldo en tarjeta']
             }
         ]
     },
     {
         id: 'manage-credit',
-        title: 'Créditos y Abonos',
-        description: 'Manejo de cuentas por cobrar.',
+        title: 'Cuentas por Cobrar',
+        description: 'Manejo de deuda y pagos parciales.',
         icon: 'FileText',
         duration: 20,
         difficulty: 'advanced',
         category: 'payments',
+        route: '/sales',
         steps: [
             {
                 id: 'leave-pending',
                 title: 'Dejar Pendiente',
                 description: 'Cargar a la cuenta de la habitación.',
+                targetSelector: '#tour-sales-table',
                 tips: ['El huésped pagará al salir (Checkout)']
             },
             {
                 id: 'partial-payment',
                 title: 'Abono Parcial',
                 description: 'Recibir pago a cuenta de deuda.',
+                targetSelector: '#tour-sales-table',
                 tips: ['Reduce el saldo pendiente sin cerrar la cuenta']
             }
         ]
@@ -310,23 +394,27 @@ export const trainingModules: TrainingModule[] = [
         duration: 35,
         difficulty: 'intermediate',
         category: 'shifts',
+        route: '/employees/closings',
         steps: [
             {
                 id: 'start-shift',
                 title: 'Apertura de Turno',
                 description: 'Inicio de operaciones y fondo fijo.',
+                targetSelector: '#tour-shift-list',
                 tips: ['Verifica fondo inicial de caja']
             },
             {
-                id: 'expenses',
+                id: 'register-expense',
                 title: 'Gastos de Caja',
                 description: 'Registro de salidas de dinero (Vale).',
+                targetSelector: '#tour-expense-btn',
                 tips: ['Todo retiro requiere comprobante físico']
             },
             {
                 id: 'close-shift',
                 title: 'Cierre y Arqueo',
                 description: 'Conteo final y entrega de turno.',
+                targetSelector: '#tour-close-btn',
                 tips: ['El sistema te dirá cuánto efectivo debe haber', 'Reporta sobrantes/faltantes']
             }
         ]
@@ -341,17 +429,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 20,
         difficulty: 'intermediate',
         category: 'reports',
+        route: '/analytics',
         steps: [
             {
                 id: 'income-report',
                 title: 'Reporte de Ingresos',
                 description: 'Auditoría de cobros del turno.',
+                targetSelector: '#tour-analytics-tabs',
                 tips: ['Usa filtros para ver desglose por tarjeta/efectivo']
             },
             {
                 id: 'occupancy',
                 title: 'Ocupación',
                 description: 'Revisar historial de rentas.',
+                targetSelector: '#tour-analytics-tabs',
                 tips: ['Detecta horas pico']
             }
         ]
@@ -365,17 +456,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 15,
         difficulty: 'intermediate',
         category: 'inventory',
+        route: '/stock',
         steps: [
             {
                 id: 'check-stock',
                 title: 'Ver Existencias',
                 description: 'Consultar cantidad disponible por almacén.',
+                targetSelector: '#tour-stock-table',
                 tips: ['Filtra por categoría (Bebidas, Snacks)', 'Identifica productos con stock bajo (alerta roja)']
             },
             {
                 id: 'kardex',
                 title: 'Lectura de Kardex',
                 description: 'Historial de movimientos de un producto.',
+                targetSelector: '#tour-kardex-link',
                 tips: ['Rastrea cada entrada y salida', 'Útil para investigar faltantes sospechosos']
             }
         ]
@@ -388,17 +482,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 25,
         difficulty: 'advanced',
         category: 'inventory',
+        route: '/movements',
         steps: [
             {
                 id: 'transfer',
                 title: 'Traspasos entre Almacenes',
                 description: 'Mover mercancía (Ej: Bodega -> Recepción).',
+                targetSelector: '#btn-new-transfer', // We will add this ID to real page
                 tips: ['Requiere autorización', 'Verifica que el origen tenga stock suficiente']
             },
             {
                 id: 'adjustments',
                 title: 'Ajustes de Inventario',
                 description: 'Correcciones por merma, robo o consumo interno.',
+                targetSelector: '#tour-movements-table',
                 tips: ['Debes especificar el motivo del ajuste', 'Impacta directamente en costos']
             }
         ]
@@ -411,17 +508,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 30,
         difficulty: 'advanced',
         category: 'inventory',
+        route: '/purchases',
         steps: [
             {
                 id: 'new-purchase',
                 title: 'Registrar Compra',
                 description: 'Ingresar factura de proveedor.',
+                targetSelector: '#btn-new-purchase',
                 tips: ['Verifica costos unitarios', 'Actualiza el precio de venta si subió el costo']
             },
             {
                 id: 'suppliers',
                 title: 'Directorio de Proveedores',
                 description: 'Gestión de contactos de abastecimiento.',
+                targetSelector: '#tour-suppliers-link',
                 tips: ['Registra días de visita y crédito disponible']
             }
         ]
@@ -436,17 +536,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 15,
         difficulty: 'intermediate',
         category: 'sensors',
+        route: '/sensors',
         steps: [
             {
                 id: 'sensor-states',
                 title: 'Estados del Sensor',
                 description: 'Puerta Abierta, Presencia, Cochera.',
+                targetSelector: '#sensor-grid',
                 tips: ['Icono verde = Todo ok', 'Icono rojo = Alerta de seguridad']
             },
             {
                 id: 'discrepancies',
                 title: 'Manejo de Discrepancias',
                 description: 'Falsos positivos (Ocupado físico vs Libre sistema).',
+                targetSelector: '#sensor-grid',
                 tips: ['Verifica visualmente antes de actuar', 'Podría ser personal de limpieza']
             }
         ]
@@ -461,17 +564,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 20,
         difficulty: 'intermediate',
         category: 'admin',
+        route: '/customers',
         steps: [
             {
                 id: 'register-customer',
                 title: 'Registrar Cliente',
                 description: 'Guardar datos para futuras visitas.',
+                targetSelector: '#btn-add-customer',
                 tips: ['Solicita correo para facturación', 'Identifica clientes VIP']
             },
             {
                 id: 'billing-data',
                 title: 'Datos de Facturación',
                 description: 'RFC y Razón Social.',
+                targetSelector: '#tour-customer-form',
                 tips: ['Verifica constancia de situación fiscal']
             }
         ]
@@ -486,17 +592,20 @@ export const trainingModules: TrainingModule[] = [
         duration: 40,
         difficulty: 'advanced',
         category: 'admin',
+        route: '/analytics',
         steps: [
             {
                 id: 'sales-analysis',
                 title: 'Tendencias de Venta',
                 description: 'Gráficas de ocupación semanal/mensual.',
+                targetSelector: '#tour-analytics-charts',
                 tips: ['Compara desempeño vs mes anterior']
             },
             {
                 id: 'profitability',
                 title: 'Rentabilidad',
                 description: 'Productos más vendidos y márgenes.',
+                targetSelector: '#tour-analytics-charts',
                 tips: ['Identifica productos "vaca lechera"', 'Decide promociones basadas en datos']
             }
         ]

@@ -265,6 +265,7 @@ export function RoomActionsWheel({
       onClick={onClose}
     >
       <div
+        id="tour-action-wheel"
         className={`relative transform transition-all duration-300 ease-out ${isVisible ? "scale-100 opacity-100" : "scale-75 opacity-0"
           }`}
         onClick={(e) => e.stopPropagation()}

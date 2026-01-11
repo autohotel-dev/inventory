@@ -328,7 +328,7 @@ export function AdvancedStockView() {
       </div>
 
       {/* Tabla de stock */}
-      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
+      <div id="tour-stock-table" className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
