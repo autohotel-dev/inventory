@@ -158,7 +158,7 @@ export const trainingModules: TrainingModule[] = [
         title: 'Gestión de Tiempos',
         description: 'Extensiones de tiempo, renovaciones y promociones.',
         icon: 'Clock',
-        duration: 20,
+        duration: 25,
         difficulty: 'intermediate',
         category: 'rooms',
         route: '/sales/pos',
@@ -207,6 +207,21 @@ export const trainingModules: TrainingModule[] = [
                 targetSelector: '#tour-promo4h-option',
                 highlightDelay: 250,
                 tips: ['Verificar horarios válidos', 'Aplica automáticamente el precio promocional']
+            },
+            {
+                id: 'payment-method',
+                title: 'Método de Pago',
+                description: 'Selecciona cómo recibirás el pago por las horas extra.',
+                targetSelector: '#tour-payment-section',
+                highlightDelay: 300,
+                tips: ['Puedes dividir el pago entre efectivo y tarjeta', 'El sistema calcula automáticamente el cambio']
+            },
+            {
+                id: 'confirm-payment',
+                title: 'Confirmar y Cobrar',
+                description: 'Revisa el precio total y confirma la operación.',
+                targetSelector: '#tour-confirm-button',
+                tips: ['Verifica el monto antes de confirmar', 'El tiempo se agregará automáticamente a la habitación']
             }
         ]
     },
@@ -215,31 +230,70 @@ export const trainingModules: TrainingModule[] = [
         title: 'Estado y Mantenimiento',
         description: 'Ciclo de limpieza y bloqueos.',
         icon: 'Sparkles',
-        duration: 15,
+        duration: 25,
         difficulty: 'beginner',
         category: 'rooms',
-        route: '/',
+        route: '/sales/pos',
         steps: [
             {
-                id: 'mark-dirty',
-                title: 'Marcar Sucia',
-                description: 'Solicitar limpieza tras salida.',
-                targetSelector: '#tour-room-card',
-                tips: ['Indispensable para rotación de habitaciones']
+                id: 'select-free-room',
+                title: 'Seleccionar Habitación Libre',
+                description: 'Clickea una habitación libre para gestionar su estado.',
+                targetSelector: '[data-room-status="LIBRE"]',
+                tips: ['Busca habitaciones con estado "Libre" en verde', 'Puedes cambiar el estado sin que esté ocupada']
             },
             {
-                id: 'mark-clean',
-                title: 'Liberar (Limpieza)',
-                description: 'Habilitar habitación para venta.',
-                targetSelector: '#tour-room-card',
-                tips: ['Solo marcar cuando camatista confirme']
+                id: 'action-wheel-status',
+                title: 'Rueda de Acciones',
+                description: 'Aparece la rueda con las opciones de gestión de estado.',
+                targetSelector: '#tour-action-wheel',
+                tips: ['Para habitaciones libres verás opciones de mantenimiento', 'Busca los iconos de "Sucia" y "Mantenimiento"']
             },
             {
-                id: 'block-room',
-                title: 'Bloqueo / Mantenimiento',
-                description: 'Inhabilitar habitación por reparaciones.',
-                targetSelector: '#tour-room-card',
-                tips: ['Agregar nota con motivo del bloqueo']
+                id: 'info-dirty',
+                title: '¿Cuándo usar "Sucia"?',
+                description: 'Úsalo cuando la habitación necesite limpieza o revisión antes de volver a rentarse.',
+                targetSelector: '#tour-action-wheel',
+                tips: ['Marca "Sucia" después de una salida', 'Evita rentarla sin una limpieza confirmada']
+            },
+            {
+                id: 'info-clean',
+                title: '¿Cuándo usar "Limpiar"?',
+                description: 'Devuelve la habitación a "Libre" una vez terminada la limpieza.',
+                targetSelector: '#tour-action-wheel',
+                tips: ['Úsalo solo cuando el personal confirme', 'La habitación queda lista para venta']
+            },
+            {
+                id: 'mark-dirty-option',
+                title: 'Marcar como Sucia (con nota)',
+                description: 'Se marcará una habitación libre como sucia y se abrirá el modal para registrar la nota.',
+                targetSelector: '#tour-mark-dirty-action',
+                highlightDelay: 300,
+                tips: ['Este flujo no afecta el proceso real', 'Al finalizar se regresará la habitación a libre']
+            },
+            {
+                id: 'mark-clean-option',
+                title: 'Marcar como Limpia',
+                description: 'Se cerrará el modal y se abrirá la rueda para mostrar la opción de limpiar una habitación sucia.',
+                targetSelector: '#tour-mark-clean-action',
+                highlightDelay: 300,
+                tips: ['Si no hay habitaciones sucias, se mostrará solo el modal', 'La habitación volverá a quedar libre']
+            },
+            {
+                id: 'block-room-option',
+                title: 'Bloquear para Mantenimiento (con nota)',
+                description: 'Selecciona "Mantenimiento" para inhabilitar la habitación y registrar una nota.',
+                targetSelector: '#tour-block-action',
+                highlightDelay: 250,
+                tips: ['Úsalo cuando haya reparaciones', 'Agrega un motivo del bloqueo']
+            },
+            {
+                id: 'unblock-option',
+                title: 'Liberar Habitación',
+                description: 'Libera la habitación cuando el mantenimiento termine.',
+                targetSelector: '#tour-unblock-action',
+                highlightDelay: 300,
+                tips: ['Confirma que el problema esté resuelto', 'La habitación quedará libre para rentar']
             }
         ]
     },

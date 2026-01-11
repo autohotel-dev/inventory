@@ -245,6 +245,8 @@ function RoomsBoardInternal() {
   const { isPrinting, printConsumptionTickets } = useThermalPrinter();
   const { sensors } = useSensors();
   const prevSensorsRef = useRef<Map<string, boolean>>(new Map());
+  const trainingStatusRoomIdRef = useRef<string | null>(null);
+  const trainingStatusDirtyTriggeredRef = useRef(false);
   const { activeModule, currentStepIndex, currentMode } = useTraining();
 
   // Detectar cambios en sensores para alertas
@@ -502,6 +504,187 @@ function RoomsBoardInternal() {
       }
     }
   }, [activeModule, currentStepIndex, currentMode, rooms, showActionsModal, showHourManagementModal]);
+
+  // Training: Auto-abrir la rueda de acciones en el módulo de room-status
+  useEffect(() => {
+    if (activeModule?.id === 'room-status' && currentMode === 'interactive') {
+      const activeStep = activeModule.steps[currentStepIndex];
+
+      const timeouts: number[] = [];
+      const addTimeout = (fn: () => void, ms: number) => {
+        const id = window.setTimeout(fn, ms);
+        timeouts.push(id);
+      };
+
+      const hasRoomWithStatus = (status: Room['status']) => {
+        return rooms.some(r => r.status === status);
+      };
+
+      const ensureWheelOpenForStatus = (status: Room['status']) => {
+        if (rooms.length === 0) return;
+
+        const targetRoom = rooms.find(r => r.status === status);
+        if (targetRoom) {
+          console.log(`🎓 [Training] Auto-abriendo rueda de acciones para habitación ${status}`);
+          openActionsDock(targetRoom);
+        }
+      };
+
+      const ensureWheelClosed = () => {
+        if (showActionsModal) {
+          console.log('🎓 [Training] Cerrando rueda de acciones');
+          setShowActionsModal(false);
+          setActionsDockVisible(false);
+        }
+      };
+
+      // Reset triggers when leaving the step
+      if (activeStep?.id !== 'mark-dirty-option') {
+        trainingStatusDirtyTriggeredRef.current = false;
+      }
+
+      // Paso 1 (índice 0): Solo habitación libre resaltada - cerrar todo
+      if (currentStepIndex === 0 && activeStep?.id === 'select-free-room') {
+        ensureWheelClosed();
+        if (showStatusNoteModal) {
+          console.log('🎓 [Training] Cerrando modal de nota de estado (navegación hacia atrás)');
+          setShowStatusNoteModal(false);
+          setStatusNoteAction(null);
+        }
+      }
+
+      // Pasos donde se necesita una habitación seleccionada (cerrar overlays)
+      const needsRoomsView =
+        activeStep?.id === 'select-dirty-room' ||
+        activeStep?.id === 'select-blocked-room';
+
+      if (needsRoomsView) {
+        ensureWheelClosed();
+        if (showStatusNoteModal) {
+          console.log('🎓 [Training] Cerrando modal de nota (selección de habitación)');
+          setShowStatusNoteModal(false);
+          setStatusNoteAction(null);
+        }
+      }
+
+      // Pasos que requieren la rueda abierta según el estado
+      const wheelStatusNeeded: Room['status'] | null =
+        activeStep?.id === 'action-wheel-status' ||
+          activeStep?.id === 'info-dirty' ||
+          activeStep?.id === 'info-clean' ||
+          activeStep?.id === 'mark-dirty-option' ||
+          activeStep?.id === 'block-room-option'
+          ? 'LIBRE'
+          : activeStep?.id === 'mark-clean-option'
+            ? 'SUCIA'
+            : activeStep?.id === 'unblock-option'
+              ? 'BLOQUEADA'
+              : null;
+
+      // Mantener/abrir la rueda cuando el paso lo requiera
+      if (wheelStatusNeeded) {
+        // En mark-clean-option manejamos el modal/rueda más abajo (para permitir fallback)
+        if (activeStep?.id !== 'mark-clean-option') {
+          // En mark-dirty-option: si ya se disparó la automatización o ya está el modal DIRTY, no re-abrir la rueda
+          if (
+            activeStep?.id === 'mark-dirty-option' &&
+            (trainingStatusDirtyTriggeredRef.current || (showStatusNoteModal && statusNoteAction === 'DIRTY'))
+          ) {
+            ensureWheelClosed();
+          } else {
+          if (showStatusNoteModal) {
+            console.log('🎓 [Training] Cerrando modal de nota y mostrando rueda (navegación hacia atrás)');
+            setShowStatusNoteModal(false);
+            setStatusNoteAction(null);
+          }
+
+          ensureWheelOpenForStatus(wheelStatusNeeded);
+          addTimeout(() => ensureWheelOpenForStatus(wheelStatusNeeded), 300);
+          }
+        }
+      }
+
+      // Paso 5: Marcar como sucia -> abrir modal automáticamente (simulando click en el sector)
+      if (activeStep?.id === 'mark-dirty-option') {
+        if (hasRoomWithStatus('LIBRE')) {
+          addTimeout(() => {
+            // Guardar habitación demo para pasos posteriores
+            if (selectedRoom?.id) {
+              trainingStatusRoomIdRef.current = selectedRoom.id;
+            }
+
+            // Si ya se abrió el modal, no repetir
+            if (showStatusNoteModal) return;
+
+            // Evitar loops: marcar que ya se ejecutó este paso
+            if (trainingStatusDirtyTriggeredRef.current) return;
+            trainingStatusDirtyTriggeredRef.current = true;
+
+            console.log('🎓 [Training] Cerrando rueda de acciones');
+            closeActionsDock();
+
+            addTimeout(() => {
+              const roomForDirty =
+                (trainingStatusRoomIdRef.current
+                  ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+                  : null) ||
+                selectedRoom ||
+                rooms.find(r => r.status === 'LIBRE') ||
+                null;
+
+              if (!roomForDirty) return;
+              trainingStatusRoomIdRef.current = roomForDirty.id;
+              console.log('🎓 [Training] Abriendo modal: Marcar como Sucia');
+              handleOpenDirtyModal(roomForDirty);
+            }, 250);
+          }, 650);
+        }
+      }
+
+      // Paso 6: Cerrar modal y abrir rueda para una SUCIA si existe; si no, dejar solo el modal
+      if (activeStep?.id === 'mark-clean-option') {
+        const roomRef = trainingStatusRoomIdRef.current
+          ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+          : null;
+
+        // Si tenemos una habitación demo, forzar que quede SUCIA para poder mostrar "Limpiar"
+        if (roomRef && roomRef.status !== 'SUCIA') {
+          // Cerrar modal actual
+          if (showStatusNoteModal) {
+            console.log('🎓 [Training] Cerrando modal de nota antes de mostrar opción Limpiar');
+            setShowStatusNoteModal(false);
+            setStatusNoteAction(null);
+          }
+
+          // Cambiar estado a SUCIA (flujo de demo)
+          addTimeout(() => {
+            console.log('🎓 [Training] Preparando habitación demo como SUCIA');
+            updateRoomStatus(roomRef, 'SUCIA', 'Habitación marcada como sucia/mantenimiento', 'Capacitación');
+          }, 100);
+        }
+
+        // Si hay SUCIA (por demo o ya existente), abrir rueda para mostrar opción limpiar
+        addTimeout(() => {
+          if (hasRoomWithStatus('SUCIA')) {
+            ensureWheelOpenForStatus('SUCIA');
+          } else {
+            // Fallback: si no hay SUCIA, mostrar solo el modal (sin rueda)
+            ensureWheelClosed();
+          }
+        }, 800);
+
+        addTimeout(() => {
+          if (hasRoomWithStatus('SUCIA')) {
+            ensureWheelOpenForStatus('SUCIA');
+          }
+        }, 1400);
+      }
+
+      return () => {
+        timeouts.forEach(id => clearTimeout(id));
+      };
+    }
+  }, [activeModule, currentStepIndex, currentMode, rooms, showActionsModal, showStatusNoteModal, statusNoteAction, selectedRoom]);
 
   // Función para recargar habitaciones (silent = true para refresh sin parpadeo)
   const fetchRooms = useCallback(async (silent = false) => {

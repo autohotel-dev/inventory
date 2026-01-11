@@ -69,6 +69,8 @@ export function InteractiveOverlay() {
 
             let attempts = 0;
             const maxAttempts = 20; // Try for up to 2 seconds
+            let animationFrameId: number | null = null;
+            let mutationObserver: MutationObserver | null = null;
 
             const findAndHighlight = () => {
                 const targetElement = document.querySelector(selector) as HTMLElement;
@@ -81,7 +83,7 @@ export function InteractiveOverlay() {
                         inline: 'center'
                     });
 
-                    // Start tracking position
+                    // Start tracking position with smooth updates
                     const updatePosition = () => {
                         if (!targetElement || !highlightRef.current) return;
 
@@ -93,6 +95,7 @@ export function InteractiveOverlay() {
                             return;
                         }
 
+                        // Update position smoothly
                         highlightRef.current.style.top = `${rect.top - 8}px`;
                         highlightRef.current.style.left = `${rect.left - 8}px`;
                         highlightRef.current.style.width = `${rect.width + 16}px`;
@@ -100,17 +103,34 @@ export function InteractiveOverlay() {
                         highlightRef.current.style.display = 'block';
 
                         // Continue tracking
-                        requestAnimationFrame(updatePosition);
+                        animationFrameId = requestAnimationFrame(updatePosition);
                     };
+
+                    // Observe changes in the target element's subtree
+                    mutationObserver = new MutationObserver(() => {
+                        // When the element changes (content added/removed), force an immediate update
+                        if (animationFrameId !== null) {
+                            cancelAnimationFrame(animationFrameId);
+                        }
+                        animationFrameId = requestAnimationFrame(updatePosition);
+                    });
+
+                    // Observe the element and its children for changes
+                    mutationObserver.observe(targetElement, {
+                        childList: true,
+                        subtree: true,
+                        attributes: true,
+                        characterData: true
+                    });
 
                     // Initial wait for delay if specified, otherwise start immediately
                     if (currentStep.highlightDelay) {
                         if (highlightRef.current) highlightRef.current.style.display = 'none';
                         setTimeout(() => {
-                            requestAnimationFrame(updatePosition);
+                            animationFrameId = requestAnimationFrame(updatePosition);
                         }, currentStep.highlightDelay);
                     } else {
-                        requestAnimationFrame(updatePosition);
+                        animationFrameId = requestAnimationFrame(updatePosition);
                     }
                 } else if (attempts < maxAttempts) {
                     // Element not found yet, try again
@@ -121,6 +141,16 @@ export function InteractiveOverlay() {
 
             // Start trying to find the element
             setTimeout(findAndHighlight, 100);
+
+            // Cleanup function
+            return () => {
+                if (animationFrameId !== null) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                if (mutationObserver) {
+                    mutationObserver.disconnect();
+                }
+            };
         } else {
             if (highlightRef.current) {
                 highlightRef.current.style.display = 'none';
@@ -197,10 +227,12 @@ export function InteractiveOverlay() {
             {/* Highlight box with cutout effect */}
             <div
                 ref={highlightRef}
-                className="fixed z-[9999] border-4 border-red-500 rounded-lg pointer-events-none transition-all duration-300"
+                className="fixed z-[9999] border-4 border-red-500 rounded-lg pointer-events-none"
                 style={{
                     display: 'none',
-                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 20px rgba(246, 59, 59, 1)'
+                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 20px rgba(246, 59, 59, 1)',
+                    transition: 'top 0.15s ease-out, left 0.15s ease-out, width 0.15s ease-out, height 0.15s ease-out',
+                    willChange: 'top, left, width, height'
                 }}
             />
 

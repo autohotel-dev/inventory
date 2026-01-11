@@ -268,7 +268,7 @@ export function RoomHourManagementModal({
 
                     {/* Multi-payment input cuando hay opción seleccionada */}
                     {selectedOption && totalPrice > 0 && (
-                        <div className="pt-4 border-t">
+                        <div id="tour-payment-section" className="pt-4 border-t">
                             <MultiPaymentInput
                                 totalAmount={totalPrice}
                                 payments={payments}
@@ -288,6 +288,7 @@ export function RoomHourManagementModal({
                         Cancelar
                     </Button>
                     <Button
+                        id="tour-confirm-button"
                         onClick={handleConfirm}
                         disabled={!canConfirm}
                         className={
