@@ -3,15 +3,6 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-// --- CONFIGURATION ---
-const POLL_INTERVAL_MS = 2000;
-const DB_REFRESH_INTERVAL_MS = 60000; // Recargar lista de sensores cada minuto
-const CREDENTIALS = {
-    ACCESS_ID: 'nuupg99y4yqxxn8gmydw',
-    ACCESS_SECRET: '23f8bff93f554fe1b32eb4b286c3d4fe',
-    REGION_URL: 'https://openapi.tuyaus.com'
-};
-
 // --- ENV LOADING ---
 function loadEnv() {
     try {
@@ -35,14 +26,32 @@ function loadEnv() {
 }
 
 const env = loadEnv();
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+
+// --- CONFIGURATION ---
+const POLL_INTERVAL_MS = 2000;
+const DB_REFRESH_INTERVAL_MS = 60000; // Recargar lista de sensores cada minuto
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+
+const CREDENTIALS = {
+    ACCESS_ID: process.env.TUYA_ACCESS_ID || env.TUYA_ACCESS_ID,
+    ACCESS_SECRET: process.env.TUYA_ACCESS_SECRET || env.TUYA_ACCESS_SECRET,
+    REGION_URL: process.env.TUYA_REGION_URL || env.TUYA_REGION_URL || 'https://openapi.tuyaus.com'
+};
+
+if (!CREDENTIALS.ACCESS_ID || !CREDENTIALS.ACCESS_SECRET) {
+    console.error("❌ ERROR: Missing TUYA credentials.");
+    console.error("Please add TUYA_ACCESS_ID and TUYA_ACCESS_SECRET to your .env.local or environment variables.");
+    process.exit(1);
+}
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.error("❌ CRITICAL ERROR: Missing Supabase Credentials in .env.local");
     console.error("Make sure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.");
     process.exit(1);
 }
+
 
 // --- INIT CLIENTS ---
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -210,4 +219,17 @@ fetchSensorsFromDB().then(() => {
     setInterval(fetchSensorsFromDB, DB_REFRESH_INTERVAL_MS);
 
     pollAll();
+});
+
+// --- HTTP SERVER FOR RENDER (KEEP ALIVE) ---
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Sensor Worker Running... Ping me to keep alive!');
+});
+
+server.listen(PORT, () => {
+    console.log(`[SERVER] Health check server listening on port ${PORT}`);
 });
