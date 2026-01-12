@@ -108,18 +108,24 @@ async function getTuyaStatus(deviceId) {
     }
 }
 
-async function reportToApi(deviceId, statusArray, isOpen) {
+async function reportToApi(deviceId, statusArray, isOpen, batteryLevel) {
     try {
         // Update DB directly since we have the client, faster than webhook loopback
         // BUT webhook handles event logging logic. Let's stick to webhook structure or replicate it.
         // Let's replicate it here for speed/Reliability
 
         // 1. Update Sensor Status
-        await supabase.from('sensors').update({
+        const updateData = {
             is_open: isOpen,
             last_seen: new Date().toISOString(),
             status: 'ONLINE'
-        }).eq('device_id', deviceId);
+        };
+
+        if (batteryLevel !== null && batteryLevel !== undefined) {
+            updateData.battery_level = batteryLevel;
+        }
+
+        await supabase.from('sensors').update(updateData).eq('device_id', deviceId);
 
         // 2. Insert Event
         await supabase.from('sensor_events').insert({
@@ -129,21 +135,27 @@ async function reportToApi(deviceId, statusArray, isOpen) {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`>>> EVENT SENT: ${deviceId} -> ${isOpen ? 'OPEN' : 'CLOSE'}`);
+        console.log(`>>> EVENT SENT: ${deviceId} -> ${isOpen ? 'OPEN' : 'CLOSE'} (Bat: ${batteryLevel}%)`);
 
     } catch (e) {
         console.error("Error updating DB:", e.message);
     }
 }
 
-async function syncStateToDB(deviceId, isOpen) {
+async function syncStateToDB(deviceId, isOpen, batteryLevel) {
     try {
-        await supabase.from('sensors').update({
+        const updateData = {
             is_open: isOpen,
             last_seen: new Date().toISOString(),
             status: 'ONLINE'
-        }).eq('device_id', deviceId);
-        console.log(`[SYNC] Initial state for ${deviceId}: ${isOpen ? 'OPEN' : 'CLOSED'} (DB Updated)`);
+        };
+
+        if (batteryLevel !== null && batteryLevel !== undefined) {
+            updateData.battery_level = batteryLevel;
+        }
+
+        await supabase.from('sensors').update(updateData).eq('device_id', deviceId);
+        console.log(`[SYNC] Initial state for ${deviceId}: ${isOpen ? 'OPEN' : 'CLOSED'} (Bat: ${batteryLevel}%) (DB Updated)`);
     } catch (e) {
         console.error("Error syncing DB:", e.message);
     }
@@ -169,11 +181,16 @@ async function pollAll() {
 
         console.log(`[DEBUG] Device ${deviceId} raw status:`, JSON.stringify(status)); // Temporary debug log
 
+        // Battery Level Extraction
+        const batteryStatus = status.find(s => s.code === 'battery' || s.code === 'battery_percentage');
+        const batteryLevel = batteryStatus ? batteryStatus.value : null;
+
         // Logic to detect door state
         const relevant = status.find(s =>
             s.code === 'door_contact_state' ||
             s.code === 'door_sensor_state' ||
             s.code === 'switch' ||
+            s.code === 'switch_1' ||
             s.code === 'door_state'
         );
 
@@ -190,13 +207,13 @@ async function pollAll() {
             if (lastVal === undefined) {
                 // First run: Sync state to DB to ensure consistency, but don't log an EVENT
                 stateCache.set(cacheKey, relevant.value);
-                await syncStateToDB(deviceId, isOpen);
+                await syncStateToDB(deviceId, isOpen, batteryLevel);
                 return;
             }
 
             if (lastVal !== relevant.value) {
                 console.log(`\n[CHANGE] Device ${deviceId}: ${isOpen ? 'OPEN 🔴' : 'CLOSE 🟢'}`);
-                await reportToApi(deviceId, status, isOpen);
+                await reportToApi(deviceId, status, isOpen, batteryLevel);
                 stateCache.set(cacheKey, relevant.value);
             }
         }
