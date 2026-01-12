@@ -267,7 +267,7 @@ export const trainingModules: TrainingModule[] = [
                 id: 'mark-dirty-option',
                 title: 'Marcar como Sucia (con nota)',
                 description: 'Se marcará una habitación libre como sucia y se abrirá el modal para registrar la nota.',
-                targetSelector: '#tour-mark-dirty-action',
+                targetSelector: '#tour-room-status-note-modal',
                 highlightDelay: 300,
                 tips: ['Este flujo no afecta el proceso real', 'Al finalizar se regresará la habitación a libre']
             },
@@ -283,7 +283,7 @@ export const trainingModules: TrainingModule[] = [
                 id: 'block-room-option',
                 title: 'Bloquear para Mantenimiento (con nota)',
                 description: 'Selecciona "Mantenimiento" para inhabilitar la habitación y registrar una nota.',
-                targetSelector: '#tour-block-action',
+                targetSelector: '#tour-room-status-note-modal',
                 highlightDelay: 250,
                 tips: ['Úsalo cuando haya reparaciones', 'Agrega un motivo del bloqueo']
             },

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useTraining } from "@/contexts/training-context";
 
 interface RoomStatusNoteModalProps {
     isOpen: boolean;
@@ -28,7 +29,9 @@ export function RoomStatusNoteModal({
     loading = false,
     initialNote = "",
 }: RoomStatusNoteModalProps) {
+    const { isTrainingActive, currentMode } = useTraining();
     const [note, setNote] = useState(initialNote);
+    const isTourBlocking = isTrainingActive && currentMode === 'interactive';
 
     useEffect(() => {
         if (isOpen) {
@@ -42,8 +45,11 @@ export function RoomStatusNoteModal({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && !loading && onClose()}>
-            <DialogContent className="sm:max-w-md bg-slate-900 border-slate-800 text-white">
+        <Dialog open={isOpen} modal={false} onOpenChange={(open) => !open && !loading && onClose()}>
+            <DialogContent
+                id="tour-room-status-note-modal"
+                className={`sm:max-w-md bg-slate-900 border-slate-800 text-white z-[9999] ${isTourBlocking ? 'pointer-events-none' : ''}`}
+            >
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription className="text-slate-400">
@@ -60,7 +66,7 @@ export function RoomStatusNoteModal({
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
                             className="bg-slate-950 border-slate-800 focus:ring-blue-500 min-h-[100px]"
-                            autoFocus
+                            autoFocus={!isTourBlocking}
                         />
                     </div>
 

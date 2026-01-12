@@ -62,7 +62,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         }
     }, []);
 
-    useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
+    const { isAudioReady, unlockAudio } = useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
 
     const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout, handleProposeCheckout } = useValetActions(fetchRooms);
 
@@ -219,14 +219,31 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                         <h1 className="text-2xl font-bold">Dashboard Cochero</h1>
                         <p className="text-sm text-muted-foreground">Gestión de Entradas y Salidas</p>
                     </div>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => fetchRooms()}
-                        disabled={loading}
-                    >
-                        <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {!isAudioReady && (
+                            <Button
+                                variant="default"
+                                onClick={async () => {
+                                    const ok = await unlockAudio(true);
+                                    if (!ok) {
+                                        toast.error("No se pudo activar el sonido");
+                                        return;
+                                    }
+                                    toast.success("Sonido activado");
+                                }}
+                            >
+                                Activar sonido
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => fetchRooms()}
+                            disabled={loading}
+                        >
+                            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Stats */}

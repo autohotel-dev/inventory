@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,16 @@ import {
   PAYMENT_TERMINALS,
 } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
+import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
+import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
+import { useSoundNotifications } from "@/hooks/use-sound-notifications";
+import { useUserRole } from "@/hooks/use-user-role";
+import { useSensors } from "@/hooks/use-sensors";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import { toast } from "sonner";
+import { GlobalClock } from "@/components/ui/global-clock";
+import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
+import { useTraining } from "@/contexts/training-context";
 
 // Generar referencia única para pagos
 function generatePaymentReference(prefix: string = "PAY"): string {
@@ -44,16 +54,6 @@ function generatePaymentReference(prefix: string = "PAY"): string {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `${prefix}-${timestamp}-${random}`;
 }
-import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
-import { useRoomActions, getActiveStay, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
-import { useSoundNotifications } from "@/hooks/use-sound-notifications";
-import { useUserRole } from "@/hooks/use-user-role";
-import { useSensors } from "@/hooks/use-sensors";
-import { toast } from "sonner";
-import { useRef } from "react";
-import { GlobalClock } from "@/components/ui/global-clock";
-import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
-import { useTraining } from "@/contexts/training-context";
 
 // Helper helper obtener turno activo
 const getCurrentShiftId = async (supabase: any) => {
@@ -247,7 +247,56 @@ function RoomsBoardInternal() {
   const prevSensorsRef = useRef<Map<string, boolean>>(new Map());
   const trainingStatusRoomIdRef = useRef<string | null>(null);
   const trainingStatusDirtyTriggeredRef = useRef(false);
+  const trainingStatusBlockTriggeredRef = useRef(false);
+  const trainingStatusCleanTriggeredRef = useRef(false);
+  const trainingWheelRoomIdRef = useRef<string | null>(null);
+  const trainingStatusCleanStepInitRef = useRef(false);
+  const trainingStatusPrevStepIdRef = useRef<string | null>(null);
+  const trainingStatusUpdateChainRef = useRef<Promise<void>>(Promise.resolve());
+  const trainingStatusWasActiveRef = useRef(false);
+  const trainingStatusEndCleanupRef = useRef(false);
+  const authRedirectedRef = useRef(false);
   const { activeModule, currentStepIndex, currentMode } = useTraining();
+
+  const forceRelogin = useCallback(() => {
+    if (authRedirectedRef.current) return;
+    authRedirectedRef.current = true;
+    toast.error("Sesión expirada", {
+      description: "Por seguridad, vuelve a iniciar sesión.",
+    });
+    router.push("/auth/login");
+  }, [router]);
+
+  const ensureAuthenticated = useCallback(async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) {
+      forceRelogin();
+      return false;
+    }
+    return true;
+  }, [forceRelogin, supabase.auth]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const check = async () => {
+      const ok = await ensureAuthenticated();
+      if (!ok) return;
+      if (!isMounted) return;
+      authRedirectedRef.current = false;
+    };
+
+    check();
+
+    const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      if (!session) forceRelogin();
+    });
+
+    return () => {
+      isMounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, [ensureAuthenticated, forceRelogin, supabase.auth]);
 
   // Detectar cambios en sensores para alertas
   useEffect(() => {
@@ -284,224 +333,199 @@ function RoomsBoardInternal() {
 
   // Training: Auto-abrir la rueda de acciones y auto-ejecutar acciones en el módulo de check-in
   useEffect(() => {
-    if (activeModule?.id === 'room-checkin' && currentMode === 'interactive') {
-      const activeStep = activeModule.steps[currentStepIndex];
+    if (activeModule?.id !== 'room-checkin' || currentMode !== 'interactive') return;
 
-      // Paso 1 (índice 0): Solo habitación resaltada - cerrar todo
-      if (currentStepIndex === 0 && activeStep?.id === 'select-room') {
-        if (showActionsModal) {
-          console.log('🎓 [Training] Cerrando rueda de acciones (navegación hacia atrás)');
-          setShowActionsModal(false);
-          setActionsDockVisible(false);
-        }
-        if (showQuickCheckinModal) {
-          console.log('🎓 [Training] Cerrando modal de quick checkin (navegación hacia atrás)');
-          setShowQuickCheckinModal(false);
+    const activeStep = activeModule.steps[currentStepIndex];
+
+    // Paso 2 (índice 1): Mostrar la rueda de acciones
+    if (currentStepIndex === 1 && activeStep?.id === 'action-wheel') {
+      if (rooms.length > 0 && !showActionsModal) {
+        const freeRoom = rooms.find(r => r.status === 'LIBRE');
+        if (freeRoom) {
+          console.log('🎓 [Training] Auto-abriendo rueda de acciones para demostración');
+          openActionsDock(freeRoom);
         }
       }
+    }
 
-      // Paso 2 (índice 1): Mostrar la rueda de acciones
-      if (currentStepIndex === 1 && activeStep?.id === 'action-wheel') {
-        // Cerrar el modal de quick checkin si está abierto (navegación hacia atrás desde paso 3)
-        if (showQuickCheckinModal) {
-          console.log('🎓 [Training] Cerrando modal y mostrando rueda (navegación hacia atrás)');
-          setShowQuickCheckinModal(false);
-        }
-
-        // Abrir la rueda si no está abierta (navegación hacia adelante)
-        if (rooms.length > 0 && !showActionsModal) {
-          const freeRoom = rooms.find(r => r.status === 'LIBRE');
-          if (freeRoom) {
-            console.log('🎓 [Training] Auto-abriendo rueda de acciones para demostración');
-            openActionsDock(freeRoom);
-          }
-        }
-      }
-
-      // Paso 3 (índice 2): Auto-abrir modal de check-in rápido
-      if (currentStepIndex === 2 && activeStep?.id === 'check-in-rapido' && showActionsModal && !showQuickCheckinModal) {
-        setTimeout(() => {
-          console.log('🎓 [Training] Auto-abriendo modal de check-in rápido');
-          setShowQuickCheckinModal(true);
-          setShowActionsModal(false);
-        }, 500); // Esperar medio segundo para que la rueda esté visible
-      }
+    // Paso 3 (índice 2): Auto-abrir modal de check-in rápido
+    if (currentStepIndex === 2 && activeStep?.id === 'check-in-rapido' && showActionsModal && !showQuickCheckinModal) {
+      window.setTimeout(() => {
+        console.log('🎓 [Training] Auto-abriendo modal de check-in rápido');
+        setShowQuickCheckinModal(true);
+        setShowActionsModal(false);
+      }, 500);
     }
   }, [activeModule, currentStepIndex, currentMode, rooms, showActionsModal, showQuickCheckinModal]);
 
   // Training: Auto-abrir la rueda de acciones y modal de gestión de personas en el módulo de room-guests
   useEffect(() => {
-    if (activeModule?.id === 'room-guests' && currentMode === 'interactive') {
-      const activeStep = activeModule.steps[currentStepIndex];
+    if (activeModule?.id !== 'room-guests' || currentMode !== 'interactive') return;
+    const activeStep = activeModule.steps[currentStepIndex];
 
-      // Paso 1 (índice 0): Solo habitación ocupada resaltada - cerrar todo
-      if (currentStepIndex === 0 && activeStep?.id === 'select-occupied-room') {
-        if (showActionsModal) {
-          console.log('🎓 [Training] Cerrando rueda de acciones (navegación hacia atrás)');
-          setShowActionsModal(false);
-          setActionsDockVisible(false);
-        }
-        if (showManagePeopleModal) {
-          console.log('🎓 [Training] Cerrando modal de gestión de personas (navegación hacia atrás)');
-          setShowManagePeopleModal(false);
-        }
+    // Paso 1 (índice 0): Solo habitación ocupada resaltada - cerrar todo
+    if (currentStepIndex === 0 && activeStep?.id === 'select-occupied-room') {
+      if (showActionsModal) {
+        console.log('🎓 [Training] Cerrando rueda de acciones (navegación hacia atrás)');
+        setShowActionsModal(false);
+        setActionsDockVisible(false);
+      }
+      if (showManagePeopleModal) {
+        console.log('🎓 [Training] Cerrando modal de gestión de personas (navegación hacia atrás)');
+        setShowManagePeopleModal(false);
+      }
+    }
+
+    // Paso 2 (índice 1): Mostrar la rueda de acciones para habitación ocupada
+    if (currentStepIndex === 1 && activeStep?.id === 'action-wheel-occupied') {
+      if (showManagePeopleModal) {
+        console.log('🎓 [Training] Cerrando modal de personas y mostrando rueda (navegación hacia atrás)');
+        setShowManagePeopleModal(false);
       }
 
-      // Paso 2 (índice 1): Mostrar la rueda de acciones para habitación ocupada
-      if (currentStepIndex === 1 && activeStep?.id === 'action-wheel-occupied') {
-        // Cerrar el modal de gestión si está abierto (navegación hacia atrás desde paso 3)
-        if (showManagePeopleModal) {
-          console.log('🎓 [Training] Cerrando modal de personas y mostrando rueda (navegación hacia atrás)');
-          setShowManagePeopleModal(false);
-        }
-
-        // Abrir la rueda si no está abierta (navegación hacia adelante)
-        if (rooms.length > 0 && !showActionsModal) {
-          const occupiedRoom = rooms.find(r => r.status === 'OCUPADA');
-          if (occupiedRoom) {
-            console.log('🎓 [Training] Auto-abriendo rueda de acciones para habitación ocupada');
-            openActionsDock(occupiedRoom);
-          }
+      if (rooms.length > 0 && !showActionsModal) {
+        const occupiedRoom = rooms.find(r => r.status === 'OCUPADA');
+        if (occupiedRoom) {
+          console.log('🎓 [Training] Auto-abriendo rueda de acciones para habitación ocupada');
+          openActionsDock(occupiedRoom);
         }
       }
+    }
 
-      // Paso 3 (índice 2): Auto-abrir modal de gestión de personas
-      if (currentStepIndex === 2 && activeStep?.id === 'manage-people') {
-        if (showActionsModal && !showManagePeopleModal) {
-          setTimeout(() => {
-            console.log('🎓 [Training] Auto-abriendo modal de gestión de personas');
-            setShowManagePeopleModal(true);
-            setShowActionsModal(false);
-          }, 500);
-        } else if (!showManagePeopleModal && !showActionsModal) {
-          // Caso de recuperación: si se cerró accidentalmente
+    // Paso 3 (índice 2): Auto-abrir modal de gestión de personas
+    if (currentStepIndex === 2 && activeStep?.id === 'manage-people') {
+      if (showActionsModal && !showManagePeopleModal) {
+        window.setTimeout(() => {
+          console.log('🎓 [Training] Auto-abriendo modal de gestión de personas');
           setShowManagePeopleModal(true);
+          setShowActionsModal(false);
+        }, 500);
+      } else if (!showManagePeopleModal && !showActionsModal) {
+        setShowManagePeopleModal(true);
+      }
+    }
+
+    // Paso 4 (índice 3): Auto-seleccionar "Entra una persona"
+    if (currentStepIndex === 3 && activeStep?.id === 'add-person-option') {
+      if (!showManagePeopleModal) setShowManagePeopleModal(true);
+
+      window.setTimeout(() => {
+        const addRadio = document.getElementById('tour-add-person-radio');
+        if (addRadio) {
+          console.log('🎓 [Training] Auto-seleccionando Agregar Persona');
+          addRadio.click();
         }
-      }
+      }, 300);
+    }
 
-      // Paso 4 (índice 3): Auto-seleccionar "Entra una persona"
-      if (currentStepIndex === 3 && activeStep?.id === 'add-person-option') {
-        if (!showManagePeopleModal) setShowManagePeopleModal(true);
+    // Paso 5 (índice 4): Auto-seleccionar "Sale una persona"
+    if (currentStepIndex === 4 && activeStep?.id === 'remove-person-option') {
+      if (!showManagePeopleModal) setShowManagePeopleModal(true);
 
-        setTimeout(() => {
-          const addRadio = document.getElementById('tour-add-person-radio');
-          if (addRadio) {
-            console.log('🎓 [Training] Auto-seleccionando Agregar Persona');
-            addRadio.click();
-          }
-        }, 300);
-      }
-
-      // Paso 5 (índice 4): Auto-seleccionar "Sale una persona"
-      if (currentStepIndex === 4 && activeStep?.id === 'remove-person-option') {
-        if (!showManagePeopleModal) setShowManagePeopleModal(true);
-
-        setTimeout(() => {
-          const removeRadio = document.getElementById('tour-remove-person-radio');
-          if (removeRadio) {
-            console.log('🎓 [Training] Auto-seleccionando Quitar Persona');
-            removeRadio.click();
-          }
-        }, 300);
-      }
+      window.setTimeout(() => {
+        const removeRadio = document.getElementById('tour-remove-person-radio');
+        if (removeRadio) {
+          console.log('🎓 [Training] Auto-seleccionando Quitar Persona');
+          removeRadio.click();
+        }
+      }, 300);
     }
   }, [activeModule, currentStepIndex, currentMode, rooms, showActionsModal, showManagePeopleModal]);
 
   // Training: Auto-abrir la rueda de acciones y modal de gestión de horas en el módulo de room-time
   useEffect(() => {
-    if (activeModule?.id === 'room-time' && currentMode === 'interactive') {
-      const activeStep = activeModule.steps[currentStepIndex];
+    if (activeModule?.id !== 'room-time' || currentMode !== 'interactive') return;
+    const activeStep = activeModule.steps[currentStepIndex];
 
-      // Paso 1 (índice 0): Solo habitación ocupada resaltada - cerrar todo
-      if (currentStepIndex === 0 && activeStep?.id === 'select-occupied-room-time') {
-        if (showActionsModal) {
-          console.log('🎓 [Training] Cerrando rueda de acciones (navegación hacia atrás)');
+    // Paso 1 (índice 0): Solo habitación ocupada resaltada - cerrar todo
+    if (currentStepIndex === 0 && activeStep?.id === 'select-occupied-room-time') {
+      if (showActionsModal) {
+        console.log('🎓 [Training] Cerrando rueda de acciones (navegación hacia atrás)');
+        setShowActionsModal(false);
+        setActionsDockVisible(false);
+      }
+      if (showHourManagementModal) {
+        console.log('🎓 [Training] Cerrando modal de horas (navegación hacia atrás)');
+        setShowHourManagementModal(false);
+      }
+    }
+
+    // Paso 2 (índice 1): Mostrar la rueda de acciones para habitación ocupada
+    if (currentStepIndex === 1 && activeStep?.id === 'action-wheel-time') {
+      if (showHourManagementModal) {
+        console.log('🎓 [Training] Cerrando modal de horas y mostrando rueda (navegación hacia atrás)');
+        setShowHourManagementModal(false);
+      }
+
+      if (rooms.length > 0 && !showActionsModal) {
+        const occupiedRoom = rooms.find(r => r.status === 'OCUPADA');
+        if (occupiedRoom) {
+          console.log('🎓 [Training] Auto-abriendo rueda de acciones para demostración de tiempo');
+          openActionsDock(occupiedRoom);
+        }
+      }
+    }
+
+    // Paso 3 (índice 2): Auto-abrir modal de gestión de horas
+    if (currentStepIndex === 2 && activeStep?.id === 'manage-time-modal') {
+      if (showActionsModal && !showHourManagementModal) {
+        window.setTimeout(() => {
+          console.log('🎓 [Training] Auto-abriendo modal de gestión de horas');
+          setShowHourManagementModal(true);
           setShowActionsModal(false);
-          setActionsDockVisible(false);
+        }, 500);
+      } else if (!showHourManagementModal && !showActionsModal) {
+        setShowHourManagementModal(true);
+      }
+    }
+
+    // Paso 4 (índice 3): Auto-seleccionar "Horas Personalizadas"
+    if (currentStepIndex === 3 && activeStep?.id === 'custom-hours-option') {
+      if (!showHourManagementModal) setShowHourManagementModal(true);
+
+      window.setTimeout(() => {
+        const customOption = document.getElementById('tour-custom-hours-option');
+        if (customOption) {
+          console.log('🎓 [Training] Auto-seleccionando Horas Personalizadas');
+          customOption.click();
         }
-        if (showHourManagementModal) {
-          console.log('🎓 [Training] Cerrando modal de horas (navegación hacia atrás)');
-          setShowHourManagementModal(false);
-        }
+      }, 300);
+    }
+
+    // Paso 5 (índice 4): Auto-seleccionar "Renovar"
+    if (currentStepIndex === 4 && activeStep?.id === 'renew-option') {
+      if (!showHourManagementModal) {
+        console.log('🎓 [Training] Abriendo modal para paso renew');
+        setShowHourManagementModal(true);
       }
 
-      // Paso 2 (índice 1): Mostrar la rueda de acciones para habitación ocupada
-      if (currentStepIndex === 1 && activeStep?.id === 'action-wheel-time') {
-        if (showHourManagementModal) {
-          console.log('🎓 [Training] Cerrando modal de horas y mostrando rueda (navegación hacia atrás)');
-          setShowHourManagementModal(false);
+      window.setTimeout(() => {
+        const renewOption = document.getElementById('tour-renew-option');
+        if (renewOption) {
+          console.log('🎓 [Training] Auto-seleccionando Renovar');
+          renewOption.click();
+        } else {
+          console.warn('🎓 [Training] No se encontró el elemento tour-renew-option');
         }
+      }, 50);
+    }
 
-        if (rooms.length > 0 && !showActionsModal) {
-          const occupiedRoom = rooms.find(r => r.status === 'OCUPADA');
-          if (occupiedRoom) {
-            console.log('🎓 [Training] Auto-abriendo rueda de acciones para demostración de tiempo');
-            openActionsDock(occupiedRoom);
-          }
-        }
+    // Paso 6 (índice 5): Auto-seleccionar "Promo 4H"
+    if (currentStepIndex === 5 && activeStep?.id === 'promos') {
+      if (!showHourManagementModal) {
+        console.log('🎓 [Training] Abriendo modal para paso promos');
+        setShowHourManagementModal(true);
       }
 
-      // Paso 3 (índice 2): Auto-abrir modal de gestión de horas
-      if (currentStepIndex === 2 && activeStep?.id === 'manage-time-modal') {
-        if (showActionsModal && !showHourManagementModal) {
-          setTimeout(() => {
-            console.log('🎓 [Training] Auto-abriendo modal de gestión de horas');
-            setShowHourManagementModal(true);
-            setShowActionsModal(false);
-          }, 500);
-        } else if (!showHourManagementModal && !showActionsModal) {
-          setShowHourManagementModal(true);
+      window.setTimeout(() => {
+        const promoOption = document.getElementById('tour-promo4h-option');
+        if (promoOption) {
+          console.log('🎓 [Training] Auto-seleccionando Promoción 4H');
+          promoOption.click();
+        } else {
+          console.warn('🎓 [Training] No se encontró el elemento tour-promo4h-option');
         }
-      }
-
-      // Paso 4 (índice 3): Auto-seleccionar "Horas Personalizadas"
-      if (currentStepIndex === 3 && activeStep?.id === 'custom-hours-option') {
-        if (!showHourManagementModal) setShowHourManagementModal(true);
-
-        setTimeout(() => {
-          const customOption = document.getElementById('tour-custom-hours-option');
-          if (customOption) {
-            console.log('🎓 [Training] Auto-seleccionando Horas Personalizadas');
-            customOption.click();
-          }
-        }, 300);
-      }
-
-      // Paso 5 (índice 4): Auto-seleccionar "Renovar"
-      if (currentStepIndex === 4 && activeStep?.id === 'renew-option') {
-        if (!showHourManagementModal) {
-          console.log('🎓 [Training] Abriendo modal para paso renew');
-          setShowHourManagementModal(true);
-        }
-
-        setTimeout(() => {
-          const renewOption = document.getElementById('tour-renew-option');
-          if (renewOption) {
-            console.log('🎓 [Training] Auto-seleccionando Renovar');
-            renewOption.click();
-          } else {
-            console.warn('🎓 [Training] No se encontró el elemento tour-renew-option');
-          }
-        }, 50);
-      }
-
-      // Paso 6 (índice 5): Auto-seleccionar "Promo 4H"
-      if (currentStepIndex === 5 && activeStep?.id === 'promos') {
-        if (!showHourManagementModal) {
-          console.log('🎓 [Training] Abriendo modal para paso promos');
-          setShowHourManagementModal(true);
-        }
-
-        setTimeout(() => {
-          const promoOption = document.getElementById('tour-promo4h-option');
-          if (promoOption) {
-            console.log('🎓 [Training] Auto-seleccionando Promoción 4H');
-            promoOption.click();
-          } else {
-            console.warn('🎓 [Training] No se encontró el elemento tour-promo4h-option');
-          }
-        }, 50);
-      }
+      }, 50);
     }
   }, [activeModule, currentStepIndex, currentMode, rooms, showActionsModal, showHourManagementModal]);
 
@@ -509,6 +533,41 @@ function RoomsBoardInternal() {
   useEffect(() => {
     if (activeModule?.id === 'room-status' && currentMode === 'interactive') {
       const activeStep = activeModule.steps[currentStepIndex];
+
+      const queueTrainingStatusUpdate = (fn: () => Promise<void>) => {
+        trainingStatusUpdateChainRef.current = trainingStatusUpdateChainRef.current
+          .then(fn)
+          .catch((err) => {
+            console.error('🎓 [Training] Error en update encadenado:', err);
+          });
+      };
+
+      // Ejecutar acciones "al dar Siguiente" usando el cambio de step
+      const prevStepId = trainingStatusPrevStepIdRef.current;
+      const currentStepId = activeStep?.id ?? null;
+      if (prevStepId === 'mark-clean-option' && currentStepId !== 'mark-clean-option') {
+        const demoRoom = trainingStatusRoomIdRef.current
+          ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+          : null;
+
+        if (demoRoom) {
+          console.log('🎓 [Training] Ejecutando acción al salir del paso: Limpiar (LIBRE)');
+          // IMPORTANTE: no pasar notes para que updateRoomStatus limpie notes al liberar
+          queueTrainingStatusUpdate(() => updateRoomStatus(demoRoom, 'LIBRE', 'Habitación limpia'));
+        }
+      }
+
+      if (prevStepId === 'unblock-option' && currentStepId !== 'unblock-option') {
+        const roomToUnblock = trainingStatusRoomIdRef.current
+          ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+          : rooms.find(r => r.status === 'BLOQUEADA') || null;
+
+        if (roomToUnblock) {
+          console.log('🎓 [Training] Ejecutando acción al salir del paso: Desbloquear (LIBRE)');
+          // IMPORTANTE: no pasar notes para que updateRoomStatus limpie notes al liberar
+          queueTrainingStatusUpdate(() => updateRoomStatus(roomToUnblock, 'LIBRE', 'Habitación desbloqueada'));
+        }
+      }
 
       const timeouts: number[] = [];
       const addTimeout = (fn: () => void, ms: number) => {
@@ -525,7 +584,11 @@ function RoomsBoardInternal() {
 
         const targetRoom = rooms.find(r => r.status === status);
         if (targetRoom) {
+          // Evitar reabrir si ya está abierta para el mismo cuarto (evita parpadeo)
+          if (showActionsModal && trainingWheelRoomIdRef.current === targetRoom.id) return;
+
           console.log(`🎓 [Training] Auto-abriendo rueda de acciones para habitación ${status}`);
+          trainingWheelRoomIdRef.current = targetRoom.id;
           openActionsDock(targetRoom);
         }
       };
@@ -535,12 +598,20 @@ function RoomsBoardInternal() {
           console.log('🎓 [Training] Cerrando rueda de acciones');
           setShowActionsModal(false);
           setActionsDockVisible(false);
+          trainingWheelRoomIdRef.current = null;
         }
       };
 
       // Reset triggers when leaving the step
       if (activeStep?.id !== 'mark-dirty-option') {
         trainingStatusDirtyTriggeredRef.current = false;
+      }
+      if (activeStep?.id !== 'block-room-option') {
+        trainingStatusBlockTriggeredRef.current = false;
+      }
+      if (activeStep?.id !== 'mark-clean-option') {
+        trainingStatusCleanTriggeredRef.current = false;
+        trainingStatusCleanStepInitRef.current = false;
       }
 
       // Paso 1 (índice 0): Solo habitación libre resaltada - cerrar todo
@@ -591,6 +662,12 @@ function RoomsBoardInternal() {
             (trainingStatusDirtyTriggeredRef.current || (showStatusNoteModal && statusNoteAction === 'DIRTY'))
           ) {
             ensureWheelClosed();
+          } else if (
+            activeStep?.id === 'block-room-option' &&
+            (trainingStatusBlockTriggeredRef.current || (showStatusNoteModal && statusNoteAction === 'BLOCK'))
+          ) {
+            // Mantener visible el modal de bloqueo durante el paso
+            ensureWheelClosed();
           } else {
           if (showStatusNoteModal) {
             console.log('🎓 [Training] Cerrando modal de nota y mostrando rueda (navegación hacia atrás)');
@@ -606,39 +683,73 @@ function RoomsBoardInternal() {
 
       // Paso 5: Marcar como sucia -> abrir modal automáticamente (simulando click en el sector)
       if (activeStep?.id === 'mark-dirty-option') {
-        if (hasRoomWithStatus('LIBRE')) {
-          addTimeout(() => {
-            // Guardar habitación demo para pasos posteriores
-            if (selectedRoom?.id) {
-              trainingStatusRoomIdRef.current = selectedRoom.id;
-            }
+        if (!hasRoomWithStatus('LIBRE')) return;
 
-            // Si ya se abrió el modal, no repetir
-            if (showStatusNoteModal) return;
+        // Si ya se abrió el modal, no repetir
+        if (showStatusNoteModal) return;
 
-            // Evitar loops: marcar que ya se ejecutó este paso
-            if (trainingStatusDirtyTriggeredRef.current) return;
-            trainingStatusDirtyTriggeredRef.current = true;
+        // Evitar loops: ejecutar una sola vez al entrar al paso
+        if (trainingStatusDirtyTriggeredRef.current) return;
+        trainingStatusDirtyTriggeredRef.current = true;
 
-            console.log('🎓 [Training] Cerrando rueda de acciones');
-            closeActionsDock();
+        // Seleccionar habitación demo
+        const roomForDirty =
+          (trainingStatusRoomIdRef.current
+            ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+            : null) ||
+          selectedRoom ||
+          rooms.find(r => r.status === 'LIBRE') ||
+          null;
 
-            addTimeout(() => {
-              const roomForDirty =
-                (trainingStatusRoomIdRef.current
-                  ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
-                  : null) ||
-                selectedRoom ||
-                rooms.find(r => r.status === 'LIBRE') ||
-                null;
+        if (!roomForDirty) return;
+        trainingStatusRoomIdRef.current = roomForDirty.id;
 
-              if (!roomForDirty) return;
-              trainingStatusRoomIdRef.current = roomForDirty.id;
-              console.log('🎓 [Training] Abriendo modal: Marcar como Sucia');
-              handleOpenDirtyModal(roomForDirty);
-            }, 250);
-          }, 650);
-        }
+        // Cerrar la rueda antes del modal
+        ensureWheelClosed();
+
+        console.log('🎓 [Training] Abriendo modal: Marcar como Sucia');
+        setSelectedRoom({ ...roomForDirty, notes: 'Capacitación' } as Room);
+        setStatusNoteAction('DIRTY');
+        setShowStatusNoteModal(true);
+
+        // Marcar SUCIA para preparar el paso 6 (sin cerrar modal)
+        console.log('🎓 [Training] Marcando habitación demo como SUCIA (sin cerrar modal)');
+        queueTrainingStatusUpdate(() => updateRoomStatus(roomForDirty, 'SUCIA', 'Habitación marcada como sucia/mantenimiento', 'Capacitación'));
+      }
+
+      // Paso 7 (bloqueo/mantenimiento): abrir modal automáticamente y marcar como BLOQUEADA
+      if (activeStep?.id === 'block-room-option') {
+        if (!hasRoomWithStatus('LIBRE')) return;
+
+        // Si ya se abrió el modal, no repetir
+        if (showStatusNoteModal) return;
+
+        // Evitar loops: ejecutar una sola vez al entrar al paso
+        if (trainingStatusBlockTriggeredRef.current) return;
+        trainingStatusBlockTriggeredRef.current = true;
+
+        const roomForBlock =
+          (trainingStatusRoomIdRef.current
+            ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+            : null) ||
+          selectedRoom ||
+          rooms.find(r => r.status === 'LIBRE') ||
+          null;
+
+        if (!roomForBlock) return;
+        trainingStatusRoomIdRef.current = roomForBlock.id;
+
+        // Cerrar la rueda antes del modal
+        ensureWheelClosed();
+
+        console.log('🎓 [Training] Abriendo modal: Bloquear (Mantenimiento)');
+        setSelectedRoom({ ...roomForBlock, notes: 'Capacitación' } as Room);
+        setStatusNoteAction('BLOCK');
+        setShowStatusNoteModal(true);
+
+        // Marcar BLOQUEADA para preparar el siguiente paso (sin cerrar modal)
+        console.log('🎓 [Training] Marcando habitación demo como BLOQUEADA (sin cerrar modal)');
+        queueTrainingStatusUpdate(() => updateRoomStatus(roomForBlock, 'BLOQUEADA', 'Habitación bloqueada', 'Capacitación'));
       }
 
       // Paso 6: Cerrar modal y abrir rueda para una SUCIA si existe; si no, dejar solo el modal
@@ -647,20 +758,26 @@ function RoomsBoardInternal() {
           ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
           : null;
 
-        // Si tenemos una habitación demo, forzar que quede SUCIA para poder mostrar "Limpiar"
-        if (roomRef && roomRef.status !== 'SUCIA') {
-          // Cerrar modal actual
+        // Ejecutar la preparación del paso una sola vez (evita loops por auto-refresh)
+        if (!trainingStatusCleanStepInitRef.current) {
+          trainingStatusCleanStepInitRef.current = true;
+
+          // Cerrar modal de nota (si estaba visible) para poder ver la rueda
           if (showStatusNoteModal) {
             console.log('🎓 [Training] Cerrando modal de nota antes de mostrar opción Limpiar');
             setShowStatusNoteModal(false);
             setStatusNoteAction(null);
           }
 
-          // Cambiar estado a SUCIA (flujo de demo)
-          addTimeout(() => {
-            console.log('🎓 [Training] Preparando habitación demo como SUCIA');
-            updateRoomStatus(roomRef, 'SUCIA', 'Habitación marcada como sucia/mantenimiento', 'Capacitación');
-          }, 100);
+          // Si NO existe ninguna SUCIA y aún no se ha limpiado, preparar una habitación demo como SUCIA
+          // (solo para que se pueda visualizar la opción Limpiar).
+          const hasDirtyNow = hasRoomWithStatus('SUCIA');
+          if (!hasDirtyNow && roomRef && !trainingStatusCleanTriggeredRef.current) {
+            addTimeout(() => {
+              console.log('🎓 [Training] Preparando habitación demo como SUCIA');
+              updateRoomStatus(roomRef, 'SUCIA', 'Habitación marcada como sucia/mantenimiento', 'Capacitación');
+            }, 100);
+          }
         }
 
         // Si hay SUCIA (por demo o ya existente), abrir rueda para mostrar opción limpiar
@@ -678,7 +795,10 @@ function RoomsBoardInternal() {
             ensureWheelOpenForStatus('SUCIA');
           }
         }, 1400);
+
       }
+
+      trainingStatusPrevStepIdRef.current = activeStep?.id ?? null;
 
       return () => {
         timeouts.forEach(id => clearTimeout(id));
@@ -733,29 +853,8 @@ function RoomsBoardInternal() {
     const supabase = createClient();
     let isSubscribed = true;
     let channel: any = null;
-    let fallbackInterval: NodeJS.Timeout | null = null;
 
     console.log("🔌 [RoomBoard] Configurando suscripción en tiempo real...");
-
-    // Función para activar auto-refresh fallback
-    const activateFallback = () => {
-      if (fallbackInterval) return; // Ya está activo
-
-      console.log("⏰ [RoomBoard] Activando auto-refresh fallback");
-      fallbackInterval = setInterval(() => {
-        console.log("🔄 [RoomBoard] Auto-refresh ejecutándose (fallback)...");
-        fetchRooms(true);
-      }, 3000);
-    };
-
-    // Función para desactivar auto-refresh fallback
-    const deactivateFallback = () => {
-      if (fallbackInterval) {
-        console.log("⏹️ [RoomBoard] Desactivando auto-refresh (Realtime activo)");
-        clearInterval(fallbackInterval);
-        fallbackInterval = null;
-      }
-    };
 
     // Función para configurar el canal con autenticación
     const setupRealtimeChannel = async () => {
@@ -831,21 +930,16 @@ function RoomsBoardInternal() {
             // Reaccionar al estado real de la conexión
             if (status === 'SUBSCRIBED') {
               console.log("✅ [RoomBoard] Conexión en tiempo real ACTIVADA");
-              deactivateFallback(); // 👈 Desactivar fallback si estaba activo
             } else if (status === 'CHANNEL_ERROR') {
-              console.warn("⚠️ [RoomBoard] Error en canal Realtime - activando fallback", err?.message || '');
-              activateFallback(); // 👈 Activar fallback inmediatamente
+              console.warn("⚠️ [RoomBoard] Error en canal Realtime", err?.message || '');
             } else if (status === 'TIMED_OUT') {
-              console.warn("⏱️ [RoomBoard] Timeout de conexión - activando fallback");
-              activateFallback(); // 👈 Activar fallback inmediatamente
+              console.warn("⏱️ [RoomBoard] Timeout de conexión");
             } else if (status === 'CLOSED') {
-              console.log("🚪 [RoomBoard] Conexión cerrada - activando fallback");
-              activateFallback(); // 👈 Activar fallback si se cierra
+              console.log("🚪 [RoomBoard] Conexión cerrada");
             }
           });
       } catch (error) {
-        console.error("❌ [RoomBoard] Error configurando Realtime - activando fallback:", error);
-        activateFallback(); // 👈 Activar fallback si hay error
+        console.error("❌ [RoomBoard] Error configurando Realtime:", error);
       }
     };
 
@@ -855,7 +949,6 @@ function RoomsBoardInternal() {
     // Cleanup function
     return () => {
       isSubscribed = false;
-      deactivateFallback(); // Limpiar fallback si existe
       console.log("🔌 [RoomBoard] Cerrando suscripción en tiempo real...");
       if (channel) {
         supabase.removeChannel(channel);
@@ -880,6 +973,33 @@ function RoomsBoardInternal() {
     handleAddDamageCharge,
     handleAuthorizeValetCheckout,
   } = useRoomActions(async () => await fetchRooms(true));
+
+  useEffect(() => {
+    const isRoomStatusTourActive = activeModule?.id === 'room-status' && currentMode === 'interactive';
+
+    if (isRoomStatusTourActive) {
+      trainingStatusWasActiveRef.current = true;
+      trainingStatusEndCleanupRef.current = false;
+      return;
+    }
+
+    if (!trainingStatusWasActiveRef.current) return;
+    if (trainingStatusEndCleanupRef.current) return;
+    trainingStatusEndCleanupRef.current = true;
+    trainingStatusWasActiveRef.current = false;
+
+    const demoRoom = trainingStatusRoomIdRef.current
+      ? rooms.find(r => r.id === trainingStatusRoomIdRef.current)
+      : null;
+
+    if (!demoRoom) return;
+
+    trainingStatusUpdateChainRef.current = trainingStatusUpdateChainRef.current
+      .then(() => updateRoomStatus(demoRoom, 'LIBRE', 'Habitación desbloqueada'))
+      .catch((err) => {
+        console.error('🎓 [Training] Error en cleanup final:', err);
+      });
+  }, [activeModule, currentMode, rooms, updateRoomStatus]);
 
   // Abrir modal de checkout usando el hook
   const openCheckoutModal = async (room: Room) => {
@@ -1421,6 +1541,17 @@ function RoomsBoardInternal() {
     return (room.room_stays || []).find((stay) => stay.status === "ACTIVA") || null;
   };
 
+  const MAX_PENDING_QUICK_CHECKINS = 4;
+
+  const getPendingPaymentBacklogCount = () => {
+    return rooms.reduce((count, room) => {
+      if (room.status !== "OCUPADA") return count;
+      const activeStay = getActiveStay(room);
+      const remaining = activeStay?.sales_orders?.remaining_amount ?? 0;
+      return remaining > 0 ? count + 1 : count;
+    }, 0);
+  };
+
   const getRemainingTimeLabel = (room: Room) => {
     const activeStay = getActiveStay(room);
 
@@ -1528,6 +1659,9 @@ function RoomsBoardInternal() {
 
   const handleStartStay = async (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
+
+    const isAuthed = await ensureAuthenticated();
+    if (!isAuthed) return;
 
     setStartStayLoading(true);
     const supabase = createClient();
@@ -1877,6 +2011,17 @@ function RoomsBoardInternal() {
     actualEntryTime: Date;
   }) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
+
+    const isAuthed = await ensureAuthenticated();
+    if (!isAuthed) return;
+
+    const pendingBacklog = getPendingPaymentBacklogCount();
+    if (pendingBacklog >= MAX_PENDING_QUICK_CHECKINS) {
+      toast.error("No se puede registrar Entrada Rápida", {
+        description: `Hay ${pendingBacklog} habitaciones con cobro pendiente. Cobra alguna para liberar al cochero.`,
+      });
+      return;
+    }
 
     setStartStayLoading(true);
     const supabase = createClient();
@@ -2439,19 +2584,30 @@ function RoomsBoardInternal() {
         }}
         onMarkClean={() => selectedRoom && updateRoomStatus(selectedRoom, "LIBRE", "Habitación limpia")}
         onBlock={() => {
+          const room = selectedRoom;
           closeActionsDock();
           setTimeout(() => {
-            if (selectedRoom) handleOpenBlockModal(selectedRoom);
+            if (room) handleOpenBlockModal(room);
           }, 200);
         }}
         onUnblock={() => selectedRoom && updateRoomStatus(selectedRoom, "LIBRE", "Habitación desbloqueada")}
         onMarkDirty={() => {
+          const room = selectedRoom;
           closeActionsDock();
           setTimeout(() => {
-            if (selectedRoom) handleOpenDirtyModal(selectedRoom);
+            if (room) handleOpenDirtyModal(room);
           }, 200);
         }}
         onQuickCheckin={() => {
+          const pendingBacklog = getPendingPaymentBacklogCount();
+          if (pendingBacklog >= MAX_PENDING_QUICK_CHECKINS) {
+            toast.error("Entrada Rápida temporalmente bloqueada", {
+              description: `Hay ${pendingBacklog} habitaciones con cobro pendiente. Cobra alguna para poder registrar nuevas entradas.`,
+            });
+            closeActionsDock();
+            return;
+          }
+
           setShowActionsModal(false);
           setShowQuickCheckinModal(true);
         }}
