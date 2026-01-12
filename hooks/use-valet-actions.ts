@@ -83,25 +83,49 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'open')
                 .maybeSingle();
 
-            // 3. Registrar pago como COBRADO_POR_VALET
-            const { error: paymentError } = await supabase
+            // 3. El cochero NO crea un pago nuevo.
+            // Debe tomar el pago principal creado por recepción (ESTANCIA, PENDIENTE)
+            // y marcarlo como COBRADO_POR_VALET para que recepción lo confirme.
+            const { data: pendingMain, error: pendingMainError } = await supabase
                 .from('payments')
-                .insert({
-                    sales_order_id: activeStay.sales_order_id,
+                .select('id')
+                .eq('sales_order_id', activeStay.sales_order_id)
+                .eq('concept', 'ESTANCIA')
+                .eq('status', 'PENDIENTE')
+                .is('parent_payment_id', null)
+                .order('created_at', { ascending: true })
+                .maybeSingle();
+
+            if (pendingMainError) {
+                console.error('Error finding pending main payment:', pendingMainError);
+                throw pendingMainError;
+            }
+
+            if (!pendingMain?.id) {
+                toast.error('No se encontró el pago pendiente de la estancia', {
+                    description: 'Pide a recepción que genere/valide el cargo de la habitación antes de registrar el cobro.'
+                });
+                return false;
+            }
+
+            const { error: paymentUpdateError } = await supabase
+                .from('payments')
+                .update({
+                    // Asegurar que el principal refleje el cobro real del cochero
                     amount: paymentData.amount,
                     payment_method: paymentData.method,
                     reference: paymentData.reference || null,
                     status: 'COBRADO_POR_VALET',
-                    concept: 'HABITACION',
                     payment_type: 'COMPLETO',
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null
-                });
+                    shift_session_id: session?.id || null,
+                })
+                .eq('id', pendingMain.id);
 
-            if (paymentError) {
-                console.error('Error creating payment:', paymentError);
-                throw paymentError;
+            if (paymentUpdateError) {
+                console.error('Error updating payment as COBRADO_POR_VALET:', paymentUpdateError);
+                throw paymentUpdateError;
             }
 
             const methodLabel = paymentData.method === 'EFECTIVO' ? 'el dinero' :

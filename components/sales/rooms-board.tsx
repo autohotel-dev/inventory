@@ -201,7 +201,10 @@ function RoomsBoardInternal() {
   const { isValet } = useUserRole();
 
   // Notificaciones de sonido
-  useSoundNotifications('receptionist', rooms.map(r => ({ id: r.id, number: r.number })));
+  const { playSuccess, playError, playAlert } = useSoundNotifications(
+    "receptionist",
+    rooms.map((r) => ({ id: r.id, number: r.number }))
+  );
   const [showQuickCheckinModal, setShowQuickCheckinModal] = useState(false);
   const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
   const [showEditValetModal, setShowEditValetModal] = useState(false);
@@ -241,7 +244,6 @@ function RoomsBoardInternal() {
   }, [showActionsModal, selectedRoom]);
 
   // Sensores
-  const { playSuccess, playError, playAlert } = useSoundNotifications("receptionist", rooms);
   const { isPrinting, printConsumptionTickets } = useThermalPrinter();
   const { sensors } = useSensors();
   const prevSensorsRef = useRef<Map<string, boolean>>(new Map());

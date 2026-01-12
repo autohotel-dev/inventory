@@ -210,7 +210,8 @@ export function GranularPaymentModal({
           employees:collected_by(first_name, last_name)
         `)
         .eq("sales_order_id", salesOrderId)
-        .eq("status", "COBRADO_POR_VALET");
+        .eq("status", "COBRADO_POR_VALET")
+        .is("confirmed_at", null);
 
       if (valetError) {
         console.error("Error loading valet payments:", valetError);
@@ -236,7 +237,8 @@ export function GranularPaymentModal({
       const { error } = await supabase
         .from("payments")
         .update({
-          status: "PAGADO",
+          // Confirmación = recepción recibió el dinero/comprobante.
+          // NO significa que el pago ya quedó registrado (multipago) ni conciliado.
           confirmed_by: employeeId,
           confirmed_at: new Date().toISOString()
         })
@@ -244,7 +246,7 @@ export function GranularPaymentModal({
 
       if (error) throw error;
 
-      toast.success("Pago confirmado correctamente");
+      toast.success("Pago recibido en recepción");
       fetchItems();
     } catch (error) {
       console.error("Error confirming payment:", error);
@@ -456,7 +458,8 @@ export function GranularPaymentModal({
           .update({
             is_paid: true,
             paid_at: new Date().toISOString(),
-            payment_method: validPayments.length === 1 ? validPayments[0].method : "MIXTO",
+            // sales_order_items.payment_method tiene constraint y NO permite 'MIXTO'
+            payment_method: validPayments.length === 1 ? validPayments[0].method : null,
             unit_price: item.qty > 0 ? finalTotal / item.qty : finalTotal,
           })
           .eq("id", itemId);
@@ -486,7 +489,7 @@ export function GranularPaymentModal({
           .from("payments")
           .select("id, amount, concept")
           .eq("sales_order_id", salesOrderId)
-          .eq("status", "PENDIENTE")
+          .in("status", ["PENDIENTE", "COBRADO_POR_VALET"])
           .in("concept", paymentConcepts)
           .is("parent_payment_id", null);
 
@@ -498,36 +501,59 @@ export function GranularPaymentModal({
           for (const pending of pendingPayments) {
             if (isMultipago) {
               // Multipago: Actualizar a PAGADO y crear subpagos
-              await supabase
+              const { error: pendingUpdateError } = await supabase
                 .from("payments")
                 .update({
                   status: "PAGADO",
-                  payment_method: "MIXTO",
+                  // payments.payment_method tiene constraint; usar PENDIENTE como marcador de multipago
+                  payment_method: "PENDIENTE",
                 })
                 .eq("id", pending.id);
 
-              // Crear subpagos proporcionales
-              const subpayments = validPayments.map(p => ({
-                sales_order_id: salesOrderId,
-                amount: p.amount,
-                payment_method: p.method,
-                terminal_code: p.method === "TARJETA" ? p.terminal : null,
-                reference: p.reference || generatePaymentReference("SUB"),
-                concept: pending.concept,
-                status: "PAGADO",
-                payment_type: "PARCIAL",
-                parent_payment_id: pending.id,
-                shift_session_id: currentShiftId,
-                employee_id: currentEmployeeId,
-                card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
-                card_type: p.method === "TARJETA" ? p.cardType : null,
-              }));
+              if (pendingUpdateError) throw pendingUpdateError;
 
-              await supabase.from("payments").insert(subpayments);
+              // Crear subpagos proporcionales para evitar duplicar montos
+              const ratio = totalToPay > 0 ? Number(pending.amount) / totalToPay : 0;
+              const proportional = validPayments.map((p) => {
+                const raw = p.amount * ratio;
+                return {
+                  ...p,
+                  _alloc: Math.round(raw * 100) / 100,
+                };
+              });
+
+              // Ajuste de redondeo para que sume exactamente al monto del pago principal
+              const allocatedSum = proportional.reduce((s, p: any) => s + (p._alloc || 0), 0);
+              const diff = Math.round((Number(pending.amount) - allocatedSum) * 100) / 100;
+              if (proportional.length > 0 && Math.abs(diff) > 0) {
+                (proportional[proportional.length - 1] as any)._alloc =
+                  Math.round(((proportional[proportional.length - 1] as any)._alloc + diff) * 100) / 100;
+              }
+
+              const subpayments = proportional
+                .filter((p: any) => (p._alloc || 0) > 0)
+                .map((p: any) => ({
+                  sales_order_id: salesOrderId,
+                  amount: p._alloc,
+                  payment_method: p.method,
+                  terminal_code: p.method === "TARJETA" ? p.terminal : null,
+                  reference: p.reference || generatePaymentReference("SUB"),
+                  concept: pending.concept,
+                  status: "PAGADO",
+                  payment_type: "PARCIAL",
+                  parent_payment_id: pending.id,
+                  shift_session_id: currentShiftId,
+                  employee_id: currentEmployeeId,
+                  card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
+                  card_type: p.method === "TARJETA" ? p.cardType : null,
+                }));
+
+              const { error: subpaymentsError } = await supabase.from("payments").insert(subpayments);
+              if (subpaymentsError) throw subpaymentsError;
             } else {
               // Pago único: actualizar directamente
               const p = validPayments[0];
-              await supabase
+              const { error: pendingSingleUpdateError } = await supabase
                 .from("payments")
                 .update({
                   status: "PAGADO",
@@ -538,6 +564,8 @@ export function GranularPaymentModal({
                   card_type: p.method === "TARJETA" ? p.cardType : null,
                 })
                 .eq("id", pending.id);
+
+              if (pendingSingleUpdateError) throw pendingSingleUpdateError;
             }
           }
         }
@@ -565,7 +593,8 @@ export function GranularPaymentModal({
             .insert({
               sales_order_id: salesOrderId,
               amount: totalPaid,
-              payment_method: "MIXTO",
+              // payments.payment_method tiene constraint; usar PENDIENTE como marcador de multipago
+              payment_method: "PENDIENTE",
               reference: generatePaymentReference("GRN"),
               concept: detailedConcept || `PAGO_GRANULAR_${itemIds.length}_CONCEPTOS`,
               status: "PAGADO",

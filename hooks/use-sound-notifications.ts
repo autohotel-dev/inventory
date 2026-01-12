@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 type NotificationType = 'success' | 'alert' | 'info';
+type SoundEvent = 'new_entry' | 'vehicle_request' | 'checkout_request' | 'car_ready' | 'vehicle_registered';
 
 export function useSoundNotifications(
     role: 'valet' | 'receptionist',
@@ -102,6 +103,20 @@ export function useSoundNotifications(
         const play = () => {
             const now = ctx.currentTime;
 
+            const scheduleTone = (freq: number, start: number, peak: number, releaseEnd: number, oscType: OscillatorType = 'sine') => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = oscType;
+                osc.frequency.setValueAtTime(freq, start);
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(peak, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, releaseEnd);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(releaseEnd + 0.02);
+            };
+
             if (type === 'alert') {
                 // Tono: "Professional Chime" (Ding-Dong suave)
                 // Chime más llamativo (arpegio corto con cola suave)
@@ -111,34 +126,11 @@ export function useSoundNotifications(
 
                 freqs.forEach((f, i) => {
                     const t = now + offsets[i];
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(f, t);
-
-                    gain.gain.setValueAtTime(0, t);
-                    gain.gain.linearRampToValueAtTime(0.28, t + 0.02);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.4);
-
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(t);
-                    osc.stop(t + 1.5);
+                    scheduleTone(f, t, 0.28, t + 1.4, 'triangle');
                 });
 
                 // Subtono sutil para presencia (no debe ser molesto)
-                const sub = ctx.createOscillator();
-                const subGain = ctx.createGain();
-                sub.type = 'sine';
-                sub.frequency.setValueAtTime(196, now); // G3
-                subGain.gain.setValueAtTime(0, now);
-                subGain.gain.linearRampToValueAtTime(0.06, now + 0.02);
-                subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
-                sub.connect(subGain);
-                subGain.connect(ctx.destination);
-                sub.start(now);
-                sub.stop(now + 1.05);
+                scheduleTone(196, now, 0.06, now + 1.0, 'sine');
 
             } else if (type === 'success') {
                 // Tono: "Glass Ping" (Acorde Mayor brillante)
@@ -146,19 +138,8 @@ export function useSoundNotifications(
                 const freqs = [523.25, 659.25, 783.99];
 
                 freqs.forEach((f, i) => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'triangle'; // Un poco más de brillo que sine
-                    osc.frequency.setValueAtTime(f, now + (i * 0.05)); // Arpegio muy rápido
-
-                    gain.gain.setValueAtTime(0, now + (i * 0.05));
-                    gain.gain.linearRampToValueAtTime(0.15, now + (i * 0.05) + 0.05);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
-
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(now + (i * 0.05));
-                    osc.stop(now + 1.5);
+                    const t = now + (i * 0.05);
+                    scheduleTone(f, t, 0.15, now + 1.5, 'triangle');
                 });
             }
         };
@@ -175,6 +156,82 @@ export function useSoundNotifications(
 
         setIsAudioReady(true);
 
+        play();
+    };
+
+    const playSound = (event: SoundEvent) => {
+        initAudio();
+        const ctx = audioContextRef.current;
+        if (!ctx) return;
+
+        const play = () => {
+            const now = ctx.currentTime;
+            const scheduleTone = (freq: number, start: number, peak: number, releaseEnd: number, oscType: OscillatorType = 'sine') => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = oscType;
+                osc.frequency.setValueAtTime(freq, start);
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(peak, start + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.001, releaseEnd);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(releaseEnd + 0.02);
+            };
+
+            if (event === 'new_entry') {
+                const freqs = [523.25, 659.25, 783.99];
+                const offsets = [0, 0.09, 0.18];
+                freqs.forEach((f, i) => {
+                    const t = now + offsets[i];
+                    scheduleTone(f, t, 0.30, t + 1.2, 'triangle');
+                });
+                scheduleTone(196, now, 0.05, now + 0.9, 'sine');
+                return;
+            }
+
+            if (event === 'vehicle_request') {
+                const base = 932.33; // A#5
+                const hits = [0, 0.14, 0.28];
+                hits.forEach((o) => {
+                    const t = now + o;
+                    scheduleTone(base, t, 0.22, t + 0.22, 'square');
+                });
+                scheduleTone(466.16, now, 0.04, now + 0.5, 'sine');
+                return;
+            }
+
+            if (event === 'checkout_request') {
+                const freqs = [392.0, 523.25];
+                const offsets = [0, 0.16];
+                freqs.forEach((f, i) => {
+                    const t = now + offsets[i];
+                    scheduleTone(f, t, 0.20, t + 1.0, 'triangle');
+                });
+                return;
+            }
+
+            if (event === 'car_ready') {
+                playTone('success');
+                return;
+            }
+
+            if (event === 'vehicle_registered') {
+                scheduleTone(587.33, now, 0.10, now + 0.6, 'triangle');
+                return;
+            }
+        };
+
+        if (ctx.state === 'suspended') {
+            void ctx.resume().then(play).catch(() => {
+                // noop
+            });
+            return;
+        }
+
+        if (ctx.state !== 'running') return;
+        setIsAudioReady(true);
         play();
     };
 
@@ -204,7 +261,7 @@ export function useSoundNotifications(
                                 notifiedEntryStayIdsRef.current.delete(stayId);
                             }, 60_000);
 
-                            playTone('alert');
+                            playSound('new_entry');
                             toast.info(`🚗 Nueva entrada: Habitación ${roomNumber}`, {
                                 duration: 10000,
                                 position: 'top-center',
@@ -230,7 +287,7 @@ export function useSoundNotifications(
                     // Lógica para VALET (Escuchar solicitudes de auto)
                     if (role === 'valet') {
                         if (!oldData.vehicle_requested_at && newData.vehicle_requested_at) {
-                            playTone('alert');
+                            playSound('vehicle_request');
                             toast.error(`🚨 SOLICITUD DE AUTO: Habitación ${roomNumber}`, {
                                 duration: 10000,
                                 position: 'top-center',
@@ -243,7 +300,7 @@ export function useSoundNotifications(
                     if (role === 'receptionist') {
                         // Auto listo para entrega
                         if (!oldData.checkout_valet_employee_id && newData.checkout_valet_employee_id) {
-                            playTone('success');
+                            playSound('car_ready');
                             toast.success(`🚗 Auto listo para entrega: Habitación ${roomNumber}`, {
                                 duration: 5000,
                                 position: 'top-right'
@@ -251,7 +308,7 @@ export function useSoundNotifications(
                         }
                         // Solicitud de salida (Valet en puerta)
                         if (!oldData.valet_checkout_requested_at && newData.valet_checkout_requested_at) {
-                            playTone('alert');
+                            playSound('checkout_request');
                             toast.warning(`🔔 SOLICITUD DE SALIDA: Habitación ${roomNumber}`, {
                                 duration: 10000,
                                 position: 'top-center',
@@ -260,7 +317,7 @@ export function useSoundNotifications(
                         }
                         // También escuchar nuevas entradas (vehículo registrado)
                         if (!oldData.vehicle_plate && newData.vehicle_plate) {
-                            // Info silenciosa o tono suave
+                            playSound('vehicle_registered');
                             toast.info(`🚙 Nuevo vehículo registrado: Hab ${roomNumber}`);
                         }
                     }
@@ -275,9 +332,15 @@ export function useSoundNotifications(
 
     return {
         playTone,
+        playSound,
         playSuccess: () => playTone('success'),
         playError: () => playTone('alert'),
         playAlert: () => playTone('alert'),
+        playNewEntry: () => playSound('new_entry'),
+        playVehicleRequest: () => playSound('vehicle_request'),
+        playCheckoutRequest: () => playSound('checkout_request'),
+        playCarReady: () => playSound('car_ready'),
+        playVehicleRegistered: () => playSound('vehicle_registered'),
         isAudioReady,
         unlockAudio,
     };

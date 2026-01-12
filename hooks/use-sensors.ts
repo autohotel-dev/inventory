@@ -24,7 +24,8 @@ export function useSensors() {
         try {
             const { data, error } = await supabase
                 .from("sensors")
-                .select("*");
+                .select("*")
+                .order("created_at", { ascending: true });
 
             if (error) throw error;
             setSensors(data || []);
@@ -36,13 +37,14 @@ export function useSensors() {
     }, []);
 
     useEffect(() => {
+        // Initial fetch
         fetchSensors();
 
         const supabase = createClient();
 
         // Subscribe to realtime changes
         const channel = supabase
-            .channel('sensors-changes')
+            .channel('realtime-sensors')
             .on(
                 'postgres_changes',
                 {
@@ -51,20 +53,25 @@ export function useSensors() {
                     table: 'sensors'
                 },
                 (payload: any) => {
+                    console.log("[Sensors] Realtime event:", payload);
+
                     if (payload.eventType === 'INSERT') {
-                        setSensors(prev => [...prev, payload.new as Sensor]);
+                        setSensors(prev => {
+                            const exists = prev.some(s => s.id === payload.new.id);
+                            if (exists) return prev;
+                            return [...prev, payload.new as Sensor];
+                        });
                     } else if (payload.eventType === 'UPDATE') {
                         const newSensor = payload.new as Sensor;
                         setSensors(prev => prev.map(s => s.id === newSensor.id ? newSensor : s));
-
-                        // Alert logic if needed (handled in component usually, but we can do global alerts here if preferred)
-                        // Ideally, the component dealing with the room board handles the "Toast" to avoid duplicates if this hook is used in multiple places.
                     } else if (payload.eventType === 'DELETE') {
                         setSensors(prev => prev.filter(s => s.id !== payload.old.id));
                     }
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log("[Sensors] Subscription status:", status);
+            });
 
         return () => {
             supabase.removeChannel(channel);
