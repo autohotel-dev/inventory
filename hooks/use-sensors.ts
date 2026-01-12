@@ -69,7 +69,7 @@ export function useSensors() {
                     }
                 }
             )
-            .subscribe((status) => {
+            .subscribe((status: string) => {
                 console.log("[Sensors] Subscription status:", status);
             });
 
