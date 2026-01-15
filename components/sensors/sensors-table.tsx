@@ -321,9 +321,9 @@ export function SensorsTable() {
                                 placeholder="Pegar ID aquí..."
                                 value={newSensorDeviceID}
                                 onChange={e => setNewSensorDeviceID(e.target.value)}
-                                disabled={!!editingId} // No permitir cambiar ID al editar
+                            // disabled={!!editingId} // Permitimos editar para corregir errores
                             />
-                            {editingId && <p className="text-xs text-yellow-600">El ID no se puede cambiar.</p>}
+                            {/* {editingId && <p className="text-xs text-yellow-600">El ID no se puede cambiar.</p>} */}
                             {!editingId && (
                                 <p className="text-xs text-muted-foreground">
                                     Obtenlo en Smart Life App &gt; Sensor &gt; Editar &gt; Info del Equipo.
