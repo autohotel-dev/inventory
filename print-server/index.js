@@ -24,9 +24,10 @@ const CMD = {
     NORMAL_SIZE: `${GS}!\x00`,
     NEW_LINE: '\n',
     CUT: `${GS}V\x00`,
-    DIVIDER: '================================================',
-    DIVIDER_DASH: '------------------------------------------------',
-    DIVIDER_DOUBLE: '================================',
+    DIVIDER: '==========================================',
+    DIVIDER_DASH: '------------------------------------------',
+    DIVIDER_DOUBLE: '==========================================',
+    MARGIN: '\n\n',
 };
 
 // Configurar CORS para permitir peticiones desde todos los orígenes necesarios
@@ -47,7 +48,7 @@ function formatMoney(amount) {
     return `$${amount.toFixed(2)}`;
 }
 
-function formatLine(left, right, width = 48) {
+function formatLine(left, right, width = 42) {
     const spaces = Math.max(1, width - left.length - right.length);
     return left + ' '.repeat(spaces) + right;
 }
@@ -120,6 +121,8 @@ function buildReceptionTicket(data) {
     const { dateStr, timeStr } = formatDateTime(data.date);
 
     let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
     t += CMD.ALIGN_CENTER + CMD.DOUBLE_HEIGHT;
     t += 'COMANDA' + CMD.NEW_LINE;
     t += CMD.NORMAL_SIZE + CMD.BOLD_ON + 'RECEPCION' + CMD.BOLD_OFF + CMD.NEW_LINE;
@@ -147,7 +150,8 @@ function buildReceptionTicket(data) {
     }
 
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
-    t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
+    // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
 
     return t;
 }
@@ -156,6 +160,8 @@ function buildClientTicket(data) {
     const { dateStr, timeStr } = formatDateTime(data.date);
 
     let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
     t += CMD.ALIGN_CENTER + CMD.DOUBLE_HEIGHT;
     t += 'TICKET CONSUMO' + CMD.NEW_LINE;
     t += CMD.NORMAL_SIZE;
@@ -180,7 +186,8 @@ function buildClientTicket(data) {
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     t += CMD.ALIGN_CENTER;
     t += 'Gracias por su preferencia' + CMD.NEW_LINE;
-    t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
+    // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
 
     return t;
 }
@@ -190,6 +197,8 @@ function buildClosingTicket(data) {
     const { dateStr: endDate, timeStr: endTime } = formatDateTime(data.periodEnd);
 
     let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
     t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE + 'CORTE DE CAJA' + CMD.NEW_LINE;
     t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
     t += CMD.BOLD_ON + data.shiftName + CMD.NEW_LINE + CMD.BOLD_OFF;
@@ -274,7 +283,8 @@ function buildClosingTicket(data) {
 
     t += CMD.ALIGN_CENTER;
     t += `Impreso: ${new Date().toLocaleString('es-MX')}` + CMD.NEW_LINE;
-    t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
+    // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
 
     return t;
 }

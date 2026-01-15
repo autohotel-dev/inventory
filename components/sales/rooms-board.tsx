@@ -302,26 +302,38 @@ function RoomsBoardInternal() {
 
   // Detectar cambios en sensores para alertas
   useEffect(() => {
+    // Si no hay sensores, no hacer nada
+    if (sensors.length === 0) return;
+
     sensors.forEach((sensor) => {
       const wasOpen = prevSensorsRef.current.get(sensor.id);
 
-      // Si se abre y no estaba abierta
+      // Primera vez que vemos este sensor: solo inicializar, no alertar
+      if (wasOpen === undefined) {
+        prevSensorsRef.current.set(sensor.id, sensor.is_open);
+        return;
+      }
+
+      // Si cambió de cerrado a abierto -> ALERTA
       if (sensor.is_open && wasOpen === false) {
         const room = rooms.find((r) => r.id === sensor.room_id);
         const roomNumber = room ? room.number : "Desconocida";
 
+        console.log(`[Sensor] ¡Puerta abierta! Habitación ${roomNumber}`);
+
         toast.error(`¡Puerta Abierta! Habitación ${roomNumber}`, {
-          duration: 5000,
+          duration: 8000,
           description: "La puerta ha sido abierta.",
         });
 
         // Usar sonido centralizado
         playError();
       }
-      // Actualizar ref
+
+      // Actualizar ref con estado actual
       prevSensorsRef.current.set(sensor.id, sensor.is_open);
     });
-  }, [sensors, rooms]);
+  }, [sensors, rooms, playError]);
 
   // Actualizar selectedRoom cuando rooms cambie (después de fetchRooms)
   useEffect(() => {
@@ -671,14 +683,14 @@ function RoomsBoardInternal() {
             // Mantener visible el modal de bloqueo durante el paso
             ensureWheelClosed();
           } else {
-          if (showStatusNoteModal) {
-            console.log('🎓 [Training] Cerrando modal de nota y mostrando rueda (navegación hacia atrás)');
-            setShowStatusNoteModal(false);
-            setStatusNoteAction(null);
-          }
+            if (showStatusNoteModal) {
+              console.log('🎓 [Training] Cerrando modal de nota y mostrando rueda (navegación hacia atrás)');
+              setShowStatusNoteModal(false);
+              setStatusNoteAction(null);
+            }
 
-          ensureWheelOpenForStatus(wheelStatusNeeded);
-          addTimeout(() => ensureWheelOpenForStatus(wheelStatusNeeded), 300);
+            ensureWheelOpenForStatus(wheelStatusNeeded);
+            addTimeout(() => ensureWheelOpenForStatus(wheelStatusNeeded), 300);
           }
         }
       }
