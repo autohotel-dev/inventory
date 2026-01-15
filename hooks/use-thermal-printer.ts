@@ -3,8 +3,9 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 
-// URL del print-server local
-const PRINT_SERVER_URL = 'http://localhost:3001';
+// URL del print-server - configurable via variable de entorno
+// Para producción: apuntar a la IP de la PC donde corre el print-server
+const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
 
 interface ConsumptionTicketData {
     roomNumber: string;

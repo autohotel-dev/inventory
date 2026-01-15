@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Configuración de impresora de red
-const PRINTER_IP = process.env.PRINTER_IP || '169.254.79.120';
+const PRINTER_IP = process.env.PRINTER_IP || '192.168.0.104';
 const PRINTER_PORT = parseInt(process.env.PRINTER_PORT || '9100');
 const PRINTER_TIMEOUT = 5000;
 
@@ -120,20 +120,33 @@ function buildReceptionTicket(data) {
     const { dateStr, timeStr } = formatDateTime(data.date);
 
     let t = CMD.INIT;
-    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
-    t += 'COMANDA RECEPCION' + CMD.NEW_LINE;
-    t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_HEIGHT;
+    t += 'COMANDA' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE + CMD.BOLD_ON + 'RECEPCION' + CMD.BOLD_OFF + CMD.NEW_LINE;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
-    t += CMD.BOLD_ON + `Habitacion: ${data.roomNumber}` + CMD.NEW_LINE + CMD.BOLD_OFF;
+    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
     t += `Folio: ${data.folio}` + CMD.NEW_LINE;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
     t += CMD.BOLD_ON + 'CONSUMOS:' + CMD.NEW_LINE + CMD.BOLD_OFF;
-    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
+    // Imprimir items
+    if (data.items && data.items.length > 0) {
+        data.items.forEach(item => {
+            const itemLine = `${item.qty}x ${item.name}`;
+            const priceLine = formatMoney(item.total);
+            t += formatLine(itemLine, priceLine) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.total)) + CMD.BOLD_OFF + CMD.NEW_LINE;
+    } else {
+        t += '(Sin items)' + CMD.NEW_LINE;
+    }
+
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
     return t;
@@ -143,18 +156,30 @@ function buildClientTicket(data) {
     const { dateStr, timeStr } = formatDateTime(data.date);
 
     let t = CMD.INIT;
-    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
-    t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_HEIGHT;
+    t += 'TICKET CONSUMO' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
-    t += CMD.BOLD_ON + `Habitacion: ${data.roomNumber}` + CMD.NEW_LINE + CMD.BOLD_OFF;
+    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
-    t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CONSUMO' + CMD.NEW_LINE + CMD.BOLD_OFF;
-    t += CMD.ALIGN_LEFT;
+    // Imprimir items
+    if (data.items && data.items.length > 0) {
+        data.items.forEach(item => {
+            const itemLine = `${item.qty}x ${item.name}`;
+            const priceLine = formatMoney(item.total);
+            t += formatLine(itemLine, priceLine) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.total)) + CMD.BOLD_OFF + CMD.NEW_LINE;
+    }
 
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER;
+    t += 'Gracias por su preferencia' + CMD.NEW_LINE;
     t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
     return t;
