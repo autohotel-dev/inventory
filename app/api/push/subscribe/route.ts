@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -9,6 +10,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 });
         }
 
+        // 1. Verify user is authenticated using standard client
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
 
@@ -16,11 +18,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Use the provided employeeId or fallback to user.id if applicable
+        // 2. Save subscription using admin client to bypass RLS
+        const adminSupabase = createAdminClient();
         const targetEmployeeId = employeeId || user.id;
 
-        // Upsert subscription into the NEW table
-        const { error } = await supabase
+        const { error } = await adminSupabase
             .from('push_subscriptions')
             .upsert({
                 employee_id: targetEmployeeId,
