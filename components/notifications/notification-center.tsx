@@ -186,7 +186,7 @@ export function NotificationCenter() {
                                                         onClick={(e) => {
                                                             e.preventDefault();
                                                             e.stopPropagation();
-                                                            deleteNotification(notification.id);
+                                                            archiveNotification(notification.id);
                                                         }}
                                                     >
                                                         <Trash2 className="h-3 w-3" />

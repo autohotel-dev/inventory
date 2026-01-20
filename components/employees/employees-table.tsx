@@ -44,6 +44,7 @@ import {
   Users,
   UserCheck,
   UserX,
+  ArrowUpDown,
 } from "lucide-react";
 import { Employee, EMPLOYEE_ROLES } from "./types";
 
@@ -60,6 +61,12 @@ export function EmployeesTable() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Employee | 'name'; // 'name' is a virtual column for first + last
+    direction: 'asc' | 'desc';
+  }>({ key: 'first_name', direction: 'asc' });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -81,6 +88,7 @@ export function EmployeesTable() {
       const { data, error } = await supabase
         .from("employees")
         .select("*, auth_user_id")
+        .is("deleted_at", null) // Filter out soft-deleted employees
         .order("first_name", { ascending: true });
 
       if (error) throw error;
@@ -111,6 +119,31 @@ export function EmployeesTable() {
       emp.role.toLowerCase().includes(searchLower)
     );
   });
+
+  // Ordenar empleados
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    const { key, direction } = sortConfig;
+    let comparison = 0;
+
+    if (key === 'name') {
+      const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+      const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+      comparison = nameA.localeCompare(nameB);
+    } else if (typeof a[key] === 'string') {
+      comparison = (a[key] as string).localeCompare(b[key] as string);
+    } else if (typeof a[key] === 'boolean') {
+      comparison = (a[key] === b[key]) ? 0 : a[key] ? -1 : 1;
+    }
+
+    return direction === 'asc' ? comparison : -comparison;
+  });
+
+  const handleSort = (key: keyof Employee | 'name') => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
 
   // Estadísticas
   const stats = {
@@ -279,15 +312,24 @@ export function EmployeesTable() {
     }
   };
 
-  // Eliminar empleado
+  // Eliminar empleado (Soft Delete)
   const handleDelete = async () => {
     if (!editingEmployee) return;
 
     setSaving(true);
     try {
+      // 1. Crear email único para el registro borrado para liberar el email original
+      const timestamp = new Date().getTime();
+      const deletedEmail = `deleted_${timestamp}_${editingEmployee.email}`;
+
       const { error } = await supabase
         .from("employees")
-        .delete()
+        .update({
+          deleted_at: new Date().toISOString(),
+          is_active: false,
+          email: deletedEmail, // Liberar el email original
+          // Opcional: Desvincular usuario de auth si se desea
+        })
         .eq("id", editingEmployee.id);
 
       if (error) throw error;
@@ -368,10 +410,26 @@ export function EmployeesTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Empleado</TableHead>
-              <TableHead>Contacto</TableHead>
-              <TableHead>Rol</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => handleSort('name')} className="flex items-center gap-1 p-0 hover:bg-transparent -ml-2">
+                  Empleado <ArrowUpDown className="h-3 w-3" />
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => handleSort('email')} className="flex items-center gap-1 p-0 hover:bg-transparent">
+                  Contacto <ArrowUpDown className="h-3 w-3" />
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => handleSort('role')} className="flex items-center gap-1 p-0 hover:bg-transparent">
+                  Rol <ArrowUpDown className="h-3 w-3" />
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => handleSort('is_active')} className="flex items-center gap-1 p-0 hover:bg-transparent">
+                  Estado <ArrowUpDown className="h-3 w-3" />
+                </Button>
+              </TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -383,7 +441,7 @@ export function EmployeesTable() {
                   <p className="text-muted-foreground mt-2">Cargando empleados...</p>
                 </TableCell>
               </TableRow>
-            ) : filteredEmployees.length === 0 ? (
+            ) : sortedEmployees.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8">
                   <UserCircle className="h-12 w-12 mx-auto text-muted-foreground/50" />
@@ -393,7 +451,7 @@ export function EmployeesTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredEmployees.map((employee) => (
+              sortedEmployees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -651,7 +709,7 @@ export function EmployeesTable() {
                     </Badge>
                   )}
                 </div>
-                
+
                 {/* Opción para crear acceso a empleados existentes */}
                 {!editingEmployee.auth_user_id && (
                   <div className="space-y-3">
@@ -669,7 +727,7 @@ export function EmployeesTable() {
                         Crear acceso al sistema ahora
                       </Label>
                     </div>
-                    
+
                     {formData.create_auth_user && (
                       <div className="space-y-2 pl-6 border-l-2 border-primary/20">
                         <Label htmlFor="password_edit">Contraseña *</Label>

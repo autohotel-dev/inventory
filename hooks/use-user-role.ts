@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export type UserRole = "admin" | "manager" | "receptionist" | "cochero" | null;
+export type UserRole = "admin" | "manager" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
 
 interface UserRoleData {
   role: UserRole;
@@ -16,6 +16,8 @@ interface UserRoleData {
   isManager: boolean;
   isReceptionist: boolean;
   isValet: boolean;
+  isHousekeeping: boolean;
+  isMaintenance: boolean;
   canAccessAdmin: boolean;
   canAccessReports: boolean;
   canAccessEmployees: boolean;
@@ -153,6 +155,8 @@ export function useUserRole(): UserRoleData {
   const isManager = role === "manager";
   const isReceptionist = role === "receptionist";
   const isValet = role === "cochero";
+  const isHousekeeping = role === "camarista";
+  const isMaintenance = role === "mantenimiento";
   const canAccessAdmin = isAdmin || isManager;
 
   return {
@@ -166,13 +170,15 @@ export function useUserRole(): UserRoleData {
     isManager,
     isReceptionist,
     isValet,
+    isHousekeeping,
+    isMaintenance,
     canAccessAdmin,
     canAccessReports: canAccessAdmin,
     canAccessEmployees: canAccessAdmin,
     canAccessInventory: canAccessAdmin,
     canAccessPOS: true,
     canAccessRooms: true,
-    canAccessShiftClosing: !isValet, // Cocheros NO acceden a cortes
+    canAccessShiftClosing: !isValet && !isHousekeeping && !isMaintenance, // Solo recepción y admin hacen cortes
     linkEmployeeToUser,
   };
 }

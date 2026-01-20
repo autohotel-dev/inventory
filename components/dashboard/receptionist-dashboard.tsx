@@ -76,8 +76,12 @@ const SHIFT_COLORS: Record<string, string> = {
 };
 
 export function ReceptionistDashboard() {
-  const { employeeName, userId, employeeId, isLoading: roleLoading } = useUserRole();
+  const { employeeName, userId, employeeId, isLoading: roleLoading, isValet, isHousekeeping, isMaintenance } = useUserRole();
   const { success, error: showError } = useToast();
+
+  // Roles con acceso limitado (sin reportes financieros ni acciones de venta)
+  const isRestrictedRole = isValet || isHousekeeping || isMaintenance;
+
   const [summary, setSummary] = useState<ShiftSummary>({
     totalSales: 0,
     totalAmount: 0,
@@ -763,8 +767,8 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
-      {/* Resumen del turno - Solo mostrar si hay sesión activa */}
-      {activeSession && (
+      {/* Resumen del turno - Solo mostrar si hay sesión activa y NO es un rol restringido */}
+      {activeSession && !isRestrictedRole && (
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -799,8 +803,8 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
-      {/* Desglose de pagos - Solo mostrar si hay sesión activa */}
-      {activeSession && (
+      {/* Desglose de pagos - Solo mostrar si hay sesión activa y NO es un rol restringido */}
+      {activeSession && !isRestrictedRole && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -837,8 +841,8 @@ export function ReceptionistDashboard() {
         </div>
       )}
 
-      {/* Desglose por Concepto - Solo mostrar si hay sesión activa */}
-      {activeSession && (
+      {/* Desglose por Concepto - Solo mostrar si hay sesión activa y NO es un rol restringido */}
+      {activeSession && !isRestrictedRole && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -888,8 +892,8 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
-      {/* Gastos del Turno */}
-      {activeSession && (
+      {/* Gastos del Turno - Solo mostrar si NO es un rol restringido */}
+      {activeSession && !isRestrictedRole && (
         <ExpensesList
           expenses={expenses}
           totalExpenses={totalExpenses}
@@ -911,20 +915,26 @@ export function ReceptionistDashboard() {
               <span className="text-3xl">🏨</span>
               <span className="text-sm font-medium">Habitaciones</span>
             </Link>
-            <Link
-              href="/sales"
-              className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
-            >
-              <span className="text-3xl">📋</span>
-              <span className="text-sm font-medium">Mis Ventas</span>
-            </Link>
-            <Link
-              href="/sales/new"
-              className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
-            >
-              <span className="text-3xl">💰</span>
-              <span className="text-sm font-medium">Nueva Venta</span>
-            </Link>
+
+            {!isRestrictedRole && (
+              <>
+                <Link
+                  href="/sales"
+                  className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
+                >
+                  <span className="text-3xl">📋</span>
+                  <span className="text-sm font-medium">Mis Ventas</span>
+                </Link>
+                <Link
+                  href="/sales/new"
+                  className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
+                >
+                  <span className="text-3xl">💰</span>
+                  <span className="text-sm font-medium">Nueva Venta</span>
+                </Link>
+              </>
+            )}
+
             <button
               onClick={() => activeSession ? handleClockOutClick() : null}
               disabled={!activeSession}
@@ -936,17 +946,20 @@ export function ReceptionistDashboard() {
               <span className="text-3xl">🧾</span>
               <span className="text-sm font-medium">Cerrar Turno</span>
             </button>
-            <button
-              onClick={() => activeSession && setShowExpenseModal(true)}
-              disabled={!activeSession}
-              className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${activeSession
-                ? "hover:bg-muted cursor-pointer"
-                : "opacity-50 cursor-not-allowed"
-                }`}
-            >
-              <span className="text-3xl">💸</span>
-              <span className="text-sm font-medium">Registrar Gasto</span>
-            </button>
+
+            {!isRestrictedRole && (
+              <button
+                onClick={() => activeSession && setShowExpenseModal(true)}
+                disabled={!activeSession}
+                className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${activeSession
+                  ? "hover:bg-muted cursor-pointer"
+                  : "opacity-50 cursor-not-allowed"
+                  }`}
+              >
+                <span className="text-3xl">💸</span>
+                <span className="text-sm font-medium">Registrar Gasto</span>
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>

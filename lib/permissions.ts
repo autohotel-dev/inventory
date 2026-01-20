@@ -6,7 +6,7 @@
 import { createClient } from '@/lib/supabase/client';
 
 export type PermissionType = 'menu' | 'page';
-export type UserRole = 'admin' | 'manager' | 'receptionist' | 'cochero';
+export type UserRole = 'admin' | 'manager' | 'receptionist' | 'cochero' | 'camarista' | 'mantenimiento';
 
 export interface Permission {
     id: string;

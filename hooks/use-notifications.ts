@@ -102,60 +102,102 @@ export function useNotifications(): UseNotificationsReturn {
     }, [fetchNotifications, supabase]);
 
     const markAsRead = async (id: string) => {
-        const { error } = await supabase
-            .from("notifications")
-            .update({
-                is_read: true,
-                read_at: new Date().toISOString()
-            })
-            .eq("id", id);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        if (!error) {
-            setNotifications(prev =>
-                prev.map(n => n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
-            );
+            const { data, error } = await supabase
+                .from("notifications")
+                .update({
+                    is_read: true,
+                    read_at: new Date().toISOString()
+                })
+                .eq("id", id)
+                .eq("user_id", user.id) // Ensure we own the notification
+                .select();
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                setNotifications(prev =>
+                    prev.map(n => n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
+                );
+            } else {
+                console.warn("Notification not found or RLS restricted update", id);
+                // Optionally revert optimistic update if we did one before (here we wait)
+            }
+        } catch (error) {
+            console.error("Error marking notification as read:", error);
         }
     };
 
     const markAllAsRead = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        const { error } = await supabase
-            .from("notifications")
-            .update({
-                is_read: true,
-                read_at: new Date().toISOString()
-            })
-            .eq("user_id", user.id)
-            .eq("is_read", false);
+            const { error } = await supabase
+                .from("notifications")
+                .update({
+                    is_read: true,
+                    read_at: new Date().toISOString()
+                })
+                .eq("user_id", user.id)
+                .eq("is_read", false);
 
-        if (!error) {
+            if (error) throw error;
+
             setNotifications(prev =>
                 prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
             );
+        } catch (error) {
+            console.error("Error marking all as read:", error);
         }
     };
 
     const archiveNotification = async (id: string) => {
-        const { error } = await supabase
-            .from("notifications")
-            .update({ is_archived: true })
-            .eq("id", id);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        if (!error) {
-            setNotifications(prev => prev.filter(n => n.id !== id));
+            const { data, error } = await supabase
+                .from("notifications")
+                .update({ is_archived: true })
+                .eq("id", id)
+                .eq("user_id", user.id)
+                .select();
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                setNotifications(prev => prev.filter(n => n.id !== id));
+            }
+        } catch (error) {
+            console.error("Error archiving notification:", error);
         }
     };
 
     const deleteNotification = async (id: string) => {
-        const { error } = await supabase
-            .from("notifications")
-            .delete()
-            .eq("id", id);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        if (!error) {
-            setNotifications(prev => prev.filter(n => n.id !== id));
+            const { data, error } = await supabase
+                .from("notifications")
+                .delete()
+                .eq("id", id)
+                .eq("user_id", user.id)
+                .select();
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                setNotifications(prev => prev.filter(n => n.id !== id));
+            } else {
+                console.warn("Notification not found or RLS restricted delete", id);
+            }
+        } catch (error) {
+            console.error("Error deleting notification:", error);
         }
     };
 

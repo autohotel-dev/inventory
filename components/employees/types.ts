@@ -7,7 +7,7 @@ export interface Employee {
   last_name: string;
   email: string;
   phone?: string | null;
-  role: 'admin' | 'receptionist' | 'manager' | 'gerente' | 'cochero';
+  role: 'admin' | 'receptionist' | 'manager' | 'gerente' | 'cochero' | 'camarista' | 'mantenimiento';
   is_active: boolean;
   pin_code?: string | null;
   avatar_url?: string | null;
@@ -104,7 +104,18 @@ export const EMPLOYEE_ROLES = [
   { value: 'gerente', label: 'Gerente', color: 'bg-blue-500' },
   { value: 'receptionist', label: 'Recepcionista', color: 'bg-green-500' },
   { value: 'cochero', label: 'Cochero', color: 'bg-orange-500' },
+  { value: 'camarista', label: 'Camarista', color: 'bg-pink-500' },
+  { value: 'mantenimiento', label: 'Mantenimiento', color: 'bg-slate-500' },
 ] as const;
+
+// Límites de turnos activos por rol
+export const SHIFT_LIMITS_BY_ROLE: Record<string, number> = {
+  receptionist: 1,
+  cochero: 2,
+  camarista: 1,
+  mantenimiento: 2,
+  // Los demás roles no tienen límite explícito
+};
 
 // Constantes de turnos
 export const SHIFT_COLORS: Record<string, string> = {

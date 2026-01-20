@@ -5,10 +5,15 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, BedDouble, ShoppingCart, GraduationCap, Menu, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { useUserRole } from "@/hooks/use-user-role";
+
 export function BottomNav() {
     const pathname = usePathname();
+    const { isValet, isHousekeeping, isMaintenance } = useUserRole();
 
-    const links = [
+    const isRestrictedRole = isValet || isHousekeeping || isMaintenance;
+
+    const allLinks = [
         {
             href: "/dashboard",
             label: "Inicio",
@@ -35,9 +40,13 @@ export function BottomNav() {
         },
     ];
 
+    const links = isRestrictedRole
+        ? allLinks.filter(link => ["/dashboard", "/sales/pos"].includes(link.href))
+        : allLinks;
+
     return (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t h-16 pb-safe">
-            <nav className="grid grid-cols-4 h-full">
+            <nav className={`grid ${isRestrictedRole ? 'grid-cols-2' : 'grid-cols-4'} h-full`}>
                 {links.map((link) => (
                     <Link
                         key={link.href}

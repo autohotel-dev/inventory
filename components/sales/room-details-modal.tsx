@@ -3,9 +3,15 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign } from "lucide-react";
+import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Truck } from "lucide-react";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { createClient } from "@/lib/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Payment {
   id: string;
@@ -31,6 +37,8 @@ interface SalesOrderItem {
   } | null;
   is_courtesy?: boolean;
   courtesy_reason?: string | null;
+  concept_type?: string;
+  delivery_status?: string;
 }
 
 interface SalesOrder {
@@ -49,6 +57,7 @@ export interface RoomDetailsModalProps {
   room: Room | null;
   activeStay: RoomStay | null;
   onClose: () => void;
+  employeeId?: string | null;
 }
 
 export function RoomDetailsModal({
@@ -56,6 +65,7 @@ export function RoomDetailsModal({
   room,
   activeStay,
   onClose,
+  employeeId,
 }: RoomDetailsModalProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [items, setItems] = useState<SalesOrderItem[]>([]);
@@ -87,6 +97,8 @@ export function RoomDetailsModal({
         id,
         qty,
         unit_price,
+        concept_type,
+        delivery_status,
         products (name, sku)
       `)
       .eq("sales_order_id", salesOrderId);
@@ -148,54 +160,45 @@ export function RoomDetailsModal({
   if (!isOpen || !room) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col animate-in zoom-in-95 fade-in duration-200">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
-              <Receipt className="h-6 w-6 text-sky-400" />
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Receipt className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Detalles de Venta</h2>
-              <p className="text-sm text-slate-400">
+              <DialogTitle className="text-lg font-semibold">Detalles de Venta</DialogTitle>
+              <p className="text-sm text-muted-foreground">
                 Hab. {room.number} – {room.room_types?.name || "Sin tipo"}
               </p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-slate-400 hover:text-white"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        </DialogHeader>
 
         {/* Resumen */}
         {salesOrder && (
-          <div className="px-6 py-3 border-b border-slate-700 bg-slate-800/50 flex-shrink-0">
+          <div className="px-6 py-3 border-b bg-muted/50 flex-shrink-0">
             <div className="grid grid-cols-4 gap-4 text-center">
               <div>
-                <p className="text-xs text-slate-500">Total</p>
-                <p className="text-lg font-bold text-white">${Number(salesOrder.total).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-lg font-bold">${Number(salesOrder.total).toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Pagado</p>
-                <p className="text-lg font-bold text-emerald-400">${Number(salesOrder.paid_amount).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Pagado</p>
+                <p className="text-lg font-bold text-emerald-500 dark:text-emerald-400">${Number(salesOrder.paid_amount).toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Pendiente</p>
-                <p className={`text-lg font-bold ${Number(salesOrder.remaining_amount) > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                <p className="text-xs text-muted-foreground">Pendiente</p>
+                <p className={`text-lg font-bold ${Number(salesOrder.remaining_amount) > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
                   ${Number(salesOrder.remaining_amount).toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Estado</p>
-                <Badge variant="outline" className={`mt-1 ${salesOrder.status === 'COMPLETED' ? 'border-emerald-500 text-emerald-400' :
-                    salesOrder.status === 'OPEN' ? 'border-blue-500 text-blue-400' :
-                      'border-amber-500 text-amber-400'
+                <p className="text-xs text-muted-foreground">Estado</p>
+                <Badge variant="outline" className={`mt-1 ${salesOrder.status === 'COMPLETED' ? 'border-emerald-500 text-emerald-500' :
+                  salesOrder.status === 'OPEN' ? 'border-blue-500 text-blue-500' :
+                    'border-amber-500 text-amber-500'
                   }`}>
                   {salesOrder.status}
                 </Badge>
@@ -205,21 +208,21 @@ export function RoomDetailsModal({
         )}
 
         {/* Tabs */}
-        <div className="px-6 py-2 border-b border-slate-700 flex gap-2 flex-shrink-0">
+        <div className="px-6 py-2 border-b flex gap-2 flex-shrink-0">
           <Button
-            variant={activeTab === "payments" ? "default" : "ghost"}
+            variant={activeTab === "payments" ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("payments")}
-            className={activeTab === "payments" ? "bg-sky-600" : "text-slate-400"}
+            className={activeTab === "payments" ? "" : "text-muted-foreground"}
           >
             <DollarSign className="h-4 w-4 mr-1" />
             Pagos ({payments.filter(p => !p.parent_payment_id).length})
           </Button>
           <Button
-            variant={activeTab === "items" ? "default" : "ghost"}
+            variant={activeTab === "items" ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("items")}
-            className={activeTab === "items" ? "bg-sky-600" : "text-slate-400"}
+            className={activeTab === "items" ? "" : "text-muted-foreground"}
           >
             <Package className="h-4 w-4 mr-1" />
             Consumos ({items.length})
@@ -237,8 +240,8 @@ export function RoomDetailsModal({
             <div className="space-y-2">
               {payments.length === 0 ? (
                 <div className="text-center py-8">
-                  <Receipt className="h-12 w-12 mx-auto text-slate-600 mb-2" />
-                  <p className="text-slate-500">Sin pagos registrados</p>
+                  <Receipt className="h-12 w-12 mx-auto text-muted-foreground/50 mb-2" />
+                  <p className="text-muted-foreground">Sin pagos registrados</p>
                 </div>
               ) : (
                 <>
@@ -255,33 +258,33 @@ export function RoomDetailsModal({
                           const hasSubpayments = subpayments.length > 0;
 
                           return (
-                            <div key={payment.id} className="border border-slate-700 rounded-lg overflow-hidden">
+                            <div key={payment.id} className="border rounded-lg overflow-hidden">
                               {/* Pago principal */}
-                              <div className={`p-3 ${hasSubpayments ? 'bg-slate-800/50' : 'bg-slate-800/30'}`}>
+                              <div className={`p-3 ${hasSubpayments ? 'bg-muted/50' : 'bg-muted/30'}`}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <span className="text-sky-400 font-mono text-xs font-bold">
+                                    <span className="text-primary font-mono text-xs font-bold">
                                       {payment.payment_number || "—"}
                                     </span>
-                                    <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-300">
+                                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
                                       {getConceptLabel(payment.concept)}
                                     </Badge>
                                     <Badge
                                       variant="outline"
                                       className={`text-[10px] ${payment.status === "PAGADO"
-                                          ? "border-emerald-500/50 text-emerald-400"
-                                          : "border-amber-500/50 text-amber-400"
+                                        ? "border-emerald-500/50 text-emerald-500 dark:text-emerald-400"
+                                        : "border-amber-500/50 text-amber-500 dark:text-amber-400"
                                         }`}
                                     >
                                       {payment.status}
                                     </Badge>
                                   </div>
-                                  <span className="text-lg font-bold text-emerald-400">
+                                  <span className="text-lg font-bold text-emerald-500 dark:text-emerald-400">
                                     ${Number(payment.amount).toFixed(2)}
                                   </span>
                                 </div>
                                 {!hasSubpayments && (
-                                  <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                                     {getPaymentIcon(payment.payment_method)}
                                     <span>{payment.payment_method}</span>
                                     {payment.reference && (
@@ -291,8 +294,8 @@ export function RoomDetailsModal({
                                 )}
                                 {/* Mostrar productos si es un pago de consumo */}
                                 {payment.concept === "CONSUMO" && payment.notes && (
-                                  <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 rounded px-2 py-1">
-                                    <span className="text-slate-500">Productos: </span>
+                                  <div className="mt-2 text-xs text-muted-foreground bg-background/50 rounded px-2 py-1 border">
+                                    <span className="opacity-70">Productos: </span>
                                     {payment.notes}
                                   </div>
                                 )}
@@ -300,24 +303,24 @@ export function RoomDetailsModal({
 
                               {/* Subpagos */}
                               {hasSubpayments && (
-                                <div className="border-t border-slate-700">
+                                <div className="border-t">
                                   {subpayments.map((sub, idx) => (
                                     <div
                                       key={sub.id}
-                                      className={`px-3 py-2 flex items-center justify-between text-sm ${idx !== subpayments.length - 1 ? 'border-b border-slate-800' : ''
+                                      className={`px-3 py-2 flex items-center justify-between text-sm ${idx !== subpayments.length - 1 ? 'border-b' : ''
                                         }`}
                                     >
                                       <div className="flex items-center gap-2 pl-4">
-                                        <span className="text-slate-500">└</span>
+                                        <span className="text-muted-foreground">└</span>
                                         {getPaymentIcon(sub.payment_method)}
-                                        <span className="text-white text-xs">{sub.payment_method}</span>
+                                        <span className="text-foreground text-xs">{sub.payment_method}</span>
                                         {sub.reference && (
-                                          <span className="text-slate-500 text-[10px] font-mono">
+                                          <span className="text-muted-foreground text-[10px] font-mono">
                                             {sub.reference}
                                           </span>
                                         )}
                                       </div>
-                                      <span className="text-emerald-400 font-medium">
+                                      <span className="text-emerald-500 dark:text-emerald-400 font-medium">
                                         ${Number(sub.amount).toFixed(2)}
                                       </span>
                                     </div>
@@ -329,9 +332,9 @@ export function RoomDetailsModal({
                         })}
 
                         {/* Total */}
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-600">
-                          <span className="text-sm font-medium text-slate-300">Total Pagado</span>
-                          <span className="text-lg font-bold text-emerald-400">
+                        <div className="flex items-center justify-between pt-3 border-t">
+                          <span className="text-sm font-medium text-muted-foreground">Total Pagado</span>
+                          <span className="text-lg font-bold text-emerald-500 dark:text-emerald-400">
                             ${totalPayments.toFixed(2)}
                           </span>
                         </div>
@@ -346,46 +349,46 @@ export function RoomDetailsModal({
             <div className="space-y-2">
               {items.length === 0 ? (
                 <div className="text-center py-8">
-                  <Package className="h-12 w-12 mx-auto text-slate-600 mb-2" />
-                  <p className="text-slate-500">Sin consumos registrados</p>
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-2" />
+                  <p className="text-muted-foreground">Sin consumos registrados</p>
                 </div>
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="text-left text-xs text-slate-500 border-b border-slate-700">
+                    <tr className="text-left text-xs text-muted-foreground border-b">
                       <th className="pb-2 font-medium">Producto</th>
                       <th className="pb-2 font-medium text-center">Cant.</th>
                       <th className="pb-2 font-medium text-right">P. Unit.</th>
                       <th className="pb-2 font-medium text-right">Subtotal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800">
+                  <tbody className="divide-y">
                     {items.map((item) => (
                       <tr key={item.id} className="text-sm">
                         <td className="py-3">
                           <div>
-                            <p className="text-white">{item.products?.name || "Producto"}</p>
-                            <p className="text-xs text-slate-500">{item.products?.sku || ""}</p>
+                            <p className="font-medium text-foreground">{item.products?.name || "Producto"}</p>
+                            <p className="text-xs text-muted-foreground">{item.products?.sku || ""}</p>
                           </div>
                         </td>
-                        <td className="py-3 text-center text-slate-300">
+                        <td className="py-3 text-center text-muted-foreground">
                           {item.qty}
                         </td>
-                        <td className="py-3 text-right text-slate-400">
+                        <td className="py-3 text-right text-muted-foreground">
                           ${Number(item.unit_price).toFixed(2)}
                         </td>
-                        <td className="py-3 text-right font-medium text-white">
+                        <td className="py-3 text-right font-medium text-foreground">
                           ${(item.qty * Number(item.unit_price)).toFixed(2)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t border-slate-600">
-                      <td colSpan={3} className="py-3 text-sm font-medium text-slate-300">
+                    <tr className="border-t">
+                      <td colSpan={3} className="py-3 text-sm font-medium text-muted-foreground">
                         Total Consumos
                       </td>
-                      <td className="py-3 text-right text-lg font-bold text-white">
+                      <td className="py-3 text-right text-lg font-bold text-foreground">
                         ${totalItems.toFixed(2)}
                       </td>
                     </tr>
@@ -397,12 +400,12 @@ export function RoomDetailsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-700 flex justify-end flex-shrink-0">
+        <div className="px-6 py-4 border-t flex justify-end flex-shrink-0">
           <Button variant="outline" onClick={onClose}>
             Cerrar
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

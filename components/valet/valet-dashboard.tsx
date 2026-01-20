@@ -7,6 +7,7 @@ import { useValetActions } from "@/hooks/use-valet-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { ValetCheckInModal } from "./valet-checkin-modal";
 import { ValetCheckoutModal } from "./valet-checkout-modal";
+import { ValetDeliveryConfirmModal } from "./valet-delivery-confirm-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +19,15 @@ import {
     Clock,
     Users,
     LogOut,
-    Receipt
+    Receipt,
+    ShoppingBag,
+    Zap,
+    LayoutGrid,
+    X,
+    Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ValetDashboardProps {
     employeeId: string;
@@ -28,10 +35,15 @@ interface ValetDashboardProps {
 
 export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const [rooms, setRooms] = useState<Room[]>([]);
+    const [pendingConsumptions, setPendingConsumptions] = useState<any[]>([]);
+    const [myConsumptions, setMyConsumptions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [showCheckInModal, setShowCheckInModal] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+    const [selectedConsumption, setSelectedConsumption] = useState<any | null>(null);
+    const [cancellingId, setCancellingId] = useState<string | null>(null);
 
     const fetchRooms = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -62,11 +74,77 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         }
     }, []);
 
+    // Cargar consumos pendientes de entrega
+    const fetchPendingConsumptions = useCallback(async () => {
+        const supabase = createClient();
+        try {
+            const { data, error } = await supabase
+                .from('sales_order_items')
+                .select(`
+                    *,
+                    products(name, sku),
+                    sales_orders!inner(
+                        id,
+                        room_stays!inner(
+                            room_id,
+                            rooms(number)
+                        )
+                    )
+                `)
+                .eq('concept_type', 'CONSUMPTION')
+                .is('delivery_accepted_by', null)
+                .eq('is_paid', false)
+                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")') // Exclude finished/cancelled items
+                .order('id', { ascending: false });
+
+            if (error) throw error;
+            setPendingConsumptions(data || []);
+        } catch (error) {
+            console.error('Error fetching pending consumptions:', error);
+            setPendingConsumptions([]);
+        }
+    }, []);
+
+    // Cargar MIS consumos en progreso (aceptados por mí)
+    const fetchMyConsumptions = useCallback(async () => {
+        if (!employeeId) return;
+        const supabase = createClient();
+        try {
+            const { data, error } = await supabase
+                .from('sales_order_items')
+                .select(`
+                    *,
+                    products(name, sku),
+                    sales_orders!inner(
+                        id,
+                        room_stays!inner(
+                            room_id,
+                            rooms(number)
+                        )
+                    )
+                `)
+                .eq('concept_type', 'CONSUMPTION')
+                .eq('delivery_accepted_by', employeeId)
+                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT'])
+                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")') // Exclude finished/cancelled items
+                .order('id', { ascending: false });
+
+            if (error) throw error;
+            setMyConsumptions(data || []);
+        } catch (error) {
+            console.error('Error fetching my consumptions:', error);
+            setMyConsumptions([]);
+        }
+    }, [employeeId]);
+
+
+
+    // ... (keep existing audio hook)
     const { isAudioReady, unlockAudio } = useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
 
     const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout, handleProposeCheckout } = useValetActions(fetchRooms);
 
-    // Suscripción en tiempo real
+    // ... (keep existing subscription effect)
     useEffect(() => {
         const supabase = createClient();
         console.log("Setting up realtime subscription for ValetDashboard");
@@ -78,13 +156,19 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 () => fetchRooms(true))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' },
                 () => fetchRooms(true))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' },
+                () => {
+                    fetchPendingConsumptions();
+                    fetchMyConsumptions();
+                })
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [fetchRooms]);
+    }, [fetchRooms, fetchPendingConsumptions, fetchMyConsumptions]);
 
+    // ... (keep existing handlers: handleAcceptEntry, handleAcceptConsumption, useEffect for intervals, filters)
     const handleAcceptEntry = async (room: Room) => {
         const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
         if (!stay || !employeeId) return;
@@ -113,18 +197,77 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         }
     };
 
+    // Aceptar consumo para entregar
+    const handleAcceptConsumption = async (consumptionId: string, roomNumber: string) => {
+        if (!employeeId) return;
+
+        try {
+            const supabase = createClient();
+
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_accepted_by: employeeId,
+                    delivery_accepted_at: new Date().toISOString(),
+                    delivery_status: 'ACCEPTED'
+                })
+                .eq('id', consumptionId);
+
+            if (error) throw error;
+
+            toast.success("Consumo aceptado", {
+                description: `Entrega asignada para Habitación ${roomNumber}`
+            });
+
+            await fetchPendingConsumptions();
+            await fetchMyConsumptions();
+
+        } catch (error) {
+            console.error("Error accepting consumption:", error);
+            toast.error("Error al aceptar el consumo");
+        }
+    };
+
+    const handleCancelConsumption = async (consumptionId: string) => {
+        setCancellingId(consumptionId);
+        try {
+            const supabase = createClient();
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_status: 'CANCELLED',
+                    cancellation_reason: 'Cancelado desde tablero de cochero'
+                })
+                .eq('id', consumptionId);
+
+            if (error) throw error;
+            toast.success("Solicitud cancelada");
+            await fetchPendingConsumptions();
+            await fetchMyConsumptions();
+        } catch (error) {
+            console.error("Error cancelling consumption:", error);
+            toast.error("Error al cancelar");
+        } finally {
+            setCancellingId(null);
+        }
+    };
+
     useEffect(() => {
         fetchRooms(false);
+        fetchPendingConsumptions();
+        fetchMyConsumptions();
 
         // Auto-refresh cada 30 segundos (silencioso)
         const interval = setInterval(() => {
             // No refrescar si hay un modal abierto para evitar perder foco o datos
-            if (!showCheckInModal && !showCheckoutModal) {
+            if (!showCheckInModal && !showCheckoutModal && !showDeliveryModal) {
                 fetchRooms(true);
+                fetchPendingConsumptions();
+                fetchMyConsumptions();
             }
         }, 30000);
         return () => clearInterval(interval);
-    }, [employeeId, showCheckInModal, showCheckoutModal]);
+    }, [employeeId, showCheckInModal, showCheckoutModal, showDeliveryModal, fetchPendingConsumptions, fetchMyConsumptions]);
 
     // Filtrar habitaciones sin vehículo (entradas pendientes)
     const roomsWithoutVehicle = rooms.filter(r => {
@@ -210,33 +353,38 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         );
     }
 
+    const urgentCheckouts = roomsPendingCheckout.filter(r => {
+        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
+        return stay?.vehicle_requested_at || stay?.valet_checkout_requested_at;
+    });
+
+    const parkedVehicles = roomsPendingCheckout; // Todos, incluyendo urgentes, pero en la otra tab se ven todos.
+
     return (
         <div className="min-h-screen bg-background pb-20">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-background border-b p-4 space-y-3">
+            <div className="sticky top-0 z-10 bg-background border-b pt-4 px-4 pb-0 space-y-3">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold">Dashboard Cochero</h1>
-                        <p className="text-sm text-muted-foreground">Gestión de Entradas y Salidas</p>
+                        <h1 className="text-xl font-bold">Dashboard Cochero</h1>
+                        <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         {!isAudioReady && (
                             <Button
-                                variant="default"
+                                variant="outline"
+                                size="sm"
                                 onClick={async () => {
                                     const ok = await unlockAudio(true);
-                                    if (!ok) {
-                                        toast.error("No se pudo activar el sonido");
-                                        return;
-                                    }
-                                    toast.success("Sonido activado");
+                                    if (!ok) toast.error("No se pudo activar el sonido");
+                                    else toast.success("Sonido activado");
                                 }}
                             >
-                                Activar sonido
+                                🔊 Activar
                             </Button>
                         )}
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
                             onClick={() => fetchRooms()}
                             disabled={loading}
@@ -246,242 +394,315 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Por Aceptar</p>
-                        <p className="text-2xl font-bold text-blue-500">{entriesToAccept.length}</p>
+                <div className="grid grid-cols-4 gap-2 pb-2">
+                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-400">
+                        <Car className="h-4 w-4 mb-1" />
+                        <span className="text-xs font-medium text-center leading-none">Entradas</span>
+                        <span className="text-lg font-bold leading-none mt-1">{entriesToAccept.length + myPendingEntries.length}</span>
                     </div>
-                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Mis Registros</p>
-                        <p className="text-2xl font-bold text-purple-500">{myPendingEntries.length}</p>
+                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4 mb-1" />
+                        <span className="text-xs font-medium text-center leading-none">En Estancia</span>
+                        <span className="text-lg font-bold leading-none mt-1">{roomsPendingCheckout.length}</span>
                     </div>
-                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Salidas Pendientes</p>
-                        <p className="text-2xl font-bold text-green-500">{roomsPendingCheckout.length}</p>
+                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400">
+                        <LogOut className="h-4 w-4 mb-1" />
+                        <span className="text-xs font-medium text-center leading-none">Salidas</span>
+                        <span className="text-lg font-bold leading-none mt-1">{urgentCheckouts.length}</span>
+                    </div>
+                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+                        <ShoppingBag className="h-4 w-4 mb-1" />
+                        <span className="text-xs font-medium text-center leading-none">Servicios</span>
+                        <span className="text-lg font-bold leading-none mt-1">{pendingConsumptions.length + myConsumptions.length}</span>
                     </div>
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="p-4 space-y-6">
-                {/* Sección 1: Entradas por Aceptar */}
-                {entriesToAccept.length > 0 && (
-                    <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Users className="h-5 w-5 text-blue-500" />
-                            <h2 className="text-lg font-semibold">Entradas Disponibles</h2>
-                            <Badge variant="secondary">{entriesToAccept.length}</Badge>
-                        </div>
+            <Tabs defaultValue="tasks" className="w-full">
+                <div className="sticky top-[105px] z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 shadow-sm">
+                    <TabsList className="grid w-full grid-cols-2 h-14 p-1.5 bg-muted/40 rounded-full border border-border/50">
+                        <TabsTrigger
+                            value="tasks"
+                            className="relative text-base h-full rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300"
+                        >
+                            <Zap className="h-4 w-4 mr-2" />
+                            <span className="font-medium">Tareas</span>
+                            {(entriesToAccept.length > 0 || urgentCheckouts.length > 0 || pendingConsumptions.length > 0) && (
+                                <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1 flex items-center justify-center text-[10px] rounded-full border-none shadow-sm">
+                                    {entriesToAccept.length + urgentCheckouts.length + pendingConsumptions.length}
+                                </Badge>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="parking"
+                            className="text-base h-full rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300"
+                        >
+                            <LayoutGrid className="h-4 w-4 mr-2" />
+                            <span className="font-medium">Estacionamiento</span>
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
-                        <div className="space-y-3">
-                            {entriesToAccept.map((room) => {
-                                const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
-                                const checkin = stay?.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                <div className="p-4">
+                    <TabsContent value="tasks" className="space-y-6 mt-0 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in data-[state=active]:slide-in-from-bottom-6 duration-500 ease-out">
+                        {/* 1. Salidas Urgentes (PRIORIDAD ZERO) */}
+                        {urgentCheckouts.length > 0 && (
+                            <section>
+                                <div className="flex items-center gap-2 mb-3 text-red-600">
+                                    <LogOut className="h-5 w-5" />
+                                    <h2 className="text-lg font-bold">Salidas Solicitadas</h2>
+                                    <Badge variant="destructive" className="animate-pulse">{urgentCheckouts.length}</Badge>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {urgentCheckouts.map(room => (
+                                        <Card key={room.id} className="p-4 border-red-500 bg-red-50 dark:bg-red-950/30 shadow-md">
+                                            {renderCheckoutCardContent(room)}
+                                        </Card>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
-                                return (
-                                    <Card key={room.id} className="p-4 space-y-3 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-2xl font-bold">Hab. {room.number}</span>
-                                                    <Badge variant="outline">{room.room_types?.name}</Badge>
-                                                </div>
-                                                <p className="text-sm text-muted-foreground">Llegada: {checkin}</p>
+                        {/* 2. Entradas (Nueva + Mías) */}
+                        {(entriesToAccept.length > 0 || myPendingEntries.length > 0) && (
+                            <section>
+                                <div className="flex items-center gap-2 mb-3 text-blue-600">
+                                    <Car className="h-5 w-5" />
+                                    <h2 className="text-lg font-bold">Entradas</h2>
+                                    <Badge className="bg-blue-600">{entriesToAccept.length + myPendingEntries.length}</Badge>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {entriesToAccept.map(room => (
+                                        <Card key={room.id} className="p-4 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <span className="text-xl font-bold">Hab. {room.number}</span>
+                                                <Badge variant="outline">Entrada</Badge>
                                             </div>
-                                        </div>
-
-                                        <Button
-                                            onClick={() => handleAcceptEntry(room)}
-                                            className="w-full bg-blue-600 hover:bg-blue-700"
-                                        >
-                                            <CheckCircle2 className="h-5 w-5 mr-2" />
-                                            Aceptar Entrada
-                                        </Button>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-                    </section>
-                )}
-
-                {/* Sección 2: Mis Registros Pendientes */}
-                {myPendingEntries.length > 0 && (
-                    <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Car className="h-5 w-5 text-purple-500" />
-                            <h2 className="text-lg font-semibold">Mis Registros Pendientes</h2>
-                            <Badge variant="secondary">{myPendingEntries.length}</Badge>
-                        </div>
-
-                        <div className="space-y-3">
-                            {myPendingEntries.map((room) => {
-                                const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
-                                const people = stay?.current_people ?? 2;
-                                const isReminded = stay?.vehicle_requested_at; // Si recepción mandó recordatorio
-
-                                return (
-                                    <Card key={room.id} className={`p-4 space-y-3 ${isReminded ? 'border-red-400 bg-red-50 dark:bg-red-900/10' : 'border-purple-200 bg-purple-50/50 dark:bg-purple-900/10'}`}>
-                                        {isReminded && (
-                                            <div className="text-xs font-bold text-red-600 flex items-center gap-1 mb-1">
-                                                <Users className="h-3 w-3" />
-                                                RECEPCIÓN SOLICITA REGISTRO
-                                            </div>
-                                        )}
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-2xl font-bold">Hab. {room.number}</span>
-                                                    <Badge variant="outline">{room.room_types?.name}</Badge>
-                                                </div>
-                                                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                                    <span className="flex items-center gap-1">
-                                                        <Users className="h-4 w-4" />
-                                                        {people} pax
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <Button
-                                            onClick={() => handleOpenCheckIn(room)}
-                                            className="w-full h-auto min-h-[48px] text-base bg-purple-600 hover:bg-purple-700 whitespace-normal py-2"
-                                        >
-                                            <Car className="h-5 w-5 mr-2 shrink-0" />
-                                            Registrar Vehículo
-                                        </Button>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-                    </section>
-                )}
-
-                {/* Vehículos bajo custodia */}
-                {roomsPendingCheckout.length > 0 && (
-                    <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Car className="h-5 w-5 text-green-500" />
-                            <h2 className="text-lg font-semibold">Vehículos Bajo Custodia</h2>
-                            <Badge variant="secondary">{roomsPendingCheckout.length}</Badge>
-                        </div>
-
-                        <div className="space-y-3">
-                            {roomsPendingCheckout.map((room) => {
-                                const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
-                                const checkinTime = stay?.check_in_at ? new Date(stay.check_in_at) : new Date();
-                                const now = new Date();
-                                const duration = now.getTime() - checkinTime.getTime();
-                                const hours = Math.floor(duration / (1000 * 60 * 60));
-                                const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
-
-                                // Solicitado si existe fecha Y es distinta de check_in (por si acaso se copió)
-                                const isRequested = !!stay?.vehicle_requested_at;
-
-                                return (
-                                    <Card key={room.id} className={`p-4 space-y-3 ${isRequested ? "border-red-500 bg-red-50 dark:bg-red-950/20 shadow-lg scale-[1.02] transition-transform" : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/10"}`}>
-                                        {isRequested ? (
-                                            <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 px-3 py-1.5 rounded-md text-sm font-bold flex items-center justify-center gap-2 animate-pulse mb-2 border border-red-200 dark:border-red-800">
-                                                🚨 SALIDA SOLICITADA - REVISAR HABITACIÓN 🚨
-                                            </div>
-                                        ) : stay?.valet_checkout_requested_at ? (
-                                            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center justify-center gap-2 mb-2 border border-amber-200 dark:border-amber-800 animate-pulse">
-                                                ⏳ AVISO ENVIADO - ESPERANDO AUTORIZACIÓN
-                                            </div>
-                                        ) : (
-                                            <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-2 mb-2 border border-green-200 dark:border-green-800">
-                                                <CheckCircle2 className="h-3 w-3" />
-                                                Cliente en estancia - Vehículo estacionado
-                                            </div>
-                                        )}
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-2xl font-bold">Hab. {room.number}</span>
-                                                    <Badge variant="outline">{room.room_types?.name}</Badge>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                    <Clock className="h-4 w-4" />
-                                                    <span>Duración: {hours}h {minutes}m</span>
-                                                </div>
-                                                {stay?.vehicle_plate && (
-                                                    <p className="text-sm text-muted-foreground mt-1 font-mono bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded inline-block">
-                                                        🚗 {stay.vehicle_plate}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {isRequested ? (
-                                            <Button
-                                                onClick={() => handleOpenCheckout(room)}
-                                                className="w-full h-auto min-h-[48px] text-base whitespace-normal py-2 bg-red-600 hover:bg-red-700 text-white"
-                                            >
-                                                <LogOut className="h-5 w-5 mr-2 shrink-0" />
-                                                Revisar y Entregar (PRIORIDAD)
+                                            <Button onClick={() => handleAcceptEntry(room)} className="w-full bg-blue-600 hover:bg-blue-700">
+                                                <CheckCircle2 className="h-4 w-4 mr-2" /> Aceptar
                                             </Button>
-                                        ) : (
-                                            <div className="flex flex-col gap-2">
-                                                <Button
-                                                    onClick={() => handleOpenCheckout(room)}
-                                                    variant="secondary"
-                                                    className="w-full h-auto min-h-[40px] text-sm whitespace-normal py-2"
-                                                >
-                                                    <LogOut className="h-4 w-4 mr-2" />
-                                                    Revisar / Entregar Auto
-                                                </Button>
-                                                <Button
-                                                    onClick={() => handlePropose(room)}
-                                                    disabled={!!stay?.valet_checkout_requested_at || actionLoading}
-                                                    variant="outline"
-                                                    className="w-full h-auto min-h-[40px] text-sm whitespace-normal py-2 border-amber-500/50 hover:bg-amber-500/10 text-amber-500"
-                                                >
-                                                    <Clock className="h-4 w-4 mr-2" />
-                                                    {stay?.valet_checkout_requested_at ? "Aviso enviado" : "Notificar Salida (Cochero)"}
-                                                </Button>
+                                        </Card>
+                                    ))}
+                                    {myPendingEntries.map(room => (
+                                        <Card key={room.id} className="p-4 border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <span className="text-xl font-bold">Hab. {room.number}</span>
+                                                <Badge className="bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/30">Mis Registros</Badge>
                                             </div>
-                                        )}
-                                    </Card>
-                                );
-                            })}
+                                            <Button onClick={() => handleOpenCheckIn(room)} className="w-full bg-purple-600 hover:bg-purple-700">
+                                                <Car className="h-4 w-4 mr-2" /> Registrar Auto
+                                            </Button>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {/* 3. Servicios (Mis Entregas + Pendientes) */}
+                        {(pendingConsumptions.length > 0 || myConsumptions.length > 0) && (
+                            <section>
+                                <div className="flex items-center gap-2 mb-3 text-amber-600">
+                                    <ShoppingBag className="h-5 w-5" />
+                                    <h2 className="text-lg font-bold">Servicios</h2>
+                                    <Badge className="bg-amber-600">{pendingConsumptions.length + myConsumptions.length}</Badge>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {/* Mis Entregas */}
+                                    {myConsumptions.map(item => (
+                                        <Card key={item.id} className="p-4 border-orange-400 bg-orange-50/50 dark:bg-orange-900/10">
+                                            {renderConsumptionCardContent(item, true)}
+                                        </Card>
+                                    ))}
+                                    {/* Pendientes Generales */}
+                                    {/* Agrupar por habitación para consistencia visual */}
+                                    {Object.entries(
+                                        pendingConsumptions.reduce((acc: Record<string, any[]>, item) => {
+                                            const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
+                                            if (!acc[roomNumber]) acc[roomNumber] = [];
+                                            acc[roomNumber].push(item);
+                                            return acc;
+                                        }, {})
+                                    ).map(([roomNumber, items]) => (
+                                        <Card key={roomNumber} className="p-4 border-amber-200 bg-amber-50/50 dark:bg-amber-900/10">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-xl font-bold">Hab. {roomNumber}</span>
+                                                <Badge variant="outline" className="bg-amber-100 text-amber-800">{items.length} items</Badge>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {items.map((item: any) => (
+                                                    <div key={item.id} className="flex justify-between text-sm bg-background/50 p-2 rounded">
+                                                        <span>{item.qty}x {item.products?.name}</span>
+                                                        <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500 text-amber-600 mr-2" onClick={() => handleAcceptConsumption(item.id, roomNumber)}>
+                                                            Aceptar
+                                                        </Button>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                                                            onClick={() => handleCancelConsumption(item.id)}
+                                                            disabled={cancellingId === item.id}
+                                                        >
+                                                            {cancellingId === item.id ? (
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                            ) : (
+                                                                <X className="h-3 w-3" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {/* Empty State Tareas */}
+                        {entriesToAccept.length === 0 && myPendingEntries.length === 0 && urgentCheckouts.length === 0 && pendingConsumptions.length === 0 && myConsumptions.length === 0 && (
+                            <div className="text-center py-12 flex flex-col items-center justify-center opacity-50">
+                                <CheckCircle2 className="h-16 w-16 mb-4 text-green-500" />
+                                <h3 className="text-xl font-medium">Todo al día</h3>
+                                <p>No hay tareas urgentes pendientes</p>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="parking" className="mt-0 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in data-[state=active]:slide-in-from-bottom-6 duration-500 ease-out">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                <Car className="h-5 w-5" /> Vehículos en Custodia
+                            </h2>
+                            <Badge variant="secondary">{parkedVehicles.length}</Badge>
                         </div>
-                    </section>
-                )}
 
-                {/* Empty state */}
-                {entriesToAccept.length === 0 && myPendingEntries.length === 0 && roomsPendingCheckout.length === 0 && (
-                    <div className="text-center py-12">
-                        <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">Sin tareas pendientes</h3>
-                        <p className="text-muted-foreground">
-                            No hay entradas ni salidas por gestionar en este momento
-                        </p>
-                    </div>
-                )}
-            </div>
+                        {parkedVehicles.length === 0 ? (
+                            <div className="text-center py-12 opacity-50">
+                                <p>El estacionamiento está vacío</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {parkedVehicles.map(room => (
+                                    <Card key={room.id} className="p-4 relative hover:shadow-md transition-shadow">
+                                        {renderCheckoutCardContent(room)}
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                    </TabsContent>
+                </div>
+            </Tabs>
 
-            {/* Modals */}
+            {/* Modals remain the same */}
             <ValetCheckInModal
                 room={selectedRoom}
                 isOpen={showCheckInModal}
-                onClose={() => {
-                    setShowCheckInModal(false);
-                    setSelectedRoom(null);
-                }}
+                onClose={() => { setShowCheckInModal(false); setSelectedRoom(null); }}
                 onConfirm={handleCheckIn}
                 loading={actionLoading}
             />
-
             <ValetCheckoutModal
                 room={selectedRoom}
                 isOpen={showCheckoutModal}
-                onClose={() => {
-                    setShowCheckoutModal(false);
-                    setSelectedRoom(null);
-                }}
+                onClose={() => { setShowCheckoutModal(false); setSelectedRoom(null); }}
                 onConfirm={handleCheckout}
                 loading={actionLoading}
             />
+            <ValetDeliveryConfirmModal
+                isOpen={showDeliveryModal}
+                onClose={() => { setShowDeliveryModal(false); setSelectedConsumption(null); }}
+                consumption={selectedConsumption}
+                employeeId={employeeId}
+                onConfirmed={() => fetchMyConsumptions()}
+            />
         </div>
     );
+
+    // Helper para renderizar contenido de tarjetas de salida para evitar duplicidad
+    function renderCheckoutCardContent(room: Room) {
+        const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
+        const checkinTime = stay?.check_in_at ? new Date(stay.check_in_at) : new Date();
+        const durationH = Math.floor((new Date().getTime() - checkinTime.getTime()) / 3600000);
+        const isRequested = !!stay?.vehicle_requested_at;
+        const isValetRequested = !!stay?.valet_checkout_requested_at;
+
+        return (
+            <>
+                <div className="flex justify-between items-start mb-2">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xl font-bold">Hab. {room.number}</span>
+                            {stay?.vehicle_plate && (
+                                <Badge variant="secondary" className="font-mono">{stay.vehicle_plate}</Badge>
+                            )}
+                        </div>
+                        <div className="flex items-center text-xs text-muted-foreground mt-1 gap-2">
+                            <Clock className="h-3 w-3" />
+                            <span>{durationH}h</span>
+                        </div>
+                    </div>
+                    {isRequested && <Badge className="bg-red-500 hover:bg-red-600 animate-pulse">Solicitado</Badge>}
+                    {isValetRequested && <Badge className="bg-amber-500 hover:bg-amber-600">Aviso Enviado</Badge>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                    {isRequested ? (
+                        <Button onClick={() => handleOpenCheckout(room)} className="col-span-2 bg-red-600 hover:bg-red-700 text-white">
+                            <LogOut className="h-4 w-4 mr-2" /> Entregar
+                        </Button>
+                    ) : (
+                        <>
+                            <Button variant="outline" size="sm" onClick={() => handlePropose(room)} disabled={isValetRequested || actionLoading}>
+                                {isValetRequested ? "Avisado" : "Avisar Salida"}
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => handleOpenCheckout(room)}>
+                                <LogOut className="h-4 w-4 mr-2" /> Entregar
+                            </Button>
+                        </>
+                    )}
+                </div>
+            </>
+        );
+    }
+
+    function renderConsumptionCardContent(item: any, isMine: boolean) {
+        const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
+        const isInTransit = item.delivery_status === 'IN_TRANSIT';
+
+        return (
+            <>
+                <div className="flex justify-between mb-2">
+                    <span className="font-bold">Hab. {roomNumber}</span>
+                    <span className="font-bold text-green-600">{formatCurrency(item.total)}</span>
+                </div>
+                <div className="text-sm mb-3">
+                    {item.qty}x {item.products?.name}
+                </div>
+                {isInTransit ? (
+                    <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => { setSelectedConsumption(item); setShowDeliveryModal(true); }}>
+                        <CheckCircle2 className="h-4 w-4 mr-2" /> Confirmar Entrega
+                    </Button>
+                ) : (
+                    <div className="flex items-center gap-2 w-full">
+                        <div className="text-center text-xs bg-slate-100 dark:bg-slate-800 py-2 rounded flex-1 text-slate-500 font-medium">
+                            Esperando servicio...
+                        </div>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors shrink-0"
+                            onClick={() => handleCancelConsumption(item.id)}
+                            title="Cancelar servicio"
+                            disabled={cancellingId === item.id}
+                        >
+                            {cancellingId === item.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <X className="h-4 w-4" />
+                            )}
+                        </Button>
+                    </div>
+                )}
+            </>
+        );
+    }
 }

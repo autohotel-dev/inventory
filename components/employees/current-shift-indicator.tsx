@@ -33,7 +33,7 @@ import {
   ChevronRight,
   Receipt,
 } from "lucide-react";
-import { Employee, ShiftDefinition, ShiftSession, SHIFT_COLORS } from "./types";
+import { Employee, ShiftDefinition, ShiftSession, SHIFT_COLORS, SHIFT_LIMITS_BY_ROLE, EMPLOYEE_ROLES } from "./types";
 import { ShiftClosingModal } from "./shift-closing";
 
 // Iconos por turno
@@ -47,6 +47,7 @@ interface CurrentShiftIndicatorProps {
   compact?: boolean;
   showClockInOut?: boolean;
   onShiftChange?: (session: ShiftSession | null) => void;
+  userRole?: string | null; // Optional user role to override permission check
 }
 
 export function CurrentShiftIndicator({
@@ -62,6 +63,7 @@ export function CurrentShiftIndicator({
   const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<ShiftDefinition[]>([]);
+  const [activeSessionsList, setActiveSessionsList] = useState<ShiftSession[]>([]); // Lista de todas las sesiones activas (para admins)
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -90,7 +92,7 @@ export function CurrentShiftIndicator({
           .from("employees")
           .select("*")
           .eq("is_active", true)
-          .in("role", ["receptionist", "manager"])
+          .in("role", ["receptionist", "manager", "cochero", "camarista", "mantenimiento"])
           .order("first_name"),
         supabase
           .from("shift_sessions")
@@ -104,6 +106,33 @@ export function CurrentShiftIndicator({
       if (shiftsRes.error) throw shiftsRes.error;
       if (employeesRes.error) throw employeesRes.error;
       if (sessionRes.error) throw sessionRes.error;
+
+      // Si es admin/manager/supervisor, cargar TODAS las sesiones activas
+      const { data: { user } } = await supabase.auth.getUser();
+      let allActiveSessions: ShiftSession[] = [];
+
+      if (user) {
+        // Verificar rol del usuario actual
+        const { data: roleData } = await supabase
+          .from("employees")
+          .select("role")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        const role = roleData?.role;
+        const isAdminOrManager = role === 'admin' || role === 'manager' || role === 'supervisor';
+
+        if (isAdminOrManager) {
+          const { data: allSessions } = await supabase
+            .from("shift_sessions")
+            .select("*, employees(*), shift_definitions(*)")
+            .eq("status", "active")
+            .is("clock_out_at", null)
+            .order("clock_in_at", { ascending: false });
+
+          if (allSessions) allActiveSessions = allSessions;
+        }
+      }
 
       const allShifts = shiftsRes.data || [];
       setShifts(allShifts);
@@ -145,6 +174,7 @@ export function CurrentShiftIndicator({
       // Sesión activa
       const session = sessionRes.data?.[0] || null;
       setActiveSession(session);
+      setActiveSessionsList(allActiveSessions); // Guardar lista completa
       onShiftChange?.(session);
     } catch (err: any) {
       console.error("Error loading shift data:", err);
@@ -167,31 +197,51 @@ export function CurrentShiftIndicator({
 
     setActionLoading(true);
     try {
-      // 🔒 VALIDACIÓN: Verificar que no haya otro turno activo
-      const { data: activeSessions, error: checkError } = await supabase
-        .from("shift_sessions")
-        .select("*, employees(*)")
-        .eq("status", "active")
-        .is("clock_out_at", null);
-
-      if (checkError) throw checkError;
-
-      // Si ya existe un turno activo, prevenir el inicio de uno nuevo
-      if (activeSessions && activeSessions.length > 0) {
-        const activeEmployee = activeSessions[0].employees;
-        const employeeName = activeEmployee
-          ? `${activeEmployee.first_name} ${activeEmployee.last_name}`
-          : "Otro empleado";
-
-        showError(
-          "No se puede iniciar turno",
-          `${employeeName} ya tiene un turno activo. Primero debe cerrar su turno para que puedas iniciar uno nuevo.`
-        );
+      // Obtener información del empleado seleccionado
+      const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+      if (!selectedEmployee) {
+        showError("Error", "No se encontró el empleado seleccionado");
         setActionLoading(false);
         return;
       }
 
-      // Si no hay turnos activos, proceder normalmente
+      const employeeRole = selectedEmployee.role;
+      const roleLimit = SHIFT_LIMITS_BY_ROLE[employeeRole];
+      const roleLabel = EMPLOYEE_ROLES.find(r => r.value === employeeRole)?.label || employeeRole;
+
+      // 🔒 VALIDACIÓN POR ROL: Verificar límite de turnos activos para este rol
+      // EXCEPCIÓN: Si el empleado mismo es admin o manager, podría tener un tratamiento especial, pero por consistencia
+      // aplicamos la regla. Los admins que inician turno para OTROS deben respetar la regla del OTRO.
+      if (roleLimit !== undefined) {
+        const { data: activeSessions, error: checkError } = await supabase
+          .from("shift_sessions")
+          .select("*, employees!inner(*)")
+          .eq("status", "active")
+          .eq("employees.role", employeeRole)
+          .is("clock_out_at", null);
+
+        if (checkError) throw checkError;
+
+        const activeCount = activeSessions?.length || 0;
+
+        // Si se ha alcanzado el límite para este rol, mostrar error
+        if (activeCount >= roleLimit) {
+          const activeNames = activeSessions
+            ?.map((s: any) => `${s.employees.first_name} ${s.employees.last_name}`)
+            .join(", ");
+
+          showError(
+            "Límite de turnos alcanzado",
+            `Ya hay ${activeCount} turno(s) activo(s) de ${roleLabel} (máximo permitido: ${roleLimit}). ` +
+            `Empleado(s) activo(s): ${activeNames}. ` +
+            `Primero debe(n) cerrar su turno para que puedas iniciar uno nuevo.`
+          );
+          setActionLoading(false);
+          return;
+        }
+      }
+
+      // Proceder con el registro del turno
       const { data, error } = await supabase
         .from("shift_sessions")
         .insert({
@@ -220,14 +270,26 @@ export function CurrentShiftIndicator({
         fullError: err
       });
 
-      // Detectar error de constraint único (otro turno activo)
+      // Detectar error del trigger de límite por rol
       const errorMessage = err.message || err.details || "";
-      const errorCode = err.code || "";
 
-      if (errorMessage.includes("idx_single_active_shift_session") ||
+      if (errorMessage.includes("ROLE_SHIFT_LIMIT_EXCEEDED")) {
+        // Parsear el mensaje del trigger: ROLE_SHIFT_LIMIT_EXCEEDED::RoleName::count::max
+        const parts = errorMessage.split("::");
+        const roleName = parts[1] || "este rol";
+        const currentCount = parts[2] || "?";
+        const maxAllowed = parts[3] || "?";
+
+        showError(
+          "Límite de turnos alcanzado",
+          `Ya hay ${currentCount} turno(s) activo(s) de ${roleName} (máximo permitido: ${maxAllowed}). Cierra un turno existente antes de iniciar uno nuevo.`
+        );
+      } else if (
+        errorMessage.includes("idx_single_active_shift_session") ||
         errorMessage.includes("duplicate key") ||
         errorMessage.includes("unique constraint") ||
-        errorCode === "23505") {
+        err.code === "23505"
+      ) {
         showError(
           "No se puede iniciar turno",
           "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
@@ -437,75 +499,160 @@ export function CurrentShiftIndicator({
       )}
 
       {/* Recepcionista en turno */}
-      <div className="border-t pt-4">
-        {activeSession?.employees ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-sm font-medium">
-                  {activeSession.employees.first_name[0]}
-                  {activeSession.employees.last_name[0]}
-                </span>
+      <div>
+        {/* Solo mostrar la sección individual si NO es vista de admin (sin lista expandida) */}
+        {activeSessionsList.length === 0 ? (
+          activeSession?.employees ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-sm font-medium">
+                    {activeSession.employees.first_name[0]}
+                    {activeSession.employees.last_name[0]}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">En turno</p>
+                  <p className="font-medium">
+                    {activeSession.employees.first_name} {activeSession.employees.last_name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Desde {new Date(activeSession.clock_in_at).toLocaleTimeString("es-MX", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">En turno</p>
-                <p className="font-medium">
-                  {activeSession.employees.first_name} {activeSession.employees.last_name}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Desde {new Date(activeSession.clock_in_at).toLocaleTimeString("es-MX", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
-            </div>
 
-            {showClockInOut && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClockOutClick}
-                disabled={actionLoading}
-                className="text-red-500 border-red-500 hover:bg-red-500/10"
-              >
-                {actionLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Salir
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                <User className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm">Sin recepcionista</p>
-                <p className="text-xs">Nadie ha registrado entrada</p>
-              </div>
+              {showClockInOut && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClockOutClick}
+                  disabled={actionLoading}
+                  className="text-red-500 border-red-500 hover:bg-red-500/10"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Salir
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                  <User className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm">Sin recepcionista</p>
+                  <p className="text-xs">Nadie ha registrado entrada</p>
+                </div>
+              </div>
 
-            {showClockInOut && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setIsClockInModalOpen(true)}
-                disabled={!currentShift}
-              >
-                <LogIn className="h-4 w-4 mr-2" />
-                Entrar
-              </Button>
-            )}
-          </div>
-        )}
+              {showClockInOut && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setIsClockInModalOpen(true)}
+                  disabled={!currentShift}
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Entrar
+                </Button>
+              )}
+            </div>
+          )
+        ) : null}
       </div>
+
+      {/* SECCIÓN ADMIN: Listado de todas las sesiones activas */}
+      {activeSessionsList.length > 0 && (
+        <div className="border-t pt-5 mt-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+              <div className="bg-primary/10 p-1.5 rounded-full">
+                <User className="h-4 w-4 text-primary" />
+              </div>
+              Staff Activo
+              <Badge variant="secondary" className="ml-1 text-xs font-normal h-5 px-1.5">
+                {activeSessionsList.length}
+              </Badge>
+            </h3>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setIsClockInModalOpen(true)}
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Registrar entrada
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-1">
+            {activeSessionsList.map((session) => {
+              const roleInfo = EMPLOYEE_ROLES.find(r => r.value === session.employees?.role);
+              const roleLabel = roleInfo?.label || session.employees?.role;
+              const roleColor = roleInfo?.color || "bg-gray-500";
+              const initials = `${session.employees?.first_name?.[0] || ""}${session.employees?.last_name?.[0] || ""}`;
+
+              return (
+                <div
+                  key={session.id}
+                  className="group flex items-center justify-between p-3 bg-card border rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Avatar con iniciales y color de rol */}
+                    <div className={`h-10 w-10 rounded-full ${roleColor} flex items-center justify-center text-white shadow-sm ring-2 ring-white dark:ring-slate-900`}>
+                      <span className="text-xs font-bold tracking-wider">{initials}</span>
+                    </div>
+
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold leading-none mb-1">
+                        {session.employees?.first_name} {session.employees?.last_name}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 border-muted-foreground/30 font-normal text-muted-foreground bg-muted/30"
+                        >
+                          {roleLabel}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          • <Clock className="h-3 w-3" /> {new Date(session.clock_in_at).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-70 group-hover:opacity-100 transition-all"
+                    title="Cerrar turno de este empleado"
+                    onClick={() => {
+                      setActiveSession(session);
+                      setSessionToClose(session);
+                      setShowClockOutOptions(true);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Modal de Clock In */}
       <Dialog open={isClockInModalOpen} onOpenChange={setIsClockInModalOpen}>

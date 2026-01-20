@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 type NotificationType = 'success' | 'alert' | 'info';
-type SoundEvent = 'new_entry' | 'vehicle_request' | 'checkout_request' | 'car_ready' | 'vehicle_registered';
+type SoundEvent = 'new_entry' | 'vehicle_request' | 'checkout_request' | 'car_ready' | 'vehicle_registered' | 'new_consumption';
 
 export function useSoundNotifications(
     role: 'valet' | 'receptionist',
@@ -12,6 +12,7 @@ export function useSoundNotifications(
     const audioContextRef = useRef<AudioContext | null>(null);
     const roomsRef = useRef(roomsCache);
     const notifiedEntryStayIdsRef = useRef<Set<string>>(new Set());
+    const notifiedConsumptionIdsRef = useRef<Set<string>>(new Set());
     const [isAudioReady, setIsAudioReady] = useState(false);
 
     // Mantener cache actualizado sin reiniciar suscripción
@@ -221,6 +222,17 @@ export function useSoundNotifications(
                 scheduleTone(587.33, now, 0.10, now + 0.6, 'triangle');
                 return;
             }
+
+            if (event === 'new_consumption') {
+                // Tono: Arpegio ascendente suave (notificación de servicio)
+                const freqs = [440, 554.37, 659.25]; // A4, C#5, E5
+                const offsets = [0, 0.08, 0.16];
+                freqs.forEach((f, i) => {
+                    const t = now + offsets[i];
+                    scheduleTone(f, t, 0.20, t + 0.8, 'triangle');
+                });
+                return;
+            }
         };
 
         if (ctx.state === 'suspended') {
@@ -247,9 +259,16 @@ export function useSoundNotifications(
                     schema: 'public',
                     table: 'room_stays',
                 },
-                (payload: any) => {
+                async (payload: any) => {
                     const newData = payload.new as any;
-                    const roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number || '??';
+                    // Intentar obtener de cache, si no, buscar en DB
+                    let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
+
+                    if (!roomNumber) {
+                        const { data } = await supabase.from('rooms').select('number').eq('id', newData.room_id).single();
+                        if (data) roomNumber = data.number;
+                        else roomNumber = '??';
+                    }
 
                     if (role === 'valet') {
                         const stayId = String(newData.id ?? '');
@@ -278,11 +297,18 @@ export function useSoundNotifications(
                     schema: 'public',
                     table: 'room_stays',
                 },
-                (payload: any) => {
+                async (payload: any) => {
                     const newData = payload.new as any;
                     const oldData = payload.old as any;
-                    // Usar roomsRef para buscar el número, evitando dependencias
-                    const roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number || '??';
+
+                    // Intentar obtener de cache, si no, buscar en DB
+                    let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
+
+                    if (!roomNumber) {
+                        const { data } = await supabase.from('rooms').select('number').eq('id', newData.room_id).single();
+                        if (data) roomNumber = data.number;
+                        else roomNumber = '??';
+                    }
 
                     // Lógica para VALET (Escuchar solicitudes de auto)
                     if (role === 'valet') {
@@ -323,6 +349,56 @@ export function useSoundNotifications(
                     }
                 }
             )
+            // Suscripción para nuevos consumos (notificar a cocheros)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'sales_order_items',
+                },
+                async (payload: any) => {
+                    const newData = payload.new as any;
+
+                    // Solo procesar consumos sin asignar para valets
+                    if (role === 'valet' && newData.concept_type === 'CONSUMPTION' && !newData.delivery_accepted_by) {
+                        const itemId = String(newData.id ?? '');
+
+                        // Evitar notificaciones duplicadas
+                        if (itemId && !notifiedConsumptionIdsRef.current.has(itemId)) {
+                            notifiedConsumptionIdsRef.current.add(itemId);
+                            setTimeout(() => {
+                                notifiedConsumptionIdsRef.current.delete(itemId);
+                            }, 60_000);
+
+                            // Obtener número de habitación desde sales_order -> room_stays
+                            try {
+                                const { data: orderData } = await supabase
+                                    .from('sales_orders')
+                                    .select('room_stays(rooms(number))')
+                                    .eq('id', newData.sales_order_id)
+                                    .single();
+
+                                const roomNumber = (orderData?.room_stays as any)?.rooms?.number || '??';
+
+                                playSound('new_consumption');
+                                toast.info(`🛎️ Nuevo consumo: Habitación ${roomNumber}`, {
+                                    duration: 10000,
+                                    position: 'top-center',
+                                    style: { fontSize: '1.1rem', fontWeight: 'bold' }
+                                });
+                            } catch (err) {
+                                // Si falla obtener habitación, mostrar notificación genérica
+                                playSound('new_consumption');
+                                toast.info(`🛎️ Nuevo consumo registrado`, {
+                                    duration: 8000,
+                                    position: 'top-center'
+                                });
+                            }
+                        }
+                    }
+                }
+            )
             .subscribe();
 
         return () => {
@@ -341,6 +417,7 @@ export function useSoundNotifications(
         playCheckoutRequest: () => playSound('checkout_request'),
         playCarReady: () => playSound('car_ready'),
         playVehicleRegistered: () => playSound('vehicle_registered'),
+        playNewConsumption: () => playSound('new_consumption'),
         isAudioReady,
         unlockAudio,
     };

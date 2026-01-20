@@ -18,6 +18,7 @@ import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
 import { RoomDetailsModal } from "@/components/sales/room-details-modal";
 import { GranularPaymentModal } from "@/components/sales/granular-payment-modal";
 import { AddConsumptionModal } from "@/components/sales/add-consumption-modal";
+import { ConsumptionTrackingModal } from "@/components/sales/consumption-tracking-modal";
 import { QuickCheckinModal } from "@/components/sales/quick-checkin-modal";
 import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
 import { EditValetModal } from "@/components/sales/edit-valet-modal";
@@ -198,7 +199,7 @@ function RoomsBoardInternal() {
   const [consumptionOrderId, setConsumptionOrderId] = useState<string | null>(null);
   const [actionsDockVisible, setActionsDockVisible] = useState(false);
   const [startStayLoading, setStartStayLoading] = useState(false);
-  const { isValet } = useUserRole();
+  const { isValet, employeeId } = useUserRole();
 
   // Notificaciones de sonido
   const { playSuccess, playError, playAlert } = useSoundNotifications(
@@ -216,6 +217,7 @@ function RoomsBoardInternal() {
   const [showHourManagementModal, setShowHourManagementModal] = useState(false);
   const [showDamageModal, setShowDamageModal] = useState(false);
   const [showGuestPortalQRModal, setShowGuestPortalQRModal] = useState(false);
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Estado para pagos de valet pendientes
@@ -1087,7 +1089,7 @@ function RoomsBoardInternal() {
           entranceValet: activeStay?.vehicle_plate ? 'Solicitado' : undefined,
           exitValet: data.checkoutValetName // Nombre del valet de salida
         };
-        printConsumptionTickets(printData);
+        // printConsumptionTickets(printData); // DESHABILITADO POR SOLICITUD
       } catch (e) {
         console.error("Error printing exit ticket", e);
       }
@@ -1995,7 +1997,7 @@ function RoomsBoardInternal() {
           total: totalPrice,
           entranceValet: vehicle.plate ? 'Solicitado' : undefined
         };
-        printConsumptionTickets(printData);
+        // printConsumptionTickets(printData); // DESHABILITADO POR SOLICITUD
       } catch (e) {
         console.error("Error printing entry ticket", e);
       }
@@ -2671,6 +2673,10 @@ function RoomsBoardInternal() {
             setShowActionsModal(false);
           }
         }}
+        onViewServices={() => {
+          setShowActionsModal(false);
+          setShowTrackingModal(true);
+        }}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
@@ -2694,9 +2700,17 @@ function RoomsBoardInternal() {
         isOpen={showDetailsModal && !!selectedRoom}
         room={selectedRoom}
         activeStay={selectedRoom ? getActiveStay(selectedRoom) : null}
+        employeeId={employeeId}
         onClose={() => {
           setShowDetailsModal(false);
         }}
+      />
+      <ConsumptionTrackingModal
+        isOpen={showTrackingModal && !!selectedRoom}
+        salesOrderId={selectedRoom ? getActiveStay(selectedRoom)?.sales_order_id || null : null}
+        roomNumber={selectedRoom?.number || ""}
+        receptionistId={employeeId || ""}
+        onClose={() => setShowTrackingModal(false)}
       />
       <GranularPaymentModal
         isOpen={showGranularPaymentModal && !!granularPaymentOrderId}

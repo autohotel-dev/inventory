@@ -235,29 +235,35 @@ export function Sidebar() {
 
     // Si es recepcionista, mostrar items con allowedForReceptionist: true
     if (isReceptionist) {
-      return adminLinks.filter(link => {
+      return adminLinks.filter((link, index, array) => {
         if ("allowedForReceptionist" in link && link.allowedForReceptionist) {
           return true;
         }
         // Mostrar divisores solo si no están marcados como adminOnly
+        // Y evitar doble divisor o divisor al final
         if ("divider" in link && !link.adminOnly) {
-          return true;
+          const nextLink = array[index + 1];
+          // Solo mostrar si el siguiente elemento es un link visible
+          if (nextLink && !("divider" in nextLink) &&
+            ((nextLink as any).allowedForReceptionist)) {
+            return true;
+          }
         }
         return false;
       });
     }
 
-    // Para otros usuarios no-admin (cochero), solo mostrar items con allowedForNonAdmin: true
-    return adminLinks.filter(link => {
+    // Para otros usuarios no-admin (cochero, camarista, mant), filtrar agresivamente
+    const filtered = adminLinks.filter(link => {
       if ("allowedForNonAdmin" in link && link.allowedForNonAdmin) {
-        return true;
-      }
-      // Mostrar divisores solo si no están marcados como adminOnly
-      if ("divider" in link && !link.adminOnly) {
         return true;
       }
       return false;
     });
+
+    // Agregar divisores manualmente solo si es necesario (ej: separar grupos grandes)
+    // Para roles restringidos que ven muy pocos items, mejor retornar sin divisores o con lógica simple
+    return filtered;
   }, [canAccessAdmin, roleLoading, isReceptionist]);
 
   React.useEffect(() => {
