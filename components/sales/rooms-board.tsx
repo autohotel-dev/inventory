@@ -39,7 +39,7 @@ import {
 } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
-import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes } from "@/hooks/use-room-actions";
+import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getActiveStay } from "@/hooks/use-room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSensors } from "@/hooks/use-sensors";

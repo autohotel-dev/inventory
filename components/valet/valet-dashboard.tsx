@@ -8,6 +8,7 @@ import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { ValetCheckInModal } from "./valet-checkin-modal";
 import { ValetCheckoutModal } from "./valet-checkout-modal";
 import { ValetDeliveryConfirmModal } from "./valet-delivery-confirm-modal";
+import { usePushRegistration } from "@/hooks/use-push-registration";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,9 @@ import {
     Zap,
     LayoutGrid,
     X,
-    Loader2
+    Loader2,
+    Bell,
+    BellOff
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,6 +47,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [selectedConsumption, setSelectedConsumption] = useState<any | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+    const { isSupported, isSubscribed, subscribe, unsubscribe, loading: pushLoading } = usePushRegistration(employeeId);
 
     const fetchRooms = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -362,14 +367,35 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
     return (
         <div className="min-h-screen bg-background pb-20">
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-background border-b pt-4 px-4 pb-0 space-y-3">
+            {/* Header - Static on mobile/desktop to allow scrolling away */}
+            <div className="bg-background border-b pt-4 px-4 pb-0 space-y-3">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-xl font-bold">Dashboard Cochero</h1>
                         <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        {isSupported && (
+                            <Button
+                                variant={isSubscribed ? "secondary" : "default"}
+                                size="sm"
+                                onClick={isSubscribed ? unsubscribe : subscribe}
+                                disabled={pushLoading}
+                                className={!isSubscribed ? "animate-pulse" : ""}
+                            >
+                                {isSubscribed ? (
+                                    <>
+                                        <BellOff className="h-4 w-4 mr-1" />
+                                        Alertas ON
+                                    </>
+                                ) : (
+                                    <>
+                                        <Bell className="h-4 w-4 mr-1" />
+                                        Activar Alertas
+                                    </>
+                                )}
+                            </Button>
+                        )}
                         {!isAudioReady && (
                             <Button
                                 variant="outline"
@@ -380,7 +406,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                     else toast.success("Sonido activado");
                                 }}
                             >
-                                🔊 Activar
+                                🔊 Activar Sonido
                             </Button>
                         )}
                         <Button
@@ -394,7 +420,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 pb-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pb-2">
                     <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-400">
                         <Car className="h-4 w-4 mb-1" />
                         <span className="text-xs font-medium text-center leading-none">Entradas</span>
@@ -419,8 +445,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
             </div>
 
             <Tabs defaultValue="tasks" className="w-full">
-                <div className="sticky top-[105px] z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 shadow-sm">
-                    <TabsList className="grid w-full grid-cols-2 h-14 p-1.5 bg-muted/40 rounded-full border border-border/50">
+                <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 shadow-sm border-b overflow-x-auto md:overflow-visible">
+                    <TabsList className="flex md:grid md:grid-cols-2 w-max md:w-full h-14 p-1.5 bg-muted/40 rounded-full border border-border/50 whitespace-nowrap md:whitespace-normal">
                         <TabsTrigger
                             value="tasks"
                             className="relative text-base h-full rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300"
@@ -644,17 +670,17 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                     {isValetRequested && <Badge className="bg-amber-500 hover:bg-amber-600">Aviso Enviado</Badge>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
                     {isRequested ? (
-                        <Button onClick={() => handleOpenCheckout(room)} className="col-span-2 bg-red-600 hover:bg-red-700 text-white">
+                        <Button onClick={() => handleOpenCheckout(room)} className="col-span-2 bg-red-600 hover:bg-red-700 text-white h-10 text-lg">
                             <LogOut className="h-4 w-4 mr-2" /> Entregar
                         </Button>
                     ) : (
                         <>
-                            <Button variant="outline" size="sm" onClick={() => handlePropose(room)} disabled={isValetRequested || actionLoading}>
+                            <Button variant="outline" size="sm" onClick={() => handlePropose(room)} disabled={isValetRequested || actionLoading} className="h-10 text-sm" >
                                 {isValetRequested ? "Avisado" : "Avisar Salida"}
                             </Button>
-                            <Button variant="secondary" size="sm" onClick={() => handleOpenCheckout(room)}>
+                            <Button variant="secondary" size="sm" onClick={() => handleOpenCheckout(room)} className="h-10 text-sm" >
                                 <LogOut className="h-4 w-4 mr-2" /> Entregar
                             </Button>
                         </>
