@@ -226,26 +226,41 @@ export function ReceptionistDashboard() {
       // Detectar error de constraint único (código 23505)
       if (err.code === "23505") {
         showError(
-          "No se puede iniciar turno",
-          "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
+          "⚠️ Turno en curso",
+          "Otro empleado ya tiene un turno activo. Pídele que cierre su turno o contacta a un supervisor para continuar."
         );
         return;
       }
 
       // También verificar por mensaje
       const errorMessage = String(err.message || err.details || "");
-      if (errorMessage.includes("idx_single_active_shift_session") ||
-        errorMessage.includes("duplicate key") ||
-        errorMessage.includes("unique constraint")) {
+
+      // Detectar error del trigger de límite por rol
+      if (errorMessage.includes("ROLE_SHIFT_LIMIT_EXCEEDED")) {
+        const parts = errorMessage.split("::");
+        const roleName = parts[1] || "tu puesto";
         showError(
-          "No se puede iniciar turno",
-          "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
+          "⚠️ Turno en curso",
+          `Ya hay un turno de ${roleName} activo en este momento. Debes cerrar el turno anterior antes de poder iniciar uno nuevo.`
         );
         return;
       }
 
-      // Otros errores
-      showError("Error", err.message || "No se pudo iniciar el turno");
+      if (errorMessage.includes("idx_single_active_shift_session") ||
+        errorMessage.includes("duplicate key") ||
+        errorMessage.includes("unique constraint")) {
+        showError(
+          "⚠️ Turno en curso",
+          "Otro empleado ya tiene un turno activo. Pídele que cierre su turno o contacta a un supervisor para continuar."
+        );
+        return;
+      }
+
+      // Otros errores - mensaje amigable
+      showError(
+        "No se pudo iniciar el turno",
+        "Ocurrió un problema al iniciar el turno. Intenta de nuevo o contacta a un supervisor si el problema persiste."
+      );
     } finally {
       setStartingShift(false);
     }

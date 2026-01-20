@@ -276,13 +276,12 @@ export function CurrentShiftIndicator({
       if (errorMessage.includes("ROLE_SHIFT_LIMIT_EXCEEDED")) {
         // Parsear el mensaje del trigger: ROLE_SHIFT_LIMIT_EXCEEDED::RoleName::count::max
         const parts = errorMessage.split("::");
-        const roleName = parts[1] || "este rol";
-        const currentCount = parts[2] || "?";
-        const maxAllowed = parts[3] || "?";
+        const roleName = parts[1] || "tu puesto";
+        const maxAllowed = parts[3] || "1";
 
         showError(
-          "Límite de turnos alcanzado",
-          `Ya hay ${currentCount} turno(s) activo(s) de ${roleName} (máximo permitido: ${maxAllowed}). Cierra un turno existente antes de iniciar uno nuevo.`
+          "⚠️ Turno en curso",
+          `Ya hay un turno de ${roleName} activo en este momento. Debes cerrar el turno anterior antes de poder iniciar uno nuevo.`
         );
       } else if (
         errorMessage.includes("idx_single_active_shift_session") ||
@@ -291,11 +290,15 @@ export function CurrentShiftIndicator({
         err.code === "23505"
       ) {
         showError(
-          "No se puede iniciar turno",
-          "Ya existe un turno activo en el sistema. Por favor, cierra el turno anterior antes de iniciar uno nuevo."
+          "⚠️ Turno en curso",
+          "Otro empleado ya tiene un turno activo. Pídele que cierre su turno o contacta a un supervisor para continuar."
         );
       } else {
-        showError("Error", err.message || "No se pudo registrar la entrada");
+        // Mensaje genérico más amigable
+        showError(
+          "No se pudo iniciar el turno",
+          "Ocurrió un problema al registrar tu entrada. Intenta de nuevo o contacta a un supervisor si el problema persiste."
+        );
       }
     } finally {
       setActionLoading(false);
