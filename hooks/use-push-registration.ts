@@ -39,9 +39,20 @@ export function usePushRegistration(employeeId?: string) {
 
     const checkSubscription = async () => {
         try {
-            console.log('Push Hook: Waiting for Service Worker...');
-            const registration = await navigator.serviceWorker.ready;
-            console.log('Push Hook: Service Worker Ready');
+            console.log('Push Hook: Checking registration...');
+            let registration = await navigator.serviceWorker.getRegistration();
+            
+            if (!registration) {
+                console.log('Push Hook: No registration found, waiting for .ready...');
+                registration = await navigator.serviceWorker.ready;
+            }
+
+            console.log('Push Hook: Registration found/ready', {
+                active: !!registration.active,
+                waiting: !!registration.waiting,
+                installing: !!registration.installing
+            });
+
             const subscription = await registration.pushManager.getSubscription();
             console.log('Push Hook: Current Subscription:', !!subscription);
             setIsSubscribed(!!subscription);
