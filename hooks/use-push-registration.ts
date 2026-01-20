@@ -84,6 +84,13 @@ export function usePushRegistration(employeeId?: string) {
 
         try {
             setLoading(true);
+
+            // Check if already denied
+            if (Notification.permission === 'denied') {
+                toast.error('Permiso bloqueado por el navegador. Haz clic en el candado/ajustes de la URL para permitir notificaciones.');
+                return;
+            }
+
             const registration = await navigator.serviceWorker.ready;
             
             // Request permission
@@ -111,9 +118,9 @@ export function usePushRegistration(employeeId?: string) {
             } else {
                 throw new Error('Failed to save subscription on server');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error subscribing to push:', error);
-            toast.error('Error al activar las notificaciones');
+            toast.error('Error al activar las notificaciones: ' + (error.message || ''));
         } finally {
             setLoading(false);
         }
