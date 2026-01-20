@@ -17,6 +17,10 @@ export interface POSConfig {
     autoPrintTickets: boolean;   // Imprimir tickets automáticamente
     printClientTicket: boolean;  // Imprimir ticket para cliente
     printReceptionTicket: boolean; // Imprimir comanda para recepción
+
+    // Caja
+    initialCashFund: number;     // Fondo de caja inicial para cada turno
+    valetAdvanceAmount: number;  // Adelanto en efectivo por cada cochero en turno
 }
 
 const DEFAULT_CONFIG: POSConfig = {
@@ -28,6 +32,8 @@ const DEFAULT_CONFIG: POSConfig = {
     autoPrintTickets: true,
     printClientTicket: true,
     printReceptionTicket: true,
+    initialCashFund: 500,        // $500 MXN por defecto
+    valetAdvanceAmount: 300,     // $300 MXN por cochero
 };
 
 const STORAGE_KEY = 'pos-config';

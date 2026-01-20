@@ -44,6 +44,7 @@ import Link from "next/link";
 import { ExpenseModal } from "@/components/expenses/expense-modal";
 import { ExpensesList } from "@/components/expenses/expenses-list";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
+import { usePOSConfigRead } from "@/hooks/use-pos-config";
 
 interface ShiftSummary {
   totalSales: number;
@@ -106,6 +107,7 @@ export function ReceptionistDashboard() {
   const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [activeValetCount, setActiveValetCount] = useState(0);
 
   // Estados para inicio de turno
   const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
@@ -116,6 +118,9 @@ export function ReceptionistDashboard() {
 
   // Hook para gastos
   const { expenses, totalExpenses, loading: expensesLoading, refetch: refetchExpenses } = useShiftExpenses(activeSession?.id || null);
+
+  // Configuración del sistema (incluye fondo de caja inicial)
+  const posConfig = usePOSConfigRead();
 
   // Actualizar reloj cada segundo
   useEffect(() => {
@@ -187,6 +192,19 @@ export function ReceptionistDashboard() {
       .limit(1);
 
     setActiveSession(sessions?.[0] || null);
+  };
+
+  // Contar cocheros con turno activo
+  const fetchActiveValetCount = async () => {
+    const supabase = createClient();
+    const { count } = await supabase
+      .from("shift_sessions")
+      .select("*, employees!inner(*)", { count: "exact", head: true })
+      .eq("status", "active")
+      .eq("employees.role", "cochero")
+      .is("clock_out_at", null);
+
+    setActiveValetCount(count || 0);
   };
 
   // Iniciar turno
@@ -484,6 +502,7 @@ export function ReceptionistDashboard() {
   useEffect(() => {
     if (userId) {
       fetchShiftSummary();
+      fetchActiveValetCount();
     }
   }, [userId, activeSession]);
 
@@ -1064,7 +1083,7 @@ export function ReceptionistDashboard() {
           onClose={() => setShowExpenseModal(false)}
           sessionId={activeSession.id}
           employeeId={employeeId || ''}
-          availableCash={summary.cashAmount - totalExpenses}
+          availableCash={posConfig.initialCashFund + summary.cashAmount - totalExpenses - (activeValetCount * posConfig.valetAdvanceAmount)}
           onSuccess={() => {
             refetchExpenses();
             fetchShiftSummary();

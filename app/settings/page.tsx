@@ -17,7 +17,8 @@ import {
     RotateCcw,
     Save,
     Info,
-    Zap
+    Zap,
+    Wallet
 } from "lucide-react";
 import { usePOSConfig, type POSConfig } from "@/hooks/use-pos-config";
 import { usePrinterSettings } from "@/hooks/use-printer-settings";
@@ -216,6 +217,67 @@ export default function SettingsPage() {
                                 checked={localConfig.soundEnabled}
                                 onCheckedChange={(checked) => updateLocalConfig('soundEnabled', checked)}
                             />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Sección: Configuración de Caja */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <Wallet className="h-5 w-5 text-emerald-500" />
+                            <CardTitle>Configuración de Caja</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Configura los parámetros de caja para los turnos
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label className="text-base font-medium">Fondo de Caja Inicial</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Monto de efectivo disponible al iniciar cada turno. Los gastos del turno se descontarán de este fondo más el efectivo cobrado.
+                            </p>
+                            <div className="flex items-center gap-2 max-w-xs">
+                                <span className="text-lg font-medium text-muted-foreground">$</span>
+                                <Input
+                                    type="number"
+                                    value={localConfig.initialCashFund}
+                                    onChange={(e) => updateLocalConfig('initialCashFund', parseFloat(e.target.value) || 0)}
+                                    min={0}
+                                    step={100}
+                                    className="text-lg"
+                                />
+                                <span className="text-sm text-muted-foreground">MXN</span>
+                            </div>
+                        </div>
+
+                        <Separator />
+
+                        <div className="space-y-2">
+                            <Label className="text-base font-medium">Adelanto por Cochero</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Monto en efectivo que recepción entrega a cada cochero al inicio de turno. Se descuenta automáticamente del efectivo disponible.
+                            </p>
+                            <div className="flex items-center gap-2 max-w-xs">
+                                <span className="text-lg font-medium text-muted-foreground">$</span>
+                                <Input
+                                    type="number"
+                                    value={localConfig.valetAdvanceAmount}
+                                    onChange={(e) => updateLocalConfig('valetAdvanceAmount', parseFloat(e.target.value) || 0)}
+                                    min={0}
+                                    step={50}
+                                    className="text-lg"
+                                />
+                                <span className="text-sm text-muted-foreground">MXN c/u</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-2 p-3 bg-emerald-500/10 rounded-lg">
+                            <Info className="h-4 w-4 text-emerald-500 mt-0.5" />
+                            <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                                <strong>Fórmula:</strong> Efectivo disponible = Fondo inicial + Cobros - Gastos - (Cocheros en turno × Adelanto)
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
