@@ -42,17 +42,20 @@ export function usePushRegistration(employeeId?: string) {
             console.log('Push Hook: Checking registration...');
             
             // Timeout to avoid infinite waiting if SW is broken/hanging
-            const registrationPromise = navigator.serviceWorker.getRegistration();
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Timeout waiting for SW')), 5000)
             );
 
-            let registration = await Promise.race([registrationPromise, timeoutPromise]) as ServiceWorkerRegistration;
+            let registration = await Promise.race([
+                navigator.serviceWorker.getRegistration(),
+                timeoutPromise
+            ]) as ServiceWorkerRegistration;
             
             if (!registration) {
-                console.log('Push Hook: No registration found, checking .ready with timeout...');
-                const readyPromise = navigator.serviceWorker.ready;
-                registration = await Promise.race([readyPromise, timeoutPromise]) as ServiceWorkerRegistration;
+                console.log('Push Hook: No registration found, registering manually...');
+                registration = await navigator.serviceWorker.register('/sw.js');
+                // Wait for it to at least start installing
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
 
             console.log('Push Hook: Service Worker State:', {
@@ -62,16 +65,11 @@ export function usePushRegistration(employeeId?: string) {
                 scope: registration.scope
             });
 
-            if (!registration.active && !registration.waiting && !registration.installing) {
-                console.warn('Push Hook: Service Worker registration exists but no worker is active/installing.');
-            }
-
             const subscription = await registration.pushManager.getSubscription();
             console.log('Push Hook: Current Subscription:', !!subscription);
             setIsSubscribed(!!subscription);
         } catch (error: any) {
             console.error('Push Hook: Registration/Ready Error:', error?.message || 'Unknown error');
-            // Don't set isSupported(false) yet, just log it.
         } finally {
             setLoading(false);
         }
