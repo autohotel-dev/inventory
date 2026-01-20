@@ -19,22 +19,17 @@ export async function POST(req: Request) {
         // Use the provided employeeId or fallback to user.id if applicable
         const targetEmployeeId = employeeId || user.id;
 
-        console.log('Push Subscribe Attempt:', { 
-            targetEmployeeId, 
-            endpoint: subscription.endpoint,
-            userAgent: req.headers.get('user-agent')
-        });
-
         // Upsert subscription into the NEW table
         const { error } = await supabase
             .from('push_subscriptions')
             .upsert({
                 employee_id: targetEmployeeId,
+                endpoint: subscription.endpoint, // Extract endpoint for unique constraint
                 subscription: subscription, // Store full object including keys
                 user_agent: req.headers.get('user-agent') || 'unknown',
                 updated_at: new Date().toISOString()
             }, { 
-                onConflict: 'subscription->>endpoint'
+                onConflict: 'endpoint'
             });
 
         if (error) {
