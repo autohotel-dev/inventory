@@ -46,19 +46,14 @@ export function usePushRegistration(employeeId?: string) {
                 setTimeout(() => reject(new Error('Timeout waiting for SW')), 5000)
             );
 
-            let registration = await Promise.race([
-                navigator.serviceWorker.getRegistration(),
+            // Just wait for the official registration to be ready
+            console.log('Push Hook: Waiting for .ready...');
+            const registration = await Promise.race([
+                navigator.serviceWorker.ready,
                 timeoutPromise
             ]) as ServiceWorkerRegistration;
             
-            if (!registration) {
-                console.log('Push Hook: No registration found, registering manually...');
-                registration = await navigator.serviceWorker.register('/sw.js');
-                // Wait for it to at least start installing
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-
-            console.log('Push Hook: Service Worker State:', {
+            console.log('Push Hook: Service Worker Ready', {
                 active: !!registration.active,
                 waiting: !!registration.waiting,
                 installing: !!registration.installing,
