@@ -2663,6 +2663,7 @@ function RoomsBoardInternal() {
           if (selectedRoom) setShowDamageModal(true);
         }}
         onNotifyCheckout={handleNotifyCheckout}
+
         isValet={isValet}
         hasValetAssigned={selectedRoom ? !!getActiveStay(selectedRoom)?.valet_employee_id : false}
         hasVehicleRegistered={selectedRoom ? !!getActiveStay(selectedRoom)?.vehicle_plate : false}
