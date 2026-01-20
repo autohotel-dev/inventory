@@ -24,21 +24,29 @@ export function usePushRegistration(employeeId?: string) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        console.log('Push Hook: Checking support...', {
+            sw: 'serviceWorker' in navigator,
+            pm: 'PushManager' in window
+        });
         if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
             setIsSupported(true);
             checkSubscription();
         } else {
+            console.log('Push Hook: Not supported');
             setLoading(false);
         }
     }, []);
 
     const checkSubscription = async () => {
         try {
+            console.log('Push Hook: Waiting for Service Worker...');
             const registration = await navigator.serviceWorker.ready;
+            console.log('Push Hook: Service Worker Ready');
             const subscription = await registration.pushManager.getSubscription();
+            console.log('Push Hook: Current Subscription:', !!subscription);
             setIsSubscribed(!!subscription);
         } catch (error) {
-            console.error('Error checking push subscription:', error);
+            console.error('Push Hook: Error checking subscription:', error);
         } finally {
             setLoading(false);
         }

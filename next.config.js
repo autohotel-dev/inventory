@@ -68,7 +68,7 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   // disable: process.env.NODE_ENV === 'development',
   disable: process.env.NODE_ENV === 'development',
-  importScripts: ['/chat-sw.js'],
+  importScripts: ['/chat-sw.js', '/valet-push-sw.js'],
 });
 
 module.exports = process.env.NODE_ENV === 'development'
