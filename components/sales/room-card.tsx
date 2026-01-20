@@ -17,15 +17,21 @@ const ROOM_TYPE_CONFIG: Record<string, { abbr: string; color: string }> = {
 
 // Obtener config de tipo de habitación (con fallback inteligente)
 function getRoomTypeConfig(typeName: string | undefined): { abbr: string; color: string } {
-  if (!typeName) return { abbr: "---", color: "bg-slate-600" };
+  // Robust check to prevent "substring of undefined" error
+  const safeTypeName = (typeName && typeof typeName === 'string') ? typeName :
+    (typeName ? String(typeName) : "");
+
+  if (!safeTypeName || safeTypeName.length === 0) {
+    return { abbr: "---", color: "bg-slate-600" };
+  }
 
   // Buscar coincidencia exacta
-  if (ROOM_TYPE_CONFIG[typeName]) {
-    return ROOM_TYPE_CONFIG[typeName];
+  if (ROOM_TYPE_CONFIG[safeTypeName]) {
+    return ROOM_TYPE_CONFIG[safeTypeName];
   }
 
   // Buscar coincidencia parcial (ej: "Habitación Sencilla" -> "Sencilla")
-  const lowerName = typeName.toLowerCase();
+  const lowerName = safeTypeName.toLowerCase();
   for (const [key, config] of Object.entries(ROOM_TYPE_CONFIG)) {
     if (lowerName.includes(key.toLowerCase())) {
       return config;
@@ -34,7 +40,7 @@ function getRoomTypeConfig(typeName: string | undefined): { abbr: string; color:
 
   // Fallback: usar primeras 3 letras
   return {
-    abbr: typeName.substring(0, 3).toUpperCase(),
+    abbr: safeTypeName.substring(0, 3).toUpperCase(),
     color: "bg-slate-600"
   };
 }

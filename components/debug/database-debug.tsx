@@ -13,14 +13,14 @@ export function DatabaseDebug() {
     setLoading(true);
     const supabase = createClient();
     const results: any = {};
-    
+
     try {
       // Check products table
       const { data: products, error: productsError, count: productsCount } = await supabase
         .from("products")
         .select("*", { count: 'exact' })
         .limit(1);
-      
+
       results.products = {
         data: products,
         error: productsError,
@@ -33,7 +33,7 @@ export function DatabaseDebug() {
         .from("purchase_orders")
         .select("*", { count: 'exact' })
         .limit(1);
-      
+
       results.purchase_orders = {
         data: purchases,
         error: purchasesError,
@@ -46,7 +46,7 @@ export function DatabaseDebug() {
         .from("sales_orders")
         .select("*", { count: 'exact' })
         .limit(1);
-      
+
       results.sales_orders = {
         data: sales,
         error: salesError,
@@ -59,7 +59,7 @@ export function DatabaseDebug() {
         .from("suppliers")
         .select("*", { count: 'exact' })
         .limit(1);
-      
+
       results.suppliers = {
         data: suppliers,
         error: suppliersError,
@@ -72,7 +72,7 @@ export function DatabaseDebug() {
         .from("warehouses")
         .select("*", { count: 'exact' })
         .limit(1);
-      
+
       results.warehouses = {
         data: warehouses,
         error: warehousesError,
@@ -82,7 +82,7 @@ export function DatabaseDebug() {
 
       console.log('Database check results:', results);
       setResults(results);
-      
+
     } catch (error) {
       console.error('Database check error:', error);
       results.error = error;
@@ -101,7 +101,7 @@ export function DatabaseDebug() {
         <Button onClick={checkDatabase} disabled={loading} className="mb-4">
           {loading ? "Checking..." : "Check Database"}
         </Button>
-        
+
         {Object.keys(results).length > 0 && (
           <div className="space-y-2 text-xs">
             {Object.entries(results).map(([table, info]: [string, any]) => (
@@ -114,7 +114,10 @@ export function DatabaseDebug() {
                     <div>Count: {info.count}</div>
                     {info.sample && (
                       <div className="text-gray-600">
-                        Sample: {JSON.stringify(info.sample, null, 2).substring(0, 100)}...
+                        Sample: {(() => {
+                          const str = JSON.stringify(info.sample, null, 2);
+                          return str ? str.substring(0, 100) + "..." : "Empty sample";
+                        })()}
                       </div>
                     )}
                   </div>
