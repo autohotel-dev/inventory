@@ -38,7 +38,11 @@ import {
   Loader2,
   CheckCircle2,
   Receipt,
-  Wallet
+  Wallet,
+  Edit3,
+  Plus,
+  Minus,
+  Users
 } from "lucide-react";
 import Link from "next/link";
 import { ExpenseModal } from "@/components/expenses/expense-modal";
@@ -77,7 +81,7 @@ const SHIFT_COLORS: Record<string, string> = {
 };
 
 export function ReceptionistDashboard() {
-  const { employeeName, userId, employeeId, isLoading: roleLoading, isValet, isHousekeeping, isMaintenance } = useUserRole();
+  const { employeeName, userId, employeeId, isLoading: roleLoading, isValet, isHousekeeping, isMaintenance, isAdmin, isManager } = useUserRole();
   const { success, error: showError } = useToast();
 
   // Roles con acceso limitado (sin reportes financieros ni acciones de venta)
@@ -108,6 +112,11 @@ export function ReceptionistDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [activeValetCount, setActiveValetCount] = useState(0);
+  const [showCashAdjustModal, setShowCashAdjustModal] = useState(false);
+  const [cashAdjustmentInput, setCashAdjustmentInput] = useState("");
+
+  // Permiso para ajustar caja (solo admin/manager)
+  const canAdjustCash = isAdmin || isManager;
 
   // Estados para inicio de turno
   const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
@@ -683,6 +692,81 @@ export function ReceptionistDashboard() {
         </Card>
       )}
 
+      {/* Card de Efectivo en Caja - Siempre visible cuando hay turno activo */}
+      {activeSession && !isRestrictedRole && (
+        <Card className="border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 to-teal-500/5">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-emerald-500" />
+                Efectivo en Caja
+              </CardTitle>
+              {canAdjustCash && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCashAdjustModal(true)}
+                  className="h-8 text-xs gap-1"
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Ajustar
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {/* Fondo Inicial */}
+              <div className="p-3 rounded-lg bg-slate-500/10 border border-slate-500/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Wallet className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="text-[10px] text-slate-500 uppercase font-medium">Fondo Inicial</span>
+                </div>
+                <p className="text-lg font-bold">{formatCurrency(posConfig.initialCashFund)}</p>
+              </div>
+
+              {/* Cobros */}
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Plus className="h-3.5 w-3.5 text-green-500" />
+                  <span className="text-[10px] text-green-500 uppercase font-medium">Cobros</span>
+                </div>
+                <p className="text-lg font-bold text-green-600">+{formatCurrency(summary.cashAmount)}</p>
+              </div>
+
+              {/* Gastos */}
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Minus className="h-3.5 w-3.5 text-red-500" />
+                  <span className="text-[10px] text-red-500 uppercase font-medium">Gastos</span>
+                </div>
+                <p className="text-lg font-bold text-red-600">-{formatCurrency(totalExpenses)}</p>
+              </div>
+
+              {/* Adelantos Cocheros */}
+              <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="h-3.5 w-3.5 text-orange-500" />
+                  <span className="text-[10px] text-orange-500 uppercase font-medium">Cocheros ({activeValetCount})</span>
+                </div>
+                <p className="text-lg font-bold text-orange-600">-{formatCurrency(activeValetCount * posConfig.valetAdvanceAmount)}</p>
+              </div>
+
+              {/* Total Disponible */}
+              <div className="p-3 rounded-lg bg-emerald-500/20 border-2 border-emerald-500/40">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                  <span className="text-[10px] text-emerald-600 uppercase font-medium">Disponible</span>
+                </div>
+                <p className="text-xl font-bold text-emerald-600">
+                  {formatCurrency(posConfig.initialCashFund + summary.cashAmount - totalExpenses - (activeValetCount * posConfig.valetAdvanceAmount))}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Pantalla de inicio de turno si no hay sesión activa */}
       {!activeSession && !loading && currentShift && (
         <Card className={`overflow-hidden border-2 ${SHIFT_COLORS[currentShift.code] ? 'border-primary' : 'border-muted'}`}>
@@ -1090,6 +1174,99 @@ export function ReceptionistDashboard() {
           }}
         />
       )}
+
+      {/* Modal de Ajuste de Caja (solo admin/manager) */}
+      <Dialog open={showCashAdjustModal} onOpenChange={setShowCashAdjustModal}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center mb-3">
+              <Wallet className="h-6 w-6 text-white" />
+            </div>
+            <DialogTitle className="text-xl">Ajustar Efectivo en Caja</DialogTitle>
+            <DialogDescription>
+              Ingresa el monto a agregar o retirar del fondo
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-1">Efectivo actual</p>
+              <p className="text-2xl font-bold text-emerald-600">
+                {formatCurrency(posConfig.initialCashFund + summary.cashAmount - totalExpenses - (activeValetCount * posConfig.valetAdvanceAmount))}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Monto a ajustar</label>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-medium text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={cashAdjustmentInput}
+                  onChange={(e) => setCashAdjustmentInput(e.target.value)}
+                  className="text-lg text-center"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Ingresa un número positivo para agregar o negativo para retirar
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCashAdjustModal(false);
+                setCashAdjustmentInput("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                const amount = parseFloat(cashAdjustmentInput);
+                if (isNaN(amount) || amount === 0) {
+                  showError("Error", "Ingresa un monto válido");
+                  return;
+                }
+
+                // Registrar como gasto especial de tipo CASH_ADJUSTMENT
+                const supabase = createClient();
+                const { error } = await supabase
+                  .from("shift_expenses")
+                  .insert({
+                    shift_session_id: activeSession?.id,
+                    employee_id: employeeId,
+                    expense_type: "CASH_ADJUSTMENT",
+                    description: amount > 0 ? "Ajuste: Ingreso de efectivo" : "Ajuste: Retiro de efectivo",
+                    amount: Math.abs(amount) * (amount > 0 ? -1 : 1), // Negativo si es ingreso (reduce gastos), positivo si es retiro
+                    status: "approved"
+                  });
+
+                if (error) {
+                  showError("Error", "No se pudo registrar el ajuste");
+                  console.error(error);
+                  return;
+                }
+
+                success(
+                  amount > 0 ? "Efectivo agregado" : "Efectivo retirado",
+                  `Se ${amount > 0 ? "agregaron" : "retiraron"} ${formatCurrency(Math.abs(amount))}`
+                );
+
+                refetchExpenses();
+                setShowCashAdjustModal(false);
+                setCashAdjustmentInput("");
+              }}
+              disabled={!cashAdjustmentInput}
+            >
+              Aplicar Ajuste
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
