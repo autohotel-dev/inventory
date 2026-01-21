@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ShiftIndicatorWrapper } from "@/components/employees/shift-indicator-wrapper";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
+import { CashBalanceCard } from "@/components/dashboard/cash-balance-card";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,10 @@ export default async function Home() {
         <div id="tour-dashboard-shift-indicator" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
           <ShiftIndicatorWrapper />
         </div>
+
+        {/* Card de Efectivo en Caja */}
+        <CashBalanceCard />
+
         {/* KPIs principales */}
         <div id="tour-dashboard-kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
           <Card>
