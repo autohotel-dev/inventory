@@ -330,12 +330,12 @@ export function Sidebar() {
 
       {/* Backdrop for mobile */}
       {open && (
-        <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 md:hidden z-40" onClick={() => setOpen(false)} />
       )}
 
       <aside
         id="tour-sidebar"
-        className={`fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none transition-all duration-200 ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+        className={`fixed md:static inset-y-0 left-0 z-50 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none transition-all duration-200 ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
         style={{ width: compact ? SIDEBAR_WIDTHS.COMPACT : SIDEBAR_WIDTHS.EXPANDED }}
       >
         <div className="h-full p-3 md:p-4 space-y-4 overflow-auto scrollbar-hide">
