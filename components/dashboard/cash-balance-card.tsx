@@ -65,8 +65,10 @@ export function CashBalanceCard() {
     useEffect(() => {
         const fetchData = async () => {
             const supabase = createClient();
+            let foundSession: ShiftSession | null = null;
+            let sessionUserId: string | null = null;
 
-            // Buscar sesión activa del empleado actual
+            // 1. Buscar sesión propia del empleado actual
             if (employeeId) {
                 const { data: sessions } = await supabase
                     .from("shift_sessions")
@@ -77,25 +79,53 @@ export function CashBalanceCard() {
                     .limit(1);
 
                 if (sessions?.[0]) {
-                    setActiveSession(sessions[0]);
+                    foundSession = sessions[0];
+                }
+            }
 
-                    // Obtener cobros en efectivo de esta sesión
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (user) {
-                        const sessionStart = sessions[0].clock_in_at;
-                        const { data: payments } = await supabase
-                            .from("payments")
-                            .select("amount, payment_method")
-                            .eq("created_by", user.id)
-                            .gte("created_at", sessionStart)
-                            .eq("status", "PAGADO");
+            // 2. Si es admin/manager y no tiene sesión propia, buscar CUALQUIER sesión activa de recepcionista
+            if (!foundSession && (isAdmin || isManager)) {
+                const { data: anySessions } = await supabase
+                    .from("shift_sessions")
+                    .select("id, employee_id, clock_in_at, status, employees!inner(role, auth_user_id)")
+                    .eq("status", "active")
+                    .eq("employees.role", "receptionist")
+                    .is("clock_out_at", null)
+                    .order("clock_in_at", { ascending: false })
+                    .limit(1);
 
-                        const cash = (payments || [])
-                            .filter((p: any) => p.payment_method === "CASH" || p.payment_method === "EFECTIVO")
-                            .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+                if (anySessions?.[0]) {
+                    foundSession = {
+                        id: anySessions[0].id,
+                        employee_id: anySessions[0].employee_id,
+                        clock_in_at: anySessions[0].clock_in_at,
+                        status: anySessions[0].status
+                    };
+                    sessionUserId = (anySessions[0].employees as any)?.auth_user_id;
+                }
+            }
 
-                        setCashAmount(cash);
-                    }
+            if (foundSession) {
+                setActiveSession(foundSession);
+
+                // Obtener cobros en efectivo de esta sesión
+                const { data: { user } } = await supabase.auth.getUser();
+                const userIdForPayments = sessionUserId || user?.id;
+
+                if (userIdForPayments) {
+                    const sessionStart = foundSession.clock_in_at;
+                    const { data: payments } = await supabase
+                        .from("payments")
+                        .select("amount, payment_method")
+                        .eq("created_by", userIdForPayments)
+                        .gte("created_at", sessionStart)
+                        .eq("status", "PAGADO");
+
+                    const cash = (payments || [])
+                        .filter((p: any) => p.payment_method === "CASH" || p.payment_method === "EFECTIVO")
+                        .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+                    setCashAmount(cash);
                 }
             }
 
@@ -112,9 +142,9 @@ export function CashBalanceCard() {
         };
 
         fetchData();
-        const interval = setInterval(fetchData, 30000); // Actualizar cada 30 segundos
+        const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
-    }, [employeeId]);
+    }, [employeeId, isAdmin, isManager]);
 
     // No mostrar si no hay sesión activa
     if (loading || !activeSession) {

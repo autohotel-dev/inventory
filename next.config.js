@@ -1,4 +1,8 @@
 /** @type {import('next').NextConfig} */
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig = {
   eslint: {
     // Deshabilitar ESLint durante el build para evitar errores en Vercel
@@ -72,6 +76,11 @@ const withPWA = require('next-pwa')({
   publicExcludes: ['!nprogress/nprogress.css', '!**/chat-sw.js', '!**/valet-push-sw.js'],
 });
 
-module.exports = process.env.NODE_ENV === 'development'
-  ? nextConfig
-  : withPWA(nextConfig);
+// Aplicar configuraciones
+let config = nextConfig;
+if (process.env.NODE_ENV !== 'development') {
+  config = withPWA(config);
+}
+config = withBundleAnalyzer(config);
+
+module.exports = config;

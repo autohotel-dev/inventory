@@ -80,6 +80,7 @@ export function LoginForm({
                   id="email"
                   type="email"
                   placeholder="correo@ejemplo.com"
+                  autoComplete="email"
                   {...register("email")}
                 />
                 {errors.email && (
@@ -99,6 +100,7 @@ export function LoginForm({
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="current-password"
                   {...register("password")}
                 />
                 {errors.password && (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,24 +12,7 @@ import { RefreshCw } from "lucide-react";
 import { RoomCard } from "@/components/sales/room-card";
 import { RoomInfoPopover } from "@/components/sales/room-info-popover";
 import { RoomActionsWheel } from "@/components/sales/room-actions-wheel";
-import { RoomStartStayModal, VehicleInfo } from "@/components/sales/room-start-stay-modal";
-import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
-import { RoomPayExtraModal } from "@/components/sales/room-pay-extra-modal";
 import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
-import { RoomDetailsModal } from "@/components/sales/room-details-modal";
-import { GranularPaymentModal } from "@/components/sales/granular-payment-modal";
-import { AddConsumptionModal } from "@/components/sales/add-consumption-modal";
-import { ConsumptionTrackingModal } from "@/components/sales/consumption-tracking-modal";
-import { QuickCheckinModal } from "@/components/sales/quick-checkin-modal";
-import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
-import { EditValetModal } from "@/components/sales/edit-valet-modal";
-import { ChangeRoomModal } from "@/components/sales/change-room-modal";
-import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
-import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
-import { RoomStatusNoteModal } from "@/components/sales/room-status-note-modal";
-import { RoomHourManagementModal } from "@/components/sales/room-hour-management-modal";
-import { AddDamageChargeModal } from "@/components/sales/add-damage-charge-modal";
-import { GuestPortalQRModal } from "@/components/sales/guest-portal-qr-modal";
 import {
   Room,
   RoomType,
@@ -38,6 +22,7 @@ import {
   PAYMENT_TERMINALS,
 } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
+import { VehicleInfo } from "@/components/sales/room-start-stay-modal";
 import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
 import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getActiveStay } from "@/hooks/use-room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
@@ -48,6 +33,25 @@ import { toast } from "sonner";
 import { GlobalClock } from "@/components/ui/global-clock";
 import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
 import { useTraining } from "@/contexts/training-context";
+
+// Dynamic imports para modales (reducción de bundle)
+const RoomStartStayModal = dynamic(() => import("@/components/sales/room-start-stay-modal").then(m => ({ default: m.RoomStartStayModal })), { ssr: false });
+const RoomCheckoutModal = dynamic(() => import("@/components/sales/room-checkout-modal").then(m => ({ default: m.RoomCheckoutModal })), { ssr: false });
+const RoomPayExtraModal = dynamic(() => import("@/components/sales/room-pay-extra-modal").then(m => ({ default: m.RoomPayExtraModal })), { ssr: false });
+const RoomDetailsModal = dynamic(() => import("@/components/sales/room-details-modal").then(m => ({ default: m.RoomDetailsModal })), { ssr: false });
+const GranularPaymentModal = dynamic(() => import("@/components/sales/granular-payment-modal").then(m => ({ default: m.GranularPaymentModal })), { ssr: false });
+const AddConsumptionModal = dynamic(() => import("@/components/sales/add-consumption-modal").then(m => ({ default: m.AddConsumptionModal })), { ssr: false });
+const ConsumptionTrackingModal = dynamic(() => import("@/components/sales/consumption-tracking-modal").then(m => ({ default: m.ConsumptionTrackingModal })), { ssr: false });
+const QuickCheckinModal = dynamic(() => import("@/components/sales/quick-checkin-modal").then(m => ({ default: m.QuickCheckinModal })), { ssr: false });
+const EditVehicleModal = dynamic(() => import("@/components/sales/edit-vehicle-modal").then(m => ({ default: m.EditVehicleModal })), { ssr: false });
+const EditValetModal = dynamic(() => import("@/components/sales/edit-valet-modal").then(m => ({ default: m.EditValetModal })), { ssr: false });
+const ChangeRoomModal = dynamic(() => import("@/components/sales/change-room-modal").then(m => ({ default: m.ChangeRoomModal })), { ssr: false });
+const CancelStayModal = dynamic(() => import("@/components/sales/cancel-stay-modal").then(m => ({ default: m.CancelStayModal })), { ssr: false });
+const ManagePeopleModal = dynamic(() => import("@/components/sales/manage-people-modal").then(m => ({ default: m.ManagePeopleModal })), { ssr: false });
+const RoomStatusNoteModal = dynamic(() => import("@/components/sales/room-status-note-modal").then(m => ({ default: m.RoomStatusNoteModal })), { ssr: false });
+const RoomHourManagementModal = dynamic(() => import("@/components/sales/room-hour-management-modal").then(m => ({ default: m.RoomHourManagementModal })), { ssr: false });
+const AddDamageChargeModal = dynamic(() => import("@/components/sales/add-damage-charge-modal").then(m => ({ default: m.AddDamageChargeModal })), { ssr: false });
+const GuestPortalQRModal = dynamic(() => import("@/components/sales/guest-portal-qr-modal").then(m => ({ default: m.GuestPortalQRModal })), { ssr: false });
 
 // Generar referencia única para pagos
 function generatePaymentReference(prefix: string = "PAY"): string {

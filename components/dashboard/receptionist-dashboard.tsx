@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
-import { ShiftClosingModal } from "@/components/employees/shift-closing";
 import { ShiftSession, ShiftDefinition } from "@/components/employees/types";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -45,10 +45,24 @@ import {
   Users
 } from "lucide-react";
 import Link from "next/link";
-import { ExpenseModal } from "@/components/expenses/expense-modal";
-import { ExpensesList } from "@/components/expenses/expenses-list";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 import { usePOSConfigRead } from "@/hooks/use-pos-config";
+
+// Dynamic imports para reducir bundle inicial
+const ShiftClosingModal = dynamic(
+  () => import("@/components/employees/shift-closing").then(mod => ({ default: mod.ShiftClosingModal })),
+  { ssr: false, loading: () => <div className="animate-pulse bg-muted h-96 rounded-lg" /> }
+);
+
+const ExpenseModal = dynamic(
+  () => import("@/components/expenses/expense-modal").then(mod => ({ default: mod.ExpenseModal })),
+  { ssr: false }
+);
+
+const ExpensesList = dynamic(
+  () => import("@/components/expenses/expenses-list").then(mod => ({ default: mod.ExpensesList })),
+  { ssr: false, loading: () => <div className="animate-pulse bg-muted h-24 rounded-lg" /> }
+);
 
 interface ShiftSummary {
   totalSales: number;

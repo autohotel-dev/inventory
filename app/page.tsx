@@ -17,7 +17,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative w-12 h-12">
-              <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
+              <Image src="/luxor-logo.png" alt="Luxor Logo" fill sizes="48px" className="object-contain" />
             </div>
             <span className="text-xl font-bold tracking-tight">Luxor Manager</span>
           </div>
@@ -36,7 +36,7 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="container mx-auto px-6 py-20 text-center space-y-8">
           <div className="mx-auto w-56 h-56 relative mb-8 animate-in zoom-in duration-500">
-            <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain drop-shadow-2xl" />
+            <Image src="/luxor-logo.png" alt="Luxor Logo" fill sizes="224px" className="object-contain drop-shadow-2xl" />
           </div>
 
           <div className="space-y-4 max-w-3xl mx-auto">
