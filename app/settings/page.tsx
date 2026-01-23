@@ -30,10 +30,14 @@ export default function SettingsPage() {
     const [localConfig, setLocalConfig] = useState<POSConfig | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
 
-    // Sincronizar configuración local con la del hook
+    // Sincronizar configuración local con la del hook cuando termina de cargar
     useEffect(() => {
-        if (isLoaded && !localConfig) {
-            setLocalConfig(config);
+        if (isLoaded && config) {
+            // Solo inicializar si es null, O si queremos forzar actualización (opcional)
+            // Aquí protegemos las ediciones del usuario verificando si ya tenía data
+            if (!localConfig) {
+                setLocalConfig(config);
+            }
         }
     }, [isLoaded, config, localConfig]);
 

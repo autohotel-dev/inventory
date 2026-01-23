@@ -61,7 +61,14 @@ export function usePOSConfig() {
         setConfig(prev => {
             const updated = { ...prev, ...newConfig };
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                const json = JSON.stringify(updated);
+                localStorage.setItem(STORAGE_KEY, json);
+                
+                // Verificar que se guardó correctamente
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved !== json) {
+                    console.error('Mismatch after saving config');
+                }
             } catch (error) {
                 console.error('Error saving POS config:', error);
             }
