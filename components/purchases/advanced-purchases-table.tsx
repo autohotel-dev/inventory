@@ -17,7 +17,9 @@ import {
   Package,
   Truck,
   RefreshCw,
-  X
+  X,
+  ArrowDownCircle,
+  CheckCircle2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -352,63 +354,106 @@ export function AdvancedPurchasesTable() {
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 border-t">
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <select
-                  value={filters.status}
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                >
-                  <option value="ALL">Todos</option>
-                  <option value="OPEN">Abierta</option>
-                  <option value="RECEIVED">Recibida</option>
-                  <option value="CANCELLED">Cancelada</option>
-                </select>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-4 border-t">
+              {/* Estado */}
+              <div className={`relative p-3 rounded-xl border transition-all duration-300 ${filters.status !== 'ALL' ? 'bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/30 shadow-lg shadow-blue-500/5' : 'bg-muted/30 border-border/50 hover:border-blue-500/30 hover:bg-blue-500/5'}`}>
+                <label className="flex items-center gap-2 text-xs font-medium mb-2">
+                  <div className={`p-1 rounded-md ${filters.status !== 'ALL' ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-500'}`}>
+                    <CheckCircle2 className="h-3 w-3" />
+                  </div>
+                  <span className={filters.status !== 'ALL' ? 'text-blue-400' : 'text-muted-foreground'}>Estado</span>
+                </label>
+                <div className="relative group">
+                  <select
+                    value={filters.status}
+                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                    className="w-full pl-3 pr-8 py-2 border-0 rounded-lg bg-background/90 backdrop-blur-sm text-sm font-medium appearance-none cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500/30 focus:outline-none hover:bg-background shadow-sm"
+                  >
+                    <option value="ALL">✨ Todos</option>
+                    <option value="OPEN">📋 Abierta</option>
+                    <option value="RECEIVED">✅ Recibida</option>
+                    <option value="CANCELLED">❌ Cancelada</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <ArrowDownCircle className={`h-3.5 w-3.5 ${filters.status !== 'ALL' ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Fecha Desde</Label>
+              {/* Fecha Desde */}
+              <div className={`relative p-3 rounded-xl border transition-all duration-300 ${filters.dateFrom ? 'bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/30 shadow-lg shadow-purple-500/5' : 'bg-muted/30 border-border/50 hover:border-purple-500/30 hover:bg-purple-500/5'}`}>
+                <label className="flex items-center gap-2 text-xs font-medium mb-2">
+                  <div className={`p-1 rounded-md ${filters.dateFrom ? 'bg-purple-500 text-white' : 'bg-purple-500/10 text-purple-500'}`}>
+                    <Calendar className="h-3 w-3" />
+                  </div>
+                  <span className={filters.dateFrom ? 'text-purple-400' : 'text-muted-foreground'}>Desde</span>
+                </label>
                 <Input
                   type="date"
                   value={filters.dateFrom}
                   onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                  className="border-0 bg-background/90 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-purple-500/30 h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Fecha Hasta</Label>
+              {/* Fecha Hasta */}
+              <div className={`relative p-3 rounded-xl border transition-all duration-300 ${filters.dateTo ? 'bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/30 shadow-lg shadow-purple-500/5' : 'bg-muted/30 border-border/50 hover:border-purple-500/30 hover:bg-purple-500/5'}`}>
+                <label className="flex items-center gap-2 text-xs font-medium mb-2">
+                  <div className={`p-1 rounded-md ${filters.dateTo ? 'bg-purple-500 text-white' : 'bg-purple-500/10 text-purple-500'}`}>
+                    <Calendar className="h-3 w-3" />
+                  </div>
+                  <span className={filters.dateTo ? 'text-purple-400' : 'text-muted-foreground'}>Hasta</span>
+                </label>
                 <Input
                   type="date"
                   value={filters.dateTo}
                   onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                  className="border-0 bg-background/90 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-purple-500/30 h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Monto Mín.</Label>
+              {/* Monto Mínimo */}
+              <div className={`relative p-3 rounded-xl border transition-all duration-300 ${filters.minAmount ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-lg shadow-emerald-500/5' : 'bg-muted/30 border-border/50 hover:border-emerald-500/30 hover:bg-emerald-500/5'}`}>
+                <label className="flex items-center gap-2 text-xs font-medium mb-2">
+                  <div className={`p-1 rounded-md ${filters.minAmount ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                    <DollarSign className="h-3 w-3" />
+                  </div>
+                  <span className={filters.minAmount ? 'text-emerald-400' : 'text-muted-foreground'}>Mín.</span>
+                </label>
                 <Input
                   type="number"
                   placeholder="0.00"
                   value={filters.minAmount}
                   onChange={(e) => handleFilterChange('minAmount', e.target.value)}
+                  className="border-0 bg-background/90 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-emerald-500/30 h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Monto Máx.</Label>
+              {/* Monto Máximo */}
+              <div className={`relative p-3 rounded-xl border transition-all duration-300 ${filters.maxAmount ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-lg shadow-emerald-500/5' : 'bg-muted/30 border-border/50 hover:border-emerald-500/30 hover:bg-emerald-500/5'}`}>
+                <label className="flex items-center gap-2 text-xs font-medium mb-2">
+                  <div className={`p-1 rounded-md ${filters.maxAmount ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                    <DollarSign className="h-3 w-3" />
+                  </div>
+                  <span className={filters.maxAmount ? 'text-emerald-400' : 'text-muted-foreground'}>Máx.</span>
+                </label>
                 <Input
                   type="number"
                   placeholder="0.00"
                   value={filters.maxAmount}
                   onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+                  className="border-0 bg-background/90 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-emerald-500/30 h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>&nbsp;</Label>
-                <Button variant="outline" onClick={clearFilters} className="w-full">
-                  <X className="h-4 w-4 mr-2" />
+              {/* Limpiar */}
+              <div className="flex items-end">
+                <Button
+                  variant="ghost"
+                  onClick={clearFilters}
+                  className="w-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 gap-2 transition-colors"
+                >
+                  <X className="h-4 w-4" />
                   Limpiar
                 </Button>
               </div>

@@ -68,7 +68,32 @@ export interface Category {
   description?: string;
   created_at: string;
   updated_at: string;
+  // Relación con subcategorías
+  subcategories?: Subcategory[];
 }
+
+/**
+ * Subcategoría de productos
+ * @property {string} id - Identificador único
+ * @property {string} name - Nombre de la subcategoría
+ * @property {string} category_id - ID de la categoría padre
+ * @property {string} [description] - Descripción opcional
+ * @property {boolean} is_active - Si la subcategoría está activa
+ */
+export interface Subcategory {
+  id: string;
+  name: string;
+  category_id: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Relación con categoría padre
+  category?: Category;
+  // Estadísticas calculadas
+  productCount?: number;
+}
+
 
 /**
  * Proveedor

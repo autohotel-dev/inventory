@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Filter,
   Eye,
-  X
+  X,
+  ArrowDownCircle
 } from "lucide-react";
 import {
   Dialog,
@@ -276,53 +277,89 @@ export function AdvancedStockView() {
           </div>
         </div>
 
-        {/* Filtros */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
-          <div>
-            <label className="block text-sm font-medium mb-2">Estado de Stock</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-            >
-              <option value="">Todos los estados</option>
-              <option value="critical">🔴 Crítico (Sin stock)</option>
-              <option value="low">🟡 Bajo (Mínimo)</option>
-              <option value="normal">🟢 Normal</option>
-              <option value="high">🔵 Alto</option>
-            </select>
+        {/* Filtros con diseño premium */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Estado de Stock */}
+          <div className={`relative p-4 rounded-xl border transition-all duration-300 ${statusFilter ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-lg shadow-emerald-500/5' : 'bg-muted/30 border-border/50 hover:border-emerald-500/30 hover:bg-emerald-500/5'}`}>
+            <label className="flex items-center gap-2 text-sm font-medium mb-3">
+              <div className={`p-1.5 rounded-lg ${statusFilter ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                <Package className="h-3.5 w-3.5" />
+              </div>
+              <span className={statusFilter ? 'text-emerald-400' : 'text-muted-foreground'}>Estado de Stock</span>
+            </label>
+            <div className="relative group">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full pl-4 pr-10 py-2.5 border-0 rounded-lg bg-background/90 backdrop-blur-sm text-sm font-medium appearance-none cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-emerald-500/30 focus:outline-none hover:bg-background shadow-sm"
+              >
+                <option value="">✨ Todos los estados</option>
+                <option value="critical">🔴 Crítico (Sin stock)</option>
+                <option value="low">🟡 Bajo (Mínimo)</option>
+                <option value="normal">🟢 Normal</option>
+                <option value="high">🔵 Alto</option>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform group-hover:translate-y-[-45%]">
+                <div className={`p-1 rounded-md ${statusFilter ? 'bg-emerald-500/20' : 'bg-muted'}`}>
+                  <ArrowDownCircle className={`h-4 w-4 ${statusFilter ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Almacén</label>
-            <select
-              value={warehouseFilter}
-              onChange={(e) => setWarehouseFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-            >
-              <option value="">Todos los almacenes</option>
-              <option value="UNASSIGNED">📦 Sin ubicación asignada</option>
-              {warehouses.map((warehouse) => (
-                <option key={warehouse.id} value={warehouse.id}>
-                  {warehouse.name} ({warehouse.code})
-                </option>
-              ))}
-            </select>
+          {/* Almacén */}
+          <div className={`relative p-4 rounded-xl border transition-all duration-300 ${warehouseFilter ? 'bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/30 shadow-lg shadow-blue-500/5' : 'bg-muted/30 border-border/50 hover:border-blue-500/30 hover:bg-blue-500/5'}`}>
+            <label className="flex items-center gap-2 text-sm font-medium mb-3">
+              <div className={`p-1.5 rounded-lg ${warehouseFilter ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-500'}`}>
+                <Warehouse className="h-3.5 w-3.5" />
+              </div>
+              <span className={warehouseFilter ? 'text-blue-400' : 'text-muted-foreground'}>Almacén</span>
+            </label>
+            <div className="relative group">
+              <select
+                value={warehouseFilter}
+                onChange={(e) => setWarehouseFilter(e.target.value)}
+                className="w-full pl-4 pr-10 py-2.5 border-0 rounded-lg bg-background/90 backdrop-blur-sm text-sm font-medium appearance-none cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500/30 focus:outline-none hover:bg-background shadow-sm"
+              >
+                <option value="">✨ Todos los almacenes</option>
+                <option value="UNASSIGNED">📦 Sin ubicación asignada</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    🏭 {warehouse.name} ({warehouse.code})
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform group-hover:translate-y-[-45%]">
+                <div className={`p-1 rounded-md ${warehouseFilter ? 'bg-blue-500/20' : 'bg-muted'}`}>
+                  <ArrowDownCircle className={`h-4 w-4 ${warehouseFilter ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                </div>
+              </div>
+            </div>
           </div>
 
+          {/* Limpiar Filtros */}
           <div className="flex items-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("");
-                setWarehouseFilter("");
-              }}
-              className="w-full"
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Limpiar Filtros
-            </Button>
+            {(statusFilter || warehouseFilter || search) ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("");
+                  setWarehouseFilter("");
+                }}
+                className="w-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 gap-2 transition-colors"
+              >
+                <X className="h-4 w-4" />
+                Limpiar filtros
+              </Button>
+            ) : (
+              <div className="w-full p-4 rounded-xl border border-dashed border-border/50 bg-muted/10 flex items-center justify-center">
+                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Sin filtros activos
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

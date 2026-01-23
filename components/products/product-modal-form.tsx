@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { SimpleProduct } from "@/lib/types/inventory";
+import { SimpleProduct, Subcategory } from "@/lib/types/inventory";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { createClient } from "@/lib/supabase/client";
 
 interface ProductModalFormProps {
     product: SimpleProduct | null;
@@ -33,14 +34,53 @@ export function ProductModalForm({
         unit: product?.unit || "EA",
         barcode: product?.barcode || "",
         category_id: product?.category?.id || "",
+        subcategory_id: (product as any)?.subcategory_id || "",
         supplier_id: (product as any)?.supplier_id || "",
         is_active: product?.is_active ?? true,
     });
 
     const [showScanner, setShowScanner] = useState(false);
+    const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+    const [loadingSubcategories, setLoadingSubcategories] = useState(false);
+
+    // Cargar subcategorías cuando cambia la categoría seleccionada
+    useEffect(() => {
+        const fetchSubcategories = async () => {
+            if (!formData.category_id) {
+                setSubcategories([]);
+                setFormData(prev => ({ ...prev, subcategory_id: "" }));
+                return;
+            }
+
+            setLoadingSubcategories(true);
+            const supabase = createClient();
+
+            try {
+                const { data, error } = await supabase
+                    .from("subcategories")
+                    .select("*")
+                    .eq("category_id", formData.category_id)
+                    .eq("is_active", true)
+                    .order("name", { ascending: true });
+
+                if (error) {
+                    console.warn("Error fetching subcategories:", error);
+                    setSubcategories([]);
+                } else {
+                    setSubcategories(data || []);
+                }
+            } catch (err) {
+                console.error("Error:", err);
+                setSubcategories([]);
+            } finally {
+                setLoadingSubcategories(false);
+            }
+        };
+
+        fetchSubcategories();
+    }, [formData.category_id]);
 
     // Mantener el SKU sincronizado con el código de barras si no se ha escrito uno manual
-    // Opcional: Esto depende de la regla de negocio, aquí lo dejamos similar a lo que estaba
     useEffect(() => {
         if (!product) { // Solo al crear
             setFormData(prev => ({ ...prev, sku: formData.barcode || prev.sku }));
@@ -49,7 +89,20 @@ export function ProductModalForm({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData);
+        // Enviar subcategory_id solo si tiene valor
+        const dataToSave = {
+            ...formData,
+            subcategory_id: formData.subcategory_id || null
+        };
+        onSave(dataToSave);
+    };
+
+    const handleCategoryChange = (categoryId: string) => {
+        setFormData({
+            ...formData,
+            category_id: categoryId,
+            subcategory_id: "" // Resetear subcategoría al cambiar categoría
+        });
     };
 
     return (
@@ -70,7 +123,7 @@ export function ProductModalForm({
                     {categories.length > 0 ? (
                         <select
                             value={formData.category_id}
-                            onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                            onChange={(e) => handleCategoryChange(e.target.value)}
                             className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
                         >
                             <option value="">Sin categoría</option>
@@ -88,26 +141,57 @@ export function ProductModalForm({
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">Proveedor</label>
-                    {suppliers.length > 0 ? (
+                    <label className="block text-sm font-medium mb-1">Subcategoría</label>
+                    {loadingSubcategories ? (
+                        <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/20 flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                            Cargando...
+                        </div>
+                    ) : !formData.category_id ? (
+                        <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/20">
+                            Selecciona una categoría primero
+                        </div>
+                    ) : subcategories.length > 0 ? (
                         <select
-                            value={formData.supplier_id}
-                            onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                            value={formData.subcategory_id}
+                            onChange={(e) => setFormData({ ...formData, subcategory_id: e.target.value })}
                             className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
                         >
-                            <option value="">Sin proveedor</option>
-                            {suppliers.map((supplier) => (
-                                <option key={supplier.id} value={supplier.id}>
-                                    {supplier.name}
+                            <option value="">Sin subcategoría</option>
+                            {subcategories.map((subcategory) => (
+                                <option key={subcategory.id} value={subcategory.id}>
+                                    {subcategory.name}
                                 </option>
                             ))}
                         </select>
                     ) : (
                         <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/20">
-                            No hay proveedores
+                            No hay subcategorías
                         </div>
                     )}
                 </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium mb-1">Proveedor</label>
+                {suppliers.length > 0 ? (
+                    <select
+                        value={formData.supplier_id}
+                        onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+                    >
+                        <option value="">Sin proveedor</option>
+                        {suppliers.map((supplier) => (
+                            <option key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                            </option>
+                        ))}
+                    </select>
+                ) : (
+                    <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/20">
+                        No hay proveedores
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 border-t pt-4 mt-2">

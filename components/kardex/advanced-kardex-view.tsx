@@ -17,7 +17,9 @@ import {
   RefreshCw,
   Filter,
   Download,
-  BarChart3
+  BarChart3,
+  ArrowDownCircle,
+  X
 } from "lucide-react";
 
 interface KardexEntry {
@@ -323,52 +325,81 @@ export function AdvancedKardexView() {
               </div>
             </div>
 
-            {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
-              <div>
-                <label className="block text-sm font-medium mb-2">Tipo de Movimiento</label>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-                >
-                  <option value="">Todos los tipos</option>
-                  <option value="IN">📈 Entradas</option>
-                  <option value="OUT">📉 Salidas</option>
-                  <option value="ADJUSTMENT">🔄 Ajustes</option>
-                </select>
+            {/* Filtros con diseño premium */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {/* Tipo de Movimiento */}
+              <div className={`relative p-4 rounded-xl border transition-all duration-300 ${typeFilter ? 'bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/30 shadow-lg shadow-blue-500/5' : 'bg-muted/30 border-border/50 hover:border-blue-500/30 hover:bg-blue-500/5'}`}>
+                <label className="flex items-center gap-2 text-sm font-medium mb-3">
+                  <div className={`p-1.5 rounded-lg ${typeFilter ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-500'}`}>
+                    <Package className="h-3.5 w-3.5" />
+                  </div>
+                  <span className={typeFilter ? 'text-blue-400' : 'text-muted-foreground'}>Tipo</span>
+                </label>
+                <div className="relative group">
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="w-full pl-4 pr-10 py-2.5 border-0 rounded-lg bg-background/90 backdrop-blur-sm text-sm font-medium appearance-none cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500/30 focus:outline-none hover:bg-background shadow-sm"
+                  >
+                    <option value="">✨ Todos</option>
+                    <option value="IN">📈 Entradas</option>
+                    <option value="OUT">📉 Salidas</option>
+                    <option value="ADJUSTMENT">🔄 Ajustes</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform group-hover:translate-y-[-45%]">
+                    <div className={`p-1 rounded-md ${typeFilter ? 'bg-blue-500/20' : 'bg-muted'}`}>
+                      <ArrowDownCircle className={`h-4 w-4 ${typeFilter ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Fecha</label>
+              {/* Fecha */}
+              <div className={`relative p-4 rounded-xl border transition-all duration-300 ${dateFilter ? 'bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/30 shadow-lg shadow-purple-500/5' : 'bg-muted/30 border-border/50 hover:border-purple-500/30 hover:bg-purple-500/5'}`}>
+                <label className="flex items-center gap-2 text-sm font-medium mb-3">
+                  <div className={`p-1.5 rounded-lg ${dateFilter ? 'bg-purple-500 text-white' : 'bg-purple-500/10 text-purple-500'}`}>
+                    <Calendar className="h-3.5 w-3.5" />
+                  </div>
+                  <span className={dateFilter ? 'text-purple-400' : 'text-muted-foreground'}>Fecha</span>
+                </label>
                 <Input
                   type="date"
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
-                  className="text-sm"
+                  className="border-0 bg-background/90 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
+              {/* Limpiar Filtros */}
               <div className="flex items-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearch("");
-                    setDateFilter("");
-                    setTypeFilter("");
-                  }}
-                  className="w-full"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Limpiar
-                </Button>
+                {(typeFilter || dateFilter || search) ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSearch("");
+                      setDateFilter("");
+                      setTypeFilter("");
+                    }}
+                    className="w-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 gap-2 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                    Limpiar
+                  </Button>
+                ) : (
+                  <div className="w-full p-4 rounded-xl border border-dashed border-border/50 bg-muted/10 flex items-center justify-center">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      Sin filtros
+                    </span>
+                  </div>
+                )}
               </div>
 
+              {/* Exportar */}
               <div className="flex items-end">
                 <Button
                   variant="outline"
                   onClick={() => {
-                    // Exportar kardex (simplificado)
                     const csvContent = [
                       ['Fecha', 'Tipo', 'Cantidad', 'Razón', 'Almacén', 'Balance', 'Notas'].join(','),
                       ...filteredEntries.map((entry: any) => [
@@ -389,9 +420,9 @@ export function AdvancedKardexView() {
                     a.download = `kardex_${selectedProductInfo?.sku}_${new Date().toISOString().split('T')[0]}.csv`;
                     a.click();
                   }}
-                  className="w-full"
+                  className="w-full gap-2"
                 >
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4" />
                   Exportar
                 </Button>
               </div>
