@@ -214,3 +214,21 @@ export interface ProductView {
   inventory_value: number;
   stock_status: 'critical' | 'low' | 'normal' | 'high';
 }
+
+/**
+ * Regla de paquete de botella
+ * Define cuántas bebidas incluye una botella según tipo de unidad y subcategoría
+ */
+export interface BottlePackageRule {
+  id: string;
+  unit_type: 'PZBOT' | 'PZBOTAN';
+  subcategory_id: string;
+  included_category_id: string;
+  quantity: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+  // Relaciones expandidas
+  subcategory?: Subcategory;
+  included_category?: Category;
+}

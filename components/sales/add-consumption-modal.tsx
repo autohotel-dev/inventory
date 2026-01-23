@@ -26,12 +26,16 @@ import { usePOSConfigRead } from "@/hooks/use-pos-config";
 import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { cn } from "@/lib/utils";
 
+import { SelectPackageDrinksModal } from "./select-package-drinks-modal";
+import type { BottlePackageRule } from "@/lib/types/inventory";
+
 interface Product {
   id: string;
   name: string;
   sku: string;
   price: number;
   barcode?: string | null;
+  unit?: string;
 }
 
 interface CartItem {
@@ -39,6 +43,8 @@ interface CartItem {
   qty: number;
   is_courtesy?: boolean;
   courtesy_reason?: string;
+  is_package_item?: boolean;
+  included_with?: string; // ID del producto padre (botella)
 }
 
 interface AddConsumptionModalProps {
@@ -71,7 +77,13 @@ export function AddConsumptionModal({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState<number>(1);
   const [editIsCourtesy, setEditIsCourtesy] = useState<boolean>(false);
+
   const [editCourtesyReason, setEditCourtesyReason] = useState<string>("");
+
+  // Estados para paquetes de botellas
+  const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+  const [pendingBottle, setPendingBottle] = useState<Product | null>(null);
+  const [activePackageRule, setActivePackageRule] = useState<BottlePackageRule | null>(null);
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
@@ -196,7 +208,7 @@ export function AddConsumptionModal({
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, price, barcode")
+        .select("id, name, sku, price, barcode, unit")
         .eq("is_active", true)
         .neq("sku", "SVC-ROOM")
         .order("name");
@@ -315,17 +327,113 @@ export function AddConsumptionModal({
     };
   }, []);
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
+    // 1. Verificar si es una botella con paquete configurado
+    if (product.unit === 'PZBOT' || product.unit === 'PZBOTAN') {
+      try {
+        const supabase = createClient();
+        // Buscar regla activa para esta unidad y subcategoría
+        // Primero necesitamos saber la subcategoría del producto
+        const { data: prodData, error: prodError } = await supabase
+          .from("products")
+          .select("category_id, subcategory_id")
+          .eq("id", product.id)
+          .single();
+
+        if (prodData && prodData.subcategory_id) {
+          const { data: ruleData } = await supabase
+            .from("bottle_package_rules")
+            .select("*, included_category:categories!included_category_id(name)")
+            .eq("unit_type", product.unit)
+            .eq("subcategory_id", prodData.subcategory_id)
+            .eq("is_active", true)
+            .single();
+
+          if (ruleData) {
+            // Encontramos una regla, abrir modal de selección
+            setPendingBottle(product);
+            setActivePackageRule(ruleData as any);
+            setIsPackageModalOpen(true);
+            return; // Detener flujo normal
+          }
+        }
+      } catch (err) {
+        console.error("Error checking package rules:", err);
+      }
+    }
+
+    // Flujo normal
+    directAddToCart(product);
+  };
+
+  const directAddToCart = (product: Product, isPackageItem = false, parentId?: string) => {
     setCartItems(prev => {
       const newCart = new Map(prev);
-      const existing = newCart.get(product.id);
-      if (existing) {
-        newCart.set(product.id, { ...existing, qty: existing.qty + 1 });
+
+      // Si es parte de un paquete, generamos un ID único compuesto para permitir múltiples instancias
+      // O simplemente lo agregamos como item separado si ya existe
+      const key = isPackageItem ? `${product.id}-pkg-${parentId}-${Date.now()}` : product.id;
+
+      const existing = newCart.get(key);
+      if (existing && !isPackageItem) {
+        newCart.set(key, { ...existing, qty: existing.qty + 1 });
       } else {
-        newCart.set(product.id, { product, qty: 1, is_courtesy: false, courtesy_reason: "" });
+        newCart.set(key, {
+          product,
+          qty: 1,
+          is_courtesy: isPackageItem, // Los items de paquete son cortesía automáticamente
+          courtesy_reason: isPackageItem ? "Incluido en paquete de botella" : "",
+          is_package_item: isPackageItem,
+          included_with: parentId
+        });
       }
       return newCart;
     });
+  };
+
+  const handlePackageConfirm = (selectedDrinks: { product: Product, qty: number }[]) => {
+    if (!pendingBottle) return;
+
+    // 1. Agregar la botella
+    directAddToCart(pendingBottle);
+
+    // 2. Agregar las bebidas seleccionadas
+    selectedDrinks.forEach(({ product, qty }) => {
+      // Agregar N veces según la cantidad seleccionada
+      // Nota: Para simplificar, agregamos un item con la cantidad total
+      setCartItems(prev => {
+        const newCart = new Map(prev);
+        // Usamos un ID único para asegurar que se agrupen con ESTA botella específica si hubiera múltiples
+        // Pero por simplicidad en la UI, usaremos un ID compuesto
+        const key = `${product.id}-pkg-${pendingBottle.id}`;
+
+        // Si ya existe este producto vinculado a esta botella (mismo tipo), sumamos
+        // Nota: Esto asume que solo hay una botella de este tipo en el proceso actual.
+        // Si el usuario agrega otra botella igual, se separará porque pendingBottle es el mismo pero
+        // la lógica de directAddToCart maneja IDs base.
+        // Para hacerlo robusto:
+
+        newCart.set(key, {
+          product,
+          qty: qty,
+          is_courtesy: true,
+          courtesy_reason: "Incluido en paquete",
+          is_package_item: true,
+          included_with: pendingBottle.id
+        });
+
+        return newCart;
+      });
+    });
+
+    // Resetear estados
+    setPendingBottle(null);
+    setActivePackageRule(null);
+    setIsPackageModalOpen(false);
+    playSuccess();
+    setSearchValue("");
+    setLastAddedId(pendingBottle.id);
+    ensureFocus();
   };
 
   const removeFromCart = (productId: string) => {
@@ -604,6 +712,22 @@ export function AddConsumptionModal({
         className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {isPackageModalOpen && pendingBottle && activePackageRule && (
+          <SelectPackageDrinksModal
+            isOpen={isPackageModalOpen}
+            onClose={() => {
+              setIsPackageModalOpen(false);
+              setPendingBottle(null);
+              setActivePackageRule(null);
+              ensureFocus();
+            }}
+            onConfirm={handlePackageConfirm}
+            bottleProduct={pendingBottle}
+            includedCategoryId={activePackageRule.included_category_id}
+            requiredQuantity={activePackageRule.quantity}
+            categoryName={(activePackageRule as any).included_category?.name || "Bebidas"}
+          />
+        )}
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10">
           <div className="flex items-center gap-3">
@@ -696,6 +820,12 @@ export function AddConsumptionModal({
                       <div>
                         <p className="font-medium">{item.product.name}</p>
                         <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+                        {item.is_package_item && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-cyan-600 dark:text-cyan-400 font-medium">
+                            <Package className="h-3 w-3" />
+                            Incluido en paquete
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right font-mono">

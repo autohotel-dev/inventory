@@ -272,6 +272,8 @@ export function ProductModalForm({
                         <option value="PAQ">PAQ - Paquete</option>
                         <option value="CAJ">CAJ - Caja</option>
                         <option value="BOL">BOL - Bolsa</option>
+                        <option value="PZBOT">PZBOT - Botella grande</option>
+                        <option value="PZBOTAN">PZBOTAN - Botella anforita</option>
                     </select>
                 </div>
             </div>

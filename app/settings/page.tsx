@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { usePOSConfig, type POSConfig } from "@/hooks/use-pos-config";
 import { usePrinterSettings } from "@/hooks/use-printer-settings";
+import { BottlePackageRules } from "@/components/settings/bottle-package-rules";
 
 export default function SettingsPage() {
     const { config, isLoaded, saveConfig, resetConfig } = usePOSConfig();
@@ -369,6 +370,9 @@ export default function SettingsPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Sección: Reglas de Paquetes */}
+                <BottlePackageRules />
 
                 {/* Botones de acción */}
                 <div className="flex items-center justify-between pt-4">
