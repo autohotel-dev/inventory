@@ -101,6 +101,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
   const [cashBreakdown, setCashBreakdown] = useState<CashBreakdown>({});
   const [countedCash, setCountedCash] = useState(0);
+  const [declaredBBVA, setDeclaredBBVA] = useState("");
+  const [declaredGetnet, setDeclaredGetnet] = useState("");
   const [notes, setNotes] = useState("");
   const { printClosing, isPrinting: isPrintingClosing } = usePrintClosing();
 
@@ -348,6 +350,13 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   const expectedCash = summary ? summary.total_cash - (summary.total_expenses || 0) : 0;
   const cashDifference = summary ? countedCash - expectedCash : 0;
 
+  // Calcular diferencias de tarjeta
+  const bbvaAmount = parseFloat(declaredBBVA) || 0;
+  const getnetAmount = parseFloat(declaredGetnet) || 0;
+
+  const diffBBVA = summary ? bbvaAmount - summary.total_card_bbva : 0;
+  const diffGetnet = summary ? getnetAmount - summary.total_card_getnet : 0;
+
   // Guardar corte
   const handleSaveClosing = async () => {
     if (!summary) return;
@@ -391,6 +400,13 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           expenses_count: summary.expenses?.length || 0,
           counted_cash: countedCash,
           cash_difference: cashDifference,
+
+          // Declaraciones de tarjeta
+          declared_card_bbva: bbvaAmount,
+          declared_card_getnet: getnetAmount,
+          card_difference_bbva: diffBBVA,
+          card_difference_getnet: diffGetnet,
+
           cash_breakdown: cashBreakdown,
           notes: notes.trim() || null,
           status: "pending",
@@ -430,8 +446,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
       success("Corte completado", "El corte de caja se ha registrado correctamente");
 
-      // Abrir reporte de ingresos para imprimir automáticamente
-      const reportUrl = `/reports/income?shiftId=${closing.id}&autoPrint=true`;
+      // Abrir reporte de ingresos para imprimir automáticamente (usar ruta print dedicada)
+      const reportUrl = `/reports/income/print?shiftId=${closing.id}&autoPrint=true`;
       window.open(reportUrl, '_blank');
 
       onComplete();
@@ -720,6 +736,66 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                         ? "Sobrante"
                         : "Faltante"}
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Declaración de Vouchers */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Declaración de Vouchers (Terminales)
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* BBVA */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>BBVA (Sistema):</Label>
+                    <span className="font-bold text-blue-600">{formatCurrency(summary?.total_card_bbva || 0)}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vouchers Físicos (Suma):</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={declaredBBVA}
+                      onChange={(e) => setDeclaredBBVA(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-sm pt-2 border-t">
+                    <span>Diferencia:</span>
+                    <span className={`font-bold ${diffBBVA === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {formatCurrency(diffBBVA)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* GETNET */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>GETNET (Sistema):</Label>
+                    <span className="font-bold text-red-600">{formatCurrency(summary?.total_card_getnet || 0)}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vouchers Físicos (Suma):</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={declaredGetnet}
+                      onChange={(e) => setDeclaredGetnet(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-sm pt-2 border-t">
+                    <span>Diferencia:</span>
+                    <span className={`font-bold ${diffGetnet === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {formatCurrency(diffGetnet)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

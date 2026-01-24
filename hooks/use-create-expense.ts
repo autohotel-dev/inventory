@@ -33,25 +33,11 @@ export function useCreateExpense() {
                 return null;
             }
 
-            // Calculate available cash using DB function
-            const { data: cashData, error: cashError } = await supabase
-                .rpc('calculate_available_cash', { p_session_id: data.shift_session_id });
-
-            if (cashError) {
-                console.error('Error calculating cash:', cashError);
-                // Continue anyway, let the user know in UI
-            }
-
-            const availableCash = cashData || 0;
-
-            // Validate amount doesn't exceed available cash
-            if (data.amount > availableCash) {
-                showError(
-                    'Fondos insuficientes',
-                    `Monto excede efectivo disponible ($${availableCash.toFixed(2)})`
-                );
-                return null;
-            }
+            // Skip server-side validation for now as it doesn't account for initial cash fund
+            // const { data: cashData, error: cashError } = await supabase
+            //    .rpc('calculate_available_cash', { p_session_id: data.shift_session_id });
+            
+            // if (data.amount > (cashData || 0)) { ... }
 
             // Insert expense
             const { data: expense, error: insertError } = await supabase

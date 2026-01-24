@@ -120,6 +120,7 @@ export function ReceptionistDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
+  const [systemActiveSession, setSystemActiveSession] = useState<ShiftSession | null>(null);
   const [showClosingModal, setShowClosingModal] = useState(false);
   const [showClockOutOptions, setShowClockOutOptions] = useState(false);
   const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
@@ -132,6 +133,9 @@ export function ReceptionistDashboard() {
   // Permiso para ajustar caja (solo admin/manager)
   const canAdjustCash = isAdmin || isManager;
 
+  // Sesión efectiva para gastos (la propia o la del sistema si es admin)
+  const effectiveSession = activeSession || systemActiveSession;
+
   // Estados para inicio de turno
   const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
   const [pinCode, setPinCode] = useState("");
@@ -139,8 +143,8 @@ export function ReceptionistDashboard() {
   const [startingShift, setStartingShift] = useState(false);
   const [employeePin, setEmployeePin] = useState<string | null>(null);
 
-  // Hook para gastos
-  const { expenses, totalExpenses, loading: expensesLoading, refetch: refetchExpenses } = useShiftExpenses(activeSession?.id || null);
+  // Hook para gastos (usar sesión efectiva)
+  const { expenses, totalExpenses, loading: expensesLoading, refetch: refetchExpenses } = useShiftExpenses(effectiveSession?.id || null);
 
   // Configuración del sistema (incluye fondo de caja inicial)
   const posConfig = usePOSConfigRead();
@@ -505,6 +509,29 @@ export function ReceptionistDashboard() {
     };
   }, []);
 
+  // Cargar sesión activa del SISTEMA (para admins)
+  const fetchSystemActiveSession = async () => {
+    if (!canAdjustCash) return; // Solo admins/managers
+
+    const supabase = createClient();
+    const { data: sessions } = await supabase
+      .from("shift_sessions")
+      .select(`
+        *,
+        employees(*),
+        shift_definitions(*)
+      `)
+      .eq("status", "active")
+      .order("clock_in_at", { ascending: false })
+      .limit(1);
+
+    // Solo usar si es diferente a la sesión activa propia
+    const found = sessions?.[0];
+    if (found && found.employee_id !== employeeId) {
+      setSystemActiveSession(found);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -521,6 +548,13 @@ export function ReceptionistDashboard() {
       isMounted = false;
     };
   }, [employeeId]);
+
+  // Cargar sesión del sistema si es admin
+  useEffect(() => {
+    if (canAdjustCash && !activeSession) {
+      fetchSystemActiveSession();
+    }
+  }, [canAdjustCash, activeSession]);
 
   useEffect(() => {
     if (userId) {
@@ -1025,7 +1059,7 @@ export function ReceptionistDashboard() {
       )}
 
       {/* Gastos del Turno - Solo mostrar si NO es un rol restringido */}
-      {activeSession && !isRestrictedRole && (
+      {effectiveSession && !isRestrictedRole && (
         <ExpensesList
           expenses={expenses}
           totalExpenses={totalExpenses}
@@ -1081,9 +1115,9 @@ export function ReceptionistDashboard() {
 
             {!isRestrictedRole && (
               <button
-                onClick={() => activeSession && setShowExpenseModal(true)}
-                disabled={!activeSession}
-                className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${activeSession
+                onClick={() => effectiveSession && setShowExpenseModal(true)}
+                disabled={!effectiveSession}
+                className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${effectiveSession
                   ? "hover:bg-muted cursor-pointer"
                   : "opacity-50 cursor-not-allowed"
                   }`}
@@ -1175,11 +1209,11 @@ export function ReceptionistDashboard() {
       )}
 
       {/* Modal de gastos */}
-      {activeSession && (
+      {effectiveSession && (
         <ExpenseModal
           open={showExpenseModal}
           onClose={() => setShowExpenseModal(false)}
-          sessionId={activeSession.id}
+          sessionId={effectiveSession.id}
           employeeId={employeeId || ''}
           availableCash={posConfig.initialCashFund + summary.cashAmount - totalExpenses - (activeValetCount * posConfig.valetAdvanceAmount)}
           onSuccess={() => {

@@ -14,6 +14,7 @@ import {
 import { ShiftIndicatorWrapper } from "@/components/employees/shift-indicator-wrapper";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 import { CashBalanceCard } from "@/components/dashboard/cash-balance-card";
+import { AdminQuickActions } from "@/components/dashboard/admin-quick-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -210,30 +211,7 @@ export default async function Home() {
 
           {/* Acciones Rápidas */}
           <div id="tour-dashboard-quick-actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Plus className="h-5 w-5" />
-                  Acciones Rápidas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {quickLinks.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group"
-                    >
-                      <span className="text-2xl">{link.icon}</span>
-                      <span className="font-medium group-hover:text-primary transition-colors">
-                        {link.label}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <AdminQuickActions quickLinks={quickLinks} />
           </div>
         </div>
 
