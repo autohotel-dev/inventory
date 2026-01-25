@@ -287,6 +287,34 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
 
+                {/* Sección: Configuración de Reportes */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-indigo-500" />
+                            <CardTitle>Configuración de Reportes (Dashboard)</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Personaliza cómo se calculan los totales en el Dashboard de Recepción
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label className="text-base font-medium">Incluir ventas globales en turno</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Si está activo, el dashboard sumará TODAS las ventas realizadas durante el horario del turno (incluyendo Admins y otros usuarios).
+                                    Si se desactiva, solo sumará las ventas creadas por el usuario logueado.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={localConfig.includeGlobalSalesInShift ?? true}
+                                onCheckedChange={(checked) => updateLocalConfig('includeGlobalSalesInShift', checked)}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Sección: Impresión */}
                 <Card>
                     <CardHeader>

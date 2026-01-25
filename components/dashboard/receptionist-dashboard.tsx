@@ -329,20 +329,31 @@ export function ReceptionistDashboard() {
         startDate = today.toISOString();
       }
 
-      // Ventas del usuario desde inicio del turno
-      const { data: sales } = await supabase
+      // Construir query de Ventas
+      let salesQuery = supabase
         .from("sales_orders")
         .select("id, total, status")
-        .eq("created_by", userId)
         .gte("created_at", startDate);
 
-      // Pagos del usuario desde inicio del turno
-      const { data: payments } = await supabase
+      // Si la configuración dice que SOLO mis ventas:
+      if (!posConfig.includeGlobalSalesInShift) {
+        salesQuery = salesQuery.eq("created_by", userId);
+      }
+
+      const { data: sales } = await salesQuery;
+
+      // Construir query de Pagos
+      let paymentsQuery = supabase
         .from("payments")
-        .select("amount, payment_method")
-        .eq("created_by", userId)
+        .select("amount, payment_method, terminal_code")
         .gte("created_at", startDate)
         .eq("status", "PAGADO");
+
+      if (!posConfig.includeGlobalSalesInShift) {
+        paymentsQuery = paymentsQuery.eq("created_by", userId);
+      }
+
+      const { data: payments } = await paymentsQuery;
 
       // Habitaciones ocupadas actualmente
       const { count: openRooms } = await supabase
@@ -361,9 +372,21 @@ export function ReceptionistDashboard() {
       payments?.forEach((p: any) => {
         if (p.payment_method === "EFECTIVO") {
           cashAmount += p.amount || 0;
+        } else if (p.payment_method === "TARJETA") {
+          if (p.terminal_code === "BBVA") {
+            cardBBVA += p.amount || 0;
+          } else if (p.terminal_code === "GETNET") {
+            cardGetnet += p.amount || 0;
+          } else {
+            // Fallback para tarjetas antiguas o sin terminal especificada (asumir BBVA por defecto o dividir?)
+            // Por ahora lo mandamos a BBVA si no hay info, o podríamos crear categoría 'Otros'
+            cardBBVA += p.amount || 0;
+          }
         } else if (p.payment_method === "TARJETA_BBVA") {
+          // Compatibilidad legacy si existiera
           cardBBVA += p.amount || 0;
         } else if (p.payment_method === "TARJETA_GETNET") {
+          // Compatibilidad legacy si existiera
           cardGetnet += p.amount || 0;
         }
       });

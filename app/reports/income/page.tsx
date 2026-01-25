@@ -423,7 +423,7 @@ function IncomeReportContent() {
             </CollapsibleSection>
 
             {/* Componente de reporte */}
-            < IncomeReport
+            <IncomeReport
                 reportType={reportType}
                 shiftId={selectedShift}
                 startDate={startDate}
@@ -435,7 +435,7 @@ function IncomeReportContent() {
 
             {/* Estilos de impresión para ocultar UI */}
 
-        </div >
+        </div>
     );
 }
 

@@ -13,6 +13,7 @@ interface PaymentDetail {
     amount: number;
     card_type?: string;
     card_last_4?: string;
+    terminal_code?: string;
 }
 
 interface IncomeEntry {
@@ -27,6 +28,7 @@ interface IncomeEntry {
     payment_method: string;
     card_type?: string;
     card_last_4?: string;
+    terminal_code?: string;
     stay_status?: string;
     payments?: PaymentDetail[];
 }
@@ -54,6 +56,7 @@ export function IncomeReport({
     const [loading, setLoading] = useState(true);
     const [reportNumber, setReportNumber] = useState("0001");
     const [shiftInfo, setShiftInfo] = useState<any>(null);
+    const [currentShift, setCurrentShift] = useState<any>(null); // To store "On Duty" info
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
     const [showStats, setShowStats] = useState(true);
 
@@ -66,8 +69,31 @@ export function IncomeReport({
     };
 
     useEffect(() => {
+        fetchCurrentShift();
+    }, []);
+
+    useEffect(() => {
         fetchIncomeData();
     }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
+
+    // Fetch separate info about who is CURRENTLY on duty (for the header/export)
+    const fetchCurrentShift = async () => {
+        const supabase = createClient();
+        const { data: session } = await supabase
+            .from("shift_sessions")
+            .select(`
+                employees!shift_sessions_employee_id_fkey(first_name, last_name)
+            `)
+            .eq("status", "active")
+            .single();
+
+        if (session) {
+            const emp = (session.employees as any);
+            setCurrentShift({
+                employee_name: emp ? `${emp.first_name} ${emp.last_name}` : "Desconocido"
+            });
+        }
+    };
 
     const fetchIncomeData = async () => {
         setLoading(true);
@@ -92,20 +118,22 @@ export function IncomeReport({
             total,
             paid_amount,
             status,
-            payments (
-              payment_method,
-              card_type,
-              card_last_4,
-              amount,
-              concept
-            ),
-            sales_order_items (
-              concept_type,
-              unit_price,
-              qty
+              payments (
+                payment_method,
+                card_type,
+                card_last_4,
+                terminal_code,
+                amount,
+                concept
+              ),
+              sales_order_items (
+                concept_type,
+                unit_price,
+                qty
+              )
             )
-          )
-        `)
+          `)
+
                 .order("check_in_at", { ascending: true });
 
             // Filtrar por turno o rango de fechas
@@ -114,9 +142,9 @@ export function IncomeReport({
                 const { data: closingData, error: closingError } = await supabase
                     .from("shift_closings")
                     .select(`
-                        period_start,
-                        period_end,
-                        employees!shift_closings_employee_id_fkey(first_name, last_name)
+    period_start,
+        period_end,
+        employees!shift_closings_employee_id_fkey(first_name, last_name)
                     `)
                     .eq("id", shiftId)
                     .maybeSingle();
@@ -131,7 +159,7 @@ export function IncomeReport({
                     shift = {
                         shift_start: closingData.period_start,
                         shift_end: closingData.period_end,
-                        employee_name: employee ? `${employee.first_name} ${employee.last_name}` : undefined
+                        employee_name: employee ? `${employee.first_name} ${employee.last_name} ` : undefined
                     };
                     console.log("📅 Shift period:", { start: shift.shift_start, end: shift.shift_end });
                 }
@@ -141,11 +169,11 @@ export function IncomeReport({
                     const { data: session, error: sessionError } = await supabase
                         .from("shift_sessions")
                         .select(`
-                            clock_in_at,
-                            employees!shift_sessions_employee_id_fkey(
-                                first_name,
-                                last_name
-                            )
+    clock_in_at,
+        employees!shift_sessions_employee_id_fkey(
+            first_name,
+            last_name
+        )
                         `)
                         .eq("id", shiftId)
                         .single();
@@ -155,7 +183,7 @@ export function IncomeReport({
                     if (session) {
                         const employee = (session.employees as any);
                         const employeeName = employee
-                            ? `${employee.first_name} ${employee.last_name}`
+                            ? `${employee.first_name} ${employee.last_name} `
                             : undefined;
 
                         shift = {
@@ -254,12 +282,14 @@ export function IncomeReport({
                     payment_method: paymentMethod,
                     card_type: cardPayment?.card_type,
                     card_last_4: cardPayment?.card_last_4,
+                    terminal_code: cardPayment?.terminal_code,
                     stay_status: stay.status,
                     payments: payments.map((p: any) => ({
                         payment_method: p.payment_method,
                         amount: p.amount || 0,
                         card_type: p.card_type,
-                        card_last_4: p.card_last_4
+                        card_last_4: p.card_last_4,
+                        terminal_code: p.terminal_code
                     })),
                 };
             });
@@ -313,7 +343,82 @@ export function IncomeReport({
     };
 
     const handleExport = () => {
-        alert("Función de exportación en desarrollo");
+        // Preparar información del encabezado
+        const exportDate = new Date().toLocaleString("es-MX");
+        let shiftLabel = "General";
+
+        // Prioridad: Recepcionista del turno seleccionado, O recepcionista actualmente en turno
+        let receptionistName = "N/A";
+        if (shiftInfo?.employee_name) {
+            receptionistName = shiftInfo.employee_name;
+        } else if (currentShift?.employee_name) {
+            receptionistName = `${currentShift.employee_name} (En Turno)`;
+        }
+
+        if (reportType === "shift" && shiftInfo) {
+            shiftLabel = `Turno del ${new Date(shiftInfo.shift_start).toLocaleString("es-MX")} al ${shiftInfo.shift_end ? new Date(shiftInfo.shift_end).toLocaleString("es-MX") : "Presente"}`;
+        } else if (reportType === "dateRange") {
+            const startStr = startDate ? startDate.toLocaleDateString("es-MX") : "Inicio";
+            const endStr = endDate ? endDate.toLocaleDateString("es-MX") : "Fin";
+            shiftLabel = `Rango: ${startStr} - ${endStr}`;
+        }
+
+        // Fila de metadatos (combinada visualmente en el primer renglón)
+        const metaRow = [
+            `REPORTE DE INGRESOS - Exportado: ${exportDate} - ${shiftLabel} - Recepcionista: ${receptionistName}`
+        ];
+
+        const headers = [
+            "No.",
+            "Horario",
+            "Placas",
+            "Habitacion",
+            "Precio",
+            "Extra",
+            "Consumo",
+            "Total",
+            "Forma Pago",
+            "Detalle Pago"
+        ];
+
+        const rows = entries.map(e => {
+            let paymentDetail = "";
+            if (e.payment_method === "TARJETA") {
+                paymentDetail = `${e.terminal_code || "TARJETA"}${e.card_type ? ` - ${e.card_type}` : ""}${e.card_last_4 ? ` ****${e.card_last_4}` : ""}`;
+            } else if (e.payment_method === "MIXTO") {
+                paymentDetail = e.payments?.map(p =>
+                    `${p.payment_method}: $${p.amount} ${p.payment_method === "TARJETA" ? `(${p.terminal_code || "TPV"} ${p.card_type || ""} ****${p.card_last_4 || ""})` : ""}`
+                ).join(" | ") || "";
+            } else if (e.payment_method === "EFECTIVO") {
+                paymentDetail = "EFECTIVO";
+            } else {
+                paymentDetail = e.payment_method;
+            }
+
+            return [
+                e.no,
+                e.time,
+                e.vehicle_plate,
+                e.room_number,
+                e.room_price,
+                e.extra,
+                e.consumption,
+                e.total,
+                e.payment_method,
+                paymentDetail
+            ].map(val => `"${val}"`).join(",");
+        });
+
+        // Unir: Metadatos + Línea vacía + Encabezados + Filas
+        const csvContent = [metaRow.map(v => `"${v}"`).join(","), "", headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `reporte_ingresos_${new Date().toISOString().split("T")[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const totals = calculateTotals();
@@ -511,7 +616,7 @@ export function IncomeReport({
                             <tbody>
                                 {entries.map((entry, idx) => (
                                     <React.Fragment key={entry.no}>
-                                        <tr className={`border-b border-border hover:bg-muted/30 transition-colors print:border-b print:border-black ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                                        <tr className={`border - b border - border hover: bg - muted / 30 transition - colors print: border - b print: border - black ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'} `}>
                                             <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{entry.no}</td>
                                             <td className="border-r border-border p-2 text-center print:border-r print:border-black">{entry.time}</td>
                                             <td className="border-r border-border p-2 text-center uppercase print:border-r print:border-black">{entry.vehicle_plate}</td>
@@ -564,9 +669,16 @@ export function IncomeReport({
                                                     </Badge>
                                                 ) : entry.payment_method === "TARJETA" ? (
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <Badge variant="outline" className="text-xs">
-                                                            {entry.card_type === "CREDITO" ? "CRÉDITO" : entry.card_type === "DEBITO" ? "DÉBITO" : "TARJETA"}
-                                                        </Badge>
+                                                        <div className="flex items-center gap-1">
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {entry.terminal_code || "TARJETA"}
+                                                            </Badge>
+                                                            {entry.card_type && (
+                                                                <span className="text-[10px] font-bold text-muted-foreground border px-1 rounded">
+                                                                    {entry.card_type === "CREDITO" ? "CRÉD" : "DÉB"}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         {entry.card_last_4 && (
                                                             <span className="text-xs font-mono text-muted-foreground">•••• {entry.card_last_4}</span>
                                                         )}
@@ -593,7 +705,7 @@ export function IncomeReport({
                                                                     {p.payment_method}
                                                                     {p.payment_method === 'TARJETA' && (
                                                                         <span className="ml-1 text-[10px] opacity-70">
-                                                                            ({p.card_type === 'CREDITO' ? 'CRÉD.' : 'DÉB.'} •••• {p.card_last_4})
+                                                                            ({p.terminal_code || 'T.P.V'} • {p.card_type === 'CREDITO' ? 'CRÉD.' : 'DÉB.'} •••• {p.card_last_4})
                                                                         </span>
                                                                     )}:
                                                                 </span>
@@ -641,92 +753,92 @@ export function IncomeReport({
             </Card>
 
             <style jsx global>{`
-        @media print {
+    @media print {
           /* Ocultar elementos que no son para imprimir */
-          .no-print {
-            display: none !important;
-          }
-          
+          .no - print {
+            display: none!important;
+        }
+
           /* Configuración general de la página */
           body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
+            print - color - adjust: exact;
+            -webkit - print - color - adjust: exact;
             margin: 10mm;
-            font-size: 10pt;
-          }
-          
+            font - size: 10pt;
+        }
+
           /* Eliminar todos los colores y fondos */
           * {
-            color: black !important;
-            background: white !important;
-          }
-          
+            color: black!important;
+            background: white!important;
+        }
+
           /* Tabla compacta y limpia */
           table {
-            border-collapse: collapse !important;
-            width: 100% !important;
-            border: 2px solid black !important;
-          }
-          
-          th, td {
-            border: 1px solid black !important;
-            padding: 2px 4px !important;
-            font-size: 9pt !important;
-          }
+            border - collapse: collapse!important;
+            width: 100 % !important;
+            border: 2px solid black!important;
+        }
+
+        th, td {
+            border: 1px solid black!important;
+            padding: 2px 4px!important;
+            font - size: 9pt!important;
+        }
           
           th {
-            font-weight: bold !important;
-            text-align: center !important;
-          }
-          
+            font - weight: bold!important;
+            text - align: center!important;
+        }
+
           /* Bordes más gruesos para secciones importantes */
-          .print\\:border-2 {
-            border-width: 2px !important;
-          }
+          .print\\: border - 2 {
+            border - width: 2px!important;
+        }
           
-          .print\\:border-b-2 {
-            border-bottom-width: 2px !important;
-          }
+          .print\\: border - b - 2 {
+            border - bottom - width: 2px!important;
+        }
           
-          .print\\:border-r-2 {
-            border-right-width: 2px !important;
-          }
+          .print\\: border - r - 2 {
+            border - right - width: 2px!important;
+        }
           
-          .print\\:border-black {
-            border-color: black !important;
-          }
-          
+          .print\\: border - black {
+            border - color: black!important;
+        }
+
           /* Altura fija para filas vacías */
-          .print\\:h-6 {
-            height: 18px !important;
-          }
-          
+          .print\\: h - 6 {
+            height: 18px!important;
+        }
+
           /* Mostrar filas vacías solo en impresión */
-          .print\\:table-row {
-            display: table-row !important;
-          }
-          
+          .print\\: table - row {
+            display: table - row!important;
+        }
+
           /* Ocultar en impresión */
           .print\\:hidden {
-            display: none !important;
-          }
-          
+            display: none!important;
+        }
+
           /* Prevenir saltos de página */
           table {
-            page-break-inside: auto;
-          }
+            page -break-inside: auto;
+        }
           
           tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-          
-          /* Eliminar sombras */
-          .print\\:shadow-none {
-            box-shadow: none !important;
-          }
+            page -break-inside: avoid;
+            page -break-after: auto;
         }
-      `}</style>
+
+          /* Eliminar sombras */
+          .print\\: shadow - none {
+            box - shadow: none!important;
+        }
+    }
+    `}</style>
         </div>
     );
 }

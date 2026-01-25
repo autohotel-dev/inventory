@@ -21,6 +21,9 @@ export interface POSConfig {
     // Caja
     initialCashFund: number;     // Fondo de caja inicial para cada turno
     valetAdvanceAmount: number;  // Adelanto en efectivo por cada cochero en turno
+    
+    // Reportes
+    includeGlobalSalesInShift: boolean; // Si es true, incluye ventas de Admin/Otros en el reporte de turno
 }
 
 const DEFAULT_CONFIG: POSConfig = {
@@ -34,6 +37,7 @@ const DEFAULT_CONFIG: POSConfig = {
     printReceptionTicket: true,
     initialCashFund: 500,        // $500 MXN por defecto
     valetAdvanceAmount: 300,     // $300 MXN por cochero
+    includeGlobalSalesInShift: true, // Por defecto incluimos todo lo que pasa en el turno
 };
 
 const STORAGE_KEY = 'pos-config';
