@@ -79,11 +79,22 @@ export interface ShiftClosing {
   total_card_getnet: number;
   total_sales: number;
   total_transactions: number;
+  status: 'pending' | 'approved' | 'rejected' | 'reviewed';
+  rejection_reason?: string | null;
+  notes?: string | null;
+  total_expenses?: number;
+  expenses?: any[];
+  // Campos para control de efectivo
   counted_cash?: number | null;
   cash_difference?: number | null;
   cash_breakdown?: CashBreakdown | null;
-  status: 'pending' | 'approved' | 'rejected' | 'reviewed';
-  notes?: string | null;
+  // Campos para control de tarjeta (Vouchers)
+  declared_card_bbva?: number | null;
+  declared_card_getnet?: number | null;
+  card_difference_bbva?: number | null;
+  card_difference_getnet?: number | null;
+  is_correction?: boolean;
+  has_correction?: boolean;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
   created_at: string;

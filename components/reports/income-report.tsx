@@ -225,8 +225,8 @@ export function IncomeReport({
             if (statusFilter && statusFilter !== "all") {
                 query = query.eq("status", statusFilter);
             } else {
-                // Si es "all", mostrar ACTIVA y FINALIZADA
-                query = query.in("status", ["ACTIVA", "FINALIZADA"]);
+                // Si es "all", mostrar ACTIVA, FINALIZADA y CANCELADA
+                query = query.in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"]);
             }
 
             const { data, error } = await query;
@@ -241,17 +241,26 @@ export function IncomeReport({
                 const items = order?.sales_order_items || [];
                 const payments = order?.payments || [];
 
-                const roomPrice = items
-                    .filter((item: any) => item.concept_type === "ROOM_BASE")
-                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
+                let roomPrice = 0;
+                let extra = 0;
+                let consumption = 0;
 
-                const extra = items
-                    .filter((item: any) =>
-                        ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(item.concept_type)
-                    )
-                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
+                if (stay.status === "CANCELADA") {
+                    roomPrice = order?.total || 0;
+                    // consumption y extra en 0 para canceladas (solo mostramos lo retenido en precio)
+                } else {
+                    roomPrice = items
+                        .filter((item: any) => item.concept_type === "ROOM_BASE")
+                        .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
 
-                const consumption = Math.max(0, (order?.subtotal || 0) - roomPrice - extra);
+                    extra = items
+                        .filter((item: any) =>
+                            ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(item.concept_type)
+                        )
+                        .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
+
+                    consumption = Math.max(0, (order?.subtotal || 0) - roomPrice - extra);
+                }
                 const cardPayment = payments.find((p: any) => p.payment_method === "TARJETA");
 
                 // Determinar método de pago
@@ -399,7 +408,7 @@ export function IncomeReport({
                 e.no,
                 e.time,
                 e.vehicle_plate,
-                e.room_number,
+                `${e.room_number} ${e.stay_status === 'CANCELADA' ? '(CANCELADA)' : ''}`,
                 e.room_price,
                 e.extra,
                 e.consumption,
@@ -626,6 +635,11 @@ export function IncomeReport({
                                                     {entry.stay_status === "ACTIVA" && (
                                                         <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 print:hidden">
                                                             EN CURSO
+                                                        </Badge>
+                                                    )}
+                                                    {entry.stay_status === "CANCELADA" && (
+                                                        <Badge variant="destructive" className="text-[10px] print:hidden">
+                                                            CANCELADA
                                                         </Badge>
                                                     )}
                                                 </div>

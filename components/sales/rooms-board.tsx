@@ -2884,6 +2884,74 @@ function RoomsBoardInternal() {
               .update({ status: "OCUPADA" })
               .eq("id", data.newRoomId);
 
+            // 1. Calcular diferencia de precio (Upgrade)
+            let priceDifference = 0;
+            const oldPrice = selectedRoom.room_types?.base_price || 0;
+            const newPrice = newRoom.room_types?.base_price || 0;
+
+            if (newPrice > oldPrice) {
+              priceDifference = newPrice - oldPrice;
+            }
+
+            // 2. Si hay diferencia, actualizar totales y crear cargos
+            if (priceDifference > 0) {
+              // Obtener orden actual para sumar totales
+              const { data: currentOrder } = await supabase
+                .from("sales_orders")
+                .select("subtotal, total, remaining_amount, tax")
+                .eq("id", activeStay.sales_order_id)
+                .single();
+
+              if (currentOrder) {
+                const newSubtotal = (currentOrder.subtotal || 0) + priceDifference;
+                const newTotal = (currentOrder.total || 0) + priceDifference;
+                const newRemaining = (currentOrder.remaining_amount || 0) + priceDifference;
+
+                await supabase
+                  .from("sales_orders")
+                  .update({
+                    subtotal: newSubtotal,
+                    total: newTotal,
+                    remaining_amount: newRemaining
+                  })
+                  .eq("id", activeStay.sales_order_id);
+
+                // Buscar producto de servicio para el item
+                const { data: svcProducts } = await supabase
+                  .from("products")
+                  .select("id")
+                  .eq("sku", "SVC-ROOM")
+                  .limit(1);
+
+                const svcProductId = svcProducts?.[0]?.id;
+
+                // Insertar Item de Diferencia
+                if (svcProductId) {
+                  await supabase.from("sales_order_items").insert({
+                    sales_order_id: activeStay.sales_order_id,
+                    product_id: svcProductId,
+                    qty: 1,
+                    unit_price: priceDifference,
+                    concept_type: "ROOM_UPGRADE", // Nuevo concepto distintivo
+                    is_paid: false,
+                  });
+                }
+
+                // Crear Pago Pendiente
+                const currentShiftId = await getCurrentShiftId(supabase);
+                await supabase.from("payments").insert({
+                  sales_order_id: activeStay.sales_order_id,
+                  amount: priceDifference,
+                  payment_method: "PENDIENTE",
+                  reference: generatePaymentReference("UPG"),
+                  concept: "DIFERENCIA_CAMBIO_HAB",
+                  status: "PENDIENTE",
+                  payment_type: "COMPLETO",
+                  shift_session_id: currentShiftId
+                });
+              }
+            }
+
             // Actualizar notas de la orden con el motivo del cambio
             const { data: orderData } = await supabase
               .from("sales_orders")
@@ -2891,7 +2959,8 @@ function RoomsBoardInternal() {
               .eq("id", activeStay.sales_order_id)
               .single();
 
-            const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}`;
+            const chargeNote = priceDifference > 0 ? ` (Cargo extra: $${priceDifference.toFixed(2)})` : "";
+            const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}${chargeNote}`;
 
             await supabase
               .from("sales_orders")
@@ -2951,12 +3020,42 @@ function RoomsBoardInternal() {
               .update({ status: "SUCIA" })
               .eq("id", selectedRoom.id);
 
-            // Actualizar orden de venta
+            // Calcular monto retenido (lo que queda como ingreso real)
+            // Se asume que totalPaid está disponible o se puede inferir.
+            // Pero CancelStayModal pasa "refundType" y "refundAmount".
+            // Para ser precisos, debemos saber cuánto se pagó realmente.
+            // Supabase query en modal ya lo sabe, pero aquí en onConfirm solo recibimos `data`.
+            // Necesitamos consultar la orden antes de actualizar o confiar en que el usuario no manipula DOM.
+            // MEJOR: Recalcular conservadoramente.
+
+            // 1. Obtener datos actuales de la orden
+            const { data: currentOrder } = await supabase
+              .from("sales_orders")
+              .select("paid_amount")
+              .eq("id", activeStay.sales_order_id)
+              .single();
+
+            const totalPaid = currentOrder?.paid_amount || 0;
+            let retainedAmount = 0;
+
+            if (data.refundType === "none") {
+              retainedAmount = totalPaid; // Nos quedamos con todo lo pagado
+            } else if (data.refundType === "full") {
+              retainedAmount = 0; // Devolvemos todo, ingreso 0
+            } else if (data.refundType === "partial") {
+              retainedAmount = Math.max(0, totalPaid - data.refundAmount);
+            }
+
+            // Actualizar orden de venta con los nuevos totales reales
             await supabase
               .from("sales_orders")
               .update({
                 status: "CANCELLED",
-                notes: `❌ CANCELADA: ${data.reason}. Reembolso: ${data.refundType === "full" ? "Total" : data.refundType === "partial" ? `Parcial $${data.refundAmount}` : "Sin reembolso"}`,
+                subtotal: retainedAmount,
+                total: retainedAmount,
+                paid_amount: retainedAmount,
+                remaining_amount: 0, // Se cancela cualquier deuda pendiente
+                notes: `❌ CANCELADA: ${data.reason}. Reembolso: ${data.refundType === "full" ? "Total" : data.refundType === "partial" ? `Parcial $${data.refundAmount}` : "Sin reembolso"} (Retenido: $${retainedAmount})`,
               })
               .eq("id", activeStay.sales_order_id);
 

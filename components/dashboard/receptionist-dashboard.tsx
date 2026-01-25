@@ -1097,13 +1097,31 @@ export function ReceptionistDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Link
-              href="/sales/pos"
-              className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
-            >
-              <span className="text-3xl">🏨</span>
-              <span className="text-sm font-medium">Habitaciones</span>
-            </Link>
+            {activeSession ? (
+              <Link
+                href="/sales/pos"
+                className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
+              >
+                <span className="text-3xl">🏨</span>
+                <span className="text-sm font-medium">Habitaciones</span>
+              </Link>
+            ) : (
+              <button
+                onClick={() => showError("Acceso Restringido", "Para entrar al POS de habitaciones debes iniciar turno primero")}
+                className="flex flex-col items-center gap-2 p-4 border rounded-lg opacity-60 bg-muted/40 cursor-not-allowed text-center transition-all hover:bg-red-50 hover:border-red-200 dark:hover:bg-red-900/10 dark:hover:border-red-800"
+              >
+                <div className="relative">
+                  <span className="text-3xl grayscale opacity-70">🏨</span>
+                  <div className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5">
+                    <LogOut className="h-3 w-3 text-white" />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-sm font-medium text-muted-foreground">Habitaciones</span>
+                  <span className="text-[10px] text-red-500 font-medium">Requiere Turno</span>
+                </div>
+              </button>
+            )}
 
             {!isRestrictedRole && (
               <>
