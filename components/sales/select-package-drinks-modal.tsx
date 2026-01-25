@@ -255,16 +255,23 @@ export function SelectPackageDrinksModal({
                                     const isDisabled = totalSelected >= requiredQuantity && qty === 0;
 
                                     return (
-                                        <button
+                                        <div
                                             key={drink.id}
-                                            onClick={() => addDrink(drink)}
-                                            disabled={isDisabled}
+                                            role="button"
+                                            tabIndex={isDisabled ? -1 : 0}
+                                            onClick={() => !isDisabled && addDrink(drink)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    if (!isDisabled) addDrink(drink);
+                                                }
+                                            }}
                                             className={cn(
-                                                "relative p-3 rounded-lg border text-left transition-all",
+                                                "relative p-3 rounded-lg border text-left transition-all select-none",
                                                 qty > 0
                                                     ? "border-cyan-500 bg-cyan-500/10"
-                                                    : "border-border hover:border-cyan-500/50 hover:bg-muted/50",
-                                                isDisabled && "opacity-50 cursor-not-allowed"
+                                                    : "border-border hover:border-cyan-500/50 hover:bg-muted/50 cursor-pointer",
+                                                isDisabled && "opacity-50 cursor-not-allowed pointer-events-none"
                                             )}
                                         >
                                             <div className="flex items-start justify-between">
@@ -282,12 +289,12 @@ export function SelectPackageDrinksModal({
                                                         e.stopPropagation();
                                                         removeDrink(drink.id);
                                                     }}
-                                                    className="absolute -top-1 -right-1 p-1 rounded-full bg-red-500 text-white hover:bg-red-600"
+                                                    className="absolute -top-1 -right-1 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-sm z-10"
                                                 >
                                                     <Minus className="h-3 w-3" />
                                                 </button>
                                             )}
-                                        </button>
+                                        </div>
                                     );
                                 })}
                             </div>
