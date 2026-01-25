@@ -446,8 +446,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
       success("Corte completado", "El corte de caja se ha registrado correctamente");
 
-      // Abrir reporte de ingresos para imprimir automáticamente (usar ruta print dedicada)
-      const reportUrl = `/reports/income/print?shiftId=${closing.id}&autoPrint=true`;
+      // Abrir ticket térmico para imprimir automáticamente (80mm)
+      const reportUrl = `/reports/closing/thermal?shiftId=${closing.id}`;
       window.open(reportUrl, '_blank');
 
       onComplete();

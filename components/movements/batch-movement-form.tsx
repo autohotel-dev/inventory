@@ -4,8 +4,25 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { SearchableSelect, Option } from "@/components/ui/searchable-select";
-import { Plus, Trash2, Save, Package, Barcode } from "lucide-react";
+import {
+    Plus,
+    Trash2,
+    Save,
+    Package,
+    Barcode,
+    TrendingUp,
+    TrendingDown,
+    RotateCcw,
+    Warehouse,
+    FileText,
+    Loader2,
+    CheckCircle2,
+    ArrowLeftRight,
+    ArrowRight
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface Product {
@@ -15,7 +32,7 @@ interface Product {
     barcode?: string;
 }
 
-interface Warehouse {
+interface WarehouseType {
     id: string;
     name: string;
     code: string;
@@ -34,17 +51,20 @@ interface BatchItem {
     quantity: number;
     warehouse_id: string;
     warehouse_name: string;
+    to_warehouse_id?: string;
+    to_warehouse_name?: string;
     notes: string;
 }
 
 interface BatchMovementFormProps {
     products: Product[];
-    warehouses: Warehouse[];
+    warehouses: WarehouseType[];
     reasons: Reason[];
     onSubmit: (data: {
         movementType: string;
         reasonCode: string;
         items: BatchItem[];
+        toWarehouseId?: string;
     }) => Promise<void>;
 }
 
@@ -54,10 +74,11 @@ export function BatchMovementForm({
     reasons,
     onSubmit
 }: BatchMovementFormProps) {
-    const [movementType, setMovementType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");
+    const [movementType, setMovementType] = useState<"IN" | "OUT" | "ADJUSTMENT" | "TRANSFER">("IN");
     const [reasonCode, setReasonCode] = useState(reasons[0]?.code || "ADJUSTMENT");
     const [items, setItems] = useState<BatchItem[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [globalToWarehouse, setGlobalToWarehouse] = useState<string>("");
 
     // Default warehouse (first one)
     const defaultWarehouse = warehouses[0];
@@ -73,6 +94,36 @@ export function BatchMovementForm({
         value: w.id,
         label: `${w.code} - ${w.name}`
     }));
+
+    const typeConfig = {
+        IN: {
+            icon: TrendingUp,
+            color: 'green',
+            label: 'Entrada',
+            desc: 'Agregar stock'
+        },
+        OUT: {
+            icon: TrendingDown,
+            color: 'red',
+            label: 'Salida',
+            desc: 'Descontar stock'
+        },
+        ADJUSTMENT: {
+            icon: RotateCcw,
+            color: 'orange',
+            label: 'Ajuste',
+            desc: 'Cantidad exacta'
+        },
+        TRANSFER: {
+            icon: ArrowLeftRight,
+            color: 'blue',
+            label: 'Transferencia',
+            desc: 'Mover entre almacenes'
+        }
+    };
+
+    const currentType = typeConfig[movementType];
+    const TypeIcon = currentType.icon;
 
     const addNewItem = () => {
         if (!defaultWarehouse) {
@@ -189,15 +240,29 @@ export function BatchMovementForm({
             return;
         }
 
+        // Validación específica para transferencias
+        if (movementType === 'TRANSFER') {
+            if (!globalToWarehouse) {
+                toast.error("Debes seleccionar un almacén destino para la transferencia");
+                return;
+            }
+            // Verificar que ningún item tenga el mismo almacén origen y destino
+            for (const item of items) {
+                if (item.warehouse_id === globalToWarehouse) {
+                    toast.error("El almacén origen y destino no pueden ser el mismo");
+                    return;
+                }
+            }
+        }
+
         setIsSubmitting(true);
         try {
             await onSubmit({
                 movementType,
                 reasonCode,
-                items
+                items,
+                toWarehouseId: movementType === 'TRANSFER' ? globalToWarehouse : undefined
             });
-
-
 
             // Limpiar formulario
             setItems([]);
@@ -213,121 +278,201 @@ export function BatchMovementForm({
         }
     };
 
-    return (
-        <div className="space-y-6">
-            {/* Configuración general */}
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg border">
-                <div className="space-y-2">
-                    <Label htmlFor="movementType">Tipo de Movimiento</Label>
-                    <select
-                        id="movementType"
-                        value={movementType}
-                        onChange={(e) => setMovementType(e.target.value as "IN" | "OUT" | "ADJUSTMENT")}
-                        className="border rounded-lg px-3 py-2 w-full bg-background"
-                    >
-                        <option value="IN">📈 Entrada (Agregar Stock)</option>
-                        <option value="OUT">📉 Salida (Descontar Stock)</option>
-                        <option value="ADJUSTMENT">🔄 Ajuste (Establecer Cantidad Exacta)</option>
-                    </select>
-                </div>
+    const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
 
-                <div className="space-y-2">
-                    <Label htmlFor="reasonCode">Razón</Label>
-                    <select
-                        id="reasonCode"
-                        value={reasonCode}
-                        onChange={(e) => setReasonCode(e.target.value)}
-                        className="border rounded-lg px-3 py-2 w-full bg-background"
-                    >
-                        {reasons.map(r => (
-                            <option key={r.id} value={r.code}>
-                                {r.code} - {r.description}
-                            </option>
-                        ))}
-                    </select>
+    return (
+        <div className="space-y-6 max-w-8xl mx-auto">
+            {/* Tipo de Movimiento - Cards seleccionables */}
+            <div className="space-y-3">
+                <Label className="text-base font-semibold">Tipo de Movimiento</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(Object.entries(typeConfig) as [typeof movementType, typeof currentType][]).map(([type, config]) => {
+                        const Icon = config.icon;
+                        const isSelected = movementType === type;
+                        const colorClasses: Record<string, string> = {
+                            green: isSelected
+                                ? 'border-green-500 bg-gradient-to-br from-green-500/20 to-green-600/10 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
+                                : 'hover:border-green-500/50 hover:bg-green-500/5',
+                            red: isSelected
+                                ? 'border-red-500 bg-gradient-to-br from-red-500/20 to-red-600/10 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
+                                : 'hover:border-red-500/50 hover:bg-red-500/5',
+                            orange: isSelected
+                                ? 'border-orange-500 bg-gradient-to-br from-orange-500/20 to-orange-600/10 shadow-[0_0_20px_rgba(249,115,22,0.3)]'
+                                : 'hover:border-orange-500/50 hover:bg-orange-500/5',
+                            blue: isSelected
+                                ? 'border-blue-500 bg-gradient-to-br from-blue-500/20 to-blue-600/10 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                                : 'hover:border-blue-500/50 hover:bg-blue-500/5',
+                        };
+                        const iconColors: Record<string, string> = {
+                            green: isSelected ? 'bg-green-500 text-white' : 'bg-green-500/10 text-green-500',
+                            red: isSelected ? 'bg-red-500 text-white' : 'bg-red-500/10 text-red-500',
+                            orange: isSelected ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-500',
+                            blue: isSelected ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-500',
+                        };
+
+                        return (
+                            <Card
+                                key={type}
+                                className={`p-4 cursor-pointer transition-all duration-300 border-2 ${colorClasses[config.color]}`}
+                                onClick={() => setMovementType(type)}
+                            >
+                                <div className="flex flex-col items-center text-center gap-2">
+                                    <div className={`p-3 rounded-xl transition-colors ${iconColors[config.color]}`}>
+                                        <Icon className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">{config.label}</p>
+                                        <p className="text-xs text-muted-foreground hidden md:block">{config.desc}</p>
+                                    </div>
+                                </div>
+                            </Card>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* Escaneo Rápido */}
-            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                        <Barcode className="h-5 w-5 text-primary" />
+            {/* Razón */}
+            <Card className="p-4 border border-border/50">
+                <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-purple-500/10">
+                        <FileText className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                        <Label htmlFor="reasonCode" className="font-medium">Razón del Movimiento</Label>
+                        <select
+                            id="reasonCode"
+                            value={reasonCode}
+                            onChange={(e) => setReasonCode(e.target.value)}
+                            className="w-full h-11 px-4 border rounded-lg bg-background text-sm font-medium"
+                        >
+                            {reasons.map(r => (
+                                <option key={r.id} value={r.code}>
+                                    {r.code} - {r.description}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Almacén Destino - Solo para Transferencias */}
+            {movementType === 'TRANSFER' && (
+                <Card className="p-4 border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-blue-600/5">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-blue-500 text-white">
+                            <ArrowRight className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                            <Label className="font-medium text-blue-400">Almacén Destino (Global)</Label>
+                            <p className="text-xs text-muted-foreground mb-2">
+                                Todos los productos se transferirán a este almacén
+                            </p>
+                            <SearchableSelect
+                                id="globalToWarehouse"
+                                name="globalToWarehouse"
+                                options={warehouseOptions}
+                                defaultValue={globalToWarehouse}
+                                onChange={(value) => setGlobalToWarehouse(value)}
+                                placeholder="Seleccionar almacén destino..."
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+                </Card>
+            )}
+
+            {/* Escaneo Rápido - Destacado */}
+            <Card className="p-5 border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-primary text-white">
+                        <Barcode className="h-6 w-6" />
                     </div>
                     <div className="flex-1">
-                        <Label className="text-sm font-medium">Escaneo Rápido</Label>
-                        <p className="text-xs text-muted-foreground mb-2">
-                            Escanea códigos de barras para agregar productos automáticamente
+                        <Label className="text-base font-semibold">Escaneo Rápido</Label>
+                        <p className="text-sm text-muted-foreground mb-3">
+                            Escanea códigos de barras para agregar productos automáticamente.
+                            Si el producto ya existe, se incrementa la cantidad.
                         </p>
                         <SearchableSelect
                             id="quick-scan"
                             name="quick-scan"
                             options={productOptions}
-                            placeholder="Escanear o buscar producto..."
+                            placeholder="🔍 Escanear o buscar producto..."
                             scannerMode={true}
                             continuousScan={true}
                             onScan={handleQuickScan}
-                            className="max-w-md"
+                            className="max-w-[100%]"
                         />
                     </div>
                 </div>
-            </div>
+            </Card>
 
-            {/* Tabla de productos */}
-            <div className="border rounded-lg overflow-hidden">
-                <div className="bg-muted px-4 py-3 border-b">
-                    <div className="flex items-center justify-between">
-                        <h3 className="font-semibold flex items-center gap-2">
+            {/* Lista de Productos */}
+            <Card className="overflow-hidden border-2">
+                <div className="bg-muted/50 px-5 py-4 border-b flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-background">
                             <Package className="h-5 w-5" />
-                            Productos ({items.length})
-                        </h3>
-                        <Button
-                            type="button"
-                            onClick={addNewItem}
-                            size="sm"
-                            variant="outline"
-                            className="gap-2"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Agregar Producto
-                        </Button>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold">Productos</h3>
+                            <p className="text-xs text-muted-foreground">
+                                {items.length > 0
+                                    ? `${items.length} producto(s) • ${totalUnits} unidades`
+                                    : 'Sin productos agregados'}
+                            </p>
+                        </div>
                     </div>
+                    <Button
+                        type="button"
+                        onClick={addNewItem}
+                        size="sm"
+                        className="gap-2"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Agregar
+                    </Button>
                 </div>
 
                 {items.length === 0 ? (
-                    <div className="p-12 text-center text-muted-foreground">
-                        <Package className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                        <p>No hay productos agregados</p>
-                        <p className="text-sm mt-1">Click en "Agregar Producto" para comenzar</p>
+                    <div className="p-12 text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+                            <Package className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                        <p className="text-muted-foreground font-medium">No hay productos agregados</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Escanea un código de barras o click en "Agregar"
+                        </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-muted/50 border-b">
-                                <tr>
-                                    <th className="text-left px-4 py-3 text-sm font-medium">Producto</th>
-                                    <th className="text-left px-4 py-3 text-sm font-medium w-40">Cantidad</th>
-                                    <th className="text-left px-4 py-3 text-sm font-medium">Almacén</th>
-                                    <th className="text-left px-4 py-3 text-sm font-medium">Notas</th>
-                                    <th className="text-center px-4 py-3 text-sm font-medium w-20"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {items.map(item => (
-                                    <tr key={item.tempId} className="hover:bg-muted/30">
-                                        <td className="px-4 py-3">
+                    <div className="divide-y">
+                        {items.map((item, index) => (
+                            <div key={item.tempId} className="p-4 hover:bg-muted/30 transition-colors">
+                                <div className="flex items-start gap-4">
+                                    {/* Número de item */}
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <span className="text-sm font-bold text-primary">{index + 1}</span>
+                                    </div>
+
+                                    {/* Contenido principal */}
+                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
+                                        {/* Producto */}
+                                        <div className="md:col-span-1">
+                                            <Label className="text-xs text-muted-foreground mb-1 block">Producto</Label>
                                             <SearchableSelect
                                                 id={`product-${item.tempId}`}
                                                 name={`product-${item.tempId}`}
                                                 options={productOptions}
                                                 defaultValue={item.product_id}
                                                 onChange={(value) => handleProductChange(item.tempId, value)}
-                                                placeholder="Escanear o buscar..."
-                                                className="min-w-[250px]"
+                                                placeholder="Buscar..."
                                                 scannerMode={true}
                                             />
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </div>
+
+                                        {/* Cantidad */}
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground mb-1 block">Cantidad</Label>
                                             <Input
                                                 type="number"
                                                 min="0"
@@ -335,15 +480,17 @@ export function BatchMovementForm({
                                                 value={item.quantity || ""}
                                                 onChange={(e) => {
                                                     const val = e.target.value;
-                                                    // Permitir vacío para UX, pero convertir a int si hay valor
                                                     if (val === '') updateItem(item.tempId, { quantity: 0 });
                                                     else updateItem(item.tempId, { quantity: parseInt(val) || 0 });
                                                 }}
-                                                placeholder="Cantidad"
-                                                className="w-full text-lg"
+                                                placeholder="0"
+                                                className="text-lg font-bold text-center h-10"
                                             />
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </div>
+
+                                        {/* Almacén */}
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground mb-1 block">Almacén</Label>
                                             <SearchableSelect
                                                 id={`warehouse-${item.tempId}`}
                                                 name={`warehouse-${item.tempId}`}
@@ -351,43 +498,45 @@ export function BatchMovementForm({
                                                 defaultValue={item.warehouse_id}
                                                 onChange={(value) => handleWarehouseChange(item.tempId, value)}
                                                 placeholder="Almacén..."
-                                                className="min-w-[200px]"
                                             />
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </div>
+
+                                        {/* Notas */}
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground mb-1 block">Nota</Label>
                                             <Input
                                                 value={item.notes}
                                                 onChange={(e) => updateItem(item.tempId, { notes: e.target.value })}
-                                                placeholder="Nota opcional..."
-                                                className="w-full"
+                                                placeholder="Opcional..."
+                                                className="h-10"
                                             />
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => removeItem(item.tempId)}
-                                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Botón eliminar */}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeItem(item.tempId)}
+                                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10 flex-shrink-0"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
-            </div>
+            </Card>
 
-            {/* Botón de agregar inferior (UX Improvement) */}
+            {/* Botón de agregar inferior para listas largas */}
             {items.length > 3 && (
                 <Button
                     type="button"
                     variant="outline"
                     onClick={addNewItem}
-                    className="w-full border-dashed border-2 py-8 text-muted-foreground hover:text-foreground hover:border-brand-red/50 hover:bg-brand-red/5 transition-all gap-2"
+                    className="w-full border-dashed border-2 py-8 text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-all gap-2"
                 >
                     <Plus className="h-5 w-5" />
                     Agregar otro producto
@@ -395,46 +544,55 @@ export function BatchMovementForm({
             )}
 
             {/* Footer con resumen y botones */}
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
-                <div className="text-sm text-muted-foreground">
-                    {items.length > 0 ? (
-                        <>
-                            <strong className="text-foreground">{items.length}</strong> producto(s) •
-                            <strong className="text-foreground ml-1">
-                                {items.reduce((sum, item) => sum + item.quantity, 0)}
-                            </strong> unidades totales
-                        </>
-                    ) : (
-                        "Sin productos agregados"
-                    )}
-                </div>
+            <Card className="p-4 border-2 bg-muted/30">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Badge variant="outline" className="text-base px-4 py-2 gap-2">
+                            <Package className="h-4 w-4" />
+                            {items.length} producto(s)
+                        </Badge>
+                        <Badge variant="outline" className={`text-base px-4 py-2 gap-2 ${movementType === 'IN' ? 'border-green-500 text-green-600' :
+                            movementType === 'OUT' ? 'border-red-500 text-red-600' :
+                                'border-orange-500 text-orange-600'
+                            }`}>
+                            <TypeIcon className="h-4 w-4" />
+                            {totalUnits} unidades
+                        </Badge>
+                    </div>
 
-                <div className="flex gap-3">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setItems([])}
-                        disabled={items.length === 0 || isSubmitting}
-                    >
-                        Limpiar Todo
-                    </Button>
-                    <Button
-                        type="button"
-                        onClick={handleSubmit}
-                        disabled={items.length === 0 || isSubmitting}
-                        className="gap-2"
-                    >
-                        {isSubmitting ? (
-                            <>Guardando...</>
-                        ) : (
-                            <>
-                                <Save className="h-4 w-4" />
-                                Guardar {items.length > 0 && `(${items.length})`}
-                            </>
-                        )}
-                    </Button>
+                    <div className="flex gap-3">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setItems([])}
+                            disabled={items.length === 0 || isSubmitting}
+                        >
+                            Limpiar
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleSubmit}
+                            disabled={items.length === 0 || isSubmitting}
+                            className={`gap-2 min-w-[140px] ${movementType === 'IN' ? 'bg-green-600 hover:bg-green-700' :
+                                movementType === 'OUT' ? 'bg-red-600 hover:bg-red-700' :
+                                    'bg-orange-600 hover:bg-orange-700'
+                                }`}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-4 w-4" />
+                                    Guardar {items.length > 0 && `(${items.length})`}
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            </Card>
         </div>
     );
 }

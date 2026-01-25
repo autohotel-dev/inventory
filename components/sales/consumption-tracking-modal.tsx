@@ -34,7 +34,7 @@ import {
     Package,
     CheckCircle2,
     Clock,
-    Truck,
+    HandPlatter,
     Banknote,
     AlertCircle,
     User,
@@ -42,7 +42,7 @@ import {
     CreditCard,
     XCircle,
     ConciergeBell,
-    MoreHorizontal
+    MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils/formatters";
@@ -106,7 +106,7 @@ interface ConsumptionTrackingModalProps {
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; color: string; icon: React.ReactNode }> = {
     'PENDING_VALET': { label: 'Esperando', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: <Clock className="h-3 w-3" /> },
     'ACCEPTED': { label: 'Asignado', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: <User className="h-3 w-3" /> },
-    'IN_TRANSIT': { label: 'En camino', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: <Truck className="h-3 w-3" /> },
+    'IN_TRANSIT': { label: 'En camino', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: <HandPlatter className="h-3 w-3" /> },
     'DELIVERED': { label: 'Entregado', color: 'bg-orange-100 text-orange-800 border-orange-200', icon: <Package className="h-3 w-3" /> },
     'COMPLETED': { label: 'Completado', color: 'bg-green-100 text-green-800 border-green-200', icon: <CheckCircle2 className="h-3 w-3" /> },
     'ISSUE': { label: 'Problema', color: 'bg-red-100 text-red-800 border-red-200', icon: <AlertCircle className="h-3 w-3" /> },
@@ -268,6 +268,85 @@ export function ConsumptionTrackingModal({
         }
     };
 
+    // Confirmar recogida de TODOS los items ACCEPTED
+    const handleConfirmAllPickups = async () => {
+        const acceptedItems = consumptions.filter(c => c.delivery_status === 'ACCEPTED');
+        if (acceptedItems.length === 0) {
+            toast.error("No hay items pendientes de recoger");
+            return;
+        }
+
+        setActionLoading('bulk-pickup');
+        const supabase = createClient();
+
+        try {
+            const itemIds = acceptedItems.map(item => item.id);
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_status: 'IN_TRANSIT',
+                    delivery_picked_up_at: new Date().toISOString(),
+                    delivery_picked_up_by: receptionistId
+                })
+                .in('id', itemIds);
+
+            if (error) throw error;
+
+            toast.success('Todas las recogidas confirmadas', {
+                description: `${acceptedItems.length} productos en camino`
+            });
+
+            fetchConsumptions();
+        } catch (error) {
+            console.error('Error confirming all pickups:', error);
+            toast.error('Error al confirmar recogidas');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // Confirmar pago de TODOS los items DELIVERED
+    const handleConfirmAllPayments = async () => {
+        const deliveredItems = consumptions.filter(c => c.delivery_status === 'DELIVERED');
+        if (deliveredItems.length === 0) {
+            toast.error("No hay entregas pendientes de pago");
+            return;
+        }
+
+        setActionLoading('bulk-payment');
+        const supabase = createClient();
+
+        try {
+            const itemIds = deliveredItems.map(item => item.id);
+            const totalAmount = deliveredItems.reduce((sum, item) => {
+                const tipInCash = item.tip_method === 'EFECTIVO' ? Number(item.tip_amount || 0) : 0;
+                return sum + Number(item.total) + tipInCash;
+            }, 0);
+
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_status: 'COMPLETED',
+                    payment_received_at: new Date().toISOString(),
+                    payment_received_by: receptionistId
+                })
+                .in('id', itemIds);
+
+            if (error) throw error;
+
+            toast.success('Todos los pagos confirmados', {
+                description: `${deliveredItems.length} entregas completadas - ${formatCurrency(totalAmount)}`
+            });
+
+            fetchConsumptions();
+        } catch (error) {
+            console.error('Error confirming all payments:', error);
+            toast.error('Error al confirmar pagos');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const getValetName = (item: ConsumptionItem) => {
         if (!item.valet_employee) return 'Sin asignar';
         return `${item.valet_employee.first_name} ${item.valet_employee.last_name}`;
@@ -276,7 +355,7 @@ export function ConsumptionTrackingModal({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
+                <DialogContent className="sm:max-w-[90vw] max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
                     <DialogHeader className="px-6 py-4 border-b">
                         <DialogTitle className="flex items-center gap-2">
                             <ConciergeBell className="h-5 w-5 text-primary" />
@@ -368,8 +447,8 @@ export function ConsumptionTrackingModal({
                                                                 disabled={isLoading}
                                                                 className="h-8 bg-purple-600 hover:bg-purple-700 text-white"
                                                             >
-                                                                {isLoading ? <Loader2 className="h-3 w-3 animate-spin identity" /> : <Truck className="h-3 w-3 mr-1" />}
-                                                                Moto
+                                                                {isLoading ? <Loader2 className="h-3 w-3 animate-spin identity" /> : <HandPlatter className="h-3 w-3 mr-1" />}
+                                                                Recogiendo Consumos
                                                             </Button>
                                                         )}
 
@@ -414,7 +493,33 @@ export function ConsumptionTrackingModal({
                         )}
                     </div>
 
-                    <div className="p-4 border-t flex justify-end bg-background">
+
+                    <div className="p-4 border-t flex justify-between items-center bg-background">
+                        <div className="flex gap-2">
+                            {/* Bulk action: Confirm all pickups */}
+                            {consumptions.filter(c => c.delivery_status === 'ACCEPTED').length > 1 && (
+                                <Button
+                                    variant="outline"
+                                    onClick={handleConfirmAllPickups}
+                                    disabled={actionLoading === 'bulk-pickup'}
+                                    className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                                >
+                                    {actionLoading === 'bulk-pickup' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandPlatter className="h-4 w-4 mr-2" />}
+                                    Confirmar Recogida Todos ({consumptions.filter(c => c.delivery_status === 'ACCEPTED').length})
+                                </Button>
+                            )}
+                            {/* Bulk action: Confirm all payments */}
+                            {consumptions.filter(c => c.delivery_status === 'DELIVERED').length > 1 && (
+                                <Button
+                                    onClick={handleConfirmAllPayments}
+                                    disabled={actionLoading === 'bulk-payment'}
+                                    className="bg-green-600 hover:bg-green-700"
+                                >
+                                    {actionLoading === 'bulk-payment' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Banknote className="h-4 w-4 mr-2" />}
+                                    Confirmar Pago Todos ({consumptions.filter(c => c.delivery_status === 'DELIVERED').length})
+                                </Button>
+                            )}
+                        </div>
                         <Button variant="outline" onClick={onClose}>
                             Cerrar
                         </Button>

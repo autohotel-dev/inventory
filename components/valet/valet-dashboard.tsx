@@ -27,10 +27,22 @@ import {
     X,
     Loader2,
     Bell,
-    BellOff
+    BellOff,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ValetDashboardProps {
     employeeId: string;
@@ -47,6 +59,9 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [selectedConsumption, setSelectedConsumption] = useState<any | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [expandedServiceCards, setExpandedServiceCards] = useState<Set<string>>(new Set());
+    const [bulkConfirmItems, setBulkConfirmItems] = useState<{ items: any[], roomNumber: string } | null>(null);
+    const [bulkConfirmLoading, setBulkConfirmLoading] = useState(false);
 
     const { isSupported, isSubscribed, subscribe, unsubscribe, loading: pushLoading } = usePushRegistration(employeeId);
 
@@ -230,6 +245,82 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         } catch (error) {
             console.error("Error accepting consumption:", error);
             toast.error("Error al aceptar el consumo");
+        }
+    };
+
+    // Aceptar TODOS los consumos de una habitación
+    const handleAcceptAllConsumptions = async (items: any[], roomNumber: string) => {
+        if (!employeeId || items.length === 0) return;
+
+        try {
+            const supabase = createClient();
+            const itemIds = items.map(item => item.id);
+
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_accepted_by: employeeId,
+                    delivery_accepted_at: new Date().toISOString(),
+                    delivery_status: 'ACCEPTED'
+                })
+                .in('id', itemIds);
+
+            if (error) throw error;
+
+            toast.success("Todos los servicios aceptados", {
+                description: `${items.length} entregas asignadas para Habitación ${roomNumber}`
+            });
+
+            await fetchPendingConsumptions();
+            await fetchMyConsumptions();
+
+        } catch (error) {
+            console.error("Error accepting all consumptions:", error);
+            toast.error("Error al aceptar los servicios");
+        }
+    };
+
+    // Abrir modal de confirmación para TODOS los consumos de una habitación (que estén IN_TRANSIT)
+    const openBulkConfirmModal = (items: any[], roomNumber: string) => {
+        const inTransitItems = items.filter(item => item.delivery_status === 'IN_TRANSIT');
+        if (inTransitItems.length === 0) {
+            toast.error("No hay entregas listas para confirmar");
+            return;
+        }
+        setBulkConfirmItems({ items: inTransitItems, roomNumber });
+    };
+
+    // Ejecutar confirmación de todas las entregas
+    const handleConfirmAllDeliveries = async () => {
+        if (!bulkConfirmItems || !employeeId) return;
+
+        setBulkConfirmLoading(true);
+        try {
+            const supabase = createClient();
+            const itemIds = bulkConfirmItems.items.map(item => item.id);
+
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_status: 'DELIVERED',
+                    delivery_completed_at: new Date().toISOString()
+                })
+                .in('id', itemIds);
+
+            if (error) throw error;
+
+            toast.success("Todas las entregas confirmadas", {
+                description: `${bulkConfirmItems.items.length} productos entregados en Habitación ${bulkConfirmItems.roomNumber}`
+            });
+
+            setBulkConfirmItems(null);
+            await fetchMyConsumptions();
+
+        } catch (error) {
+            console.error("Error confirming all deliveries:", error);
+            toast.error("Error al confirmar las entregas");
+        } finally {
+            setBulkConfirmLoading(false);
         }
     };
 
@@ -533,12 +624,94 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                     <Badge className="bg-amber-600">{pendingConsumptions.length + myConsumptions.length}</Badge>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {/* Mis Entregas */}
-                                    {myConsumptions.map(item => (
-                                        <Card key={item.id} className="p-4 border-orange-400 bg-orange-50/50 dark:bg-orange-900/10">
-                                            {renderConsumptionCardContent(item, true)}
-                                        </Card>
-                                    ))}
+                                    {/* Mis Entregas - Agrupar por habitación */}
+                                    {Object.entries(
+                                        myConsumptions.reduce((acc: Record<string, any[]>, item) => {
+                                            const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
+                                            if (!acc[roomNumber]) acc[roomNumber] = [];
+                                            acc[roomNumber].push(item);
+                                            return acc;
+                                        }, {})
+                                    ).map(([roomNumber, items]) => {
+                                        const cardKey = `my-${roomNumber}`;
+                                        const isExpanded = expandedServiceCards.has(cardKey);
+                                        const toggleExpand = () => {
+                                            setExpandedServiceCards(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(cardKey)) {
+                                                    next.delete(cardKey);
+                                                } else {
+                                                    next.add(cardKey);
+                                                }
+                                                return next;
+                                            });
+                                        };
+
+                                        return (
+                                            <Card key={cardKey} className="p-4 border-orange-400 bg-orange-50/50 dark:bg-orange-900/10">
+                                                <div
+                                                    className="flex justify-between items-center cursor-pointer"
+                                                    onClick={toggleExpand}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xl font-bold">Hab. {roomNumber}</span>
+                                                        <Badge className="bg-orange-500 text-white">{items.length} a entregar</Badge>
+                                                    </div>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                                    </Button>
+                                                </div>
+
+                                                {isExpanded && (
+                                                    <div className="space-y-2 mt-3 animate-in slide-in-from-top-2 fade-in duration-200">
+                                                        {/* Botón Confirmar Todos si hay items listos */}
+                                                        {items.filter((i: any) => i.delivery_status === 'IN_TRANSIT').length > 1 && (
+                                                            <Button
+                                                                className="w-full mb-2 bg-green-600 hover:bg-green-700"
+                                                                onClick={(e) => { e.stopPropagation(); openBulkConfirmModal(items, roomNumber); }}
+                                                            >
+                                                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                                Confirmar Todos ({items.filter((i: any) => i.delivery_status === 'IN_TRANSIT').length})
+                                                            </Button>
+                                                        )}
+                                                        {items.map((item: any) => {
+                                                            const isInTransit = item.delivery_status === 'IN_TRANSIT';
+                                                            return (
+                                                                <div key={item.id} className="flex justify-between items-center text-sm bg-background/50 p-2 rounded">
+                                                                    <div className="flex-1">
+                                                                        <span>{item.qty}x {item.products?.name}</span>
+                                                                        <span className="ml-2 text-green-600 font-medium">{formatCurrency(item.total)}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1">
+                                                                        {isInTransit ? (
+                                                                            <Button size="sm" className="h-6 text-xs bg-green-600 hover:bg-green-700" onClick={(e) => { e.stopPropagation(); setSelectedConsumption(item); setShowDeliveryModal(true); }}>
+                                                                                Confirmar
+                                                                            </Button>
+                                                                        ) : (
+                                                                            <span className="text-xs text-slate-500">Esperando...</span>
+                                                                        )}
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                                                                            onClick={(e) => { e.stopPropagation(); handleCancelConsumption(item.id); }}
+                                                                            disabled={cancellingId === item.id}
+                                                                        >
+                                                                            {cancellingId === item.id ? (
+                                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            ) : (
+                                                                                <X className="h-3 w-3" />
+                                                                            )}
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </Card>
+                                        );
+                                    })}
                                     {/* Pendientes Generales */}
                                     {/* Agrupar por habitación para consistencia visual */}
                                     {Object.entries(
@@ -554,26 +727,40 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                                 <span className="text-xl font-bold">Hab. {roomNumber}</span>
                                                 <Badge variant="outline" className="bg-amber-100 text-amber-800">{items.length} items</Badge>
                                             </div>
+
+                                            {/* Botón Aceptar Todos si hay más de 1 item */}
+                                            {items.length > 1 && (
+                                                <Button
+                                                    className="w-full mb-3 bg-amber-600 hover:bg-amber-700"
+                                                    onClick={() => handleAcceptAllConsumptions(items, roomNumber)}
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                    Aceptar Todos ({items.length})
+                                                </Button>
+                                            )}
+
                                             <div className="space-y-2">
                                                 {items.map((item: any) => (
-                                                    <div key={item.id} className="flex justify-between text-sm bg-background/50 p-2 rounded">
-                                                        <span>{item.qty}x {item.products?.name}</span>
-                                                        <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500 text-amber-600 mr-2" onClick={() => handleAcceptConsumption(item.id, roomNumber)}>
-                                                            Aceptar
-                                                        </Button>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                                                            onClick={() => handleCancelConsumption(item.id)}
-                                                            disabled={cancellingId === item.id}
-                                                        >
-                                                            {cancellingId === item.id ? (
-                                                                <Loader2 className="h-3 w-3 animate-spin" />
-                                                            ) : (
-                                                                <X className="h-3 w-3" />
-                                                            )}
-                                                        </Button>
+                                                    <div key={item.id} className="flex justify-between items-center text-sm bg-background/50 p-2 rounded">
+                                                        <span className="flex-1">{item.qty}x {item.products?.name}</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500 text-amber-600" onClick={() => handleAcceptConsumption(item.id, roomNumber)}>
+                                                                Aceptar
+                                                            </Button>
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                                                                onClick={() => handleCancelConsumption(item.id)}
+                                                                disabled={cancellingId === item.id}
+                                                            >
+                                                                {cancellingId === item.id ? (
+                                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                                ) : (
+                                                                    <X className="h-3 w-3" />
+                                                                )}
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -640,6 +827,59 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 employeeId={employeeId}
                 onConfirmed={() => fetchMyConsumptions()}
             />
+
+            {/* Modal de confirmación para entregas masivas */}
+            <AlertDialog open={!!bulkConfirmItems} onOpenChange={(open) => !open && setBulkConfirmItems(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            Confirmar Todas las Entregas
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Vas a confirmar la entrega de todos los productos para la Habitación {bulkConfirmItems?.roomNumber}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    {bulkConfirmItems && (
+                        <div className="py-4">
+                            <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 space-y-2 max-h-48 overflow-auto">
+                                {bulkConfirmItems.items.map((item: any) => (
+                                    <div key={item.id} className="flex justify-between text-sm">
+                                        <span>{item.qty}x {item.products?.name}</span>
+                                        <span className="text-green-600 font-medium">{formatCurrency(item.total)}</span>
+                                    </div>
+                                ))}
+                                <div className="border-t pt-2 mt-2 flex justify-between font-bold">
+                                    <span>Total ({bulkConfirmItems.items.length} productos):</span>
+                                    <span className="text-green-600">
+                                        {formatCurrency(bulkConfirmItems.items.reduce((sum: number, i: any) => sum + Number(i.total), 0))}
+                                    </span>
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-3">
+                                ⚠️ Esta acción marcará todos los productos como entregados. Debes entregar el dinero en recepción.
+                            </p>
+                        </div>
+                    )}
+
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={bulkConfirmLoading}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmAllDeliveries}
+                            disabled={bulkConfirmLoading}
+                            className="bg-green-600 hover:bg-green-700"
+                        >
+                            {bulkConfirmLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                            )}
+                            Confirmar Todos
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 

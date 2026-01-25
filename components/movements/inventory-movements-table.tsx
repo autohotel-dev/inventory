@@ -34,10 +34,12 @@ interface InventoryMovement {
 
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; sku: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [productFilter, setProductFilter] = useState("");
   const { success, error: showError } = useToast();
 
   const fetchMovements = async () => {
@@ -56,8 +58,6 @@ export function InventoryMovementsTable() {
 
       if (movementsError) throw movementsError;
 
-
-
       setMovements(movementsData || []);
     } catch (error) {
       console.error("Error fetching movements:", error);
@@ -67,8 +67,25 @@ export function InventoryMovementsTable() {
     }
   };
 
+  const fetchProducts = async () => {
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, sku")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  };
+
   useEffect(() => {
     fetchMovements();
+    fetchProducts();
   }, []);
 
 
@@ -85,7 +102,9 @@ export function InventoryMovementsTable() {
     const matchesDate = dateFilter === "" ||
       new Date(movement.created_at).toDateString() === new Date(dateFilter).toDateString();
 
-    return matchesSearch && matchesType && matchesDate;
+    const matchesProduct = productFilter === "" || movement.product_id === productFilter;
+
+    return matchesSearch && matchesType && matchesDate && matchesProduct;
   });
 
   if (loading) {
@@ -173,7 +192,7 @@ export function InventoryMovementsTable() {
         </div>
 
         {/* Filtros con diseño premium */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Tipo de Movimiento */}
           <div className={`relative p-4 rounded-xl border transition-all duration-300 ${typeFilter ? 'bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/30 shadow-lg shadow-blue-500/5' : 'bg-muted/30 border-border/50 hover:border-blue-500/30 hover:bg-blue-500/5'}`}>
             <label className="flex items-center gap-2 text-sm font-medium mb-3">
@@ -201,6 +220,33 @@ export function InventoryMovementsTable() {
             </div>
           </div>
 
+          {/* Producto */}
+          <div className={`relative p-4 rounded-xl border transition-all duration-300 ${productFilter ? 'bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/30 shadow-lg shadow-green-500/5' : 'bg-muted/30 border-border/50 hover:border-green-500/30 hover:bg-green-500/5'}`}>
+            <label className="flex items-center gap-2 text-sm font-medium mb-3">
+              <div className={`p-1.5 rounded-lg ${productFilter ? 'bg-green-500 text-white' : 'bg-green-500/10 text-green-500'}`}>
+                <Package className="h-3.5 w-3.5" />
+              </div>
+              <span className={productFilter ? 'text-green-400' : 'text-muted-foreground'}>Producto</span>
+            </label>
+            <div className="relative group">
+              <select
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                className="w-full pl-4 pr-10 py-2.5 border-0 rounded-lg bg-background/90 backdrop-blur-sm text-sm font-medium appearance-none cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-green-500/30 focus:outline-none hover:bg-background shadow-sm"
+              >
+                <option value="">📦 Todos los productos</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform group-hover:translate-y-[-45%]">
+                <div className={`p-1 rounded-md ${productFilter ? 'bg-green-500/20' : 'bg-muted'}`}>
+                  <ArrowDownCircle className={`h-4 w-4 ${productFilter ? 'text-green-500' : 'text-muted-foreground'}`} />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Fecha */}
           <div className={`relative p-4 rounded-xl border transition-all duration-300 ${dateFilter ? 'bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/30 shadow-lg shadow-purple-500/5' : 'bg-muted/30 border-border/50 hover:border-purple-500/30 hover:bg-purple-500/5'}`}>
             <label className="flex items-center gap-2 text-sm font-medium mb-3">
@@ -219,13 +265,14 @@ export function InventoryMovementsTable() {
 
           {/* Limpiar Filtros */}
           <div className="flex items-end">
-            {(typeFilter || dateFilter || search) ? (
+            {(typeFilter || dateFilter || search || productFilter) ? (
               <Button
                 variant="ghost"
                 onClick={() => {
                   setSearch("");
                   setTypeFilter("");
                   setDateFilter("");
+                  setProductFilter("");
                 }}
                 className="w-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 gap-2 transition-colors"
               >
