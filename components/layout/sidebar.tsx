@@ -222,7 +222,7 @@ export function Sidebar() {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const classes = useResponsiveClasses(compact);
-  const { canAccessAdmin, isLoading: roleLoading, isReceptionist } = useUserRole();
+  const { canAccessAdmin, isLoading: roleLoading, isReceptionist, hasActiveShift } = useUserRole();
 
   // Filtrar links según el rol del usuario
   const visibleLinks = React.useMemo(() => {
@@ -236,16 +236,30 @@ export function Sidebar() {
     // Si es recepcionista, mostrar items con allowedForReceptionist: true
     if (isReceptionist) {
       return adminLinks.filter((link, index, array) => {
+        // Bloquear acceso a Habitaciones, Ventas y Nueva Venta si no hay turno activo
+        if (!hasActiveShift && 'href' in link && (
+          link.href === "/sales/pos" ||
+          link.href === "/sales" ||
+          link.href === "/sales/new"
+        )) {
+          return false;
+        }
+
         if ("allowedForReceptionist" in link && link.allowedForReceptionist) {
           return true;
         }
+
         // Mostrar divisores solo si no están marcados como adminOnly
-        // Y evitar doble divisor o divisor al final
         if ("divider" in link && !link.adminOnly) {
           const nextLink = array[index + 1];
-          // Solo mostrar si el siguiente elemento es un link visible
+          // Solo mostrar divisor si el siguiente elemento es un link visible
           if (nextLink && !("divider" in nextLink) &&
-            ((nextLink as any).allowedForReceptionist)) {
+            ("allowedForReceptionist" in nextLink && (nextLink as any).allowedForReceptionist)) {
+
+            // Verificar también si el próximo link se va a mostrar (si no está bloqueado por falta de turno)
+            if (!hasActiveShift && 'href' in nextLink && (nextLink.href === "/sales/pos" || nextLink.href === "/sales" || nextLink.href === "/sales/new")) {
+              return false;
+            }
             return true;
           }
         }
@@ -254,17 +268,13 @@ export function Sidebar() {
     }
 
     // Para otros usuarios no-admin (cochero, camarista, mant), filtrar agresivamente
-    const filtered = adminLinks.filter(link => {
+    return adminLinks.filter(link => {
       if ("allowedForNonAdmin" in link && link.allowedForNonAdmin) {
         return true;
       }
       return false;
     });
-
-    // Agregar divisores manualmente solo si es necesario (ej: separar grupos grandes)
-    // Para roles restringidos que ven muy pocos items, mejor retornar sin divisores o con lógica simple
-    return filtered;
-  }, [canAccessAdmin, roleLoading, isReceptionist]);
+  }, [canAccessAdmin, roleLoading, isReceptionist, hasActiveShift]);
 
   React.useEffect(() => {
     setMounted(true);

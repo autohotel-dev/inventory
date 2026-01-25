@@ -25,6 +25,7 @@ interface UserRoleData {
   canAccessPOS: boolean;
   canAccessRooms: boolean;
   canAccessShiftClosing: boolean;
+  hasActiveShift: boolean;
   linkEmployeeToUser: () => Promise<boolean>;
 }
 
@@ -34,6 +35,7 @@ export function useUserRole(): UserRoleData {
   const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [hasActiveShift, setHasActiveShift] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserRole = useCallback(async () => {
@@ -47,6 +49,7 @@ export function useUserRole(): UserRoleData {
         setRole(null);
         setUserId(null);
         setUserEmail(null);
+        setHasActiveShift(false);
         setIsLoading(false);
         return;
       }
@@ -86,19 +89,31 @@ export function useUserRole(): UserRoleData {
       }
 
       if (!employee) {
-        // Si no hay empleado vinculado, es admin por defecto
         setRole("admin");
         setEmployeeId(null);
         setEmployeeName(user.email || "Admin");
+        setHasActiveShift(false);
       } else {
         // Usar el rol del empleado
         setRole(employee.role as UserRole);
         setEmployeeId(employee.id);
         setEmployeeName(`${employee.first_name} ${employee.last_name}`);
+
+        // Check for active shift
+        const { data: session } = await supabase
+          .from("shift_sessions")
+          .select("id")
+          .eq("employee_id", employee.id)
+          .eq("status", "active")
+          .limit(1)
+          .single();
+        
+        setHasActiveShift(!!session);
       }
     } catch (err) {
       console.error("Error fetching user role:", err);
       setRole("admin"); // Fallback a admin si hay error
+      setHasActiveShift(false);
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +194,7 @@ export function useUserRole(): UserRoleData {
     canAccessPOS: true,
     canAccessRooms: true,
     canAccessShiftClosing: !isValet && !isHousekeeping && !isMaintenance, // Solo recepción y admin hacen cortes
+    hasActiveShift,
     linkEmployeeToUser,
   };
 }

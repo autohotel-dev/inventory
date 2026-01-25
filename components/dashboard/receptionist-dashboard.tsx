@@ -1123,24 +1123,7 @@ export function ReceptionistDashboard() {
               </button>
             )}
 
-            {!isRestrictedRole && (
-              <>
-                <Link
-                  href="/sales"
-                  className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
-                >
-                  <span className="text-3xl">📋</span>
-                  <span className="text-sm font-medium">Mis Ventas</span>
-                </Link>
-                <Link
-                  href="/sales/new"
-                  className="flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-muted transition-colors text-center"
-                >
-                  <span className="text-3xl">💰</span>
-                  <span className="text-sm font-medium">Nueva Venta</span>
-                </Link>
-              </>
-            )}
+
 
             <button
               onClick={() => activeSession ? handleClockOutClick() : null}
