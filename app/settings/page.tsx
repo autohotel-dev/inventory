@@ -18,7 +18,8 @@ import {
     Save,
     Info,
     Zap,
-    Wallet
+    Wallet,
+    TrendingUp
 } from "lucide-react";
 import { usePOSConfig, type POSConfig } from "@/hooks/use-pos-config";
 import { usePrinterSettings } from "@/hooks/use-printer-settings";
