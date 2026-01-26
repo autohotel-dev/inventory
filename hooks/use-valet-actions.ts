@@ -372,7 +372,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 delivery_status: 'DELIVERED',
                 delivery_completed_at: new Date().toISOString(),
                 delivery_notes: notes || null,
-                is_paid: payments.length > 0 // Si hubo pagos, marcar como pagado
+                is_paid: false // Reception will mark as paid when confirming valet payment
             };
 
             if (tipAmount && tipAmount > 0) {
@@ -396,7 +396,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     terminal_code: p.terminal,
                     card_last_4: p.cardLast4,
                     card_type: p.cardType,
-                    reference: p.reference || null,
+                    // Usar referencia para vincular el item
+                    reference: p.reference || `VALET_ITEM:${consumptionId}`,
                     concept: 'CONSUMPTION',
                     status: 'COBRADO_POR_VALET',
                     collected_by: valetId,
@@ -451,13 +452,14 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
                     delivery_notes: notes || null,
-                    is_paid: payments.length > 0
+                    is_paid: false // Reception will mark as paid when confirming valet payment
                 })
                 .in('id', itemIds);
 
             if (error) throw error;
 
             // 3. Registrar pagos
+            const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
             for (const p of payments) {
                 await supabase.from('payments').insert({
                     sales_order_id: salesOrderId,
@@ -466,7 +468,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     terminal_code: p.terminal,
                     card_last_4: p.cardLast4,
                     card_type: p.cardType,
-                    reference: p.reference || null,
+                    reference: p.reference || itemsRef,
                     concept: 'CONSUMPTION',
                     status: 'COBRADO_POR_VALET',
                     collected_by: valetId,

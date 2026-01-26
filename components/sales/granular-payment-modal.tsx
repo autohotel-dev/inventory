@@ -234,19 +234,86 @@ export function GranularPaymentModal({
     try {
       const employeeId = await getCurrentEmployeeId(supabase);
 
-      const { error } = await supabase
+      // 1. Obtener detalles del pago antes de confirmar
+      const { data: payment, error: pError } = await supabase
+        .from("payments")
+        .select("amount, reference, concept, sales_order_id, payment_method")
+        .eq("id", paymentId)
+        .single();
+
+      if (pError) throw pError;
+
+      // 2. Intentar identificar el item vinculado
+      let targetItemId: string | null = null;
+      if (payment.reference?.startsWith("VALET_ITEM:")) {
+        targetItemId = payment.reference.split(":")[1];
+      } else if (payment.reference?.startsWith("VALET_DAMAGE:")) {
+        targetItemId = payment.reference.split(":")[1];
+      }
+
+      // 3. Confirmar el pago
+      const { error: confirmError } = await supabase
         .from("payments")
         .update({
-          // Confirmación = recepción recibió el dinero/comprobante.
-          // NO significa que el pago ya quedó registrado (multipago) ni conciliado.
           confirmed_by: employeeId,
-          confirmed_at: new Date().toISOString()
+          confirmed_at: new Date().toISOString(),
+          status: 'PAGADO' // Al confirmar recepción, el pago ya es definitivo
         })
         .eq("id", paymentId);
 
-      if (error) throw error;
+      if (confirmError) throw confirmError;
 
-      toast.success("Pago recibido en recepción");
+      // 4. Marcar items como pagados
+      if (targetItemId) {
+        // Vínculo directo por referencia
+        await supabase
+          .from("sales_order_items")
+          .update({
+            is_paid: true,
+            paid_at: new Date().toISOString(),
+            payment_method: payment.payment_method
+          })
+          .eq("id", targetItemId);
+      } else {
+        // Búsqueda por monto y concepto si no hay link directo (retrocompatibilidad o batches)
+        // Buscamos el primer item no pagado que coincida en monto y concepto aproximado
+        const { data: potentialItems } = await supabase
+          .from("sales_order_items")
+          .select("id")
+          .eq("sales_order_id", salesOrderId)
+          .eq("is_paid", false)
+          .eq("total", payment.amount)
+          .limit(1);
+
+        if (potentialItems && potentialItems.length > 0) {
+          await supabase
+            .from("sales_order_items")
+            .update({
+              is_paid: true,
+              paid_at: new Date().toISOString()
+            })
+            .eq("id", potentialItems[0].id);
+        }
+      }
+
+      // 5. Recalcular remaining_amount de la orden
+      const { data: unpaidItems } = await supabase
+        .from("sales_order_items")
+        .select("total")
+        .eq("sales_order_id", salesOrderId)
+        .eq("is_paid", false);
+
+      const newRemaining = unpaidItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
+
+      await supabase
+        .from("sales_orders")
+        .update({
+          remaining_amount: newRemaining,
+          status: newRemaining <= 0 ? 'COMPLETED' : 'ACTIVE'
+        })
+        .eq("id", salesOrderId);
+
+      toast.success("Pago confirmado e items actualizados");
       fetchItems();
     } catch (error) {
       console.error("Error confirming payment:", error);
