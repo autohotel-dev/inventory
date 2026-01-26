@@ -162,7 +162,22 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     // ... (keep existing audio hook)
     const { isAudioReady, unlockAudio } = useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
 
-    const { loading: actionLoading, handleRegisterVehicleAndPayment, handleConfirmCheckout, handleProposeCheckout } = useValetActions(fetchRooms);
+    const {
+        loading: actionLoading,
+        handleRegisterVehicleAndPayment,
+        handleConfirmCheckout,
+        handleProposeCheckout,
+        handleAcceptEntry,
+        handleAcceptConsumption,
+        handleAcceptAllConsumptions,
+        handleConfirmDelivery,
+        handleConfirmAllDeliveries,
+        handleCancelConsumption
+    } = useValetActions(async () => {
+        await fetchRooms(true);
+        await fetchPendingConsumptions();
+        await fetchMyConsumptions();
+    });
 
     // ... (keep existing subscription effect)
     useEffect(() => {
@@ -189,95 +204,22 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     }, [fetchRooms, fetchPendingConsumptions, fetchMyConsumptions]);
 
     // ... (keep existing handlers: handleAcceptEntry, handleAcceptConsumption, useEffect for intervals, filters)
-    const handleAcceptEntry = async (room: Room) => {
+    const handleAcceptEntryWrapper = async (room: Room) => {
         const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
         if (!stay || !employeeId) return;
-
-        try {
-            const supabase = createClient();
-
-            // 1. Asignar el valet a la estancia
-            const { error } = await supabase
-                .from('room_stays')
-                .update({ valet_employee_id: employeeId })
-                .eq('id', stay.id);
-
-            if (error) throw error;
-
-            toast.success("Entrada aceptada", {
-                description: `Te has asignado la Habitación ${room.number}`
-            });
-
-            // Refrescar lista - con await para asegurar actualización
-            await fetchRooms(true);
-
-        } catch (error) {
-            console.error("Error accepting entry:", error);
-            toast.error("Error al aceptar la entrada");
-        }
+        await handleAcceptEntry(stay.id, room.number, employeeId);
     };
 
     // Aceptar consumo para entregar
-    const handleAcceptConsumption = async (consumptionId: string, roomNumber: string) => {
+    const handleAcceptConsumptionWrapper = async (consumptionId: string, roomNumber: string) => {
         if (!employeeId) return;
-
-        try {
-            const supabase = createClient();
-
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_accepted_by: employeeId,
-                    delivery_accepted_at: new Date().toISOString(),
-                    delivery_status: 'ACCEPTED'
-                })
-                .eq('id', consumptionId);
-
-            if (error) throw error;
-
-            toast.success("Consumo aceptado", {
-                description: `Entrega asignada para Habitación ${roomNumber}`
-            });
-
-            await fetchPendingConsumptions();
-            await fetchMyConsumptions();
-
-        } catch (error) {
-            console.error("Error accepting consumption:", error);
-            toast.error("Error al aceptar el consumo");
-        }
+        await handleAcceptConsumption(consumptionId, roomNumber, employeeId);
     };
 
     // Aceptar TODOS los consumos de una habitación
-    const handleAcceptAllConsumptions = async (items: any[], roomNumber: string) => {
+    const handleAcceptAllConsumptionsWrapper = async (items: any[], roomNumber: string) => {
         if (!employeeId || items.length === 0) return;
-
-        try {
-            const supabase = createClient();
-            const itemIds = items.map(item => item.id);
-
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_accepted_by: employeeId,
-                    delivery_accepted_at: new Date().toISOString(),
-                    delivery_status: 'ACCEPTED'
-                })
-                .in('id', itemIds);
-
-            if (error) throw error;
-
-            toast.success("Todos los servicios aceptados", {
-                description: `${items.length} entregas asignadas para Habitación ${roomNumber}`
-            });
-
-            await fetchPendingConsumptions();
-            await fetchMyConsumptions();
-
-        } catch (error) {
-            console.error("Error accepting all consumptions:", error);
-            toast.error("Error al aceptar los servicios");
-        }
+        await handleAcceptAllConsumptions(items, roomNumber, employeeId);
     };
 
     // Abrir modal de confirmación para TODOS los consumos de una habitación (que estén IN_TRANSIT)
@@ -291,61 +233,29 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     };
 
     // Ejecutar confirmación de todas las entregas
-    const handleConfirmAllDeliveries = async () => {
+    const handleConfirmAllDeliveriesWrapper = async () => {
         if (!bulkConfirmItems || !employeeId) return;
-
         setBulkConfirmLoading(true);
-        try {
-            const supabase = createClient();
-            const itemIds = bulkConfirmItems.items.map(item => item.id);
+        // Por ahora bulk use payment EFECTIVO por el total, 
+        // idealmente abriría un mini modal de cobro igual que el individual
+        const totalAmount = bulkConfirmItems.items.reduce((sum, item) => sum + Number(item.total), 0);
+        const payments = [{ amount: totalAmount, method: 'EFECTIVO' as const }];
 
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'DELIVERED',
-                    delivery_completed_at: new Date().toISOString()
-                })
-                .in('id', itemIds);
-
-            if (error) throw error;
-
-            toast.success("Todas las entregas confirmadas", {
-                description: `${bulkConfirmItems.items.length} productos entregados en Habitación ${bulkConfirmItems.roomNumber}`
-            });
-
-            setBulkConfirmItems(null);
-            await fetchMyConsumptions();
-
-        } catch (error) {
-            console.error("Error confirming all deliveries:", error);
-            toast.error("Error al confirmar las entregas");
-        } finally {
-            setBulkConfirmLoading(false);
-        }
+        await handleConfirmAllDeliveries(
+            bulkConfirmItems.items,
+            bulkConfirmItems.roomNumber,
+            payments,
+            undefined,
+            employeeId
+        );
+        setBulkConfirmItems(null);
+        setBulkConfirmLoading(false);
     };
 
-    const handleCancelConsumption = async (consumptionId: string) => {
+    const handleCancelConsumptionWrapper = async (consumptionId: string) => {
         setCancellingId(consumptionId);
-        try {
-            const supabase = createClient();
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'CANCELLED',
-                    cancellation_reason: 'Cancelado desde tablero de cochero'
-                })
-                .eq('id', consumptionId);
-
-            if (error) throw error;
-            toast.success("Solicitud cancelada");
-            await fetchPendingConsumptions();
-            await fetchMyConsumptions();
-        } catch (error) {
-            console.error("Error cancelling consumption:", error);
-            toast.error("Error al cancelar");
-        } finally {
-            setCancellingId(null);
-        }
+        await handleCancelConsumption(consumptionId);
+        setCancellingId(null);
     };
 
     useEffect(() => {
@@ -595,7 +505,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                                 <span className="text-xl font-bold">Hab. {room.number}</span>
                                                 <Badge variant="outline">Entrada</Badge>
                                             </div>
-                                            <Button onClick={() => handleAcceptEntry(room)} className="w-full bg-blue-600 hover:bg-blue-700">
+                                            <Button onClick={() => handleAcceptEntryWrapper(room)} className="w-full bg-blue-600 hover:bg-blue-700">
                                                 <CheckCircle2 className="h-4 w-4 mr-2" /> Aceptar
                                             </Button>
                                         </Card>
@@ -694,7 +604,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                                                             size="icon"
                                                                             variant="ghost"
                                                                             className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                                                                            onClick={(e) => { e.stopPropagation(); handleCancelConsumption(item.id); }}
+                                                                            onClick={(e) => { e.stopPropagation(); handleCancelConsumptionWrapper(item.id); }}
                                                                             disabled={cancellingId === item.id}
                                                                         >
                                                                             {cancellingId === item.id ? (
@@ -732,7 +642,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                             {items.length > 1 && (
                                                 <Button
                                                     className="w-full mb-3 bg-amber-600 hover:bg-amber-700"
-                                                    onClick={() => handleAcceptAllConsumptions(items, roomNumber)}
+                                                    onClick={() => handleAcceptAllConsumptionsWrapper(items, roomNumber)}
                                                 >
                                                     <CheckCircle2 className="h-4 w-4 mr-2" />
                                                     Aceptar Todos ({items.length})
@@ -744,14 +654,14 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                                     <div key={item.id} className="flex justify-between items-center text-sm bg-background/50 p-2 rounded">
                                                         <span className="flex-1">{item.qty}x {item.products?.name}</span>
                                                         <div className="flex items-center gap-1">
-                                                            <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500 text-amber-600" onClick={() => handleAcceptConsumption(item.id, roomNumber)}>
+                                                            <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500 text-amber-600" onClick={() => handleAcceptConsumptionWrapper(item.id, roomNumber)}>
                                                                 Aceptar
                                                             </Button>
                                                             <Button
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                                                                onClick={() => handleCancelConsumption(item.id)}
+                                                                onClick={() => handleCancelConsumptionWrapper(item.id)}
                                                                 disabled={cancellingId === item.id}
                                                             >
                                                                 {cancellingId === item.id ? (
@@ -822,10 +732,16 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
             />
             <ValetDeliveryConfirmModal
                 isOpen={showDeliveryModal}
-                onClose={() => { setShowDeliveryModal(false); setSelectedConsumption(null); }}
+                onClose={() => {
+                    setShowDeliveryModal(false);
+                    setSelectedConsumption(null);
+                }}
                 consumption={selectedConsumption}
                 employeeId={employeeId}
-                onConfirmed={() => fetchMyConsumptions()}
+                onConfirmed={() => {
+                    // El modal ya llama a handleConfirmDelivery que refresca todo
+                }}
+                onConfirmDelivery={handleConfirmDelivery}
             />
 
             {/* Modal de confirmación para entregas masivas */}
@@ -864,19 +780,19 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                     )}
 
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={bulkConfirmLoading}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleConfirmAllDeliveries}
-                            disabled={bulkConfirmLoading}
+                        <AlertDialogCancel disabled={bulkConfirmLoading}>Cancelar</AlertDialogCancel>                        <Button
+                            variant="default"
                             className="bg-green-600 hover:bg-green-700"
+                            onClick={handleConfirmAllDeliveriesWrapper}
+                            disabled={bulkConfirmLoading}
                         >
                             {bulkConfirmLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             ) : (
                                 <CheckCircle2 className="h-4 w-4 mr-2" />
                             )}
-                            Confirmar Todos
-                        </AlertDialogAction>
+                            Confirmar Entregas
+                        </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

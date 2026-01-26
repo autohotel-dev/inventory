@@ -9,9 +9,12 @@ interface VehicleData {
     model: string;
 }
 
-interface PaymentData {
+interface PaymentEntry {
     amount: number;
     method: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+    terminal?: string;
+    cardLast4?: string;
+    cardType?: string;
     reference?: string;
 }
 
@@ -30,7 +33,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleRegisterVehicleAndPayment = async (
         room: Room,
         vehicleData: VehicleData,
-        paymentData: PaymentData,
+        paymentData: PaymentEntry,
         valetId: string,
         personCount: number
     ) => {
@@ -240,10 +243,357 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         }
     };
 
+    /**
+     * Aceptar una entrada (asignar valet a la estancia)
+     */
+    const handleAcceptEntry = async (stayId: string, roomNumber: string, valetId: string) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            const { error } = await supabase
+                .from('room_stays')
+                .update({ valet_employee_id: valetId })
+                .eq('id', stayId);
+
+            if (error) throw error;
+
+            toast.success('¡Éxito!', {
+                description: `Te has asignado la Habitación ${roomNumber}`
+            });
+            await onRefresh();
+            return true;
+        } catch (error: any) {
+            console.error('Error accepting entry:', error);
+            toast.error('Error al aceptar la entrada');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * Aceptar consumo para entregar
+     */
+    const handleAcceptConsumption = async (consumptionId: string, roomNumber: string, valetId: string) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_accepted_by: valetId,
+                    delivery_accepted_at: new Date().toISOString(),
+                    delivery_status: 'ACCEPTED'
+                })
+                .eq('id', consumptionId);
+
+            if (error) throw error;
+            toast.success('¡Éxito!', {
+                description: `Entrega asignada para Hab. ${roomNumber}`
+            });
+            await onRefresh();
+            return true;
+        } catch (err) {
+            console.error("Error accepting consumption:", err);
+            toast.error('Error al aceptar el consumo');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * Aceptar TODOS los consumos de una habitación
+     */
+    const handleAcceptAllConsumptions = async (items: any[], roomNumber: string, valetId: string) => {
+        if (items.length === 0) return false;
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            const itemIds = items.map(item => item.id);
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_accepted_by: valetId,
+                    delivery_accepted_at: new Date().toISOString(),
+                    delivery_status: 'ACCEPTED'
+                })
+                .in('id', itemIds);
+
+            if (error) throw error;
+            toast.success('¡Éxito!', {
+                description: `${items.length} entregas asignadas para Hab. ${roomNumber}`
+            });
+            await onRefresh();
+            return true;
+        } catch (err) {
+            console.error("Error accepting all:", err);
+            toast.error('Error al aceptar los servicios');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * Confirmar entrega de un consumo y registrar cobro
+     */
+    const handleConfirmDelivery = async (
+        consumptionId: string,
+        roomNumber: string,
+        payments: PaymentEntry[],
+        notes: string | undefined,
+        valetId: string,
+        tipAmount?: number,
+        tipMethod?: 'EFECTIVO' | 'TARJETA'
+    ) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            // 1. Obtener shift actual
+            const { data: session } = await supabase
+                .from('shift_sessions')
+                .select('id')
+                .eq('employee_id', valetId)
+                .eq('status', 'open')
+                .maybeSingle();
+
+            // 2. Obtener sales_order_id antes de actualizar
+            const { data: itemData, error: fetchError } = await supabase
+                .from('sales_order_items')
+                .select('sales_order_id, total')
+                .eq('id', consumptionId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            // 3. Actualizar item
+            const updateData: any = {
+                delivery_status: 'DELIVERED',
+                delivery_completed_at: new Date().toISOString(),
+                delivery_notes: notes || null,
+                is_paid: payments.length > 0 // Si hubo pagos, marcar como pagado
+            };
+
+            if (tipAmount && tipAmount > 0) {
+                updateData.tip_amount = tipAmount;
+                updateData.tip_method = tipMethod;
+            }
+
+            const { error: updateError } = await supabase
+                .from('sales_order_items')
+                .update(updateData)
+                .eq('id', consumptionId);
+
+            if (updateError) throw updateError;
+
+            // 4. Registrar pagos
+            for (const p of payments) {
+                await supabase.from('payments').insert({
+                    sales_order_id: itemData.sales_order_id,
+                    amount: p.amount,
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || null,
+                    concept: 'CONSUMPTION',
+                    status: 'COBRADO_POR_VALET',
+                    collected_by: valetId,
+                    collected_at: new Date().toISOString(),
+                    shift_session_id: session?.id || null,
+                });
+            }
+
+            toast.success('¡Entregado!', {
+                description: `Servicio en Hab. ${roomNumber} cobrado por valet`
+            });
+            await onRefresh();
+            return true;
+        } catch (err) {
+            console.error("Error confirming delivery:", err);
+            toast.error('Error al confirmar la entrega');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * Confirmar todas las entregas de una habitación y registrar cobro
+     */
+    const handleConfirmAllDeliveries = async (
+        items: any[],
+        roomNumber: string,
+        payments: PaymentEntry[],
+        notes: string | undefined,
+        valetId: string
+    ) => {
+        if (items.length === 0) return false;
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            // 1. Obtener shift actual
+            const { data: session } = await supabase
+                .from('shift_sessions')
+                .select('id')
+                .eq('employee_id', valetId)
+                .eq('status', 'open')
+                .maybeSingle();
+
+            const itemIds = items.map(item => item.id);
+            const salesOrderId = items[0].sales_order_id;
+
+            // 2. Actualizar items
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_status: 'DELIVERED',
+                    delivery_completed_at: new Date().toISOString(),
+                    delivery_notes: notes || null,
+                    is_paid: payments.length > 0
+                })
+                .in('id', itemIds);
+
+            if (error) throw error;
+
+            // 3. Registrar pagos
+            for (const p of payments) {
+                await supabase.from('payments').insert({
+                    sales_order_id: salesOrderId,
+                    amount: p.amount,
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || null,
+                    concept: 'CONSUMPTION',
+                    status: 'COBRADO_POR_VALET',
+                    collected_by: valetId,
+                    collected_at: new Date().toISOString(),
+                    shift_session_id: session?.id || null,
+                });
+            }
+
+            toast.success('¡Éxito!', {
+                description: `${items.length} servicios entregados y cobrados en Hab. ${roomNumber}`
+            });
+            await onRefresh();
+            return true;
+        } catch (err) {
+            console.error("Error confirming all deliveries:", err);
+            toast.error('Error al confirmar las entregas');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCancelConsumption = async (consumptionId: string) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            const { error } = await supabase
+                .from('sales_order_items')
+                .update({
+                    delivery_status: 'CANCELLED',
+                    cancellation_reason: 'Cancelado desde tablero de cochero'
+                })
+                .eq('id', consumptionId);
+
+            if (error) throw error;
+            toast.success("Solicitud cancelada");
+            await onRefresh();
+            return true;
+        } catch (err) {
+            console.error("Error cancelling:", err);
+            toast.error("Error al cancelar");
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * Reportar un daño encontrado durante la revisión
+     */
+    const handleReportDamage = async (
+        salesOrderId: string,
+        roomNumber: string,
+        description: string,
+        amount: number,
+        payments: PaymentEntry[],
+        valetId: string
+    ) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            // 1. Obtener shift actual
+            const { data: session } = await supabase
+                .from('shift_sessions')
+                .select('id')
+                .eq('employee_id', valetId)
+                .eq('status', 'open')
+                .maybeSingle();
+
+            // 2. Crear el cargo por daño en sales_order_items
+            const { error: itemError } = await supabase
+                .from('sales_order_items')
+                .insert({
+                    sales_order_id: salesOrderId,
+                    concept_type: 'DAMAGE_CHARGE',
+                    description: `DAÑO: ${description}`,
+                    unit_price: amount,
+                    qty: 1,
+                    total: amount,
+                    is_paid: payments.length > 0 // Si ya se cobró
+                });
+
+            if (itemError) throw itemError;
+
+            // 3. Registrar los pagos si los hay
+            for (const p of payments) {
+                await supabase.from('payments').insert({
+                    sales_order_id: salesOrderId,
+                    amount: p.amount,
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || null,
+                    concept: 'DAMAGE_CHARGE',
+                    status: 'COBRADO_POR_VALET',
+                    collected_by: valetId,
+                    collected_at: new Date().toISOString(),
+                    shift_session_id: session?.id || null,
+                });
+            }
+
+            toast.success('Daño reportado', {
+                description: `Se ha generado el cargo por $${amount.toFixed(2)}.`
+            });
+            await onRefresh();
+            return true;
+        } catch (err) {
+            console.error('Error reporting damage:', err);
+            toast.error('No se pudo registrar el daño.');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         loading,
+        handleAcceptEntry,
         handleRegisterVehicleAndPayment,
         handleConfirmCheckout,
-        handleProposeCheckout
+        handleProposeCheckout,
+        handleAcceptConsumption,
+        handleAcceptAllConsumptions,
+        handleConfirmDelivery,
+        handleConfirmAllDeliveries,
+        handleCancelConsumption,
+        handleReportDamage
     };
 }

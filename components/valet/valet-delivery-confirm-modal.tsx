@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
     Dialog,
     DialogContent,
@@ -50,6 +50,15 @@ interface ValetDeliveryConfirmModalProps {
     consumption: ConsumptionItem | null;
     employeeId: string;
     onConfirmed: () => void;
+    onConfirmDelivery: (
+        consumptionId: string,
+        roomNumber: string,
+        payments: any[],
+        notes: string | undefined,
+        valetId: string,
+        tipAmount?: number,
+        tipMethod?: 'EFECTIVO' | 'TARJETA'
+    ) => Promise<boolean>;
 }
 
 export function ValetDeliveryConfirmModal({
@@ -57,13 +66,28 @@ export function ValetDeliveryConfirmModal({
     onClose,
     consumption,
     employeeId,
-    onConfirmed
+    onConfirmed,
+    onConfirmDelivery
 }: ValetDeliveryConfirmModalProps) {
     const [loading, setLoading] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA">("EFECTIVO");
+    const [reference, setReference] = useState("");
     const [hasTip, setHasTip] = useState(false);
     const [tipAmount, setTipAmount] = useState<number>(0);
     const [tipMethod, setTipMethod] = useState<"EFECTIVO" | "TARJETA">("EFECTIVO");
     const [notes, setNotes] = useState("");
+
+    // Reset state when opening
+    useEffect(() => {
+        if (isOpen) {
+            setPaymentMethod("EFECTIVO");
+            setReference("");
+            setHasTip(false);
+            setTipAmount(0);
+            setTipMethod("EFECTIVO");
+            setNotes("");
+        }
+    }, [isOpen]);
 
     // room_stays puede ser array o objeto dependiendo de la query
     const roomStays = consumption?.sales_orders?.room_stays;
@@ -72,48 +96,36 @@ export function ValetDeliveryConfirmModal({
     const productName = consumption?.products?.name || "Producto";
     const total = Number(consumption?.total || 0);
 
-    const handleConfirmDelivery = async () => {
+    const handleConfirm = async () => {
         if (!consumption) return;
+
+        if (paymentMethod === 'TARJETA' && !reference.trim()) {
+            toast.error("Ingresa los últimos 4 dígitos del voucher");
+            return;
+        }
 
         setLoading(true);
         try {
-            const supabase = createClient();
+            const payments = [{
+                amount: total,
+                method: paymentMethod,
+                reference: paymentMethod === 'TARJETA' ? reference.trim() : undefined
+            }];
 
-            const updateData: Record<string, any> = {
-                delivery_status: 'DELIVERED',
-                delivery_completed_at: new Date().toISOString(),
-                delivery_notes: notes || null,
-            };
+            const success = await onConfirmDelivery(
+                consumption.id,
+                roomNumber,
+                payments,
+                notes.trim() || undefined,
+                employeeId,
+                hasTip ? tipAmount : 0,
+                hasTip ? tipMethod : undefined
+            );
 
-            // Solo agregar propina si hay
-            if (hasTip && tipAmount > 0) {
-                updateData.tip_amount = tipAmount;
-                updateData.tip_method = tipMethod;
+            if (success) {
+                onConfirmed();
+                onClose();
             }
-
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update(updateData)
-                .eq('id', consumption.id);
-
-            if (error) throw error;
-
-            toast.success("Entrega confirmada", {
-                description: `Habitación ${roomNumber} - ${productName}`
-            });
-
-            // Limpiar estado
-            setHasTip(false);
-            setTipAmount(0);
-            setTipMethod("EFECTIVO");
-            setNotes("");
-
-            onConfirmed();
-            onClose();
-
-        } catch (error) {
-            console.error("Error confirming delivery:", error);
-            toast.error("Error al confirmar la entrega");
         } finally {
             setLoading(false);
         }
@@ -123,44 +135,86 @@ export function ValetDeliveryConfirmModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        Confirmar Entrega
+                    <DialogTitle className="flex items-center gap-2 text-xl">
+                        <CheckCircle2 className="h-6 w-6 text-green-500" />
+                        Confirmar Entrega y Cobro
                     </DialogTitle>
                     <DialogDescription>
-                        Confirma que entregaste el consumo al cliente
+                        Registra el pago y la entrega del consumo
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-6 py-2">
                     {/* Info del consumo */}
-                    <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 space-y-2">
-                        <div className="flex items-center justify-between">
+                    <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-2">
                             <span className="text-sm text-muted-foreground">Habitación</span>
-                            <Badge variant="outline" className="text-lg font-bold">
+                            <Badge variant="outline" className="text-lg font-bold bg-white dark:bg-slate-900 px-3">
                                 {roomNumber}
                             </Badge>
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">Producto</span>
-                            <span className="font-medium">{consumption.qty}x {productName}</span>
+                            <span className="font-semibold text-right">{consumption.qty}x {productName}</span>
                         </div>
-                        <div className="flex items-center justify-between border-t pt-2 mt-2">
-                            <span className="text-sm font-medium">Total a cobrar</span>
-                            <span className="text-xl font-bold text-green-600">
+                        <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
+                            <span className="font-medium">Total a Cobrar</span>
+                            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
                                 ${total.toFixed(2)}
                             </span>
                         </div>
                     </div>
 
+                    {/* Método de Pago */}
+                    <div className="space-y-3">
+                        <Label className="text-base font-semibold">Método de Pago del Consumo</Label>
+                        <RadioGroup
+                            value={paymentMethod}
+                            onValueChange={(v) => setPaymentMethod(v as any)}
+                            className="grid grid-cols-2 gap-2"
+                        >
+                            <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${paymentMethod === 'EFECTIVO' ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
+                                }`}>
+                                <RadioGroupItem value="EFECTIVO" id="p-efectivo" />
+                                <Label htmlFor="p-efectivo" className="flex items-center gap-2 cursor-pointer flex-1">
+                                    <Banknote className="h-4 w-4 text-green-500" />
+                                    <span>Efectivo</span>
+                                </Label>
+                            </div>
+
+                            <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${paymentMethod === 'TARJETA' ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
+                                }`}>
+                                <RadioGroupItem value="TARJETA" id="p-tarjeta" />
+                                <Label htmlFor="p-tarjeta" className="flex items-center gap-2 cursor-pointer flex-1">
+                                    <CreditCard className="h-4 w-4 text-blue-500" />
+                                    <span>Tarjeta</span>
+                                </Label>
+                            </div>
+                        </RadioGroup>
+
+                        {paymentMethod === 'TARJETA' && (
+                            <div className="animate-in slide-in-from-top-2 duration-200">
+                                <Label htmlFor="ref" className="text-sm text-muted-foreground">Últimos 4 dígitos</Label>
+                                <Input
+                                    id="ref"
+                                    value={reference}
+                                    onChange={(e) => setReference(e.target.value)}
+                                    placeholder="1234"
+                                    maxLength={4}
+                                    className="text-lg"
+                                />
+                            </div>
+                        )}
+                    </div>
+
                     {/* Toggle propina */}
-                    <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50 dark:bg-slate-900/50">
                         <div className="space-y-0.5">
-                            <Label htmlFor="has-tip">¿Hubo propina a registrar?</Label>
+                            <Label htmlFor="has-tip" className="font-semibold">Agregar Propina</Label>
                             <p className="text-xs text-muted-foreground">
-                                Solo si fue con tarjeta o si necesitas dar cambio
+                                Si el cliente dejó gratificación
                             </p>
                         </div>
                         <Switch
@@ -172,25 +226,18 @@ export function ValetDeliveryConfirmModal({
 
                     {/* Campos de propina */}
                     {hasTip && (
-                        <div className="space-y-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                                <Banknote className="h-4 w-4" />
-                                <span className="font-medium text-sm">Detalles de propina</span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-in fade-in duration-300">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="tip-amount">Monto</Label>
+                                    <Label htmlFor="tip-amount">Monto Propina</Label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
                                         <Input
                                             id="tip-amount"
                                             type="number"
-                                            min="0"
-                                            step="1"
                                             value={tipAmount || ""}
                                             onChange={(e) => setTipAmount(Number(e.target.value))}
-                                            className="pl-7"
+                                            className="pl-7 text-lg"
                                             placeholder="0"
                                         />
                                     </div>
@@ -202,22 +249,12 @@ export function ValetDeliveryConfirmModal({
                                         value={tipMethod}
                                         onValueChange={(v) => setTipMethod(v as "EFECTIVO" | "TARJETA")}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="h-10">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="EFECTIVO">
-                                                <div className="flex items-center gap-2">
-                                                    <Banknote className="h-4 w-4 text-green-600" />
-                                                    Efectivo
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="TARJETA">
-                                                <div className="flex items-center gap-2">
-                                                    <CreditCard className="h-4 w-4 text-blue-600" />
-                                                    Tarjeta
-                                                </div>
-                                            </SelectItem>
+                                            <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                                            <SelectItem value="TARJETA">Tarjeta</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -227,45 +264,45 @@ export function ValetDeliveryConfirmModal({
 
                     {/* Notas opcionales */}
                     <div className="space-y-2">
-                        <Label htmlFor="notes">Notas (opcional)</Label>
+                        <Label htmlFor="notes">Observaciones de la entrega</Label>
                         <Textarea
                             id="notes"
-                            placeholder="Ej: Cliente pidió más servilletas..."
+                            placeholder="Ej: Se entregó en puerta..."
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             rows={2}
                         />
                     </div>
 
-                    {/* Advertencia */}
-                    <div className="flex items-start gap-2 text-xs text-muted-foreground bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
-                        <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                        <span>
-                            Después de confirmar, debes entregar el dinero en recepción.
-                            {hasTip && tipMethod === "EFECTIVO" && tipAmount > 0 && (
-                                <strong className="block mt-1 text-amber-600">
-                                    Total a entregar: ${(total + tipAmount).toFixed(2)} (incluye propina en efectivo)
-                                </strong>
-                            )}
-                        </span>
+                    {/* Advertencia final */}
+                    <div className="bg-amber-500/10 border-2 border-amber-500/20 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm">
+                                <p className="font-bold text-amber-200 uppercase tracking-tighter mb-1">Pasar a Recepción</p>
+                                <p className="text-amber-100/80">
+                                    Esta confirmación registra el cobro. Debes llevar {paymentMethod === 'EFECTIVO' ? 'el dinero' : 'el voucher'} a recepción para liquidar.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={onClose} disabled={loading}>
+                <DialogFooter className="grid grid-cols-2 gap-3 pt-4 sm:flex sm:flex-row sm:justify-end">
+                    <Button variant="outline" onClick={onClose} disabled={loading} className="h-12 text-base">
                         Cancelar
                     </Button>
                     <Button
-                        onClick={handleConfirmDelivery}
+                        onClick={handleConfirm}
                         disabled={loading}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="h-12 text-base bg-green-600 hover:bg-green-700"
                     >
                         {loading ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                         ) : (
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            <CheckCircle2 className="h-5 w-5 mr-2" />
                         )}
-                        Confirmar Entrega
+                        Cerrar Cobro
                     </Button>
                 </DialogFooter>
             </DialogContent>
