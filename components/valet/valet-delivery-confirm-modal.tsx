@@ -139,10 +139,10 @@ export function ValetDeliveryConfirmModal({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl">
                         <CheckCircle2 className="h-6 w-6 text-green-500" />
-                        Confirmar Entrega y Cobro
+                        Informar Entrega a Recepción
                     </DialogTitle>
                     <DialogDescription>
-                        Registra el pago y la entrega del consumo
+                        Registra los detalles de la entrega para que recepción los valide
                     </DialogDescription>
                 </DialogHeader>
 
@@ -279,9 +279,9 @@ export function ValetDeliveryConfirmModal({
                         <div className="flex items-start gap-3">
                             <AlertCircle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
                             <div className="text-sm">
-                                <p className="font-bold text-amber-200 uppercase tracking-tighter mb-1">Pasar a Recepción</p>
+                                <p className="font-bold text-amber-200 uppercase tracking-tighter mb-1">Informar a Recepción</p>
                                 <p className="text-amber-100/80">
-                                    Esta confirmación registra el cobro. Debes llevar {paymentMethod === 'EFECTIVO' ? 'el dinero' : 'el voucher'} a recepción para liquidar.
+                                    Esta acción informa el cobro a recepción. Debes llevar {paymentMethod === 'EFECTIVO' ? 'el dinero' : 'el voucher'} para que el recepcionista liquide el saldo.
                                 </p>
                             </div>
                         </div>
@@ -302,7 +302,7 @@ export function ValetDeliveryConfirmModal({
                         ) : (
                             <CheckCircle2 className="h-5 w-5 mr-2" />
                         )}
-                        Cerrar Cobro
+                        Informar Cobro a Recepción
                     </Button>
                 </DialogFooter>
             </DialogContent>

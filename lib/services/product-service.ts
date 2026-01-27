@@ -205,7 +205,8 @@ export async function createServiceItem(
             is_paid: isCourtesy ? true : false, // Cortesías se marcan como pagadas (o equivalentes)
             is_courtesy: isCourtesy,
             courtesy_reason: isCourtesy ? courtesyReason : null,
-            payment_method: isCourtesy ? 'CORTESIA' : null
+            payment_method: isCourtesy ? 'CORTESIA' : null,
+            delivery_status: 'PENDING_VALET'
         });
 
         if (error) {

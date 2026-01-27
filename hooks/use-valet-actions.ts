@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Room } from '@/components/sales/room-types';
@@ -30,7 +30,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      * 3. Crear payment con status 'COBRADO_POR_VALET'
      * 4. Notificar recepción para confirmación
      */
-    const handleRegisterVehicleAndPayment = async (
+    const handleRegisterVehicleAndPayment = useCallback(async (
         room: Room,
         vehicleData: VehicleData,
         paymentData: PaymentEntry,
@@ -88,7 +88,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
 
             // 3. El cochero NO crea un pago nuevo.
             // Debe tomar el pago principal creado por recepción (ESTANCIA, PENDIENTE)
-            // y marcarlo como COBRADO_POR_VALET para que recepción lo confirme.
             const { data: pendingMain, error: pendingMainError } = await supabase
                 .from('payments')
                 .select('id')
@@ -114,7 +113,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { error: paymentUpdateError } = await supabase
                 .from('payments')
                 .update({
-                    // Asegurar que el principal refleje el cobro real del cochero
                     amount: paymentData.amount,
                     payment_method: paymentData.method,
                     reference: paymentData.reference || null,
@@ -150,7 +148,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Confirmar salida después de revisión
@@ -159,7 +157,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      * 1. Asignar checkout_valet_employee_id
      * 2. Permitir que recepción finalice checkout
      */
-    const handleConfirmCheckout = async (room: Room, valetId: string, personCount: number) => {
+    const handleConfirmCheckout = useCallback(async (room: Room, valetId: string, personCount: number) => {
         setLoading(true);
         const supabase = createClient();
 
@@ -198,7 +196,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Proponer salida (desde el cochero)
@@ -207,7 +205,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      * 1. Registrar timestamp de propuesta
      * 2. Notificar a recepción para autorización
      */
-    const handleProposeCheckout = async (room: Room, valetId: string) => {
+    const handleProposeCheckout = useCallback(async (room: Room, valetId: string) => {
         setLoading(true);
         const supabase = createClient();
 
@@ -241,12 +239,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Aceptar una entrada (asignar valet a la estancia)
      */
-    const handleAcceptEntry = async (stayId: string, roomNumber: string, valetId: string) => {
+    const handleAcceptEntry = useCallback(async (stayId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         const supabase = createClient();
         try {
@@ -269,12 +267,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Aceptar consumo para entregar
      */
-    const handleAcceptConsumption = async (consumptionId: string, roomNumber: string, valetId: string) => {
+    const handleAcceptConsumption = useCallback(async (consumptionId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         const supabase = createClient();
         try {
@@ -300,12 +298,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Aceptar TODOS los consumos de una habitación
      */
-    const handleAcceptAllConsumptions = async (items: any[], roomNumber: string, valetId: string) => {
+    const handleAcceptAllConsumptions = useCallback(async (items: any[], roomNumber: string, valetId: string) => {
         if (items.length === 0) return false;
         setLoading(true);
         const supabase = createClient();
@@ -333,12 +331,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Confirmar entrega de un consumo y registrar cobro
      */
-    const handleConfirmDelivery = async (
+    const handleConfirmDelivery = useCallback(async (
         consumptionId: string,
         roomNumber: string,
         payments: PaymentEntry[],
@@ -358,7 +356,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'open')
                 .maybeSingle();
 
-            // 2. Obtener sales_order_id antes de actualizar
+            // 2. Obtener sales_order_id
             const { data: itemData, error: fetchError } = await supabase
                 .from('sales_order_items')
                 .select('sales_order_id, total')
@@ -396,7 +394,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     terminal_code: p.terminal,
                     card_last_4: p.cardLast4,
                     card_type: p.cardType,
-                    // Usar referencia para vincular el item
                     reference: p.reference || `VALET_ITEM:${consumptionId}`,
                     concept: 'CONSUMPTION',
                     status: 'COBRADO_POR_VALET',
@@ -406,8 +403,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 });
             }
 
-            toast.success('¡Entregado!', {
-                description: `Servicio en Hab. ${roomNumber} cobrado por valet`
+            toast.success('✅ Entrega Informada', {
+                description: `Hab. ${roomNumber}: Lleva el cobro a recepción para corroborar.`
             });
             await onRefresh();
             return true;
@@ -418,12 +415,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Confirmar todas las entregas de una habitación y registrar cobro
      */
-    const handleConfirmAllDeliveries = async (
+    const handleConfirmAllDeliveries = useCallback(async (
         items: any[],
         roomNumber: string,
         payments: PaymentEntry[],
@@ -477,8 +474,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 });
             }
 
-            toast.success('¡Éxito!', {
-                description: `${items.length} servicios entregados y cobrados en Hab. ${roomNumber}`
+            toast.success('✅ Entregas Informadas', {
+                description: `Hab. ${roomNumber}: ${items.length} servicios informados. Corrobora los cobros en recepción.`
             });
             await onRefresh();
             return true;
@@ -489,9 +486,9 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
-    const handleCancelConsumption = async (consumptionId: string) => {
+    const handleCancelConsumption = useCallback(async (consumptionId: string) => {
         setLoading(true);
         const supabase = createClient();
         try {
@@ -514,12 +511,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     /**
      * Reportar un daño encontrado durante la revisión
      */
-    const handleReportDamage = async (
+    const handleReportDamage = useCallback(async (
         salesOrderId: string,
         roomNumber: string,
         description: string,
@@ -539,7 +536,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .maybeSingle();
 
             // 2. Crear el cargo por daño en sales_order_items
-            const { error: itemError } = await supabase
+            const { error: itemError, data: item } = await supabase
                 .from('sales_order_items')
                 .insert({
                     sales_order_id: salesOrderId,
@@ -548,8 +545,10 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     unit_price: amount,
                     qty: 1,
                     total: amount,
-                    is_paid: payments.length > 0 // Si ya se cobró
-                });
+                    is_paid: false // Reception will mark as paid
+                })
+                .select()
+                .single();
 
             if (itemError) throw itemError;
 
@@ -562,7 +561,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     terminal_code: p.terminal,
                     card_last_4: p.cardLast4,
                     card_type: p.cardType,
-                    reference: p.reference || null,
+                    reference: p.reference || `VALET_DAMAGE:${item?.id}`,
                     concept: 'DAMAGE_CHARGE',
                     status: 'COBRADO_POR_VALET',
                     collected_by: valetId,
@@ -571,8 +570,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 });
             }
 
-            toast.success('Daño reportado', {
-                description: `Se ha generado el cargo por $${amount.toFixed(2)}.`
+            toast.success('✅ Daño Informado', {
+                description: `Se ha generado el cargo por $${amount.toFixed(2)}. Informa a recepción para confirmar el cobro.`
             });
             await onRefresh();
             return true;
@@ -583,7 +582,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onRefresh]);
 
     return {
         loading,

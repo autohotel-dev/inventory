@@ -490,6 +490,19 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             toast.success("Persona extra registrada", {
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
             });
+
+            // Notificar a cocheros para cobro y verificación
+            fetch('/api/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: '👤 Persona Extra Registrada',
+                body: `Habitación ${room.number}: Se registró persona extra. Cobrar $${extraPrice}.`,
+                roles: ['valet'],
+                url: '/valet',
+                tag: `pex-${activeStay.id}-${Date.now()}`
+              })
+            }).catch(err => logger.error("Failed to send push notification", err));
           } else {
             toast.warning("No se configuró precio de persona extra");
           }
@@ -897,6 +910,21 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         toast.success("Horas agregadas", {
           description: `Hab. ${room.number}: +${hours} hora(s) - ${isCourtesy ? 'Cortesía' : `$${totalPrice.toFixed(2)} MXN`}`,
         });
+
+        // Notificar a cocheros si hay cobro
+        if (!isCourtesy && totalPrice > 0) {
+          fetch('/api/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: '⏰ Hora Extra Registrada',
+              body: `Habitación ${room.number}: Se agregaron ${hours} hora(s) extra. Cobrar $${totalPrice.toFixed(2)}.`,
+              roles: ['valet'],
+              url: '/valet',
+              tag: `hex-${activeStay.id}-${Date.now()}`
+            })
+          }).catch(err => logger.error("Failed to send push notification", err));
+        }
         await onRefresh();
       } else {
         toast.error("No se pudo agregar las horas");

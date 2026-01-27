@@ -333,7 +333,7 @@ export function ValetCheckInModal({
                             disabled={loading}
                             className="h-12 text-base bg-green-600 hover:bg-green-700"
                         >
-                            {loading ? "Registrando..." : "Registrar Cobro"}
+                            {loading ? "Registrando..." : "Enviar Info a Recepción"}
                         </Button>
                     </div>
                 </div>

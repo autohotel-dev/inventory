@@ -205,13 +205,14 @@ export function GranularPaymentModal({
           amount,
           payment_method,
           reference,
+          concept,
           collected_at,
           collected_by,
+          confirmed_at,
           employees:collected_by(first_name, last_name)
         `)
         .eq("sales_order_id", salesOrderId)
-        .eq("status", "COBRADO_POR_VALET")
-        .is("confirmed_at", null);
+        .eq("status", "COBRADO_POR_VALET");
 
       if (valetError) {
         console.error("Error loading valet payments:", valetError);
@@ -227,101 +228,47 @@ export function GranularPaymentModal({
     }
   };
 
-  const confirmValetPayment = async (paymentId: string) => {
+  // Corroborar la recepción física del dinero/voucher (solo auditoría de pago)
+  const corroborateValetPayment = async (paymentId: string) => {
     setConfirmingPaymentId(paymentId);
     const supabase = createClient();
-
     try {
       const employeeId = await getCurrentEmployeeId(supabase);
 
-      // 1. Obtener detalles del pago antes de confirmar
-      const { data: payment, error: pError } = await supabase
-        .from("payments")
-        .select("amount, reference, concept, sales_order_id, payment_method")
-        .eq("id", paymentId)
-        .single();
-
-      if (pError) throw pError;
-
-      // 2. Intentar identificar el item vinculado
-      let targetItemId: string | null = null;
-      if (payment.reference?.startsWith("VALET_ITEM:")) {
-        targetItemId = payment.reference.split(":")[1];
-      } else if (payment.reference?.startsWith("VALET_DAMAGE:")) {
-        targetItemId = payment.reference.split(":")[1];
-      }
-
-      // 3. Confirmar el pago
-      const { error: confirmError } = await supabase
+      const { error } = await supabase
         .from("payments")
         .update({
           confirmed_by: employeeId,
-          confirmed_at: new Date().toISOString(),
-          status: 'PAGADO' // Al confirmar recepción, el pago ya es definitivo
+          confirmed_at: new Date().toISOString()
         })
         .eq("id", paymentId);
 
-      if (confirmError) throw confirmError;
+      if (error) throw error;
 
-      // 4. Marcar items como pagados
-      if (targetItemId) {
-        // Vínculo directo por referencia
-        await supabase
-          .from("sales_order_items")
-          .update({
-            is_paid: true,
-            paid_at: new Date().toISOString(),
-            payment_method: payment.payment_method
-          })
-          .eq("id", targetItemId);
-      } else {
-        // Búsqueda por monto y concepto si no hay link directo (retrocompatibilidad o batches)
-        // Buscamos el primer item no pagado que coincida en monto y concepto aproximado
-        const { data: potentialItems } = await supabase
-          .from("sales_order_items")
-          .select("id")
-          .eq("sales_order_id", salesOrderId)
-          .eq("is_paid", false)
-          .eq("total", payment.amount)
-          .limit(1);
-
-        if (potentialItems && potentialItems.length > 0) {
-          await supabase
-            .from("sales_order_items")
-            .update({
-              is_paid: true,
-              paid_at: new Date().toISOString()
-            })
-            .eq("id", potentialItems[0].id);
-        }
-      }
-
-      // 5. Recalcular remaining_amount de la orden
-      const { data: unpaidItems } = await supabase
-        .from("sales_order_items")
-        .select("total")
-        .eq("sales_order_id", salesOrderId)
-        .eq("is_paid", false);
-
-      const newRemaining = unpaidItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
-
-      await supabase
-        .from("sales_orders")
-        .update({
-          remaining_amount: newRemaining,
-          status: newRemaining <= 0 ? 'COMPLETED' : 'ACTIVE'
-        })
-        .eq("id", salesOrderId);
-
-      toast.success("Pago confirmado e items actualizados");
+      toast.success("Recibo corroborado. Ahora puedes seleccionar los servicios a cobrar.");
       fetchItems();
     } catch (error) {
-      console.error("Error confirming payment:", error);
-      toast.error("Error al confirmar el pago");
+      console.error("Error corroborating payment:", error);
+      toast.error("Error al corroborar el recibo");
     } finally {
       setConfirmingPaymentId(null);
     }
   };
+
+  // Pre-rellenar datos de pago desde un registro de valet
+  const useValetPaymentData = (payment: any) => {
+    setPayments([{
+      id: "p1",
+      amount: payment.amount,
+      method: payment.payment_method as any || "EFECTIVO",
+      reference: payment.reference || "",
+      terminal: undefined,
+      cardLast4: undefined,
+      cardType: undefined
+    }]);
+    toast.success("Datos del cochero aplicados al formulario de pago");
+  };
+
 
   useEffect(() => {
     if (isOpen && salesOrderId) {
@@ -542,6 +489,7 @@ export function GranularPaymentModal({
         'EXTRA_HOUR': 'HORA_EXTRA',
         'ROOM_BASE': 'ESTANCIA',
         'TOLERANCE_EXPIRED': 'TOLERANCIA_EXPIRADA',
+        'DAMAGE_CHARGE': 'DAMAGE_CHARGE',
       };
 
       const paymentConcepts = conceptTypes
@@ -554,7 +502,7 @@ export function GranularPaymentModal({
       if (paymentConcepts.length > 0) {
         const { data: pendingPayments } = await supabase
           .from("payments")
-          .select("id, amount, concept")
+          .select("id, amount, concept, status, confirmed_by, confirmed_at")
           .eq("sales_order_id", salesOrderId)
           .in("status", ["PENDIENTE", "COBRADO_POR_VALET"])
           .in("concept", paymentConcepts)
@@ -574,6 +522,8 @@ export function GranularPaymentModal({
                   status: "PAGADO",
                   // payments.payment_method tiene constraint; usar PENDIENTE como marcador de multipago
                   payment_method: "PENDIENTE",
+                  confirmed_by: pending.status === 'COBRADO_POR_VALET' ? (pending.confirmed_by || currentEmployeeId) : (pending.confirmed_by || null),
+                  confirmed_at: pending.status === 'COBRADO_POR_VALET' ? (pending.confirmed_at || new Date().toISOString()) : (pending.confirmed_at || null),
                 })
                 .eq("id", pending.id);
 
@@ -629,6 +579,8 @@ export function GranularPaymentModal({
                   reference: p.reference || generatePaymentReference("GRN"),
                   card_last_4: p.method === "TARJETA" ? p.cardLast4 : null,
                   card_type: p.method === "TARJETA" ? p.cardType : null,
+                  confirmed_by: pending.status === 'COBRADO_POR_VALET' ? (pending.confirmed_by || currentEmployeeId) : (pending.confirmed_by || null),
+                  confirmed_at: pending.status === 'COBRADO_POR_VALET' ? (pending.confirmed_at || new Date().toISOString()) : (pending.confirmed_at || null),
                 })
                 .eq("id", pending.id);
 
@@ -759,7 +711,7 @@ export function GranularPaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-7xl mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
           <div>
@@ -811,42 +763,54 @@ export function GranularPaymentModal({
                 </Button>
               </div>
 
-              {/* Pagos de Valet Pendientes */}
-              {valetPayments.length > 0 && (
+              {/* Pagos de Valet Pendientes de Corroboración */}
+              {valetPayments.filter(p => !p.confirmed_at).length > 0 && (
                 <div className="space-y-3 mb-6">
-                  <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-600">
+                  <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-600 dark:text-indigo-400">
                     <AlertTriangle className="h-5 w-5" />
-                    <p className="text-sm font-medium">Pagos recolectados por Valet pendientes de confirmación</p>
+                    <p className="text-sm font-medium">Información de cobros informados por Valet pendientes de corroborar</p>
                   </div>
 
                   <div className="space-y-2">
-                    {valetPayments.map((payment) => (
+                    {valetPayments.filter(p => !p.confirmed_at).map((payment) => (
                       <div
                         key={payment.id}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-background"
+                        className="flex items-center justify-between p-4 border rounded-lg bg-indigo-500/5 dark:bg-indigo-500/10 border-indigo-500/20"
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="border-green-500 text-green-500">
-                              {payment.payment_method}
-                            </Badge>
-                            <span className="font-bold text-lg">
-                              {formatCurrency(payment.amount)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            Cobrado por <span className="font-medium text-foreground">{payment.employees?.first_name} {payment.employees?.last_name}</span>
-                          </p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="border-indigo-500 text-indigo-500">
+                            {payment.payment_method}
+                          </Badge>
+                          <span className="font-bold text-lg">
+                            {formatCurrency(payment.amount)}
+                          </span>
+                          <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-tighter">
+                            {payment.concept === 'CONSUMPTION' ? 'CONSUMO' :
+                              payment.concept === 'ESTANCIA' ? 'ESTANCIA' :
+                                payment.concept === 'HORA_EXTRA' ? 'HORA EXTRA' :
+                                  payment.concept === 'PERSONA_EXTRA' ? 'PERS. EXTRA' :
+                                    payment.concept === 'DAMAGE_CHARGE' ? 'DAÑO' :
+                                      payment.concept || 'PAGO'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Cobrado por <span className="font-medium text-foreground">{payment.employees?.first_name} {payment.employees?.last_name}</span>
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground italic">
                             {new Date(payment.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            {payment.reference ? ` • Ref: ${payment.reference}` : ''}
-                          </p>
+                          </span>
+                          {payment.reference && !payment.reference.includes('VALET_') && (
+                            <span className="text-[10px] bg-muted px-1.5 rounded-full border border-border">
+                              Ref: {payment.reference}
+                            </span>
+                          )}
                         </div>
 
                         <Button
                           size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => confirmValetPayment(payment.id)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                          onClick={() => corroborateValetPayment(payment.id)}
                           disabled={confirmingPaymentId === payment.id}
                         >
                           {confirmingPaymentId === payment.id ? (
@@ -854,7 +818,7 @@ export function GranularPaymentModal({
                           ) : (
                             <>
                               <CheckCircle2 className="h-4 w-4 mr-2" />
-                              Confirmar Recepción
+                              Corroborar Recibo
                             </>
                           )}
                         </Button>
@@ -1159,6 +1123,35 @@ export function GranularPaymentModal({
                   )}
                 </div>
               </div>
+
+              {/* Sugerencias de Valet en el paso de pago */}
+              {valetPayments.length > 0 && (
+                <div className="space-y-2 mb-6">
+                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Cobros sugeridos por cochero:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {valetPayments.map(p => (
+                      <Button
+                        key={p.id}
+                        variant="outline"
+                        size="sm"
+                        className="h-auto py-2 px-3 flex flex-col items-start gap-1 border-indigo-500/30 hover:bg-indigo-500/5"
+                        onClick={() => useValetPaymentData(p)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] px-1 h-4 border-indigo-500/50 text-indigo-500">
+                            {p.confirmed_at && <CheckCircle2 className="h-2 w-2 mr-1 inline" />}
+                            {p.payment_method}
+                          </Badge>
+                          <span className="font-bold text-sm tracking-tight">{formatCurrency(p.amount)}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          {p.confirmed_at ? "Usar cobro corroborado" : "Usar cobro (Pendiente corrob.)"}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <MultiPaymentInput
                 totalAmount={selectedTotal + tipAmount}
