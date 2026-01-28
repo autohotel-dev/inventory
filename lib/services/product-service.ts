@@ -145,23 +145,23 @@ export async function createDamageItem(
         // Usaré 'courtesy_reason' como campo para guardar la descripción del daño, ya que es TEXT y nullable.
         // Y pondré is_courtesy=false.
 
-        const { error } = await supabase.from("sales_order_items").insert({
+        const { data, error } = await supabase.from("sales_order_items").insert({
             sales_order_id: salesOrderId,
             product_id: damageProductId,
             qty,
-            unit_price: amount, // El precio es el monto del daño
+            unit_price: amount,
             concept_type: "DAMAGE_CHARGE",
             is_paid: false,
-            courtesy_reason: description, // Guardamos la descripción del daño aquí
+            courtesy_reason: description,
             is_courtesy: false
-        });
+        }).select("id").single();
 
-        if (error) {
+        if (error || !data) {
             logger.error("Error creating damage item", { salesOrderId, error });
             return failure("Error al crear cargo por daño", "ITEM_CREATE_ERROR");
         }
 
-        return success(true);
+        return success(data.id);
     } catch (error) {
         logger.error("Unexpected error creating damage item", error);
         return failure("Error inesperado al crear daño", "ITEM_CREATE_EXCEPTION");
@@ -183,7 +183,7 @@ export async function createServiceItem(
     qty: number = 1,
     isCourtesy: boolean = false,
     courtesyReason: string = ""
-): Promise<Result<boolean>> {
+): Promise<Result<string>> {
     const supabase = createClient();
 
     try {
@@ -196,25 +196,25 @@ export async function createServiceItem(
         const serviceProductId = productResult.data;
 
         // Crear el item de venta
-        const { error } = await supabase.from("sales_order_items").insert({
+        const { data, error } = await supabase.from("sales_order_items").insert({
             sales_order_id: salesOrderId,
             product_id: serviceProductId,
             qty,
             unit_price: isCourtesy ? 0 : unitPrice,
             concept_type: conceptType,
-            is_paid: isCourtesy ? true : false, // Cortesías se marcan como pagadas (o equivalentes)
+            is_paid: isCourtesy ? true : false,
             is_courtesy: isCourtesy,
             courtesy_reason: isCourtesy ? courtesyReason : null,
             payment_method: isCourtesy ? 'CORTESIA' : null,
             delivery_status: 'PENDING_VALET'
-        });
+        }).select("id").single();
 
-        if (error) {
+        if (error || !data) {
             logger.error("Error creating service item", { salesOrderId, conceptType, error });
             return failure("Error al crear item de servicio", "ITEM_CREATE_ERROR");
         }
 
-        return success(true);
+        return success(data.id);
     } catch (error) {
         logger.error("Unexpected error creating service item", error);
         return failure("Error inesperado al crear item", "ITEM_CREATE_EXCEPTION");

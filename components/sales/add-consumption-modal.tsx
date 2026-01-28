@@ -583,7 +583,8 @@ export function AddConsumptionModal({
         concept_type: "CONSUMPTION",
         is_paid: false,
         is_courtesy: is_courtesy || false,
-        courtesy_reason: courtesy_reason || null
+        courtesy_reason: courtesy_reason || null,
+        delivery_status: 'PENDING_VALET'
       }));
 
       const { error: itemsError } = await supabase
@@ -637,6 +638,32 @@ export function AddConsumptionModal({
             status: "PARTIAL",
           })
           .eq("id", salesOrderId);
+
+        // Notificación a cocheros sobre el nuevo consumo
+        try {
+          const productNames = Array.from(cartItems.values())
+            .map(({ product, qty }) => `${qty}x ${product.name}`)
+            .join(", ");
+
+          await fetch('/api/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: '🛒 Nuevo Consumo Registrado',
+              body: `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Saldo pendiente: $${newRemaining.toFixed(2)} MXN.`,
+              roles: ['valet'],
+              url: '/valet',
+              tag: `con-${salesOrderId}-${Date.now()}`,
+              data: {
+                type: 'REGULAR_CONSUMPTION',
+                salesOrderId: salesOrderId,
+                roomNumber: roomNumber || 'N/A'
+              }
+            })
+          });
+        } catch (pushErr) {
+          console.error("Error sending consumption push notification:", pushErr);
+        }
       }
 
       // Imprimir tickets

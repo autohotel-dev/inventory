@@ -66,11 +66,12 @@ export async function POST(req: Request) {
         const notificationPayload = JSON.stringify({
             title: payload.title,
             body: payload.body,
-            data: { url: payload.url || '/valet' },
+            data: { url: payload.url || '/valet', ...(payload as any).data },
             tag: payload.tag || `notif-${Date.now()}`
         });
 
-        const results = await Promise.allSettled(subs.map(sub => {
+        // 1. Web Push Delivery
+        const webPushResults = await Promise.allSettled(subs.map(sub => {
             const pushSub = {
                 endpoint: sub.subscription.endpoint,
                 keys: {
@@ -81,12 +82,55 @@ export async function POST(req: Request) {
             return webpush.sendNotification(pushSub, notificationPayload);
         }));
 
-        const successCount = results.filter(r => r.status === 'fulfilled').length;
-        console.log(`[Push Send] Sent ${successCount}/${subs.length} notifications for: ${payload.title}`);
+        const webSuccessCount = webPushResults.filter(r => r.status === 'fulfilled').length;
+
+        // 2. Expo Push Delivery (Mobile App)
+        let expoSuccessCount = 0;
+        const { data: employeesWithTokens } = await adminSupabase
+            .from('employees')
+            .select('id, push_token')
+            .in('role', payload.roles)
+            .not('push_token', 'is', null);
+
+        if (employeesWithTokens?.length) {
+            const expoMessages = employeesWithTokens
+                .filter(e => e.push_token && e.push_token.startsWith('ExponentPushToken['))
+                .map(e => ({
+                    to: e.push_token,
+                    sound: 'default',
+                    title: payload.title,
+                    body: payload.body,
+                    data: { url: payload.url || '/valet', ...(payload as any).data },
+                }));
+
+            if (expoMessages.length > 0) {
+                try {
+                    const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Accept-encoding': 'gzip, deflate',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(expoMessages),
+                    });
+
+                    if (expoResponse.ok) {
+                        expoSuccessCount = expoMessages.length;
+                    }
+                } catch (expoErr) {
+                    console.error('[Expo Push] Error:', expoErr);
+                }
+            }
+        }
+
+        console.log(`[Push Send] Sent: Web(${webSuccessCount}/${subs.length}), Expo(${expoSuccessCount}) for: ${payload.title}`);
 
         return NextResponse.json({
             success: true,
-            sentCount: successCount
+            sentCount: webSuccessCount + expoSuccessCount,
+            webCount: webSuccessCount,
+            expoCount: expoSuccessCount
         });
 
     } catch (e) {

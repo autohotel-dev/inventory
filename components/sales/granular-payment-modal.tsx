@@ -204,6 +204,9 @@ export function GranularPaymentModal({
           id,
           amount,
           payment_method,
+          terminal_code,
+          card_last_4,
+          card_type,
           reference,
           concept,
           collected_at,
@@ -262,9 +265,9 @@ export function GranularPaymentModal({
       amount: payment.amount,
       method: payment.payment_method as any || "EFECTIVO",
       reference: payment.reference || "",
-      terminal: undefined,
-      cardLast4: undefined,
-      cardType: undefined
+      terminal: payment.terminal_code || undefined,
+      cardLast4: payment.card_last_4 || undefined,
+      cardType: payment.card_type || undefined
     }]);
     toast.success("Datos del cochero aplicados al formulario de pago");
   };
@@ -793,9 +796,30 @@ export function GranularPaymentModal({
                                       payment.concept || 'PAGO'}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          Cobrado por <span className="font-medium text-foreground">{payment.employees?.first_name} {payment.employees?.last_name}</span>
-                        </p>
+                        <div className="flex-1">
+                          <p className="text-sm text-muted-foreground">
+                            Cobrado por <span className="font-medium text-foreground">{payment.employees?.first_name} {payment.employees?.last_name}</span>
+                          </p>
+                          {payment.payment_method === 'TARJETA' && (
+                            <div className="flex items-center gap-2 mt-1">
+                              {payment.terminal_code && (
+                                <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                  Terminal: {payment.terminal_code}
+                                </Badge>
+                              )}
+                              {payment.card_last_4 && (
+                                <Badge variant="secondary" className="text-[10px] bg-zinc-500/10 text-zinc-500 border-zinc-500/20">
+                                  Terminación: **** {payment.card_last_4}
+                                </Badge>
+                              )}
+                              {payment.card_type && (
+                                <Badge variant="secondary" className="text-[10px] bg-indigo-500/10 text-indigo-500 border-indigo-500/20">
+                                  Tipo: {payment.card_type}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs text-muted-foreground italic">
                             {new Date(payment.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

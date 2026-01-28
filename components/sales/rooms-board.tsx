@@ -24,7 +24,8 @@ import {
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { VehicleInfo } from "@/components/sales/room-start-stay-modal";
 import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
-import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getActiveStay } from "@/hooks/use-room-actions";
+import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getActiveStay, generatePaymentReference, getCurrentShiftId } from "@/hooks/use-room-actions";
+import { createServiceItem } from "@/lib/services/product-service";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSensors } from "@/hooks/use-sensors";
@@ -53,40 +54,7 @@ const RoomHourManagementModal = dynamic(() => import("@/components/sales/room-ho
 const AddDamageChargeModal = dynamic(() => import("@/components/sales/add-damage-charge-modal").then(m => ({ default: m.AddDamageChargeModal })), { ssr: false });
 const GuestPortalQRModal = dynamic(() => import("@/components/sales/guest-portal-qr-modal").then(m => ({ default: m.GuestPortalQRModal })), { ssr: false });
 
-// Generar referencia única para pagos
-function generatePaymentReference(prefix: string = "PAY"): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefix}-${timestamp}-${random}`;
-}
 
-// Helper helper obtener turno activo
-const getCurrentShiftId = async (supabase: any) => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data: employee } = await supabase
-      .from("employees")
-      .select("id")
-      .eq("auth_user_id", user.id)
-      .single();
-
-    if (!employee) return null;
-
-    const { data: session } = await supabase
-      .from("shift_sessions")
-      .select("id")
-      .eq("employee_id", employee.id)
-      .eq("status", "open")
-      .maybeSingle();
-
-    return session?.id;
-  } catch (err) {
-    console.error("Error getting current shift id:", err);
-    return null;
-  }
-};
 
 // Helper para obtener employee_id del usuario actual
 const getCurrentEmployeeId = async (supabase: any) => {
@@ -238,6 +206,7 @@ function RoomsBoardInternal() {
             .select('id')
             .eq('sales_order_id', activeStay.sales_order_id)
             .eq('status', 'COBRADO_POR_VALET')
+            .is('confirmed_at', null)
             .limit(1);
 
           setHasPendingValetPayment(!!data && data.length > 0);
@@ -946,6 +915,19 @@ function RoomsBoardInternal() {
               fetchRooms(true);
             }
           )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'sales_order_items' },
+            (payload: any) => {
+              if (!isSubscribed) return;
+              console.log("📡 [RoomBoard] Cambio detectado en 'sales_order_items':", {
+                event: payload.eventType,
+                itemId: payload.new?.id || payload.old?.id,
+                concept: payload.new?.concept_type,
+              });
+              fetchRooms(true);
+            }
+          )
           .subscribe((status: string, err?: Error) => {
             // Reaccionar al estado real de la conexión
             if (status === 'SUBSCRIBED') {
@@ -1497,28 +1479,15 @@ function RoomsBoardInternal() {
                 const extraHourPrice = room.room_types.extra_hour_price;
 
                 try {
-                  // 1. Crear item de servicio para la hora extra
-                  let serviceProductId: string | null = null;
-                  const { data: serviceProducts } = await supabase
-                    .from("products")
-                    .select("id")
-                    .eq("sku", "SVC-ROOM")
-                    .limit(1);
+                  // 1. Crear item de servicio para la hora extra usando el servicio centralizado
+                  const itemResult = await createServiceItem(
+                    activeStay.sales_order_id,
+                    extraHourPrice,
+                    "EXTRA_HOUR",
+                    1
+                  );
 
-                  if (serviceProducts && serviceProducts.length > 0) {
-                    serviceProductId = serviceProducts[0].id;
-                  }
-
-                  if (serviceProductId) {
-                    await supabase.from("sales_order_items").insert({
-                      sales_order_id: activeStay.sales_order_id,
-                      product_id: serviceProductId,
-                      qty: 1,
-                      unit_price: extraHourPrice,
-                      concept_type: "EXTRA_HOUR",
-                      is_paid: false,
-                    });
-                  }
+                  const consumptionId = itemResult.success ? itemResult.data : undefined;
 
                   // 2. Crear pago pendiente
                   const currentShiftId = await getCurrentShiftId(supabase);
@@ -1572,9 +1541,10 @@ function RoomsBoardInternal() {
                         url: '/valet',
                         tag: `auto-hex-${activeStay.id}-${Date.now()}`,
                         data: {
-                          room_number: room.number,
-                          stay_id: activeStay.id,
-                          action: 'extra_hour_auto',
+                          type: 'NEW_EXTRA',
+                          consumptionId: consumptionId,
+                          roomNumber: room.number,
+                          stayId: activeStay.id,
                         }
                       })
                     });
