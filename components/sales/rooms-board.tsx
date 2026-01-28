@@ -86,12 +86,17 @@ const notifyValetsOfNewEntry = async (supabase: any, roomNumber: string, roomId:
       .not("auth_user_id", "is", null);
 
     if (valets && valets.length > 0) {
-      const notifications = valets.map((v: any) => ({
-        user_id: v.auth_user_id,
+      // Usar un Set para evitar enviar múltiples notificaciones al mismo user_id 
+      // si tiene varios perfiles de empleado con el mismo auth_user_id
+      const uniqueUserIds = Array.from(new Set(valets.map((v: any) => v.auth_user_id) as string[]));
+
+      const notifications = uniqueUserIds.map((userId: string) => ({
+        user_id: userId,
         type: 'info',
         title: '🚗 Nueva Entrada',
         message: `Nueva estancia en Habitación ${roomNumber}. Acepta la entrada para registrar vehículo.`,
         data: {
+          type: 'NEW_ENTRY',
           room_id: roomId,
           room_number: roomNumber,
           stay_id: stayId

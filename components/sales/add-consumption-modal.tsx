@@ -639,7 +639,8 @@ export function AddConsumptionModal({
           })
           .eq("id", salesOrderId);
 
-        // Notificación a cocheros sobre el nuevo consumo
+        /* 
+        // Notificación manual desactivada porque el Webhook ya envía 🛎️ Nuevo Consumo
         try {
           const productNames = Array.from(cartItems.values())
             .map(({ product, qty }) => `${qty}x ${product.name}`)
@@ -664,6 +665,7 @@ export function AddConsumptionModal({
         } catch (pushErr) {
           console.error("Error sending consumption push notification:", pushErr);
         }
+        */
       }
 
       // Imprimir tickets

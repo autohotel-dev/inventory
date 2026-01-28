@@ -525,7 +525,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
             });
 
-            // Notificar a cocheros para cobro y verificación
+            /* 
+            // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
             fetch('/api/push/send', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -543,6 +544,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
                 }
               })
             }).catch(err => logger.error("Failed to send push notification", err));
+            */
           } else {
             toast.warning("No se configuró precio de persona extra");
           }
@@ -1092,7 +1094,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           description: `Hab. ${room.number}: Renovación completa - $${basePrice.toFixed(2)} MXN`,
         });
 
-        // Notificar a cocheros para cobro y verificación
+        /* 
+        // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
         fetch('/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1110,6 +1113,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             }
           })
         }).catch(err => logger.error("Failed to send push notification", err));
+        */
 
         await onRefresh();
       } else {
@@ -1216,7 +1220,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           description: `Hab. ${room.number}: +4 horas - $${promoPrice.toFixed(2)} MXN`,
         });
 
-        // Notificar a cocheros para cobro y verificación
+        /* 
+        // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
         fetch('/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1234,6 +1239,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             }
           })
         }).catch(err => logger.error("Failed to send push notification", err));
+        */
 
         await onRefresh();
       } else {
@@ -1630,7 +1636,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         console.error("Error sending notification:", notifError);
       }
 
-      // 5. Enviar notificación PUSH
+      /* 
+      // Notificación manual desactivada: Ya lo maneja el Webhook corporativo o Realtime
       fetch('/api/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1647,6 +1654,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           }
         })
       }).catch(err => logger.error("Failed to send push notification", err));
+      */
 
       toast.success("Recordatorio enviado al cochero 🔔");
       return true;
@@ -1676,7 +1684,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       if (error) throw error;
 
-      // 2. Notificar a cocheros (PUSH)
+      /* 
+      // Notificación manual desactivada: Ya lo maneja el Webhook corporativo
       fetch('/api/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1693,6 +1702,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           }
         })
       }).catch(err => logger.error("Failed to send push notification", err));
+      */
 
       toast.success("Salida autorizada ✅");
       await onRefresh();
