@@ -266,6 +266,38 @@ async function updatePendingPaymentsHelper(
     });
   }
 
+  // FIX: Actualizar remaining_amount y paid_amount en sales_orders
+  // El monto aplicado a pagos pendientes es: totalPaid - remainingToPay
+  const paidAmountApplied = totalPaid - remainingToPay;
+  if (paidAmountApplied > 0) {
+    // Obtenemos los valores actuales para calcular los nuevos
+    const { data: currentOrder } = await supabase
+      .from("sales_orders")
+      .select("remaining_amount, paid_amount")
+      .eq("id", salesOrderId)
+      .single();
+
+    if (currentOrder) {
+      const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - paidAmountApplied);
+      const newPaid = (Number(currentOrder.paid_amount) || 0) + paidAmountApplied;
+
+      await supabase
+        .from("sales_orders")
+        .update({
+          remaining_amount: newRemaining,
+          paid_amount: newPaid,
+        })
+        .eq("id", salesOrderId);
+
+      logger.info("Updated sales_order totals after pending payment", {
+        salesOrderId,
+        paidAmountApplied,
+        newRemaining,
+        newPaid,
+      });
+    }
+  }
+
   return remainingToPay; // Retornar el monto que sobró
 }
 
