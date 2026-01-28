@@ -1479,7 +1479,7 @@ function RoomsBoardInternal() {
           }
 
           // B. Verificar cobro automático si ya pasaron los 30 min de gracia
-          if (activeStay.expected_check_out_at) {
+          if (activeStay.expected_check_out_at && room.room_types?.extra_hour_price) {
             const expected = new Date(activeStay.expected_check_out_at);
             const diffMs = now.getTime() - expected.getTime();
 
@@ -1493,8 +1493,104 @@ function RoomsBoardInternal() {
                 .eq("status", "PENDIENTE");
 
               if (!existingExtraPayments || existingExtraPayments.length === 0) {
-                // Aquí se podría disparar el cargo automático si se desea, 
-                // por ahora se delega a prepareCheckout cuando se abre el modal.
+                // AUTO EXTRA HOUR: Crear cobro automático de 1 hora extra
+                const extraHourPrice = room.room_types.extra_hour_price;
+
+                try {
+                  // 1. Crear item de servicio para la hora extra
+                  let serviceProductId: string | null = null;
+                  const { data: serviceProducts } = await supabase
+                    .from("products")
+                    .select("id")
+                    .eq("sku", "SVC-ROOM")
+                    .limit(1);
+
+                  if (serviceProducts && serviceProducts.length > 0) {
+                    serviceProductId = serviceProducts[0].id;
+                  }
+
+                  if (serviceProductId) {
+                    await supabase.from("sales_order_items").insert({
+                      sales_order_id: activeStay.sales_order_id,
+                      product_id: serviceProductId,
+                      qty: 1,
+                      unit_price: extraHourPrice,
+                      concept_type: "EXTRA_HOUR",
+                      is_paid: false,
+                    });
+                  }
+
+                  // 2. Crear pago pendiente
+                  const currentShiftId = await getCurrentShiftId(supabase);
+                  await supabase.from("payments").insert({
+                    sales_order_id: activeStay.sales_order_id,
+                    amount: extraHourPrice,
+                    payment_method: "PENDIENTE",
+                    reference: generatePaymentReference("AEH"), // Auto Extra Hour
+                    concept: "EXTRA_HOUR",
+                    status: "PENDIENTE",
+                    payment_type: "COMPLETO",
+                    shift_session_id: currentShiftId,
+                  });
+
+                  // 3. Actualizar remaining_amount en sales_orders
+                  const { data: orderData } = await supabase
+                    .from("sales_orders")
+                    .select("remaining_amount, subtotal, total")
+                    .eq("id", activeStay.sales_order_id)
+                    .single();
+
+                  if (orderData) {
+                    const newRemaining = (Number(orderData.remaining_amount) || 0) + extraHourPrice;
+                    const newSubtotal = (Number(orderData.subtotal) || 0) + extraHourPrice;
+                    const newTotal = (Number(orderData.total) || 0) + extraHourPrice;
+
+                    await supabase.from("sales_orders").update({
+                      remaining_amount: newRemaining,
+                      subtotal: newSubtotal,
+                      total: newTotal,
+                    }).eq("id", activeStay.sales_order_id);
+                  }
+
+                  // 4. Extender expected_check_out_at en 1 hora
+                  const newExpectedCheckout = new Date(expected);
+                  newExpectedCheckout.setHours(newExpectedCheckout.getHours() + 1);
+
+                  await supabase.from("room_stays").update({
+                    expected_check_out_at: newExpectedCheckout.toISOString(),
+                  }).eq("id", activeStay.id);
+
+                  // 5. Enviar notificación push a cocheros
+                  try {
+                    await fetch('/api/push/send', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        title: '⏰ Hora Extra Automática',
+                        body: `Habitación ${room.number}: Se agregó 1 hora extra automáticamente. Cobrar $${extraHourPrice.toFixed(0)}.`,
+                        roles: ['valet', 'cochero'],
+                        url: '/valet',
+                        tag: `auto-hex-${activeStay.id}-${Date.now()}`,
+                        data: {
+                          room_number: room.number,
+                          stay_id: activeStay.id,
+                          action: 'extra_hour_auto',
+                        }
+                      })
+                    });
+                  } catch (pushErr) {
+                    console.error("Error sending push notification:", pushErr);
+                  }
+
+                  // 6. Mostrar toast solo si estamos en la página
+                  toast.info(`Hora extra automática - Hab. ${room.number}`, {
+                    description: `Se agregó 1 hora extra ($${extraHourPrice.toFixed(0)}) automáticamente.`,
+                  });
+
+                  console.log(`[AUTO EXTRA HOUR] Created charge for room ${room.number}: $${extraHourPrice}`);
+                } catch (err) {
+                  console.error(`[AUTO EXTRA HOUR] Error creating charge for room ${room.number}:`, err);
+                }
               }
             }
           }
