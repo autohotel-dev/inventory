@@ -525,15 +525,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
             });
 
-            /* 
-            // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
+            // Notificación manual activada
             fetch('/api/push/send', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 title: '👤 Persona Extra Registrada',
-                body: `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: $${updateResult.newRemaining?.toFixed(2) || extraPrice.toFixed(2)} MXN.`,
-                roles: ['valet'],
+                body: `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: ${formatCurrency(updateResult.newRemaining || extraPrice)}.`,
+                roles: ['valet', 'cochero', 'Cochero'],
                 url: '/valet',
                 tag: `pex-${activeStay.id}-${Date.now()}`,
                 data: {
@@ -544,7 +543,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
                 }
               })
             }).catch(err => logger.error("Failed to send push notification", err));
-            */
           } else {
             toast.warning("No se configuró precio de persona extra");
           }

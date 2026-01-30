@@ -639,8 +639,7 @@ export function AddConsumptionModal({
           })
           .eq("id", salesOrderId);
 
-        /* 
-        // Notificación manual desactivada porque el Webhook ya envía 🛎️ Nuevo Consumo
+        // Notificación manual activada
         try {
           const productNames = Array.from(cartItems.values())
             .map(({ product, qty }) => `${qty}x ${product.name}`)
@@ -652,7 +651,7 @@ export function AddConsumptionModal({
             body: JSON.stringify({
               title: '🛒 Nuevo Consumo Registrado',
               body: `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Saldo pendiente: $${newRemaining.toFixed(2)} MXN.`,
-              roles: ['valet'],
+              roles: ['valet', 'cochero', 'Cochero'],
               url: '/valet',
               tag: `con-${salesOrderId}-${Date.now()}`,
               data: {
@@ -665,7 +664,6 @@ export function AddConsumptionModal({
         } catch (pushErr) {
           console.error("Error sending consumption push notification:", pushErr);
         }
-        */
       }
 
       // Imprimir tickets
