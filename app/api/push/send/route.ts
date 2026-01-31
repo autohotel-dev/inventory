@@ -85,7 +85,11 @@ export async function POST(req: Request) {
         const webSuccessCount = webPushResults.filter(r => r.status === 'fulfilled').length;
 
         // 2. Expo Push Delivery (Mobile App)
+        // DESACTIVADO: La responsabilidad de enviar notificaciones móviles ahora recae en 
+        // los Triggers de Supabase y la Edge Function 'send-push-notification' para evitar duplicados.
+
         let expoSuccessCount = 0;
+        /*
         const { data: employeesWithTokens } = await adminSupabase
             .from('employees')
             .select('id, push_token')
@@ -123,6 +127,7 @@ export async function POST(req: Request) {
                 }
             }
         }
+        */
 
         console.log(`[Push Send] Sent: Web(${webSuccessCount}/${subs.length}), Expo(${expoSuccessCount}) for: ${payload.title}`);
 

@@ -25,6 +25,7 @@ import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { usePOSConfigRead } from "@/hooks/use-pos-config";
 import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { cn } from "@/lib/utils";
+import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 
 import { SelectPackageDrinksModal } from "./select-package-drinks-modal";
 import type { BottlePackageRule } from "@/lib/types/inventory";
@@ -640,27 +641,22 @@ export function AddConsumptionModal({
           .eq("id", salesOrderId);
 
         // Notificación manual activada
+
         try {
           const productNames = Array.from(cartItems.values())
             .map(({ product, qty }) => `${qty}x ${product.name}`)
             .join(", ");
 
-          await fetch('/api/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: '🛒 Nuevo Consumo Registrado',
-              body: `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Saldo pendiente: $${newRemaining.toFixed(2)} MXN.`,
-              roles: ['valet', 'cochero', 'Cochero'],
-              url: '/valet',
-              tag: `con-${salesOrderId}-${Date.now()}`,
-              data: {
-                type: 'REGULAR_CONSUMPTION',
-                salesOrderId: salesOrderId,
-                roomNumber: roomNumber || 'N/A'
-              }
-            })
-          });
+          await notifyActiveValets(
+            supabase,
+            '🛒 Nuevo Consumo Registrado',
+            `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Saldo pendiente: $${newRemaining.toFixed(2)} MXN.`,
+            {
+              type: 'REGULAR_CONSUMPTION',
+              salesOrderId: salesOrderId,
+              roomNumber: roomNumber || 'N/A'
+            }
+          );
         } catch (pushErr) {
           console.error("Error sending consumption push notification:", pushErr);
         }

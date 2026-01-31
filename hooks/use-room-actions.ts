@@ -301,6 +301,8 @@ async function updatePendingPaymentsHelper(
   return remainingToPay; // Retornar el monto que sobró
 }
 
+import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+
 export interface UseRoomActionsReturn {
   actionLoading: boolean;
   handleAddPerson: (room: Room) => Promise<void>; // Persona nueva entra (cobra extra si >2)
@@ -525,32 +527,41 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
             });
 
-            // Notificación manual activada
-            fetch('/api/push/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                title: '👤 Persona Extra Registrada',
-                body: `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: ${formatCurrency(updateResult.newRemaining || extraPrice)}.`,
-                roles: ['valet', 'cochero', 'Cochero'],
-                url: '/valet',
-                tag: `pex-${activeStay.id}-${Date.now()}`,
-                data: {
-                  type: 'NEW_EXTRA',
-                  consumptionId: itemResult.data,
-                  roomNumber: room.number,
-                  stayId: activeStay.id
-                }
-              })
-            }).catch(err => logger.error("Failed to send push notification", err));
+            // Notificación estandarizada a valets activos
+            await notifyActiveValets(
+              supabase,
+              '👤 Persona Extra Registrada',
+              `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: ${formatCurrency(updateResult.newRemaining || extraPrice)}.`,
+              {
+                type: 'NEW_EXTRA',
+                consumptionId: itemResult.data,
+                roomNumber: room.number,
+                stayId: activeStay.id
+              }
+            );
+
           } else {
             toast.warning("No se configuró precio de persona extra");
           }
+
         } else {
           toast.success("Persona agregada", {
             description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople})`,
           });
+
+          // Notificación estandarizada a valets activos (Sin cobro)
+          await notifyActiveValets(
+            supabase,
+            '👤 Persona Agregada',
+            `Habitación ${room.number}: Se agregó una persona. Total actual: ${newCurrentPeople}.`,
+            {
+              type: 'PERSON_ENTRY',
+              roomNumber: room.number,
+              stayId: activeStay.id
+            }
+          );
         }
+
       }
 
       await onRefresh();
@@ -620,9 +631,23 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         newCount: newCurrentPeople
       });
 
+
       toast.success("Persona removida", {
         description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}`,
       });
+
+      // Notificación estandarizada a valets activos
+      await notifyActiveValets(
+        supabase,
+        '👤 Persona Salió',
+        `Habitación ${room.number}: Salió una persona. Total actual: ${newCurrentPeople}.`,
+        {
+          type: 'PERSON_EXIT',
+          roomNumber: room.number,
+          stayId: activeStay.id
+        }
+      );
+
 
       await onRefresh();
     } catch (error) {
@@ -716,9 +741,23 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           toleranceUsedMinutes: minutesElapsed
         });
 
+
         toast.success("✅ Persona regresó a tiempo", {
           description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Regresó en ${minutesElapsed} min (quedaban ${minutesRemaining} min).`,
         });
+
+        // Notificación estandarizada a valets activos
+        await notifyActiveValets(
+          supabase,
+          '👤 Persona Regresó',
+          `Habitación ${room.number}: La persona regresó dentro del tiempo de tolerancia.`,
+          {
+            type: 'PERSON_RETURN',
+            roomNumber: room.number,
+            stayId: activeStay.id
+          }
+        );
+
 
         await onRefresh();
         return;
@@ -769,6 +808,18 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           duration: 5000,
         });
       }
+
+      // Notificación estandarizada a valets activos
+      await notifyActiveValets(
+        supabase,
+        '⏱️ Tolerancia Iniciada',
+        `Habitación ${room.number}: Salió una persona con derecho a regreso (1h).`,
+        {
+          type: 'TOLERANCE_STARTED',
+          roomNumber: room.number,
+          stayId: activeStay.id
+        }
+      );
 
       await onRefresh();
     } catch (error) {
@@ -842,23 +893,18 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       });
 
       // Notificar a cocheros para cobro y verificación
-      fetch('/api/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: '🛠️ Cargo por Daño',
-          body: `Habitación ${room.number}: Se registró un daño ($${amount.toFixed(2)}). Descripción: ${description}`,
-          roles: ['valet'],
-          url: '/valet',
-          tag: `dmg-${activeStay.id}-${Date.now()}`,
-          data: {
-            type: 'NEW_EXTRA',
-            consumptionId: itemResult.data,
-            roomNumber: room.number,
-            stayId: activeStay.id
-          }
-        })
-      }).catch(err => logger.error("Failed to send push notification", err));
+      // Notificar a cocheros activos estandarizado
+      await notifyActiveValets(
+        supabase,
+        '🛠️ Cargo por Daño',
+        `Habitación ${room.number}: Se registró un daño ($${amount.toFixed(2)}). Descripción: ${description}`,
+        {
+          type: 'NEW_EXTRA',
+          consumptionId: itemResult.data,
+          roomNumber: room.number,
+          stayId: activeStay.id
+        }
+      );
 
       await onRefresh();
 
@@ -974,22 +1020,17 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
         // Notificar a cocheros si hay cobro
         if (!isCourtesy && totalPrice > 0) {
-          fetch('/api/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: '⏰ Hora Extra Registrada',
-              body: `Habitación ${room.number}: Se agregaron ${hours} hora(s) extra. Saldo pendiente: $${(result as any).newRemaining?.toFixed(2) || totalPrice.toFixed(2)} MXN.`,
-              roles: ['valet'],
-              url: '/valet',
-              tag: `hex-${activeStay.id}-${Date.now()}`,
-              data: {
-                type: 'NEW_EXTRA',
-                consumptionId: lastItemId,
-                roomNumber: room.number
-              }
-            })
-          }).catch(err => logger.error("Failed to send push notification", err));
+          // Notificar a cocheros activos estandarizado
+          await notifyActiveValets(
+            supabase,
+            '⏰ Hora Extra Registrada',
+            `Habitación ${room.number}: Se agregaron ${hours} hora(s) extra. Saldo pendiente: $${(result as any).newRemaining?.toFixed(2) || totalPrice.toFixed(2)} MXN.`,
+            {
+              type: 'NEW_EXTRA',
+              consumptionId: lastItemId,
+              roomNumber: room.number
+            }
+          );
         }
         await onRefresh();
       } else {
@@ -1092,8 +1133,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           description: `Hab. ${room.number}: Renovación completa - $${basePrice.toFixed(2)} MXN`,
         });
 
-        /* 
+
         // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
+        /*
         fetch('/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1112,6 +1154,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           })
         }).catch(err => logger.error("Failed to send push notification", err));
         */
+
+        // Notificación estandarizada a valets activos
+        await notifyActiveValets(
+          supabase,
+          '🔄 Habitación Renovada',
+          `Habitación ${room.number}: Renovación registada ($${basePrice.toFixed(2)}).`,
+          {
+            type: 'NEW_EXTRA',
+            consumptionId: consumptionId,
+            roomNumber: room.number,
+            stayId: activeStay.id
+          }
+        );
+
 
         await onRefresh();
       } else {
@@ -1218,8 +1274,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           description: `Hab. ${room.number}: +4 horas - $${promoPrice.toFixed(2)} MXN`,
         });
 
-        /* 
+
         // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
+        /*
         fetch('/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1238,6 +1295,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           })
         }).catch(err => logger.error("Failed to send push notification", err));
         */
+
+        // Notificación estandarizada a valets activos
+        await notifyActiveValets(
+          supabase,
+          '🏷️ Promoción 4H Aplicada',
+          `Habitación ${room.number}: Se aplicó promoción de 4 horas ($${promoPrice.toFixed(2)}).`,
+          {
+            type: 'NEW_EXTRA',
+            consumptionId: consumptionId,
+            roomNumber: room.number,
+            stayId: activeStay.id
+          }
+        );
+
 
         await onRefresh();
       } else {
@@ -1636,22 +1707,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       /* 
       // Notificación manual desactivada: Ya lo maneja el Webhook corporativo o Realtime
-      fetch('/api/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: '🚗 Registro de Vehículo',
-          body: `Habitación ${roomNumber}: Recepción solicita registrar vehículo.`,
-          roles: ['valet'],
-          url: '/valet',
-          tag: `veh-${stayId}-${Date.now()}`,
-          data: {
-            type: 'VEHICLE_REQUEST',
-            stayId: stayId,
-            roomNumber: roomNumber
-          }
-        })
-      }).catch(err => logger.error("Failed to send push notification", err));
+       // Notificación estandarizada a valets activos
+       await notifyActiveValets(
+           supabase,
+       // Notificación estandarizada a valets activos
+       await notifyActiveValets(
+           supabase,
+           '🚗 Registro de Vehículo',
+           `Habitación ${roomNumber}: Recepción solicita registrar vehículo.`,
+           {
+             type: 'VEHICLE_REQUEST',
+             stayId: stayId,
+             roomNumber: roomNumber
+           }
+       );
       */
 
       toast.success("Recordatorio enviado al cochero 🔔");
@@ -1682,25 +1751,17 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       if (error) throw error;
 
-      /* 
-      // Notificación manual desactivada: Ya lo maneja el Webhook corporativo
-      fetch('/api/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: '✅ Salida Autorizada',
-          body: `Habitación ${room.number}: Recepción autorizó la salida.`,
-          roles: ['valet'],
-          url: '/valet',
-          tag: `auth-chk-${activeStay.id}-${Date.now()}`,
-          data: {
-            type: 'CHECKOUT_REQUEST', // Reusing this type as it leads to checkout screen
-            stayId: activeStay.id,
-            roomNumber: room.number
-          }
-        })
-      }).catch(err => logger.error("Failed to send push notification", err));
-      */
+      // Notificación estandarizada a valets activos
+      await notifyActiveValets(
+        supabase,
+        '✅ Salida Autorizada',
+        `Habitación ${room.number}: Recepción autorizó la salida.`,
+        {
+          type: 'CHECKOUT_REQUEST',
+          stayId: activeStay.id,
+          roomNumber: room.number
+        }
+      );
 
       toast.success("Salida autorizada ✅");
       await onRefresh();

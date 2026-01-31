@@ -75,45 +75,21 @@ const getCurrentEmployeeId = async (supabase: any) => {
   }
 };
 
+import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+
 // FIX #4: Helper para notificar a valets después de un check-in
 const notifyValetsOfNewEntry = async (supabase: any, roomNumber: string, roomId: string, stayId: string) => {
-  try {
-    // Buscar empleados con rol 'cochero' o 'valet'
-    const { data: valets } = await supabase
-      .from("employees")
-      .select("auth_user_id")
-      .in("role", ["valet", "cochero", "Cochero"])
-      .not("auth_user_id", "is", null);
-
-    if (valets && valets.length > 0) {
-      // Usar un Set para evitar enviar múltiples notificaciones al mismo user_id 
-      // si tiene varios perfiles de empleado con el mismo auth_user_id
-      const uniqueUserIds = Array.from(new Set(valets.map((v: any) => v.auth_user_id) as string[]));
-
-      const notifications = uniqueUserIds.map((userId: string) => ({
-        user_id: userId,
-        type: 'info',
-        title: '🚗 Nueva Entrada',
-        message: `Nueva estancia en Habitación ${roomNumber}. Acepta la entrada para registrar vehículo.`,
-        data: {
-          type: 'NEW_ENTRY',
-          room_id: roomId,
-          room_number: roomNumber,
-          stay_id: stayId
-        },
-        is_read: false
-      }));
-
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert(notifications);
-
-      if (notifError) console.error("Error notifying valets:", notifError);
+  await notifyActiveValets(
+    supabase,
+    '🚗 Nueva Entrada',
+    `Nueva estancia en Habitación ${roomNumber}. Acepta la entrada para registrar vehículo.`,
+    {
+      type: 'NEW_ENTRY',
+      room_id: roomId,
+      room_number: roomNumber,
+      stay_id: stayId
     }
-  } catch (notifErr) {
-    console.error("Error in valet notifications:", notifErr);
-    // No bloquear el flujo si falla la notificación
-  }
+  );
 };
 
 
@@ -3037,6 +3013,19 @@ function RoomsBoardInternal() {
               .from("sales_orders")
               .update({ notes: newNotes.trim() })
               .eq("id", activeStay.sales_order_id);
+
+            // Notificación estandarizada a valets activos
+            await notifyActiveValets(
+              supabase,
+              '🔀 Cambio de Habitación',
+              `Habitación ${selectedRoom.number} ➡ ${newRoom.number}. Por favor mover vehículo a la nueva habitación.`,
+              {
+                type: 'ROOM_CHANGE',
+                oldRoomNumber: selectedRoom.number,
+                newRoomNumber: newRoom.number,
+                stayId: activeStay.id
+              }
+            );
 
             toast.success("Habitación cambiada", {
               description: `${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"})`,
