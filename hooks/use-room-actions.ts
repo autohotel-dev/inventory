@@ -1134,27 +1134,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         });
 
 
-        // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
-        /*
-        fetch('/api/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: '🔄 Habitación Renovada',
-            body: `Habitación ${room.number}: El huésped renovó su estancia ($${basePrice.toFixed(2)}).`,
-            roles: ['valet'],
-            url: '/valet',
-            tag: `ren-${activeStay.id}-${Date.now()}`,
-            data: {
-              type: 'NEW_EXTRA',
-              consumptionId: consumptionId,
-              roomNumber: room.number,
-              stayId: activeStay.id
-            }
-          })
-        }).catch(err => logger.error("Failed to send push notification", err));
-        */
-
         // Notificación estandarizada a valets activos
         await notifyActiveValets(
           supabase,
@@ -1275,26 +1254,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         });
 
 
-        // Notificación manual desactivada: Ya lo maneja el Webhook corporativo vía sales_order_items
-        /*
-        fetch('/api/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: '🏷️ Promoción 4H Aplicada',
-            body: `Habitación ${room.number}: Se aplicó promoción de 4 horas ($${promoPrice.toFixed(2)}).`,
-            roles: ['valet'],
-            url: '/valet',
-            tag: `p4h-${activeStay.id}-${Date.now()}`,
-            data: {
-              type: 'NEW_EXTRA',
-              consumptionId: consumptionId,
-              roomNumber: room.number,
-              stayId: activeStay.id
-            }
-          })
-        }).catch(err => logger.error("Failed to send push notification", err));
-        */
+
+
 
         // Notificación estandarizada a valets activos
         await notifyActiveValets(
@@ -1705,23 +1666,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         console.error("Error sending notification:", notifError);
       }
 
-      /* 
-      // Notificación manual desactivada: Ya lo maneja el Webhook corporativo o Realtime
-       // Notificación estandarizada a valets activos
-       await notifyActiveValets(
-           supabase,
-       // Notificación estandarizada a valets activos
-       await notifyActiveValets(
-           supabase,
-           '🚗 Registro de Vehículo',
-           `Habitación ${roomNumber}: Recepción solicita registrar vehículo.`,
-           {
-             type: 'VEHICLE_REQUEST',
-             stayId: stayId,
-             roomNumber: roomNumber
-           }
-       );
-      */
+
 
       toast.success("Recordatorio enviado al cochero 🔔");
       return true;
