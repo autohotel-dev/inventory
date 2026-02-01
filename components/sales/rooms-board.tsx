@@ -182,7 +182,9 @@ function RoomsBoardInternal() {
       const activeStay = getActiveStay(selectedRoom);
       if (activeStay?.sales_order_id) {
         const checkValetPayments = async () => {
-          const { data } = await supabase
+          // 1. Verificar pagos reportados en tabla payments
+          // const { data } = await supabase... (original)
+          const { data: paymentsData } = await supabase
             .from('payments')
             .select('id')
             .eq('sales_order_id', activeStay.sales_order_id)
@@ -190,7 +192,21 @@ function RoomsBoardInternal() {
             .is('confirmed_at', null)
             .limit(1);
 
-          setHasPendingValetPayment(!!data && data.length > 0);
+          if (paymentsData && paymentsData.length > 0) {
+            setHasPendingValetPayment(true);
+            return;
+          }
+
+          // 2. Verificar items entregados/verificados por cochero pero no pagados (ej. cambios de habitación)
+          const { data: itemsData } = await supabase
+            .from('sales_order_items')
+            .select('id')
+            .eq('sales_order_id', activeStay.sales_order_id)
+            .eq('delivery_status', 'DELIVERED')
+            .eq('is_paid', false)
+            .limit(1);
+
+          setHasPendingValetPayment(!!itemsData && itemsData.length > 0);
         };
         checkValetPayments();
       } else {
@@ -2931,72 +2947,125 @@ function RoomsBoardInternal() {
               .update({ status: "OCUPADA" })
               .eq("id", data.newRoomId);
 
-            // 1. Calcular diferencia de precio (Upgrade)
-            let priceDifference = 0;
+            // 1. Calcular diferencia de precio (positivo = cobro, negativo = devolución)
             const oldPrice = selectedRoom.room_types?.base_price || 0;
             const newPrice = newRoom.room_types?.base_price || 0;
+            const priceDifference = newPrice - oldPrice; // Positivo = upgrade, Negativo = downgrade
 
-            if (newPrice > oldPrice) {
-              priceDifference = newPrice - oldPrice;
-            }
+            console.log("[RoomChange] Price check:", { oldPrice, newPrice, priceDifference });
 
-            // 2. Si hay diferencia, actualizar totales y crear cargos
-            if (priceDifference > 0) {
-              // Obtener orden actual para sumar totales
-              const { data: currentOrder } = await supabase
-                .from("sales_orders")
-                .select("subtotal, total, remaining_amount, tax")
-                .eq("id", activeStay.sales_order_id)
-                .single();
+            // 2. Si hay diferencia de precio (en cualquier dirección), crear item para verificación del cochero
+            if (priceDifference !== 0) {
+              // Buscar producto de servicio para el item
+              const { data: svcProducts, error: svcError } = await supabase
+                .from("products")
+                .select("id")
+                .eq("sku", "SVC-ROOM")
+                .limit(1);
 
-              if (currentOrder) {
-                const newSubtotal = (currentOrder.subtotal || 0) + priceDifference;
-                const newTotal = (currentOrder.total || 0) + priceDifference;
-                const newRemaining = (currentOrder.remaining_amount || 0) + priceDifference;
+              console.log("[RoomChange] SVC-ROOM product:", { svcProducts, svcError });
 
-                await supabase
-                  .from("sales_orders")
-                  .update({
-                    subtotal: newSubtotal,
-                    total: newTotal,
-                    remaining_amount: newRemaining
+              const svcProductId = svcProducts?.[0]?.id;
+
+              if (svcProductId) {
+                const isRefund = priceDifference < 0;
+                const absAmount = Math.abs(priceDifference);
+
+                // Insertar Item de Diferencia con PENDING_VALET para que el cochero lo verifique
+                // NOTA: 'total' es columna GENERATED, 'description' no existe
+                const { data: insertedItem, error: insertError } = await supabase.from("sales_order_items").insert({
+                  sales_order_id: activeStay.sales_order_id,
+                  product_id: svcProductId,
+                  qty: 1,
+                  unit_price: absAmount,
+                  concept_type: "ROOM_CHANGE_ADJUSTMENT",
+                  delivery_notes: isRefund
+                    ? `Devolución por cambio: Hab ${selectedRoom.number} → ${newRoom.number}`
+                    : `Cargo por cambio: Hab ${selectedRoom.number} → ${newRoom.number}`,
+                  is_paid: false,
+                  delivery_status: "PENDING_VALET",
+                  issue_description: JSON.stringify({
+                    oldRoomNumber: selectedRoom.number,
+                    newRoomNumber: newRoom.number,
+                    oldRoomType: selectedRoom.room_types?.name || "---",
+                    newRoomType: newRoom.room_types?.name || "---",
+                    isRefund: isRefund,
+                    amount: absAmount
                   })
-                  .eq("id", activeStay.sales_order_id);
+                }).select('id').single();
 
-                // Buscar producto de servicio para el item
-                const { data: svcProducts } = await supabase
-                  .from("products")
-                  .select("id")
-                  .eq("sku", "SVC-ROOM")
-                  .limit(1);
+                console.log("[RoomChange] Insert result:", { insertedItem, insertError });
 
-                const svcProductId = svcProducts?.[0]?.id;
-
-                // Insertar Item de Diferencia
-                if (svcProductId) {
-                  await supabase.from("sales_order_items").insert({
-                    sales_order_id: activeStay.sales_order_id,
-                    product_id: svcProductId,
-                    qty: 1,
-                    unit_price: priceDifference,
-                    concept_type: "ROOM_UPGRADE", // Nuevo concepto distintivo
-                    is_paid: false,
-                  });
+                if (insertError) {
+                  console.error("Error inserting ROOM_CHANGE_ADJUSTMENT:", insertError);
                 }
 
-                // Crear Pago Pendiente
-                const currentShiftId = await getCurrentShiftId(supabase);
-                await supabase.from("payments").insert({
-                  sales_order_id: activeStay.sales_order_id,
-                  amount: priceDifference,
-                  payment_method: "PENDIENTE",
-                  reference: generatePaymentReference("UPG"),
-                  concept: "DIFERENCIA_CAMBIO_HAB",
-                  status: "PENDIENTE",
-                  payment_type: "COMPLETO",
-                  shift_session_id: currentShiftId
-                });
+                const roomChangeItemId = insertedItem?.id;
+
+                // Solo actualizar totales de la orden si es un cobro (upgrade)
+                // Las devoluciones no afectan el total hasta que el cochero las confirme
+                if (!isRefund) {
+                  const { data: currentOrder } = await supabase
+                    .from("sales_orders")
+                    .select("subtotal, total, remaining_amount")
+                    .eq("id", activeStay.sales_order_id)
+                    .single();
+
+                  if (currentOrder) {
+                    await supabase
+                      .from("sales_orders")
+                      .update({
+                        subtotal: (currentOrder.subtotal || 0) + absAmount,
+                        total: (currentOrder.total || 0) + absAmount,
+                        remaining_amount: (currentOrder.remaining_amount || 0) + absAmount
+                      })
+                      .eq("id", activeStay.sales_order_id);
+                  }
+                }
+
+                // Notificación estandarizada a valets activos (dentro del bloque para incluir itemId)
+                await notifyActiveValets(
+                  supabase,
+                  '🔀 Cambio de Habitación',
+                  isRefund
+                    ? `Hab ${selectedRoom.number} ➡ ${newRoom.number}. Entregar devolución: $${absAmount}`
+                    : `Hab ${selectedRoom.number} ➡ ${newRoom.number}. Cobrar diferencia: $${absAmount}`,
+                  {
+                    type: 'ROOM_CHANGE',
+                    oldRoomNumber: selectedRoom.number,
+                    newRoomNumber: newRoom.number,
+                    stayId: activeStay.id,
+                    consumptionId: roomChangeItemId,
+                    salesOrderId: activeStay.sales_order_id
+                  }
+                );
+              } else {
+                // No hay diferencia de precio, pero aún así notificar el cambio
+                await notifyActiveValets(
+                  supabase,
+                  '🔀 Cambio de Habitación',
+                  `Habitación ${selectedRoom.number} ➡ ${newRoom.number}. Por favor mover vehículo.`,
+                  {
+                    type: 'ROOM_CHANGE',
+                    oldRoomNumber: selectedRoom.number,
+                    newRoomNumber: newRoom.number,
+                    stayId: activeStay.id
+                  }
+                );
               }
+            } else {
+              // No hay diferencia de precio, solo notificar el cambio
+              await notifyActiveValets(
+                supabase,
+                '🔀 Cambio de Habitación',
+                `Habitación ${selectedRoom.number} ➡ ${newRoom.number}. Por favor mover vehículo.`,
+                {
+                  type: 'ROOM_CHANGE',
+                  oldRoomNumber: selectedRoom.number,
+                  newRoomNumber: newRoom.number,
+                  stayId: activeStay.id
+                }
+              );
             }
 
             // Actualizar notas de la orden con el motivo del cambio
@@ -3006,26 +3075,15 @@ function RoomsBoardInternal() {
               .eq("id", activeStay.sales_order_id)
               .single();
 
-            const chargeNote = priceDifference > 0 ? ` (Cargo extra: $${priceDifference.toFixed(2)})` : "";
+            const chargeNote = priceDifference !== 0
+              ? (priceDifference > 0 ? ` (Cobro pendiente: $${priceDifference.toFixed(2)})` : ` (Devolución pendiente: $${Math.abs(priceDifference).toFixed(2)})`)
+              : "";
             const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}${chargeNote}`;
 
             await supabase
               .from("sales_orders")
               .update({ notes: newNotes.trim() })
               .eq("id", activeStay.sales_order_id);
-
-            // Notificación estandarizada a valets activos
-            await notifyActiveValets(
-              supabase,
-              '🔀 Cambio de Habitación',
-              `Habitación ${selectedRoom.number} ➡ ${newRoom.number}. Por favor mover vehículo a la nueva habitación.`,
-              {
-                type: 'ROOM_CHANGE',
-                oldRoomNumber: selectedRoom.number,
-                newRoomNumber: newRoom.number,
-                stayId: activeStay.id
-              }
-            );
 
             toast.success("Habitación cambiada", {
               description: `${selectedRoom.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"})`,

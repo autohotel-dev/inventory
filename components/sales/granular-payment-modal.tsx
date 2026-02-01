@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Bed,
   Clock,
@@ -23,7 +25,8 @@ import {
   Percent,
   Tag,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRightLeft
 } from "lucide-react";
 
 // Generar referencia única para pagos
@@ -82,16 +85,18 @@ const getCurrentEmployeeId = async (supabase: any) => {
 
 // Iconos por tipo de concepto
 const CONCEPT_ICONS: Record<string, React.ReactNode> = {
-  ROOM_BASE: <Bed className="h-4 w-4" />,
-  EXTRA_HOUR: <Clock className="h-4 w-4" />,
-  EXTRA_PERSON: <Users className="h-4 w-4" />,
-  CONSUMPTION: <ShoppingBag className="h-4 w-4" />,
-  PRODUCT: <Package className="h-4 w-4" />,
-  RENEWAL: <Receipt className="h-4 w-4" />,
-  PROMO_4H: <Clock className="h-4 w-4" />,
-  OTHER: <MoreHorizontal className="h-4 w-4" />,
-  DAMAGE_CHARGE: <AlertTriangle className="h-4 w-4" />,
-  TOLERANCE_EXPIRED: <Clock className="h-4 w-4" />,
+  ROOM_BASE: <Bed className="h-5 w-5 stroke-[1.5]" />,
+  STAY: <Bed className="h-5 w-5 stroke-[1.5]" />,
+  EXTRA_HOUR: <Clock className="h-5 w-5 stroke-[1.5]" />,
+  EXTRA_PERSON: <Users className="h-5 w-5 stroke-[1.5]" />,
+  CONSUMPTION: <ShoppingBag className="h-5 w-5 stroke-[1.5]" />,
+  PRODUCT: <Package className="h-5 w-5 stroke-[1.5]" />,
+  RENEWAL: <Receipt className="h-5 w-5 stroke-[1.5]" />,
+  PROMO_4H: <Clock className="h-5 w-5 stroke-[1.5]" />,
+  OTHER: <MoreHorizontal className="h-5 w-5 stroke-[1.5]" />,
+  DAMAGE_CHARGE: <AlertTriangle className="h-5 w-5 stroke-[1.5]" />,
+  TOLERANCE_EXPIRED: <Clock className="h-5 w-5 stroke-[1.5]" />,
+  ROOM_CHANGE_ADJUSTMENT: <ArrowRightLeft className="h-5 w-5 stroke-[1.5]" />,
 };
 
 const CONCEPT_LABELS: Record<string, string> = {
@@ -131,6 +136,10 @@ interface OrderItem {
   concept_type: string;
   payment_method: string | null;
   courtesy_reason?: string;
+  issue_description?: string;
+  delivery_status?: string;
+  delivery_notes?: string;
+  created_at?: string;
   products: { name: string; sku: string } | null;
 }
 
@@ -154,7 +163,9 @@ export function GranularPaymentModal({
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
-  const [valetPayments, setValetPayments] = useState<any[]>([]); // Pagos cobrados por valet
+  const [valetPayments, setValetPayments] = useState<any[]>([]); // Pagos cobrados por valet (tabla payments)
+  const [historicalPayments, setHistoricalPayments] = useState<any[]>([]); // Historial de todos los pagos de la orden
+  const [valetReports, setValetReports] = useState<any[]>([]); // Reportes de pago en items (issue_description)
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [step, setStep] = useState<"select" | "pay">("select");
   const [discounts, setDiscounts] = useState<Record<string, number>>({});
@@ -162,6 +173,115 @@ export function GranularPaymentModal({
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number>(0);
+
+  // Obtener nombre descriptivo del item
+  const getItemDescription = (item: OrderItem) => {
+    // 1. Si tiene notas de entrega explícitas (Prioridad Máxima - Ej: "Cargo por cambio...")
+    if (item.delivery_notes) {
+      return item.delivery_notes;
+    }
+
+    // 2. Detalles estructurados en issue_description
+    if (item.issue_description) {
+      try {
+        const meta = JSON.parse(item.issue_description);
+
+        // Caso específico: Cambio de Habitación
+        if (item.concept_type === 'ROOM_CHANGE_ADJUSTMENT' && meta.oldRoomNumber && meta.newRoomNumber) {
+          return `Cambio: Hab ${meta.oldRoomNumber} ➡ ${meta.newRoomNumber}`;
+        }
+
+        // Reportes de valet
+        if (meta.valetPaymentReport?.itemDescription) {
+          return meta.valetPaymentReport.itemDescription;
+        }
+
+        // Campos genéricos
+        if (meta.description) return meta.description;
+        if (meta.note) return meta.note;
+        if (meta.details) return meta.details;
+        if (meta.reason) return meta.reason;
+      } catch (e) {
+        if (typeof item.issue_description === 'string' && item.issue_description.length < 50) {
+          return item.issue_description;
+        }
+      }
+    }
+
+    // 3. Si es Productos, usar el nombre (Fallback estándar)
+    if (item.products?.name) return item.products.name;
+
+    // 4. Mapeo por defecto por tipo
+    if (item.concept_type === 'ROOM_CHANGE_ADJUSTMENT') {
+      return "Cambio de Habitación";
+    }
+
+    // 5. Otros conceptos estándar - Mapeo amigable
+    const conceptMap: Record<string, string> = {
+      'DAMAGE_CHARGE': 'Cargo por Daños',
+      'EXTRA_PERSON': 'Persona Extra',
+      'EXTRA_HOUR': 'Hora Extra',
+      'ROOM_BASE': 'Estancia',
+      'EARLY_CHECKIN': 'Check-in Temprano',
+      'LATE_CHECKOUT': 'Check-out Tardío',
+      'TOLERANCE_EXPIRED': 'Tolerancia Expirada',
+      'SERVICE': 'Servicio General'
+    };
+
+    return conceptMap[item.concept_type] || CONCEPT_LABELS[item.concept_type] || item.concept_type;
+  };
+
+  // Obtener quién cobró este item (o detalles del pago)
+  const getPaymentInfo = (item: OrderItem) => {
+    if (!item.is_paid || !item.paid_at) return null;
+
+    // Buscar en historicalPayments
+    // Heurística: Buscar pagos confirmados/pagados que coincidan con la fecha de pago del item
+    // (Con una tolerancia minúscula, o simplemente el pago más reciente anterior a paid_at)
+    // OJO: SalesOrderItem.is_paid se marca al mismo tiempo que se crea el Payment.
+
+    // Si tenemos payments, busquemos el que tenga un 'created_at' o 'collected_at' muy cercano
+    // La fecha en sales_order_items.paid_at suele ser la misma que payments.created_at/collected_at
+
+    const itemPaidTime = new Date(item.paid_at).getTime();
+
+    // Encontrar pagos cercanos (tolerance 2 min)
+    const linkedPayment = historicalPayments.find(p => {
+      const payTime = new Date(p.collected_at || p.created_at || '').getTime();
+      return Math.abs(payTime - itemPaidTime) < 120000; // 2 min diff
+    });
+
+    if (linkedPayment) {
+      // Preferir el empleado que lo cobró (collected_by)
+      if (linkedPayment.employees) {
+        return {
+          name: `${linkedPayment.employees.first_name} ${linkedPayment.employees.last_name}`,
+          role: 'Cochero', // Si está en payments y tiene collected_by suele ser cochero o recepcionista iniciador
+          method: linkedPayment.payment_method
+        };
+      }
+      // Si no tiene collected_by, ver confirmed_by (recepción)
+      if (linkedPayment.confirmed_employee) {
+        return {
+          name: `${linkedPayment.confirmed_employee.first_name} ${linkedPayment.confirmed_employee.last_name}`,
+          role: 'Recepción',
+          method: linkedPayment.payment_method
+        };
+      }
+    }
+
+    // SI el item fue entregado por cochero (ROOM_CHANGE)
+    if (item.concept_type === 'ROOM_CHANGE_ADJUSTMENT' && (item as any).delivered_by_employee) {
+      const emp = (item as any).delivered_by_employee;
+      return {
+        name: `${emp.first_name} ${emp.last_name}`,
+        role: 'Cochero (Entrega)',
+        method: item.payment_method || 'Efectivo'
+      };
+    }
+
+    return { name: 'Recepción', role: 'Caja', method: item.payment_method };
+  };
 
   // Cargar items de la orden y pagos pendientes de confirmación del valet
   const fetchItems = async () => {
@@ -183,7 +303,12 @@ export function GranularPaymentModal({
           concept_type,
           payment_method,
           courtesy_reason,
-          products:product_id(name, sku)
+          delivery_status,
+          delivery_notes,
+          delivery_accepted_by,
+          issue_description,
+          products:product_id(name, sku),
+          delivered_by_employee:employees!sales_order_items_delivery_accepted_by_fkey(first_name, last_name)
         `)
         .eq("sales_order_id", salesOrderId);
 
@@ -196,6 +321,34 @@ export function GranularPaymentModal({
       }));
 
       setItems(mappedItems as OrderItem[]);
+
+      // Extraer reportes de pago de valets desde issue_description
+      const reports: any[] = [];
+      mappedItems.forEach((item: any) => {
+        if (item.delivery_status === 'DELIVERED' && !item.is_paid && item.issue_description) {
+          try {
+            const meta = JSON.parse(item.issue_description);
+            // Si hay un reporte de pago (cobrado por cochero)
+            if (meta.valetPaymentReport && meta.valetPaymentReport.payments) {
+              const valetName = item.delivered_by_employee
+                ? `${item.delivered_by_employee.first_name || ''} ${item.delivered_by_employee.last_name || ''}`.trim()
+                : 'Cochero Desconocido';
+
+              reports.push({
+                itemId: item.id,
+                amount: item.total,
+                payments: meta.valetPaymentReport.payments,
+                reportedBy: meta.valetPaymentReport.reportedBy,
+                itemDescription: item.products?.name || item.concept_type,
+                valetName: valetName
+              });
+            }
+          } catch (e) {
+            console.error("Error parsing issue_description:", e);
+          }
+        }
+      });
+      setValetReports(reports);
 
       // 2. Cargar pagos COBRADO_POR_VALET para este sales_order
       const { data: valetPays, error: valetError } = await supabase
@@ -212,15 +365,23 @@ export function GranularPaymentModal({
           collected_at,
           collected_by,
           confirmed_at,
-          employees:collected_by(first_name, last_name)
+          confirmed_by,
+          status,
+          employees:collected_by(first_name, last_name),
+          confirmed_employee:confirmed_by(first_name, last_name)
         `)
-        .eq("sales_order_id", salesOrderId)
-        .eq("status", "COBRADO_POR_VALET");
+        .eq("sales_order_id", salesOrderId);
+      // NOTA: Traemos TODOS los pagos de la orden para poder vincular "quien cobró" a los items pagados
 
       if (valetError) {
-        console.error("Error loading valet payments:", valetError);
+        console.error("Error loading payments:", valetError);
       } else {
-        setValetPayments(valetPays || []);
+        // Separar entre pagos activos del valet (pendientes) y pagos históricos/confirmados
+        const activeValetPayments = (valetPays || []).filter((p: any) =>
+          p.status === 'COBRADO_POR_VALET' && !p.confirmed_at
+        );
+        setValetPayments(activeValetPayments);
+        setHistoricalPayments(valetPays || []);
       }
 
     } catch (error) {
@@ -270,6 +431,37 @@ export function GranularPaymentModal({
       cardType: payment.card_type || undefined
     }]);
     toast.success("Datos del cochero aplicados al formulario de pago");
+    setStep("select"); // Mantener en select para que elija conceptods si quiere
+  };
+
+  // Aplicar datos de reporte del valet (desde issue_description)
+  const useValetReportData = (report: any) => {
+    // 1. Seleccionar AUTOMÁTICAMENTE el item relacionado
+    const newSelected = new Set(selectedItems);
+    newSelected.add(report.itemId);
+    setSelectedItems(newSelected);
+
+    // Determinar si el item es una devolución para ajustar signos
+    const item = items.find(i => i.id === report.itemId);
+    const isRefund = item ? isRefundItem(item) : false;
+
+    // 2. Pre-llenar pagos con lo que reportó el cochero
+    // Si es devolución, el monto a pagar debe ser negativo para que cuadre con el total
+    const mappedPayments = report.payments.map((p: any, index: number) => ({
+      id: `p${index + 1}-${Date.now()}`,
+      amount: isRefund ? -Math.abs(p.amount) : Math.abs(p.amount),
+      method: p.method,
+      reference: p.reference || "",
+      terminal: p.terminal,
+      cardLast4: p.cardLast4,
+      cardType: p.cardType
+    }));
+
+    setPayments(mappedPayments);
+
+    // 3. Ir directo a pagar (opcional, o quedarse en select)
+    setStep("pay");
+    toast.success("Datos del cochero aplicados y concepto seleccionado");
   };
 
 
@@ -291,9 +483,23 @@ export function GranularPaymentModal({
   const pendingItems = items.filter(item => !item.is_paid);
   const paidItems = items.filter(item => item.is_paid);
 
+  // Detectar si es un item de devolución
+  const isRefundItem = (item: OrderItem) => {
+    if (item.concept_type !== 'ROOM_CHANGE_ADJUSTMENT' || !item.issue_description) return false;
+    try {
+      const meta = JSON.parse(item.issue_description);
+      return !!meta.isRefund;
+    } catch {
+      return false;
+    }
+  };
+
   const getItemTotal = (item: OrderItem) => {
     const discount = discounts[item.id] || 0;
-    return Math.max(0, item.total - discount);
+    const baseTotal = isRefundItem(item) ? -item.total : item.total;
+    // Si es negativo (devolución), no aplicamos descuentos estándar de esta forma, o sí? 
+    // Asumamos que devoluciones no tienen descuento manual en el modal por ahora.
+    return baseTotal;
   };
 
   const selectedTotal = items
@@ -766,12 +972,67 @@ export function GranularPaymentModal({
                 </Button>
               </div>
 
-              {/* Pagos de Valet Pendientes de Corroboración */}
+              {/* Reportes de Cochero (Items entregados via app de cocheros) */}
+              {valetReports.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400">
+                    <AlertTriangle className="h-5 w-5" />
+                    <p className="text-sm font-medium">Información de cobros informados por Cochero pendientes de corroborar</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {valetReports.map((report, idx) => (
+                      <div
+                        key={`report-${idx}`}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-[#0f111a] border-indigo-500/20"
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Mostrar pagos reportados */}
+                          {report.payments && report.payments.map((p: any, i: number) => (
+                            <Badge key={i} variant="outline" className="border-indigo-500 text-indigo-400 bg-indigo-500/10 px-3 py-1">
+                              {p.method}
+                            </Badge>
+                          ))}
+                          <span className="font-bold text-lg text-white">
+                            {formatCurrency(report.amount)}
+                          </span>
+
+                          <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold tracking-tighter">
+                            {report.itemDescription} {/* Usualmente 'ROOM_CHANGE_ADJUSTMENT' o similar */}
+                          </Badge>
+
+                          <span className="text-sm text-zinc-400 ml-2">
+                            Cobrado por <span className="text-indigo-400 font-medium">{report.valetName}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          {/* Hora simulada o real si la tenemos en metadata */}
+                          <span className="text-xs text-zinc-500 italic">
+                            {new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
+                          </span>
+
+                          <Button
+                            size="sm"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
+                            onClick={() => useValetReportData(report)}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Corroborar Recibo
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pagos de Cochero Pendientes de Corroboración */}
               {valetPayments.filter(p => !p.confirmed_at).length > 0 && (
                 <div className="space-y-3 mb-6">
                   <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-600 dark:text-indigo-400">
                     <AlertTriangle className="h-5 w-5" />
-                    <p className="text-sm font-medium">Información de cobros informados por Valet pendientes de corroborar</p>
+                    <p className="text-sm font-medium">Información de cobros informados por Cochero pendientes de corroborar</p>
                   </div>
 
                   <div className="space-y-2">
@@ -874,52 +1135,69 @@ export function GranularPaymentModal({
                       return (
                         <div
                           key={item.id}
-                          className={`p-3 border rounded-lg transition-all ${selectedItems.has(item.id)
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:bg-muted/50"
-                            }`}
+                          className={cn(
+                            "group relative flex flex-col gap-2 p-3 rounded-xl border transition-all duration-200",
+                            selectedItems.has(item.id)
+                              ? "bg-primary/5 border-primary/30 shadow-sm"
+                              : "bg-card border-border/50 hover:bg-muted/30 hover:border-primary/20"
+                          )}
                         >
                           <div
-                            className="flex items-center gap-3 cursor-pointer"
+                            className="flex items-start gap-3 cursor-pointer select-none"
                             onClick={() => toggleItem(item.id)}
                           >
                             <Checkbox
                               checked={selectedItems.has(item.id)}
                               onCheckedChange={() => toggleItem(item.id)}
+                              className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                             />
-                            <div className={`p-2 rounded-lg border ${CONCEPT_COLORS[item.concept_type || "PRODUCT"]}`}>
+
+                            <div className={cn(
+                              "flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground transition-colors",
+                              selectedItems.has(item.id) && "bg-primary/10 text-primary"
+                            )}>
                               {CONCEPT_ICONS[item.concept_type || "PRODUCT"]}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">
-                                {item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
-                              </p>
-                              {item.courtesy_reason && (
-                                <div className="flex items-start gap-1.5 mt-1">
-                                  <div className="min-w-[4px] h-[4px] mt-1.5 rounded-full bg-muted-foreground/40" />
-                                  <p className="text-xs text-muted-foreground/80 leading-snug">
-                                    {item.courtesy_reason}
-                                  </p>
+
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <div className="flex justify-between items-start gap-2">
+                                <p className={cn(
+                                  "font-semibold text-sm leading-tight",
+                                  selectedItems.has(item.id) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                                )}>
+                                  {item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
+                                </p>
+                                <div className="text-right leading-tight">
+                                  {itemDiscount > 0 ? (
+                                    <>
+                                      <p className="text-[10px] line-through text-muted-foreground">{formatCurrency(item.total)}</p>
+                                      <p className="font-bold text-green-600 dark:text-green-400 text-sm">{formatCurrency(finalTotal)}</p>
+                                    </>
+                                  ) : (
+                                    <p className={cn(
+                                      "font-bold text-sm",
+                                      isRefundItem(item) ? "text-red-500" : "text-foreground"
+                                    )}>
+                                      {formatCurrency(finalTotal)}
+                                    </p>
+                                  )}
                                 </div>
+                              </div>
+
+                              {item.courtesy_reason && (
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                                  {item.courtesy_reason}
+                                </p>
                               )}
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${CONCEPT_COLORS[item.concept_type || "PRODUCT"]}`}>
+
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal bg-muted/50 border-border/50 text-muted-foreground group-hover:border-primary/20">
                                   {CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
                                 </Badge>
-                                <span className="text-xs">×{item.qty}</span>
-                                <span className="text-xs">•</span>
-                                <span className="text-xs">@ {formatCurrency(item.unit_price)}</span>
+                                <span className="text-[10px] text-muted-foreground font-medium">
+                                  {item.qty} un. × {formatCurrency(item.unit_price)}
+                                </span>
                               </div>
-                            </div>
-                            <div className="text-right">
-                              {itemDiscount > 0 ? (
-                                <>
-                                  <p className="text-xs line-through text-muted-foreground">{formatCurrency(item.total)}</p>
-                                  <p className="font-bold text-green-600 dark:text-green-400 text-sm">{formatCurrency(finalTotal)}</p>
-                                </>
-                              ) : (
-                                <p className="font-bold text-sm">{formatCurrency(item.total)}</p>
-                              )}
                             </div>
                           </div>
 
@@ -1065,30 +1343,53 @@ export function GranularPaymentModal({
                     Ya Pagados ({paidItems.length})
                   </h3>
                   <div className="space-y-2">
-                    {paidItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3 p-3 border rounded-lg bg-green-500/10 border-green-500/30"
-                      >
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        <div className={`p-2 rounded-lg ${CONCEPT_COLORS[item.concept_type || "PRODUCT"]}`}>
-                          {CONCEPT_ICONS[item.concept_type || "PRODUCT"]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate text-green-400">
-                            {item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
-                              {item.payment_method || "Pagado"}
-                            </Badge>
+                    {paidItems.map((item) => {
+                      const paymentInfo = getPaymentInfo(item);
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-start gap-3 p-3 bg-muted/20 border border-green-900/20 rounded-lg group hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="mt-1 h-5 w-5 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center border border-green-900/30">
+                            <CheckCircle2 className="h-3 w-3" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-green-600 dark:text-green-400">
+                              {getItemDescription(item)}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 px-1.5 py-0 h-5">
+                                {item.payment_method || "EFECTIVO"}
+                              </Badge>
+
+                              {/* Información de quien cobró */}
+                              {paymentInfo && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted p-0.5 px-2 rounded-full border border-border">
+                                  <span className={paymentInfo.role.includes('Cochero') ? 'text-indigo-400 font-medium' : ''}>
+                                    {paymentInfo.role}:
+                                  </span>
+                                  <span className="text-foreground/80">{paymentInfo.name}</span>
+                                </div>
+                              )}
+
+                              {/* Detalles extra */}
+                              {/* (Removido badge redundante de "Ajuste de tarifa" ya que la descripción lo dice explícitamente) */}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={cn(
+                              "font-medium",
+                              isRefundItem(item) ? "text-red-500" : "text-green-500"
+                            )}>
+                              {formatCurrency(getItemTotal(item))}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {new Date(item.paid_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium text-green-400">{formatCurrency(item.total)}</p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1104,46 +1405,40 @@ export function GranularPaymentModal({
           ) : (
             /* Paso de pago */
             <div className="p-6 space-y-4">
-              <div className="p-4 bg-muted/50 rounded-lg border border-border">
-                <p className="text-sm text-muted-foreground">Total a pagar</p>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(selectedTotal)}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {selectedItems.size} concepto(s) seleccionado(s)
-                </p>
+              <div className="flex items-end justify-between p-4 rounded-lg border bg-card shadow-sm">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Total a cobrar</p>
+                  <p className="text-3xl font-bold text-primary tracking-tight">{formatCurrency(selectedTotal)}</p>
+                  <p className="text-xs text-muted-foreground mt-1 font-medium">
+                    {selectedItems.size} concepto{selectedItems.size !== 1 && 's'} seleccionado{selectedItems.size !== 1 && 's'}
+                  </p>
+                </div>
 
-                <div className="mt-4 pt-4 border-t border-border/50">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="tip-amount" className="text-sm font-medium">Propina (Opcional)</label>
-                    <div className="relative w-32">
-                      <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
-                      <Input
-                        id="tip-amount"
-                        type="number"
-                        min="0"
-                        step="any"
-                        className="pl-7 text-right"
-                        value={tipAmount || ""}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          const newTip = isNaN(val) ? 0 : val;
-                          setTipAmount(newTip);
-                          // Actualizar pagos para reflejar el nuevo total si hay un solo pago por defecto
-                          // o si payments coincide con el total anterior.
-                          // Pero MultiPaymentInput no reacciona automáticamente a cambios externos de totalAmount preservando distribución custom.
-                          // Sin embargo, si reseteamos payments cuando cambia el tip, perdemos entradas del usuario.
-                          // Lo ideal es dejar que el usuario ajuste los pagos en el componente MultiPaymentInput.
-                          // PERO hemos actualizado createInitialPayment en goToPayment, no aquí.
-                          // Al cambiar tipAmount, el totalToPay cambia.
-                          // MultiPaymentInput recibe totalAmount={selectedTotal + tipAmount} renderizado abajo.
-                          // Si el usuario cambia tipAmount aquí, el MultiPaymentInput mostrará "Faltan $X" o "Sobran $X".
-                        }}
-                      />
-                    </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Label htmlFor="tip-amount" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Propina (Opcional)
+                  </Label>
+                  <div className="relative w-32">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
+                    <Input
+                      id="tip-amount"
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="pl-7 text-right h-9 font-semibold bg-background border-input focus-visible:ring-primary/20"
+                      placeholder="0.00"
+                      value={tipAmount || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        const newTip = isNaN(val) ? 0 : val;
+                        setTipAmount(newTip);
+                      }}
+                    />
                   </div>
                   {tipAmount > 0 && (
-                    <p className="text-right text-xs text-green-500 font-medium mt-1">
-                      + {formatCurrency(tipAmount)} propina
-                    </p>
+                    <div className="text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50">
+                      Total c/ propina: {formatCurrency(selectedTotal + tipAmount)}
+                    </div>
                   )}
                 </div>
               </div>

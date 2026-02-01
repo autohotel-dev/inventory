@@ -234,10 +234,10 @@ export function ChangeRoomModal({
 
           {/* Diferencia de precio */}
           {selectedRoomId && priceDifference !== 0 && (
-            <div className={`rounded-lg p-3 ${priceDifference > 0 ? "bg-amber-500/10 border border-amber-500/30" : "bg-emerald-500/10 border border-emerald-500/30"}`}>
-              <div className="flex items-center gap-2">
+            <div className={`rounded-lg p-4 ${priceDifference > 0 ? "bg-amber-500/10 border border-amber-500/30" : "bg-emerald-500/10 border border-emerald-500/30"}`}>
+              <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle className={`h-4 w-4 ${priceDifference > 0 ? "text-amber-400" : "text-emerald-400"}`} />
-                <span className="text-sm">
+                <span className="text-sm font-medium">
                   {priceDifference > 0 ? (
                     <>Cobrar diferencia: <span className="font-bold text-amber-400">+${priceDifference.toFixed(2)}</span></>
                   ) : (
@@ -245,9 +245,24 @@ export function ChangeRoomModal({
                   )}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground">
                 {currentRoomType?.name} (${currentPrice}) → {selectedRoomType?.name} (${newPrice})
               </p>
+
+              {/* Aviso de verificación por valet */}
+              <div className="mt-3 pt-3 border-t border-blue-500/30 flex items-start gap-2">
+                <div className="p-1 bg-blue-500/20 rounded">
+                  <ArrowRightLeft className="h-3 w-3 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-400">
+                    Requiere verificación del Cochero
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    El cochero recibirá una notificación para {priceDifference > 0 ? "cobrar" : "entregar"} la diferencia al mover el vehículo a la nueva habitación.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
