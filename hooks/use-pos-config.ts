@@ -24,6 +24,9 @@ export interface POSConfig {
     
     // Reportes
     includeGlobalSalesInShift: boolean; // Si es true, incluye ventas de Admin/Otros en el reporte de turno
+
+    // Habitaciones
+    maxPendingQuickCheckins: number; // Máx. habitaciones con pago pendiente (entrada rápida)
 }
 
 const DEFAULT_CONFIG: POSConfig = {
@@ -38,6 +41,7 @@ const DEFAULT_CONFIG: POSConfig = {
     initialCashFund: 500,        // $500 MXN por defecto
     valetAdvanceAmount: 300,     // $300 MXN por cochero
     includeGlobalSalesInShift: true, // Por defecto incluimos todo lo que pasa en el turno
+    maxPendingQuickCheckins: 4,      // Máx. 4 habitaciones con pago pendiente
 };
 
 const STORAGE_KEY = 'pos-config';

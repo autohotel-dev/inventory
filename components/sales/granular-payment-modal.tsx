@@ -589,6 +589,7 @@ export function GranularPaymentModal({
 
       // 2. Revertir movimiento de inventario (crear movimiento IN)
       if (item.product_id) {
+        const { data: { user } } = await supabase.auth.getUser();
         await supabase.from('inventory_movements').insert({
           product_id: item.product_id,
           warehouse_id: orderData.warehouse_id,
@@ -599,6 +600,7 @@ export function GranularPaymentModal({
           notes: `Consumo eliminado - Habitación ${roomNumber || 'N/A'}`,
           reference_table: 'sales_order_items',
           reference_id: itemId,
+          created_by: user?.id || null,
         });
       }
 

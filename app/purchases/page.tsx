@@ -5,10 +5,10 @@ import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function PurchasesPage() {
   return (
-    <RoleGuard requireAdmin>
-    <div className="p-6">
-      <AdvancedPurchasesTable />
-    </div>
+    <RoleGuard requireAdmin permissionId="purchases">
+      <div className="p-6">
+        <AdvancedPurchasesTable />
+      </div>
     </RoleGuard>
   );
 }

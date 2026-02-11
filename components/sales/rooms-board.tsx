@@ -28,6 +28,7 @@ import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getAc
 import { createServiceItem } from "@/lib/services/product-service";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useSensors } from "@/hooks/use-sensors";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
@@ -1624,7 +1625,8 @@ function RoomsBoardInternal() {
     return (room.room_stays || []).find((stay) => stay.status === "ACTIVA") || null;
   };
 
-  const MAX_PENDING_QUICK_CHECKINS = 4;
+  const systemConfig = useSystemConfigRead();
+  const MAX_PENDING_QUICK_CHECKINS = systemConfig.maxPendingQuickCheckins;
 
   const getPendingPaymentBacklogCount = () => {
     return rooms.reduce((count, room) => {

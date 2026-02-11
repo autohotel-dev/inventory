@@ -5,7 +5,7 @@ import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function EmployeesPage() {
   return (
-    <RoleGuard requireAdmin>
+    <RoleGuard requireAdmin permissionId="employees">
       <div className="container mx-auto py-6 px-4">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Empleados</h1>

@@ -6,7 +6,7 @@ import { Radio } from "lucide-react";
 
 export default function SensorsPage() {
     return (
-        <RoleGuard requireAdmin>
+        <RoleGuard requireAdmin permissionId="sensors">
             <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                     <div>

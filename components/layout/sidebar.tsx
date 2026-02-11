@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
+import { getMenuPermissions, type UserRole } from "@/lib/permissions";
 
 // Constants
 const SIDEBAR_WIDTHS = { COMPACT: 72, EXPANDED: 256 } as const;
@@ -56,42 +57,73 @@ function useResponsiveClasses(compact: boolean) {
 }
 
 // Navigation link type
-type NavLink = { href: string; label: string; icon: string; adminOnly?: boolean; allowedForNonAdmin?: boolean; allowedForReceptionist?: boolean } | { divider: true; adminOnly?: boolean };
+type NavLink = { href: string; label: string; icon: string; permissionId: string; adminOnly?: boolean; allowedForNonAdmin?: boolean; allowedForReceptionist?: boolean } | { divider: true; adminOnly?: boolean };
+
+// Hook para cargar permisos de menú desde DB para roles no-admin
+function useMenuPermissions(role: UserRole | null): { allowedMenuIds: Set<string>; isLoading: boolean } {
+  const [allowedMenuIds, setAllowedMenuIds] = React.useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!role || role === 'admin' || role === 'manager') {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    async function fetchPerms() {
+      try {
+        const perms = await getMenuPermissions(role as UserRole);
+        if (!cancelled) {
+          setAllowedMenuIds(new Set(perms));
+        }
+      } catch (err) {
+        console.error('Error fetching menu permissions:', err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+    fetchPerms();
+    return () => { cancelled = true; };
+  }, [role]);
+
+  return { allowedMenuIds, isLoading: isLoading };
+}
 
 // Links para administradores/managers
 const adminLinks: readonly NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "home", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/products", label: "Productos", icon: "box", adminOnly: true },
-  { href: "/categories", label: "Categorías", icon: "arrows", adminOnly: true },
-  { href: "/warehouses", label: "Almacenes", icon: "building", adminOnly: true },
-  { href: "/suppliers", label: "Proveedores", icon: "truck", adminOnly: true },
-  { href: "/customers", label: "Clientes", icon: "users", adminOnly: true },
-  { href: "/notifications-admin", label: "Notificaciones", icon: "bell", adminOnly: true },
+  { href: "/dashboard", label: "Dashboard", icon: "home", permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
+  { href: "/products", label: "Productos", icon: "box", permissionId: "products", adminOnly: true },
+  { href: "/categories", label: "Categorías", icon: "arrows", permissionId: "categories", adminOnly: true },
+  { href: "/warehouses", label: "Almacenes", icon: "building", permissionId: "warehouses", adminOnly: true },
+  { href: "/suppliers", label: "Proveedores", icon: "truck", permissionId: "suppliers", adminOnly: true },
+  { href: "/customers", label: "Clientes", icon: "users", permissionId: "customers", adminOnly: true },
+  { href: "/notifications-admin", label: "Notificaciones", icon: "bell", permissionId: "notifications-admin", adminOnly: true },
   { divider: true, adminOnly: true },
-  { href: "/movements", label: "Movimientos", icon: "activity", adminOnly: true },
-  { href: "/stock", label: "Stock", icon: "box", adminOnly: true },
-  { href: "/kardex", label: "Kardex", icon: "activity", adminOnly: true },
+  { href: "/movements", label: "Movimientos", icon: "activity", permissionId: "movements", adminOnly: true },
+  { href: "/stock", label: "Stock", icon: "box", permissionId: "stock", adminOnly: true },
+  { href: "/kardex", label: "Kardex", icon: "activity", permissionId: "kardex", adminOnly: true },
   { divider: true, adminOnly: true },
-  { href: "/analytics", label: "Analytics", icon: "chart", adminOnly: true },
-  { href: "/export", label: "Exportar", icon: "download", adminOnly: true },
+  { href: "/analytics", label: "Analytics", icon: "chart", permissionId: "analytics", adminOnly: true },
+  { href: "/export", label: "Exportar", icon: "download", permissionId: "export", adminOnly: true },
   { divider: true, adminOnly: true },
-  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", adminOnly: true },
-  { href: "/purchases", label: "Compras", icon: "cart", adminOnly: true },
-  { href: "/sales", label: "Ventas", icon: "cart", adminOnly: true },
-  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", adminOnly: true },
+  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", permissionId: "purchases-sales", adminOnly: true },
+  { href: "/purchases", label: "Compras", icon: "cart", permissionId: "purchases", adminOnly: true },
+  { href: "/sales", label: "Ventas", icon: "cart", permissionId: "sales", adminOnly: true },
+  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
+  { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", permissionId: "sensors", adminOnly: true },
   { divider: true, adminOnly: true },
-  { href: "/employees", label: "Empleados", icon: "users", adminOnly: true },
-  { href: "/employees/schedules", label: "Horarios", icon: "activity", adminOnly: true },
-  { href: "/employees/closings", label: "Cortes de Caja", icon: "bag", allowedForReceptionist: true },
+  { href: "/employees", label: "Empleados", icon: "users", permissionId: "employees", adminOnly: true },
+  { href: "/employees/schedules", label: "Horarios", icon: "activity", permissionId: "employees.schedules", adminOnly: true },
+  { href: "/employees/closings", label: "Cortes de Caja", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
   { divider: true },
-  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText", allowedForReceptionist: true },
+  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
   { divider: true },
-  { href: "/training", label: "Capacitación", icon: "graduation", allowedForReceptionist: true },
-  { href: "/settings", label: "Configuración", icon: "settings", adminOnly: true },
-  { href: "/settings/roles", label: "Gestión de Roles", icon: "users", adminOnly: true },
-  { href: "/settings/media", label: "Biblioteca de Medios", icon: "image", adminOnly: true },
-  { href: "/settings/permissions", label: "Permisos de Roles", icon: "settings", adminOnly: true },
+  { href: "/training", label: "Capacitación", icon: "graduation", permissionId: "training", allowedForReceptionist: true },
+  { href: "/settings", label: "Configuración", icon: "settings", permissionId: "settings", adminOnly: true },
+  { href: "/settings/roles", label: "Gestión de Roles", icon: "users", permissionId: "settings.roles", adminOnly: true },
+  { href: "/settings/media", label: "Biblioteca de Medios", icon: "image", permissionId: "settings.media", adminOnly: true },
+  { href: "/settings/permissions", label: "Permisos de Roles", icon: "settings", permissionId: "settings.permissions", adminOnly: true },
 ] as const;
 
 // Reusable components
@@ -222,59 +254,70 @@ export function Sidebar() {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const classes = useResponsiveClasses(compact);
-  const { canAccessAdmin, isLoading: roleLoading, isReceptionist, hasActiveShift } = useUserRole();
+  const { canAccessAdmin, isLoading: roleLoading, isReceptionist, hasActiveShift, role } = useUserRole();
+  const { allowedMenuIds, isLoading: permsLoading } = useMenuPermissions(role);
 
-  // Filtrar links según el rol del usuario
+  // Filtrar links según el rol del usuario y permisos de la DB
   const visibleLinks = React.useMemo(() => {
-    if (roleLoading) return [];
+    if (roleLoading || permsLoading) return [];
 
     // Si es admin o manager, mostrar todos los links
     if (canAccessAdmin) {
       return adminLinks;
     }
 
-    // Si es recepcionista, mostrar items con allowedForReceptionist: true
-    if (isReceptionist) {
-      return adminLinks.filter((link, index, array) => {
-        // Bloquear acceso a Habitaciones, Ventas y Nueva Venta si no hay turno activo
-        if (!hasActiveShift && 'href' in link && (
+    // Para TODOS los roles no-admin: usar permisos de la DB (role_permissions)
+    // El helper isLinkAllowed verifica si un link tiene permiso en la DB
+    const isLinkAllowed = (link: NavLink): boolean => {
+      if ("divider" in link) return false;
+      // Si el permissionId está en la DB, permitir
+      if (allowedMenuIds.has(link.permissionId)) return true;
+      // Fallback: allowedForReceptionist/allowedForNonAdmin como defaults si no hay permisos en DB
+      if (allowedMenuIds.size === 0) {
+        if (isReceptionist && "allowedForReceptionist" in link && link.allowedForReceptionist) return true;
+        if ("allowedForNonAdmin" in link && link.allowedForNonAdmin) return true;
+      }
+      return false;
+    };
+
+    return adminLinks.filter((link, index, array) => {
+      // Links normales
+      if (!("divider" in link)) {
+        if (!isLinkAllowed(link)) return false;
+
+        // Bloquear acceso a Habitaciones/Ventas si no hay turno activo (solo recepcionistas)
+        if (isReceptionist && !hasActiveShift && (
           link.href === "/sales/pos" ||
           link.href === "/sales" ||
           link.href === "/sales/new"
         )) {
           return false;
         }
+        return true;
+      }
 
-        if ("allowedForReceptionist" in link && link.allowedForReceptionist) {
-          return true;
-        }
-
-        // Mostrar divisores solo si no están marcados como adminOnly
-        if ("divider" in link && !link.adminOnly) {
-          const nextLink = array[index + 1];
-          // Solo mostrar divisor si el siguiente elemento es un link visible
-          if (nextLink && !("divider" in nextLink) &&
-            ("allowedForReceptionist" in nextLink && (nextLink as any).allowedForReceptionist)) {
-
-            // Verificar también si el próximo link se va a mostrar (si no está bloqueado por falta de turno)
-            if (!hasActiveShift && 'href' in nextLink && (nextLink.href === "/sales/pos" || nextLink.href === "/sales" || nextLink.href === "/sales/new")) {
-              return false;
+      // Divisores: solo mostrar si el siguiente link visible existe
+      if ("divider" in link) {
+        // Buscar el siguiente link no-divisor
+        for (let i = index + 1; i < array.length; i++) {
+          const next = array[i];
+          if ("divider" in next) break; // otro divisor = parar
+          if (isLinkAllowed(next)) {
+            // Verificar también bloqueo por turno
+            if (isReceptionist && !hasActiveShift && "href" in next && (
+              next.href === "/sales/pos" || next.href === "/sales" || next.href === "/sales/new"
+            )) {
+              continue;
             }
             return true;
           }
         }
         return false;
-      });
-    }
-
-    // Para otros usuarios no-admin (cochero, camarista, mant), filtrar agresivamente
-    return adminLinks.filter(link => {
-      if ("allowedForNonAdmin" in link && link.allowedForNonAdmin) {
-        return true;
       }
+
       return false;
     });
-  }, [canAccessAdmin, roleLoading, isReceptionist, hasActiveShift]);
+  }, [canAccessAdmin, roleLoading, permsLoading, isReceptionist, hasActiveShift, allowedMenuIds, role]);
 
   React.useEffect(() => {
     setMounted(true);

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/use-user-role";
-import { usePOSConfigRead } from "@/hooks/use-pos-config";
+import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 import {
     Wallet,
@@ -46,7 +46,7 @@ interface ShiftSession {
 export function CashBalanceCard() {
     const { employeeId, isAdmin, isManager } = useUserRole();
     const { success, error: showError } = useToast();
-    const posConfig = usePOSConfigRead();
+    const posConfig = useSystemConfigRead();
 
     const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
     const [cashAmount, setCashAmount] = useState(0);

@@ -45,6 +45,10 @@ async function createMovementAction(formData: FormData) {
   const reason_code = String(formData.get("reason_code") || "ADJUSTMENT");
   const note = String(formData.get("note") || "");
 
+  // Get current auth user for created_by
+  const { data: { user } } = await supabase.auth.getUser();
+  const created_by = user?.id || null;
+
   if (!product_id) throw new Error("Product is required");
 
   // fetch reason_id by code
@@ -76,6 +80,7 @@ async function createMovementAction(formData: FormData) {
       reason_id: reason.id,
       reference_table: "TRANSFER",
       notes: note,
+      created_by,
     });
     if (e1) throw e1;
     const { error: e2 } = await supabase.from("inventory_movements").insert({
@@ -86,6 +91,7 @@ async function createMovementAction(formData: FormData) {
       reason_id: reason.id,
       reference_table: "TRANSFER",
       notes: note,
+      created_by,
     });
     if (e2) throw e2;
     revalidatePath("/movements");
@@ -121,6 +127,7 @@ async function createMovementAction(formData: FormData) {
       movement_type: movementType,
       reason_id: reason.id,
       notes: note,
+      created_by,
     });
     if (error) throw error;
     revalidatePath("/movements");
@@ -131,6 +138,10 @@ async function createMovementAction(formData: FormData) {
 async function createBatchMovementsAction(formData: FormData) {
   "use server";
   const supabase = await createClient();
+
+  // Get current auth user for created_by
+  const { data: { user } } = await supabase.auth.getUser();
+  const created_by = user?.id || null;
 
   const movementType = String(formData.get("movementType") || "IN");
   const reasonCode = String(formData.get("reasonCode") || "ADJUSTMENT");
@@ -193,6 +204,7 @@ async function createBatchMovementsAction(formData: FormData) {
       reason_id: reason.id,
       reference_table: "TRANSFER",
       notes: item.notes || null,
+      created_by,
     }));
 
     // Crear movimientos de entrada (IN) al almacén destino
@@ -204,6 +216,7 @@ async function createBatchMovementsAction(formData: FormData) {
       reason_id: reason.id,
       reference_table: "TRANSFER",
       notes: item.notes || null,
+      created_by,
     }));
 
     // Insertar todos los movimientos
@@ -250,6 +263,7 @@ async function createBatchMovementsAction(formData: FormData) {
     reason_id: reason.id,
     reason: reason.name,
     notes: item.notes || null,
+    created_by,
   }));
 
   const { error } = await supabase.from("inventory_movements").insert(movements);

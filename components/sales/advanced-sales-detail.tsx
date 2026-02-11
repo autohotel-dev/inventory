@@ -427,6 +427,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
         // Solo crear movimientos si NO existen aún
         if (!existingMovements || existingMovements.length === 0) {
+          const { data: { user } } = await supabase.auth.getUser();
           const movements = items.map((item: any) => ({
             product_id: item.product_id,
             warehouse_id: order.warehouse_id,
@@ -436,7 +437,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
             reason: 'SALE',
             notes: `Vendido en orden ${orderId}`,
             reference_table: 'sales_orders',
-            reference_id: orderId
+            reference_id: orderId,
+            created_by: user?.id || null
           }));
 
           const { error: movError } = await supabase
@@ -614,6 +616,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
 
       // Crear movimientos de inventario para descontar el stock
       if (order.warehouse_id) {
+        const { data: { user } } = await supabase.auth.getUser();
         const movements = items.map((item: any) => ({
           product_id: item.product.id,
           warehouse_id: order.warehouse_id,
@@ -623,7 +626,8 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
           reason: 'SALE',
           notes: `Consumo vendido en orden ${orderId}`,
           reference_table: 'sales_orders',
-          reference_id: orderId
+          reference_id: orderId,
+          created_by: user?.id || null
         }));
 
         const { error: movError } = await supabase

@@ -297,6 +297,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       if (error) throw error;
       // Create inventory movements for received orders
       if (newStatus === 'RECEIVED' && order) {
+        const { data: { user } } = await supabase.auth.getUser();
         const movements = items.map(item => ({
           product_id: item.product_id,
           warehouse_id: order.warehouse_id,
@@ -306,7 +307,8 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
           reason: 'PURCHASE',
           notes: `Recibido de orden de compra ${orderId}`,
           reference_table: 'purchase_orders',
-          reference_id: orderId
+          reference_id: orderId,
+          created_by: user?.id || null
         }));
 
         const { error: movError } = await supabase

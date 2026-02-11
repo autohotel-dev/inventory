@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, ArrowDownCircle, X, Filter, Calendar } from "lucide-react";
+import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, ArrowDownCircle, X, Filter, Calendar, User } from "lucide-react";
 import Link from "next/link";
 
 interface InventoryMovement {
@@ -19,6 +19,7 @@ interface InventoryMovement {
   notes?: string;
   created_at: string;
   created_by?: string;
+  employee_name?: string;
   product?: {
     id: string;
     name: string;
@@ -58,7 +59,27 @@ export function InventoryMovementsTable() {
 
       if (movementsError) throw movementsError;
 
-      setMovements(movementsData || []);
+      // Resolve created_by UUIDs to employee names
+      const uniqueUserIds = [...new Set((movementsData || []).map((m: any) => m.created_by).filter(Boolean))];
+      let employeeMap = new Map<string, string>();
+      if (uniqueUserIds.length > 0) {
+        const { data: employees } = await supabase
+          .from("employees")
+          .select("auth_user_id, first_name, last_name")
+          .in("auth_user_id", uniqueUserIds);
+        if (employees) {
+          employees.forEach((e: any) => {
+            employeeMap.set(e.auth_user_id, `${e.first_name} ${e.last_name}`.trim());
+          });
+        }
+      }
+
+      const enrichedMovements = (movementsData || []).map((m: any) => ({
+        ...m,
+        employee_name: m.created_by ? employeeMap.get(m.created_by) || undefined : undefined,
+      }));
+
+      setMovements(enrichedMovements);
     } catch (error) {
       console.error("Error fetching movements:", error);
       showError("Error", "No se pudieron cargar los movimientos");
@@ -302,6 +323,7 @@ export function InventoryMovementsTable() {
               <th className="text-center p-4 font-medium">Tipo</th>
               <th className="text-right p-4 font-medium">Cantidad</th>
               <th className="text-left p-4 font-medium">Razón</th>
+              <th className="text-left p-4 font-medium">Responsable</th>
             </tr>
           </thead>
           <tbody>
@@ -366,6 +388,17 @@ export function InventoryMovementsTable() {
                     <div className="text-sm text-muted-foreground">
                       {movement.notes}
                     </div>
+                  )}
+                </td>
+
+                <td className="p-4">
+                  {movement.employee_name ? (
+                    <div className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium">{movement.employee_name}</span>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
                   )}
                 </td>
               </tr>

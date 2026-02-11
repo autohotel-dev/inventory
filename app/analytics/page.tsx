@@ -14,7 +14,7 @@ export default function AnalyticsPage() {
   });
 
   return (
-    <RoleGuard requireAdmin>
+    <RoleGuard requireAdmin permissionId="analytics">
       <div className="p-6 space-y-6">
         {/* Header Mejorado */}
         <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border border-border/50">

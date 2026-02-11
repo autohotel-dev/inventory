@@ -595,6 +595,7 @@ export function AddConsumptionModal({
       if (itemsError) throw itemsError;
 
       // Crear movimientos de inventario
+      const { data: { user } } = await supabase.auth.getUser();
       const movements = Array.from(cartItems.values()).map(({ product, qty }) => ({
         product_id: product.id,
         warehouse_id: orderInfo.warehouse_id,
@@ -604,7 +605,8 @@ export function AddConsumptionModal({
         reason: 'SALE',
         notes: `Consumo vendido - Habitación ${roomNumber || 'N/A'}`,
         reference_table: 'sales_orders',
-        reference_id: salesOrderId
+        reference_id: salesOrderId,
+        created_by: user?.id || null
       }));
 
       const { error: movError } = await supabase

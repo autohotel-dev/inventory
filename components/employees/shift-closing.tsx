@@ -47,9 +47,8 @@ import {
   ShiftDefinition,
   ShiftSession,
   ShiftClosing,
-  CashBreakdown,
-  CASH_DENOMINATIONS,
   SHIFT_COLORS,
+  CashBreakdown,
 } from "./types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense, EXPENSE_TYPE_LABELS, EXPENSE_TYPE_ICONS } from "@/types/expenses";
@@ -99,7 +98,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
 
-  const [cashBreakdown, setCashBreakdown] = useState<CashBreakdown>({});
+
+
   const [countedCash, setCountedCash] = useState(0);
   const [declaredBBVA, setDeclaredBBVA] = useState("");
   const [declaredGetnet, setDeclaredGetnet] = useState("");
@@ -325,26 +325,10 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id]); // Solo recargar cuando cambia la sesión
 
-  // Calcular total contado basado en denominaciones
-  useEffect(() => {
-    let total = 0;
-    Object.entries(cashBreakdown).forEach(([denom, count]: [string, any]) => {
-      total += parseFloat(denom) * (count || 0);
-    });
-    setCountedCash(total);
-  }, [cashBreakdown]);
+  // No longer need denomination-based calculation
+  // countedCash is now set directly from user input
 
-  // Actualizar conteo de denominación
-  const updateDenomination = (denomination: number, count: number) => {
-    // Validar que el conteo no sea negativo
-    if (count < 0) {
-      return;
-    }
-    setCashBreakdown((prev) => ({
-      ...prev,
-      [denomination.toString()]: count,
-    }));
-  };
+
 
   // Calcular efectivo esperado (ventas en efectivo - gastos)
   const expectedCash = summary ? summary.total_cash - (summary.total_expenses || 0) : 0;
@@ -407,7 +391,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           card_difference_bbva: diffBBVA,
           card_difference_getnet: diffGetnet,
 
-          cash_breakdown: cashBreakdown,
+
+
+          cash_breakdown: null,
           notes: notes.trim() || null,
           status: "pending",
         })
@@ -662,62 +648,54 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
               <div className="col-span-1 md:col-span-8 lg:col-span-9 overflow-y-auto bg-background p-6">
                 <div className="max-w-4xl mx-auto space-y-8">
 
-                  {/* CASH COUNTING */}
+                  {/* CASH COUNTING - Simplified */}
                   <section className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="flex items-center gap-2 text-lg font-semibold">
                         <Calculator className="h-5 w-5 text-primary" />
                         Conteo de Efectivo
                       </h3>
-                      <div className="text-right">
-                        <span className="text-sm text-muted-foreground mr-2">Contado:</span>
-                        <span className="text-xl font-bold">{formatCurrency(countedCash)}</span>
-                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      {/* BILLETES */}
-                      <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider border-b pb-1">Billetes</h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {CASH_DENOMINATIONS.filter(d => d.value >= 20).map((denom) => (
-                            <div key={denom.value} className="relative group">
-                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground group-focus-within:text-primary transition-colors">
-                                {denom.label}
-                              </div>
-                              <Input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={cashBreakdown[denom.value.toString()] || ""}
-                                onChange={(e) => updateDenomination(denom.value, parseInt(e.target.value) || 0)}
-                                className="pl-16 text-right font-mono text-lg h-12"
-                              />
-                            </div>
-                          ))}
+                    <div className="border rounded-xl p-6 bg-muted/10 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Efectivo esperado según sistema</p>
+                          <p className="text-xs text-muted-foreground">Ventas en efectivo menos gastos del turno</p>
                         </div>
+                        <span className="text-2xl font-bold text-primary">{formatCurrency(expectedCash)}</span>
                       </div>
 
-                      {/* MONEDAS */}
-                      <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider border-b pb-1">Monedas</h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {CASH_DENOMINATIONS.filter(d => d.value < 20).map((denom) => (
-                            <div key={denom.value} className="relative group">
-                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground group-focus-within:text-primary transition-colors">
-                                {denom.label}
-                              </div>
-                              <Input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={cashBreakdown[denom.value.toString()] || ""}
-                                onChange={(e) => updateDenomination(denom.value, parseInt(e.target.value) || 0)}
-                                className="pl-16 text-right font-mono text-lg h-12 bg-muted/20"
-                              />
-                            </div>
-                          ))}
+                      <div className="border-t pt-4">
+                        <Label className="text-base font-semibold">¿Cuánto efectivo tienes en caja?</Label>
+                        <p className="text-xs text-muted-foreground mb-2">Ingresa el total en efectivo que contaste</p>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={countedCash || ""}
+                          onChange={(e) => setCountedCash(parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="text-right text-2xl font-mono h-14"
+                        />
+                      </div>
+
+                      <div className={`flex justify-between items-center text-sm font-medium rounded-lg px-4 py-3 ${cashDifference === 0
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : Math.abs(cashDifference) <= 10
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                        <div className="flex items-center gap-2">
+                          {cashDifference === 0 && <CheckCircle className="h-5 w-5" />}
+                          {cashDifference !== 0 && <AlertTriangle className="h-5 w-5" />}
+                          <span>
+                            {cashDifference === 0 ? 'Cuadra perfecto' : cashDifference > 0 ? 'Sobrante' : 'Faltante'}
+                          </span>
                         </div>
+                        <span className="text-lg font-bold">
+                          {cashDifference > 0 ? '+' : ''}{formatCurrency(cashDifference)}
+                        </span>
                       </div>
                     </div>
                   </section>
@@ -802,17 +780,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                       />
                     </div>
 
-                    <div className="min-w-[250px] bg-background rounded-lg border p-4 shadow-sm flex flex-col justify-center">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wider text-center mb-1">Diferencia Total (Efectivo)</Label>
-                      <div className={`text-3xl font-black text-center flex items-center justify-center gap-2 ${cashDifference === 0 ? 'text-green-600' : cashDifference > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                        {cashDifference === 0 && <CheckCircle className="h-6 w-6" />}
-                        {cashDifference !== 0 && <AlertTriangle className="h-6 w-6" />}
-                        {cashDifference > 0 ? '+' : ''}{formatCurrency(cashDifference)}
-                      </div>
-                      <p className="text-center text-xs text-muted-foreground mt-1">
-                        {cashDifference === 0 ? 'Corte Perfecto' : cashDifference > 0 ? 'Sobrante de efectivo' : 'Faltante de efectivo'}
-                      </p>
-                    </div>
+
                   </section>
 
                 </div>
@@ -875,7 +843,7 @@ export function ShiftClosingHistory() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
   const [correctionClosing, setCorrectionClosing] = useState<ShiftClosing | null>(null);
-  const [correctionCashBreakdown, setCorrectionCashBreakdown] = useState<CashBreakdown>({});
+  const [correctionCountedCash, setCorrectionCountedCash] = useState(0);
   const [correctionDeclaredBBVA, setCorrectionDeclaredBBVA] = useState("");
   const [correctionDeclaredGetnet, setCorrectionDeclaredGetnet] = useState("");
   const [correctionNotes, setCorrectionNotes] = useState("");
@@ -1124,7 +1092,7 @@ export function ShiftClosingHistory() {
   // Abrir modal de corrección
   const openCorrectionModal = (closing: ShiftClosing) => {
     setCorrectionClosing(closing);
-    setCorrectionCashBreakdown({});
+    setCorrectionCountedCash(closing.counted_cash || 0);
     setCorrectionDeclaredBBVA("");
     setCorrectionDeclaredGetnet("");
     setCorrectionNotes(`Corrección del corte del ${new Date(closing.period_start).toLocaleDateString("es-MX")}`);
@@ -1134,9 +1102,7 @@ export function ShiftClosingHistory() {
 
   // Calcular total del arqueo de corrección
   const calculateCorrectionCashTotal = () => {
-    return Object.entries(correctionCashBreakdown).reduce((total: number, [denom, qty]: [string, any]) => {
-      return total + (parseFloat(denom) * (qty || 0));
-    }, 0);
+    return correctionCountedCash;
   };
 
   // Guardar corte corregido
@@ -1167,7 +1133,7 @@ export function ShiftClosingHistory() {
           // Campos actualizables
           counted_cash: correctionCashTotal,
           cash_difference: cashDifference,
-          cash_breakdown: correctionCashBreakdown,
+          cash_breakdown: null,
           notes: correctionNotes.trim() || null,
 
           // Campos de tarjeta
@@ -1295,21 +1261,7 @@ export function ShiftClosingHistory() {
         <div class="center bold">ARQUEO DE CAJA</div>
         <div class="divider"></div>
 
-        ${closing.cash_breakdown && Object.keys(closing.cash_breakdown).length > 0 ? `
-          ${Object.entries(closing.cash_breakdown)
-          .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
-          .map(([denom, count]) => {
-            const denomValue = parseFloat(denom);
-            const total = denomValue * (count as number);
-            return `
-                <div class="line" style="font-size: 11px;">
-                  <span>${count} x $${denomValue.toFixed(2)}</span>
-                  <span>$${total.toFixed(2)}</span>
-                </div>
-              `;
-          }).join('')}
-          <div class="divider"></div>
-        ` : ''}
+
 
         <div class="line">
           <span>Esperado:</span>
@@ -2304,66 +2256,34 @@ export function ShiftClosingHistory() {
                 <div className="col-span-1 md:col-span-8 lg:col-span-9 overflow-y-auto bg-background p-6">
                   <div className="max-w-4xl mx-auto space-y-8">
 
-                    {/* CASH COUNTING */}
+                    {/* CASH COUNTING - Simplified for Correction */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="flex items-center gap-2 text-lg font-semibold">
                           <Calculator className="h-5 w-5 text-primary" />
                           Nuevo Conteo de Efectivo
                         </h3>
-                        <div className="text-right">
-                          <span className="text-sm text-muted-foreground mr-2">Contado:</span>
-                          <span className="text-xl font-bold">{formatCurrency(calculateCorrectionCashTotal())}</span>
-                        </div>
                       </div>
 
-                      {/* BILLETES */}
-                      <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider border-b pb-1">Billetes</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {CASH_DENOMINATIONS.filter(d => d.value >= 20).map((denom) => (
-                            <div key={denom.value} className="relative group">
-                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground group-focus-within:text-primary transition-colors z-10">
-                                {denom.label}
-                              </div>
-                              <Input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={correctionCashBreakdown[denom.value] || ""}
-                                onChange={(e) => setCorrectionCashBreakdown({
-                                  ...correctionCashBreakdown,
-                                  [denom.value]: parseInt(e.target.value) || 0
-                                })}
-                                className="pl-16 text-right font-mono text-lg h-12 bg-secondary/30 border-transparent focus:bg-background focus:border-primary/50 transition-all rounded-xl shadow-none focus:shadow-sm"
-                              />
-                            </div>
-                          ))}
+                      <div className="border rounded-xl p-6 bg-muted/10 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium">Efectivo esperado</p>
+                          </div>
+                          <span className="text-xl font-bold">{formatCurrency(correctionClosing.total_cash || 0)}</span>
                         </div>
-                      </div>
 
-                      {/* MONEDAS */}
-                      <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider border-b pb-1">Monedas</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {CASH_DENOMINATIONS.filter(d => d.value < 20).map((denom) => (
-                            <div key={denom.value} className="relative group">
-                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground group-focus-within:text-primary transition-colors z-10">
-                                {denom.label}
-                              </div>
-                              <Input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={correctionCashBreakdown[denom.value] || ""}
-                                onChange={(e) => setCorrectionCashBreakdown({
-                                  ...correctionCashBreakdown,
-                                  [denom.value]: parseInt(e.target.value) || 0
-                                })}
-                                className="pl-16 text-right font-mono text-lg h-12 bg-secondary/30 border-transparent focus:bg-background focus:border-primary/50 transition-all rounded-xl shadow-none focus:shadow-sm"
-                              />
-                            </div>
-                          ))}
+                        <div className="border-t pt-4">
+                          <Label className="text-base font-semibold">Nuevo total en efectivo</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={correctionCountedCash || ""}
+                            onChange={(e) => setCorrectionCountedCash(parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="text-right text-2xl font-mono h-14"
+                          />
                         </div>
                       </div>
                     </section>

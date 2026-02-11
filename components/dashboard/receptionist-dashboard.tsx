@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
-import { usePOSConfigRead } from "@/hooks/use-pos-config";
+import { useSystemConfigRead } from "@/hooks/use-system-config";
 
 // Dynamic imports para reducir bundle inicial
 const ShiftClosingModal = dynamic(
@@ -146,8 +146,8 @@ export function ReceptionistDashboard() {
   // Hook para gastos (usar sesión efectiva)
   const { expenses, totalExpenses, loading: expensesLoading, refetch: refetchExpenses } = useShiftExpenses(effectiveSession?.id || null);
 
-  // Configuración del sistema (incluye fondo de caja inicial)
-  const posConfig = usePOSConfigRead();
+  // Configuración compartida del sistema (desde Supabase)
+  const posConfig = useSystemConfigRead();
 
   // Actualizar reloj cada segundo
   useEffect(() => {

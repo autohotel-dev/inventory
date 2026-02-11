@@ -106,7 +106,7 @@ export function useUserRole(): UserRoleData {
           .eq("employee_id", employee.id)
           .eq("status", "active")
           .limit(1)
-          .single();
+          .maybeSingle();
         
         setHasActiveShift(!!session);
       }
