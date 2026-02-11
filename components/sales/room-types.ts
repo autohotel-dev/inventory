@@ -1,5 +1,7 @@
 // Tipos compartidos para los componentes de habitaciones
 
+import { PaymentEntry } from "@/components/sales/multi-payment-input";
+
 // Configuración de colores por estado
 export const STATUS_CONFIG: Record<string, { label: string; shortLabel?: string; color: string }> = {
   LIBRE: {
@@ -77,6 +79,7 @@ export interface RoomStay {
   sales_orders?: {
     remaining_amount?: number;
   } | null;
+  checkout_payment_data?: PaymentEntry[] | null;
 }
 
 export interface Room {

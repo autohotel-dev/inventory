@@ -29,6 +29,7 @@ export interface RoomCheckoutModalProps {
   defaultValetId?: string | null;
   vehiclePlate?: string | null;
   onRequestValet?: () => Promise<void>;
+  checkoutPaymentData?: PaymentEntry[];
 }
 
 export function RoomCheckoutModal({
@@ -45,6 +46,7 @@ export function RoomCheckoutModal({
   defaultValetId,
   vehiclePlate,
   onRequestValet,
+  ...props
 }: RoomCheckoutModalProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [showPendingWarning, setShowPendingWarning] = useState(false);
@@ -94,11 +96,16 @@ export function RoomCheckoutModal({
     if (isOpen) {
       loadValets();
       setCheckoutValetId(defaultValetId || "none");
-      if (remainingAmount > 0) {
+
+      // Check for pre-filled payment data from Valet
+      // @ts-ignore - checkout_payment_data might not be typed yet in the parent component
+      if (props.checkoutPaymentData && Array.isArray(props.checkoutPaymentData) && props.checkoutPaymentData.length > 0) {
+        setPayments(props.checkoutPaymentData);
+      } else if (remainingAmount > 0) {
         setPayments(createInitialPayment(remainingAmount));
       }
     }
-  }, [isOpen, remainingAmount, defaultValetId]);
+  }, [isOpen, remainingAmount, defaultValetId, props.checkoutPaymentData]);
 
   if (!isOpen) return null;
 
