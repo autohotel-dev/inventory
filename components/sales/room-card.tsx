@@ -84,7 +84,7 @@ export function RoomCard({
 
   // Clases dinámicas para alerta de puerta abierta
   const containerClasses = isDoorOpen
-    ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-all duration-300"
+    ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-transform duration-300"
     : `${bgClass || "bg-slate-900/80"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : "border-white/5 hover:border-white/20"}`;
 
   return (
@@ -92,7 +92,7 @@ export function RoomCard({
       id="tour-room-card"
       data-room-status={status}
       data-room-number={number}
-      className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer backdrop-blur-sm shadow-sm hover:shadow-md border transition-all ${containerClasses}`}
+      className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer shadow-sm hover:shadow-md border transition-colors duration-200 ${containerClasses}`}
     >
       {/* Indicador de pago pendiente (Solo si NO está la puerta abierta para no saturar) */}
       {hasPendingPayment && !isDoorOpen && (

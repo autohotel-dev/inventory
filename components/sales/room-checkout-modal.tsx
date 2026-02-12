@@ -107,6 +107,12 @@ export function RoomCheckoutModal({
     }
   }, [isOpen, remainingAmount, defaultValetId, props.checkoutPaymentData]);
 
+  useEffect(() => {
+    if (isOpen) {
+      console.log("💰 [CheckoutModal] Open. Rem:", remainingAmount, "Data:", props.checkoutPaymentData);
+    }
+  }, [isOpen, remainingAmount, props.checkoutPaymentData]);
+
   if (!isOpen) return null;
 
   return (

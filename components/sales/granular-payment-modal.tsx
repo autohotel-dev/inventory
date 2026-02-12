@@ -399,17 +399,26 @@ export function GranularPaymentModal({
     try {
       const employeeId = await getCurrentEmployeeId(supabase);
 
-      const { error } = await supabase
+      const { data: updatedPayment, error } = await supabase
         .from("payments")
         .update({
           confirmed_by: employeeId,
           confirmed_at: new Date().toISOString()
         })
-        .eq("id", paymentId);
+        .eq("id", paymentId)
+        .select()
+        .single();
 
       if (error) throw error;
 
-      toast.success("Recibo corroborado. Ahora puedes seleccionar los servicios a cobrar.");
+      toast.success("Recibo corroborado", {
+        description: "Los datos de pago se han aplicado automáticamente."
+      });
+
+      if (updatedPayment) {
+        useValetPaymentData(updatedPayment);
+      }
+
       fetchItems();
     } catch (error) {
       console.error("Error corroborating payment:", error);
@@ -560,7 +569,14 @@ export function GranularPaymentModal({
       toast.error("Selecciona al menos un concepto para pagar");
       return;
     }
-    setPayments(createInitialPayment(selectedTotal + tipAmount));
+
+    // Solo reiniciar si no hay datos de pago pre-llenados (ej. desde corroboración de valet)
+    const hasPreFilledData = payments.length > 0 && payments.some(p => p.amount > 0 || p.method !== 'EFECTIVO');
+
+    if (!hasPreFilledData) {
+      setPayments(createInitialPayment(selectedTotal + tipAmount));
+    }
+
     setStep("pay");
   };
 

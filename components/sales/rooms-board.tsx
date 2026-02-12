@@ -2504,7 +2504,7 @@ function RoomsBoardInternal() {
       {/* Grid único de habitaciones */}
       <Card>
         <CardContent className="pt-4">
-          <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3">
+          <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 min-h-[50vh]">
             {rooms.map((room) => {
               const status = room.status || "OTRO";
               const timeInfo = getRemainingTimeLabel(room);
@@ -2584,9 +2584,6 @@ function RoomsBoardInternal() {
           setShowCheckoutModal(false);
           setCheckoutInfo(null);
         }}
-        onConfirm={handleCheckout}
-        defaultValetId={selectedRoom ? getActiveStay(selectedRoom)?.checkout_valet_employee_id : null}
-        vehiclePlate={selectedRoom ? getActiveStay(selectedRoom)?.vehicle_plate || null : null}
         onRequestValet={async () => {
           if (selectedRoom) {
             const activeStay = getActiveStay(selectedRoom);
@@ -2597,7 +2594,14 @@ function RoomsBoardInternal() {
             }
           }
         }}
-        checkoutPaymentData={selectedRoom ? getActiveStay(selectedRoom)?.checkout_payment_data || undefined : undefined}
+        onConfirm={handleCheckout}
+        defaultValetId={selectedRoom ? getActiveStay(selectedRoom)?.checkout_valet_employee_id : null}
+        vehiclePlate={selectedRoom ? getActiveStay(selectedRoom)?.vehicle_plate || null : null}
+        checkoutPaymentData={(() => {
+          const data = selectedRoom ? getActiveStay(selectedRoom)?.checkout_payment_data : undefined;
+          if (showCheckoutModal) console.log("🏨 [Board] Passing payment data:", data);
+          return data || undefined;
+        })()}
       />
       <RoomActionsWheel
         room={selectedRoom}
