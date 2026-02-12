@@ -284,7 +284,7 @@ export function useSoundNotifications(
                             toast.info(`🚗 Nueva entrada: Habitación ${roomNumber}`, {
                                 duration: 10000,
                                 position: 'top-center',
-                                style: { fontSize: '1.2rem', fontWeight: 'bold' }
+                                style: { fontSize: '1.4rem', fontWeight: 'bold', padding: '18px 24px' }
                             });
                         }
                     }
@@ -317,7 +317,7 @@ export function useSoundNotifications(
                             toast.error(`🚨 SOLICITUD DE AUTO: Habitación ${roomNumber}`, {
                                 duration: 10000,
                                 position: 'top-center',
-                                style: { fontSize: '1.2rem', fontWeight: 'bold' }
+                                style: { fontSize: '1.4rem', fontWeight: 'bold', padding: '18px 24px' }
                             });
                         }
                     }
@@ -338,13 +338,15 @@ export function useSoundNotifications(
                             toast.warning(`🔔 SOLICITUD DE SALIDA: Habitación ${roomNumber}`, {
                                 duration: 10000,
                                 position: 'top-center',
-                                style: { fontSize: '1.2rem', fontWeight: 'bold' }
+                                style: { fontSize: '1.4rem', fontWeight: 'bold', padding: '18px 24px' }
                             });
                         }
                         // También escuchar nuevas entradas (vehículo registrado)
                         if (!oldData.vehicle_plate && newData.vehicle_plate) {
                             playSound('vehicle_registered');
-                            toast.info(`🚙 Nuevo vehículo registrado: Hab ${roomNumber}`);
+                            toast.info(`🚙 Nuevo vehículo registrado: Hab ${roomNumber}`, {
+                                style: { fontSize: '1.2rem', fontWeight: 'bold', padding: '16px 20px' }
+                            });
                         }
                     }
                 }
@@ -385,14 +387,15 @@ export function useSoundNotifications(
                                 toast.info(`🛎️ Nuevo consumo: Habitación ${roomNumber}`, {
                                     duration: 10000,
                                     position: 'top-center',
-                                    style: { fontSize: '1.1rem', fontWeight: 'bold' }
+                                    style: { fontSize: '1.3rem', fontWeight: 'bold', padding: '18px 24px' }
                                 });
                             } catch (err) {
                                 // Si falla obtener habitación, mostrar notificación genérica
                                 playSound('new_consumption');
                                 toast.info(`🛎️ Nuevo consumo registrado`, {
                                     duration: 8000,
-                                    position: 'top-center'
+                                    position: 'top-center',
+                                    style: { fontSize: '1.3rem', fontWeight: 'bold', padding: '18px 24px' }
                                 });
                             }
                         }

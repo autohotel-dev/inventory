@@ -142,8 +142,10 @@ export function IncomeReport({
                 const { data: closingData, error: closingError } = await supabase
                     .from("shift_closings")
                     .select(`
+    id,
     period_start,
         period_end,
+        shift_session_id,
         employees!shift_closings_employee_id_fkey(first_name, last_name)
                     `)
                     .eq("id", shiftId)
@@ -152,6 +154,7 @@ export function IncomeReport({
                 console.log("🔍 Closing data for shift filter:", { shiftId, closingData, closingError });
 
                 let shift: any = null;
+                let shiftSessionId: string | null = null;
 
                 // Mapear a formato esperado
                 if (closingData) {
@@ -161,6 +164,7 @@ export function IncomeReport({
                         shift_end: closingData.period_end,
                         employee_name: employee ? `${employee.first_name} ${employee.last_name} ` : undefined
                     };
+                    shiftSessionId = closingData.shift_session_id;
                     console.log("📅 Shift period:", { start: shift.shift_start, end: shift.shift_end });
                 }
 
@@ -169,6 +173,7 @@ export function IncomeReport({
                     const { data: session, error: sessionError } = await supabase
                         .from("shift_sessions")
                         .select(`
+    id,
     clock_in_at,
         employees!shift_sessions_employee_id_fkey(
             first_name,
@@ -191,22 +196,45 @@ export function IncomeReport({
                             shift_end: null, // Turno abierto
                             employee_name: employeeName
                         };
+                        shiftSessionId = session.id;
                         console.log("📅 Active shift period:", { start: shift.shift_start, end: "NOW" });
                     }
                 }
 
                 if (shift) {
                     setShiftInfo(shift);
-                    query = query.gte("check_in_at", shift.shift_start);
 
-                    // Si el turno tiene fin (cerrado), usarlo. Si no (activo), usar ahora.
-                    if (shift.shift_end) {
-                        query = query.lte("check_in_at", shift.shift_end);
+                    // Buscar órdenes que tengan pagos en este turno (por shift_session_id)
+                    // Esto asegura que renovaciones cobradas en este turno aparezcan aquí
+                    if (shiftSessionId) {
+                        const { data: shiftPayments } = await supabase
+                            .from("payments")
+                            .select("sales_order_id")
+                            .eq("shift_session_id", shiftSessionId)
+                            .in("status", ["PAGADO", "PENDIENTE"]);
+
+                        const salesOrderIds = [...new Set(
+                            (shiftPayments || [])
+                                .filter((p: any) => p.sales_order_id)
+                                .map((p: any) => p.sales_order_id)
+                        )];
+
+                        if (salesOrderIds.length > 0) {
+                            query = query.in("sales_order_id", salesOrderIds);
+                        } else {
+                            // No hay pagos en este turno, forzar resultado vacío
+                            query = query.eq("sales_order_id", "00000000-0000-0000-0000-000000000000");
+                        }
                     } else {
-                        // Para turno actual, hasta el momento presente
-                        query = query.lte("check_in_at", new Date().toISOString());
+                        // Fallback: si no hay shift_session_id, usar check_in_at
+                        query = query.gte("check_in_at", shift.shift_start);
+                        if (shift.shift_end) {
+                            query = query.lte("check_in_at", shift.shift_end);
+                        } else {
+                            query = query.lte("check_in_at", new Date().toISOString());
+                        }
                     }
-                    console.log("✅ Query filtered by shift period");
+                    console.log("✅ Query filtered by shift payments");
                 } else {
                     console.warn("⚠️ No shift data found for shiftId:", shiftId);
                 }

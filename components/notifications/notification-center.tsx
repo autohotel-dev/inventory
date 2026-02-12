@@ -20,13 +20,13 @@ const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
         case 'stock_low':
         case 'stock_critical':
-            return <AlertTriangle className="h-4 w-4 text-orange-600" />;
+            return <AlertTriangle className="h-5 w-5 text-orange-600" />;
         case 'order_pending':
-            return <Package className="h-4 w-4 text-blue-600" />;
+            return <Package className="h-5 w-5 text-blue-600" />;
         case 'payment_due':
-            return <DollarSign className="h-4 w-4 text-green-600" />;
+            return <DollarSign className="h-5 w-5 text-green-600" />;
         default:
-            return <Info className="h-4 w-4 text-blue-600" />;
+            return <Info className="h-5 w-5 text-blue-600" />;
     }
 };
 
@@ -88,11 +88,11 @@ export function NotificationCenter() {
     return (
         <DropdownMenu open={open} onOpenChange={setOpen}>
             <DropdownMenuTrigger asChild>
-                <Button id="tour-notifications" variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5" />
+                <Button id="tour-notifications" variant="ghost" size="icon" className="relative h-10 w-10">
+                    <Bell className="h-6 w-6" />
                     {unreadCount > 0 && (
                         <Badge
-                            className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                            className="absolute -top-1.5 -right-1.5 h-6 w-6 flex items-center justify-center p-0 text-xs font-bold"
                             variant="destructive"
                         >
                             {unreadCount > 9 ? '9+' : unreadCount}
@@ -101,18 +101,18 @@ export function NotificationCenter() {
                 </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-96 max-h-[600px] overflow-hidden flex flex-col">
+            <DropdownMenuContent align="end" className="w-[480px] max-h-[700px] overflow-hidden flex flex-col">
                 {/* Header */}
-                <DropdownMenuLabel className="flex items-center justify-between border-b pb-2">
-                    <span className="font-semibold text-base">Notificaciones</span>
+                <DropdownMenuLabel className="flex items-center justify-between border-b pb-3 pt-2 px-4">
+                    <span className="font-bold text-lg">Notificaciones</span>
                     {unreadCount > 0 && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-auto py-1 px-2 text-xs"
+                            className="h-auto py-1.5 px-3 text-sm"
                             onClick={markAllAsRead}
                         >
-                            <CheckCheck className="h-3 w-3 mr-1" />
+                            <CheckCheck className="h-4 w-4 mr-1.5" />
                             Marcar todas
                         </Button>
                     )}
@@ -121,21 +121,21 @@ export function NotificationCenter() {
                 {/* Content */}
                 <div className="overflow-y-auto flex-1">
                     {loading ? (
-                        <div className="flex justify-center items-center py-8">
-                            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <div className="flex justify-center items-center py-10">
+                            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         </div>
                     ) : notifications.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <Bell className="h-12 w-12 text-muted-foreground mb-3 opacity-50" />
-                            <p className="text-muted-foreground text-sm">
+                        <div className="flex flex-col items-center justify-center py-14 text-center">
+                            <Bell className="h-14 w-14 text-muted-foreground mb-4 opacity-50" />
+                            <p className="text-muted-foreground text-base">
                                 No tienes notificaciones
                             </p>
                         </div>
                     ) : (
-                        <div className="space-y-1 py-2">
+                        <div className="space-y-1 py-3">
                             {notifications.map((notification) => {
                                 const content = (
-                                    <div className="flex gap-3">
+                                    <div className="flex gap-4">
                                         {/* Icon */}
                                         <div className="flex-shrink-0 mt-0.5">
                                             {getNotificationIcon(notification.type)}
@@ -145,22 +145,22 @@ export function NotificationCenter() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-2">
                                                 <p className={cn(
-                                                    "text-sm font-medium",
-                                                    !notification.is_read && "font-semibold"
+                                                    "text-base font-medium",
+                                                    !notification.is_read && "font-bold"
                                                 )}>
                                                     {notification.title}
                                                 </p>
                                                 {!notification.is_read && (
-                                                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />
                                                 )}
                                             </div>
 
-                                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                            <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
                                                 {notification.message}
                                             </p>
 
-                                            <div className="flex items-center justify-between mt-1.5">
-                                                <span className="text-xs text-muted-foreground">
+                                            <div className="flex items-center justify-between mt-2">
+                                                <span className="text-sm text-muted-foreground">
                                                     {formatTimeAgo(notification.created_at)}
                                                 </span>
 
@@ -169,27 +169,27 @@ export function NotificationCenter() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-6 w-6 p-0"
+                                                            className="h-8 w-8 p-0"
                                                             onClick={(e) => {
                                                                 e.preventDefault();
                                                                 e.stopPropagation();
                                                                 markAsRead(notification.id);
                                                             }}
                                                         >
-                                                            <Check className="h-3 w-3" />
+                                                            <Check className="h-4 w-4" />
                                                         </Button>
                                                     )}
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="h-6 w-6 p-0"
+                                                        className="h-8 w-8 p-0"
                                                         onClick={(e) => {
                                                             e.preventDefault();
                                                             e.stopPropagation();
                                                             archiveNotification(notification.id);
                                                         }}
                                                     >
-                                                        <Trash2 className="h-3 w-3" />
+                                                        <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             </div>
@@ -203,7 +203,7 @@ export function NotificationCenter() {
                                         href={notification.action_url}
                                         onClick={() => handleNotificationClick(notification)}
                                         className={cn(
-                                            "block px-3 py-2.5 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
+                                            "block px-4 py-3.5 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
                                             !notification.is_read && "bg-muted/30"
                                         )}
                                     >
@@ -214,7 +214,7 @@ export function NotificationCenter() {
                                         key={notification.id}
                                         onClick={() => handleNotificationClick(notification)}
                                         className={cn(
-                                            "block px-3 py-2.5 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
+                                            "block px-4 py-3.5 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
                                             !notification.is_read && "bg-muted/30"
                                         )}
                                     >
@@ -232,7 +232,7 @@ export function NotificationCenter() {
                         <DropdownMenuSeparator />
                         <div className="p-2">
                             <Link href="/notifications" onClick={() => setOpen(false)}>
-                                <Button variant="ghost" className="w-full text-xs">
+                                <Button variant="ghost" className="w-full text-sm font-medium">
                                     Ver todas las notificaciones
                                 </Button>
                             </Link>

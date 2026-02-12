@@ -987,9 +987,32 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           );
         }
 
-        // Note: No bloqueamos por remainingAfterPending > 0
-        if (remainingAfterPending > 0) {
-          logger.warn("Remaining amount after custom hours payment", { remainingAfterPending, totalPaid });
+        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
+        if (remainingAfterPending > 0 && !isCourtesy) {
+          const currentShiftId = await getCurrentShiftId(supabase);
+          const validPayments = payments.filter(p => p.amount > 0);
+
+          for (const p of validPayments) {
+            await supabase.from("payments").insert({
+              sales_order_id: activeStay.sales_order_id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("HEX"),
+              concept: "EXTRA_HOUR",
+              status: "PAGADO",
+              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+              shift_session_id: currentShiftId,
+              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+            });
+          }
+
+          logger.info("Created new payment records for custom hours", {
+            salesOrderId: activeStay.sales_order_id,
+            remainingAfterPending,
+            paymentsCreated: validPayments.length,
+          });
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago
@@ -1097,9 +1120,33 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           "REN"
         );
 
-        // Note: No bloqueamos por remainingAfterPending > 0 porque el pago se procesó correctamente
+        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
+        // Esto sucede cuando la estancia original ya estaba pagada y la renovación es un cargo nuevo
         if (remainingAfterPending > 0) {
-          logger.warn("Remaining amount after renewal payment", { remainingAfterPending, totalPaid });
+          const currentShiftId = await getCurrentShiftId(supabase);
+          const validPayments = payments.filter(p => p.amount > 0);
+
+          for (const p of validPayments) {
+            await supabase.from("payments").insert({
+              sales_order_id: activeStay.sales_order_id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("REN"),
+              concept: "RENEWAL",
+              status: "PAGADO",
+              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+              shift_session_id: currentShiftId,
+              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+            });
+          }
+
+          logger.info("Created new payment records for renewal", {
+            salesOrderId: activeStay.sales_order_id,
+            remainingAfterPending,
+            paymentsCreated: validPayments.length,
+          });
         }
 
         // Extender expected_check_out_at según las horas del tipo
@@ -1233,9 +1280,32 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           "P4H"
         );
 
-        // Note: No bloqueamos por remainingAfterPending > 0
+        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
         if (remainingAfterPending > 0) {
-          logger.warn("Remaining amount after 4h promo payment", { remainingAfterPending, totalPaid });
+          const currentShiftId = await getCurrentShiftId(supabase);
+          const validPayments = payments.filter(p => p.amount > 0);
+
+          for (const p of validPayments) {
+            await supabase.from("payments").insert({
+              sales_order_id: activeStay.sales_order_id,
+              amount: p.amount,
+              payment_method: p.method,
+              reference: p.reference || generatePaymentReference("P4H"),
+              concept: "PROMO_4H",
+              status: "PAGADO",
+              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+              shift_session_id: currentShiftId,
+              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+            });
+          }
+
+          logger.info("Created new payment records for 4h promo", {
+            salesOrderId: activeStay.sales_order_id,
+            remainingAfterPending,
+            paymentsCreated: validPayments.length,
+          });
         }
 
         // Extender expected_check_out_at en 4 horas

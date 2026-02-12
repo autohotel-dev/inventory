@@ -128,23 +128,34 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
       if (error) throw error;
 
-      // Obtener órdenes de venta del turno con sus items desglosados
-      const { data: salesOrders } = await supabase
-        .from("sales_orders")
-        .select(`
-          id, created_at, total, paid_amount, remaining_amount, status, currency,
-          room_stays(
-            id,
-            rooms(number, room_types(name))
-          ),
-          sales_order_items(
-            id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method,
-            products(name, sku)
-          )
-        `)
-        .gte("created_at", session.clock_in_at)
-        .lte("created_at", periodEnd)
-        .order("created_at", { ascending: false });
+      // Obtener órdenes de venta vinculadas a los pagos del turno (no por rango de tiempo)
+      // Esto asegura que renovaciones cobradas en este turno aparezcan correctamente
+      const shiftSalesOrderIds = [...new Set(
+        (payments || [])
+          .filter((p: any) => p.sales_order_id)
+          .map((p: any) => p.sales_order_id)
+      )];
+
+      let salesOrders: any[] = [];
+      if (shiftSalesOrderIds.length > 0) {
+        const { data: ordersData } = await supabase
+          .from("sales_orders")
+          .select(`
+            id, created_at, total, paid_amount, remaining_amount, status, currency,
+            room_stays(
+              id,
+              rooms(number, room_types(name))
+            ),
+            sales_order_items(
+              id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method,
+              products(name, sku)
+            )
+          `)
+          .in("id", shiftSalesOrderIds)
+          .order("created_at", { ascending: false });
+
+        salesOrders = ordersData || [];
+      }
 
       // Calcular totales
       let total_cash = 0;
@@ -938,7 +949,7 @@ export function ShiftClosingHistory() {
         *,
         payments(
           id, amount, payment_method, reference, concept, status, payment_type, 
-          terminal_code, created_at,
+          terminal_code, created_at, sales_order_id,
           sales_orders(
             id, total, remaining_amount, status,
             room_stays(
@@ -955,25 +966,36 @@ export function ShiftClosingHistory() {
       setClosingDetails(data || []);
     }
 
-    // Obtener órdenes de venta del período del corte con sus items desglosados
-    const { data: salesOrders } = await supabase
-      .from("sales_orders")
-      .select(`
-        id, created_at, total, paid_amount, remaining_amount, status, currency,
-        room_stays(
-          id,
-          rooms(number, room_types(name))
-        ),
-        sales_order_items(
-          id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method,
-          products(name, sku)
-        )
-      `)
-      .gte("created_at", periodStart)
-      .lte("created_at", periodEnd)
-      .order("created_at", { ascending: false });
+    // Obtener órdenes de venta vinculadas a los pagos del corte (no por rango de tiempo)
+    // Esto asegura que renovaciones cobradas en esta sesión aparezcan correctamente
+    const detailSalesOrderIds = [...new Set(
+      (data || [])
+        .filter((d: any) => d.sales_order_id)
+        .map((d: any) => d.sales_order_id)
+    )];
 
-    setClosingSalesOrders(salesOrders || []);
+    let salesOrders: any[] = [];
+    if (detailSalesOrderIds.length > 0) {
+      const { data: ordersData } = await supabase
+        .from("sales_orders")
+        .select(`
+          id, created_at, total, paid_amount, remaining_amount, status, currency,
+          room_stays(
+            id,
+            rooms(number, room_types(name))
+          ),
+          sales_order_items(
+            id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method,
+            products(name, sku)
+          )
+        `)
+        .in("id", detailSalesOrderIds)
+        .order("created_at", { ascending: false });
+
+      salesOrders = ordersData || [];
+    }
+
+    setClosingSalesOrders(salesOrders);
     setLoadingDetails(false);
   };
 
