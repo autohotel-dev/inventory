@@ -44,9 +44,9 @@ SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or env.get('SUPABASE_
 # Global State
 GATEWAY_CONFIG = {
     'id': 'eb752faeb525ac46057p0t',
-    'key': '3{;8f0U4XLXwV#EY',
+    'key': 'A=#L-l]&EHtFU8A/',
     'ip': '172.16.1.99',
-    'version': '3.4'
+    'version': '3.3'
 }
 
 # Mappings
@@ -181,7 +181,7 @@ def process_data(data):
         cid = data['data'].get('cid')
     
     # Debug log for analysis
-    # print(f"[DEBUG] Processing: CID={cid} DPS={dps}")
+    print(f"[DEBUG] Processing: CID={cid} DPS={dps}")
 
     target_virtual_id = None
 
@@ -266,7 +266,7 @@ def main():
             data = d.receive()
             if data:
                 # DEBUG - Ver todo lo que entra
-                # print(f"[RAW] {data}")
+                print(f"[RAW] {data}")
                 process_data(data)
             
             now = time.time()

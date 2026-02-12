@@ -1,0 +1,71 @@
+{
+    "result": [
+        {
+            "active_time": 1769393799,
+            "biz_type": 18,
+            "category": "wg2",
+            "create_time": 1768469123,
+            "icon": "smart/icon/ay1573546958261faWcj/08a02f08f5bbbf6e0d9c05eb0a1b406f.png",
+            "id": "eb752faeb525ac46057p0t",
+            "ip": "186.96.24.136",
+            "lat": "20.62",
+            "local_key": "A=#L-l]&EHtFU8A/",
+            "lon": "-100.43",
+            "model": "G02",
+            "name": "Smart Zigbee LAN Gateway",
+            "online": true,
+            "owner_id": "282559512",
+            "product_id": "skacddzmfphdspyo",
+            "product_name": "Smart Zigbee LAN Gateway",
+            "sub": false,
+            "time_zone": "-06:00",
+            "uid": "az1768469057823tClbL",
+            "update_time": 1769395159,
+            "uuid": "339df169c368b65a"
+        },
+        {
+            "active_time": 1769393799,
+            "biz_type": 18,
+            "category": "mcs",
+            "create_time": 1768469217,
+            "icon": "smart/icon/1524817291ohyty7jfc6kyokuqeyvnp14i_0.png",
+            "id": "eb4f3a0f8e79e8e96fsovm",
+            "ip": "",
+            "lat": "",
+            "local_key": "A=#L-l]&EHtFU8A/",
+            "lon": "",
+            "model": "",
+            "name": "Door Sensor",
+            "node_id": "a4c138670c440b9e",
+            "online": true,
+            "owner_id": "282559512",
+            "product_id": "7jIGJAymiH8OsFFb",
+            "product_name": "Door Sensor",
+            "status": [
+                {
+                    "code": "switch",
+                    "value": true
+                },
+                {
+                    "code": "battery",
+                    "value": 100
+                }
+            ],
+            "sub": true,
+            "time_zone": "-06:00",
+            "uid": "az1768469057823tClbL",
+            "update_time": 1769395159,
+            "uuid": "eb4f3a0f8e79e8e96fsovm"
+        }
+    ],
+    "success": true,
+    "t": 1769395831210,
+    "tid": "c7559ce5fa6111f0a5cd4a7425b83509",
+    "file": {
+        "name": "tuya-raw.json",
+        "description": "Full raw list of Tuya devices.",
+        "account": "k8vnfhrjn8htdf88nyvy",
+        "date": "2026-01-25T20:51:35.996840",
+        "tinytuya": "1.17.4"
+    }
+}

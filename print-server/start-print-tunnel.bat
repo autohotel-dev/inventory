@@ -6,6 +6,7 @@ color 0A
 echo.
 echo  ========================================
 echo   PRINT SERVER + CLOUDFLARE TUNNEL
+echo   print.autohoteluxor.com
 echo  ========================================
 echo.
 
@@ -37,66 +38,32 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo [OK] Print Server corriendo en puerto 3001
 
-REM Iniciar Cloudflare Tunnel
-echo [2/2] Iniciando Cloudflare Tunnel...
-echo.
-echo Esperando URL del tunel...
-
-REM Archivo para capturar la URL
-set "URL_FILE=%~dp0TUNNEL_URL.txt"
-set "TEMP_LOG=%~dp0logs\tunnel.log"
-
-REM Iniciar cloudflared en segundo plano con output a archivo
-start /B cmd /c ""C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:3001 > "%TEMP_LOG%" 2>&1"
-
-REM Esperar a que aparezca la URL (max 20 segundos)
-set "TUNNEL_URL="
-for /L %%i in (1,1,20) do (
-    timeout /t 1 /nobreak >nul
-    for /f "tokens=*" %%a in ('findstr /C:"trycloudflare.com" "%TEMP_LOG%" 2^>nul') do (
-        set "LINE=%%a"
-    )
-    if defined LINE (
-        for %%b in (!LINE!) do (
-            echo %%b | findstr /C:"https://" >nul && set "TUNNEL_URL=%%b"
-        )
-    )
-    if defined TUNNEL_URL goto :found
-    echo|set /p="."
-)
+REM Iniciar Cloudflare Named Tunnel
+echo [2/2] Iniciando Cloudflare Tunnel (Named)...
 echo.
 
-:found
-if not defined TUNNEL_URL (
-    color 0E
-    echo.
-    echo [ADVERTENCIA] No se pudo capturar la URL automaticamente.
-    echo Revisa el archivo logs\tunnel.log para ver la URL.
-    echo.
-) else (
-    REM Limpiar caracteres extra de la URL
-    set "TUNNEL_URL=!TUNNEL_URL:|=!"
-    
-    REM Guardar URL en archivo
-    echo !TUNNEL_URL!> "%URL_FILE%"
-    
-    echo.
-    echo  ========================================
-    echo   TUNEL ACTIVO
-    echo  ========================================
-    echo.
-    echo   URL PUBLICA:
-    echo   !TUNNEL_URL!
-    echo.
-    echo   Guardada en: TUNNEL_URL.txt
-    echo  ========================================
-    echo.
-    echo   Para Vercel, configura:
-    echo   NEXT_PUBLIC_PRINT_SERVER_URL=!TUNNEL_URL!
-    echo.
-)
+REM Iniciar cloudflared con config.yml
+start /B cmd /c ""C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --config "%~dp0config.yml" run > logs\tunnel.log 2>&1"
+
+REM Esperar a que el tunel se conecte
+timeout /t 5 /nobreak >nul
 
 echo.
+echo  ========================================
+echo   TUNEL ACTIVO (URL FIJA)
+echo  ========================================
+echo.
+echo   URL PUBLICA:
+echo   https://print.autohoteluxor.com
+echo.
+echo   Esta URL es permanente, no cambia
+echo   al reiniciar la PC.
+echo.
+echo   Variable en Vercel:
+echo   NEXT_PUBLIC_PRINT_SERVER_URL=https://print.autohoteluxor.com
+echo  ========================================
+echo.
+
 echo Los servicios estan corriendo en segundo plano.
 echo Presiona cualquier tecla para DETENER todo...
 pause >nul

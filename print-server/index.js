@@ -31,16 +31,36 @@ const CMD = {
 };
 
 // Configurar CORS para permitir peticiones desde todos los orígenes necesarios
-const corsOptions = {
-    origin: [
-        'http://localhost:3000',
-        'https://manager.autohoteluxor.com',
-        /^https:\/\/.*\.vercel\.app$/
-    ],
-    credentials: true
-};
+const allowedOrigins = [
+    'http://localhost:3000',
+    'https://manager.autohoteluxor.com'
+];
 
-app.use(cors(corsOptions));
+// Middleware CORS manual para manejar preflight correctamente a través de Cloudflare Tunnel
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+
+    // Verificar si el origen está permitido (incluyendo *.vercel.app)
+    const isAllowed = allowedOrigins.includes(origin) ||
+        (origin && /^https:\/\/.*\.vercel\.app$/.test(origin));
+
+    if (isAllowed) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400');
+
+    // Responder inmediatamente a preflight OPTIONS
+    if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+    }
+
+    next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 // Helpers
