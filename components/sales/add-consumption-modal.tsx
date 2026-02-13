@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 
 import { SelectPackageDrinksModal } from "./select-package-drinks-modal";
+import { validatePromotionConditions } from "@/lib/promo-conditions";
 import type { BottlePackageRule } from "@/lib/types/inventory";
 
 interface Product {
@@ -62,6 +63,9 @@ interface ActivePromotion {
   product_id: string | null;
   category_id: string | null;
   subcategory_id: string | null;
+  conditions: {
+    first_order_only?: boolean;
+  } | null;
 }
 
 interface AddConsumptionModalProps {
@@ -94,6 +98,12 @@ export function AddConsumptionModal({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState<number>(1);
   const [editIsCourtesy, setEditIsCourtesy] = useState<boolean>(false);
+  const [previousOrdersCount, setPreviousOrdersCount] = useState<number>(0);
+  const [consumedItems, setConsumedItems] = useState<{
+    productId: string;
+    categoryId: string | null;
+    subcategoryId: string | null;
+  }[]>([]);
 
   const [editCourtesyReason, setEditCourtesyReason] = useState<string>("");
 
@@ -129,6 +139,7 @@ export function AddConsumptionModal({
     if (isOpen) {
       fetchProducts();
       fetchActivePromotions();
+      checkPreviousOrders();
       setCartItems(new Map());
       setSearchValue("");
       setSelectedRow(-1);
@@ -137,6 +148,67 @@ export function AddConsumptionModal({
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen]);
+
+  const checkPreviousOrders = async () => {
+    const supabase = createClient();
+    try {
+      // Primero obtenemos el booking_id de la orden actual para saber a qué estadía pertenece
+      const { data: currentOrder } = await supabase
+        .from("sales_orders")
+        .select("booking_id")
+        .eq("id", salesOrderId)
+        .single();
+
+      if (currentOrder && currentOrder.booking_id) {
+        // Contamos cuantas ordenes TIENEN items (consumos) para esta estadía, excluyendo la actual si estuviera vacía (aunque aqui apenas agregaremos)
+        // Realmente queremos saber si YA HUBO consumos previos.
+        // Buscamos ordenes de esta booking que NO sean la actual y que tengan status pagado o parcial, o simplemente que existan.
+        // Una forma segura es ver si hay sales_order_items asociados a ordenes de este booking (excluyendo la actual si quisieramos ser muy estrictos, pero "primera orden" suele referirse al primer momento de consumo).
+        // Simplificación: Contamos sales_orders previas o items previos.
+        // Vamos a contar sales_orders de esta booking que tengan items.
+
+        const { count, error } = await supabase
+          .from("sales_orders")
+          .select("id", { count: 'exact', head: true })
+          .eq("booking_id", currentOrder.booking_id)
+          .neq("id", salesOrderId) // Excluir la orden actual
+          .gt("total", 0); // Que hayan tenido monto (consumos)
+
+        if (!error) {
+          setPreviousOrdersCount(count || 0);
+        }
+
+        // Fetch detailed consumed items for scoped conditions
+        const { data: itemsData, error: itemsError } = await supabase
+          .from("sales_order_items")
+          .select(`
+                  product_id,
+                  products:products (
+                    category_id,
+                    subcategory_id
+                  ),
+                  sales_orders!inner (
+                    booking_id
+                  )
+                `)
+          .eq("sales_orders.booking_id", currentOrder.booking_id)
+          .neq("sales_order_id", salesOrderId);
+
+        if (!itemsError && itemsData) {
+          const mappedItems = itemsData.map((item: any) => ({
+            productId: item.product_id,
+            categoryId: item.products?.category_id || null,
+            subcategoryId: item.products?.subcategory_id || null
+          }));
+          setConsumedItems(mappedItems);
+        } else if (itemsError) {
+          console.error("Error fetching previous items:", itemsError);
+        }
+      }
+    } catch (err) {
+      console.error("Error checking previous orders:", err);
+    }
+  };
 
   // Mantener focus en el input (excepto cuando se edita cantidad)
   const ensureFocus = useCallback(() => {
@@ -250,7 +322,7 @@ export function AddConsumptionModal({
       const now = new Date().toISOString();
       const { data, error } = await supabase
         .from("product_promotions")
-        .select("id, name, promo_type, buy_quantity, pay_quantity, discount_percent, fixed_price, product_id, category_id, subcategory_id")
+        .select("id, name, promo_type, buy_quantity, pay_quantity, discount_percent, fixed_price, product_id, category_id, subcategory_id, conditions")
         .eq("is_active", true)
         .or(`start_date.is.null,start_date.lte.${now}`)
         .or(`end_date.is.null,end_date.gte.${now}`);
@@ -265,26 +337,43 @@ export function AddConsumptionModal({
     }
   };
 
+  // ... inside AddConsumptionModal ...
+
   // Buscar la promoción aplicable para un producto
   const findPromoForProduct = useCallback((product: Product & { category_id?: string; subcategory_id?: string }): ActivePromotion | null => {
     if (activePromotions.length === 0) return null;
 
+    // Filtrar promociones que cumplan con las condiciones
+    const eligiblePromos = activePromotions.filter(p => {
+      return validatePromotionConditions(p.conditions, {
+        previousOrdersCount,
+        consumedItems,
+        scope: {
+          productId: p.product_id,
+          categoryId: p.category_id,
+          subcategoryId: p.subcategory_id
+        }
+      });
+    });
+
+    if (eligiblePromos.length === 0) return null;
+
     // Prioridad: producto específico > subcategoría > categoría
-    const byProduct = activePromotions.find(p => p.product_id === product.id);
+    const byProduct = eligiblePromos.find(p => p.product_id === product.id);
     if (byProduct) return byProduct;
 
     if ((product as any).subcategory_id) {
-      const bySub = activePromotions.find(p => p.subcategory_id === (product as any).subcategory_id && !p.product_id);
+      const bySub = eligiblePromos.find(p => p.subcategory_id === (product as any).subcategory_id && !p.product_id);
       if (bySub) return bySub;
     }
 
     if ((product as any).category_id) {
-      const byCat = activePromotions.find(p => p.category_id === (product as any).category_id && !p.product_id && !p.subcategory_id);
+      const byCat = eligiblePromos.find(p => p.category_id === (product as any).category_id && !p.product_id && !p.subcategory_id);
       if (byCat) return byCat;
     }
 
     return null;
-  }, [activePromotions]);
+  }, [activePromotions, previousOrdersCount]);
 
   // Calcular precio efectivo de un item considerando promociones
   const calcItemPromoTotal = useCallback((product: Product, qty: number, isCourtesy: boolean): { total: number; promo: ActivePromotion | null; savedAmount: number } => {

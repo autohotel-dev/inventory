@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Breadcrumbs } from "./breadcrumbs";
 import { BottomNav } from "./bottom-nav";
+import { UserNav } from "./user-nav";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -78,7 +79,10 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
           maxWidth: "100%"
         }}
       >
-        <Breadcrumbs />
+        <div className="flex items-center justify-between gap-4">
+          <Breadcrumbs />
+          <UserNav />
+        </div>
         {children}
       </main>
       <BottomNav />

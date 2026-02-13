@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PROMO_CONDITIONS } from "@/lib/promo-conditions";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ interface ProductPromotion {
     product?: { id: string; name: string; price: number } | null;
     category?: { id: string; name: string } | null;
     subcategory?: { id: string; name: string } | null;
+    conditions?: Record<string, any> | null;
 }
 
 interface FormData {
@@ -76,6 +78,7 @@ interface FormData {
     is_active: boolean;
     start_date: string;
     end_date: string;
+    conditions: Record<string, any>;
 }
 
 interface SimpleProduct {
@@ -110,6 +113,7 @@ const defaultFormData: FormData = {
     is_active: true,
     start_date: "",
     end_date: "",
+    conditions: {},
 };
 
 const PROMO_TYPE_LABELS: Record<PromoType, { label: string; icon: React.ReactNode; color: string }> = {
@@ -176,7 +180,6 @@ export function ProductPromotions() {
             const { data: catData } = await supabase
                 .from("categories")
                 .select("id, name")
-                .eq("is_active", true)
                 .order("name");
             setCategories(catData || []);
 
@@ -184,7 +187,6 @@ export function ProductPromotions() {
             const { data: subData } = await supabase
                 .from("subcategories")
                 .select("id, name, category_id")
-                .eq("is_active", true)
                 .order("name");
             setSubcategories(subData || []);
 
@@ -219,6 +221,7 @@ export function ProductPromotions() {
             is_active: promo.is_active,
             start_date: promo.start_date ? promo.start_date.slice(0, 16) : "",
             end_date: promo.end_date ? promo.end_date.slice(0, 16) : "",
+            conditions: (promo.conditions as any) || {},
         });
         setProductSearch(promo.product?.name || "");
         setIsModalOpen(true);
@@ -277,6 +280,7 @@ export function ProductPromotions() {
                 is_active: formData.is_active,
                 start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
                 end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
+                conditions: formData.conditions,
                 updated_at: new Date().toISOString(),
             };
 
@@ -391,103 +395,143 @@ export function ProductPromotions() {
 
     return (
         <div className="space-y-6">
-            <Card className="border-0 shadow-md">
-                <CardHeader className="pb-4">
+            <Card className="border-0 shadow-md overflow-hidden">
+                <CardHeader className="pb-4 bg-muted/30">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 text-white">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-500 to-orange-600 text-white shadow-md shadow-rose-500/20">
                                 <Tag className="h-5 w-5" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg">Promociones de Productos</CardTitle>
+                                <CardTitle className="text-lg font-bold">Promociones de Productos</CardTitle>
                                 <CardDescription>
-                                    Configura descuentos y ofertas sobre productos del inventario
+                                    Configura descuentos y ofertas especiales
                                 </CardDescription>
                             </div>
                         </div>
-                        <Button onClick={openAddModal} className="gap-2">
+                        <Button onClick={openAddModal} className="gap-2 shadow-sm">
                             <Plus className="h-4 w-4" />
                             Nueva Promoción
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-0">
                     {promotions.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>No hay promociones configuradas</p>
-                            <p className="text-sm">Crea una promoción para ofrecer descuentos a tus clientes</p>
+                        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                            <div className="p-4 rounded-full bg-rose-50 dark:bg-rose-900/10 mb-4 animate-in zoom-in-50 duration-500">
+                                <Tag className="h-10 w-10 text-rose-500/50" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-foreground">No hay promociones activas</h3>
+                            <p className="text-sm text-muted-foreground max-w-sm mt-1 mb-6">
+                                Crea tu primera promoción para aumentar las ventas y atraer más clientes.
+                            </p>
+                            <Button variant="outline" onClick={openAddModal} className="group">
+                                Crear Promoción
+                                <Plus className="ml-2 h-4 w-4 transition-transform group-hover:rotate-90" />
+                            </Button>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Promoción</TableHead>
-                                    <TableHead>Tipo</TableHead>
-                                    <TableHead>Aplica a</TableHead>
-                                    <TableHead>Detalle</TableHead>
-                                    <TableHead className="text-center">Estado</TableHead>
-                                    <TableHead className="text-right">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {promotions.map((promo) => {
-                                    const typeInfo = PROMO_TYPE_LABELS[promo.promo_type];
-                                    const active = isPromoCurrentlyActive(promo);
-                                    return (
-                                        <TableRow key={promo.id} className={!active ? "opacity-60" : ""}>
-                                            <TableCell>
-                                                <div className="font-medium">{promo.name}</div>
-                                                {(promo.start_date || promo.end_date) && (
-                                                    <div className="text-xs text-muted-foreground mt-0.5">
-                                                        {promo.start_date && `Desde ${new Date(promo.start_date).toLocaleDateString("es-MX")}`}
-                                                        {promo.start_date && promo.end_date && " — "}
-                                                        {promo.end_date && `Hasta ${new Date(promo.end_date).toLocaleDateString("es-MX")}`}
+                        <div className="rounded-md border-t border-border/50">
+                            <Table>
+                                <TableHeader className="bg-muted/50">
+                                    <TableRow className="hover:bg-transparent">
+                                        <TableHead className="w-[30%]">Promoción</TableHead>
+                                        <TableHead>Tipo</TableHead>
+                                        <TableHead>Alcance</TableHead>
+                                        <TableHead>Detalle</TableHead>
+                                        <TableHead className="text-center">Estado</TableHead>
+                                        <TableHead className="text-right pr-6">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {promotions.map((promo) => {
+                                        const typeInfo = PROMO_TYPE_LABELS[promo.promo_type];
+                                        const active = isPromoCurrentlyActive(promo);
+                                        const conditions = promo.conditions as any || {};
+
+                                        return (
+                                            <TableRow
+                                                key={promo.id}
+                                                className={`transition-colors hover:bg-muted/30 ${!active ? "opacity-60 bg-muted/10" : ""}`}
+                                            >
+                                                <TableCell className="py-3 pl-6">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-foreground">{promo.name}</span>
+                                                        {(promo.start_date || promo.end_date) && (
+                                                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+                                                                {promo.start_date && <span>Desde {new Date(promo.start_date).toLocaleDateString("es-MX")}</span>}
+                                                                {promo.start_date && promo.end_date && <span>—</span>}
+                                                                {promo.end_date && <span>Hasta {new Date(promo.end_date).toLocaleDateString("es-MX")}</span>}
+                                                            </div>
+                                                        )}
+                                                        {Object.entries(conditions).map(([key, value]) => {
+                                                            const def = PROMO_CONDITIONS[key];
+                                                            if (def && value) {
+                                                                return (
+                                                                    <div key={key} className="mt-1">
+                                                                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
+                                                                            {def.label}
+                                                                        </Badge>
+                                                                    </div>
+                                                                )
+                                                            }
+                                                            return null;
+                                                        })}
                                                     </div>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge className={`gap-1 ${typeInfo.color}`}>
-                                                    {typeInfo.icon}
-                                                    {typeInfo.label}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="text-sm">{getScopeLabel(promo)}</span>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="text-sm font-medium">{getPromoDescription(promo)}</span>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <button onClick={() => toggleActive(promo)} className="cursor-pointer">
-                                                    <Badge
-                                                        variant={promo.is_active ? "default" : "secondary"}
-                                                        className={promo.is_active ? "bg-green-500" : ""}
-                                                    >
-                                                        {promo.is_active ? "Activo" : "Inactivo"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className={`gap-1.5 px-2.5 py-0.5 font-normal border-0 ${typeInfo.color}`}>
+                                                        {typeInfo.icon}
+                                                        {typeInfo.label}
                                                     </Badge>
-                                                </button>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" onClick={() => openEditModal(promo)}>
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => setDeleteConfirm(promo)}
-                                                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="p-1.5 rounded-md bg-muted text-muted-foreground">
+                                                            {promo.product ? <Package className="h-3.5 w-3.5" /> : <Tag className="h-3.5 w-3.5" />}
+                                                        </span>
+                                                        <span className="text-sm font-medium text-foreground/80">{getScopeLabel(promo)}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="text-sm font-medium">{getPromoDescription(promo)}</span>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <button onClick={() => toggleActive(promo)} className="inline-flex cursor-pointer transition-all active:scale-95">
+                                                        {promo.is_active ? (
+                                                            <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-emerald-200 shadow-none gap-1">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                                Activo
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="text-muted-foreground gap-1">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                                                                Inactivo
+                                                            </Badge>
+                                                        )}
+                                                    </button>
+                                                </TableCell>
+                                                <TableCell className="text-right pr-6">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEditModal(promo)}>
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => setDeleteConfirm(promo)}
+                                                            className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
                 </CardContent>
             </Card>
@@ -523,9 +567,9 @@ export function ProductPromotions() {
                                         key={key}
                                         type="button"
                                         onClick={() => setFormData({ ...formData, promo_type: key })}
-                                        className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-sm font-medium ${formData.promo_type === key
-                                                ? "border-primary bg-primary/5 text-primary"
-                                                : "border-border hover:border-muted-foreground/30 text-muted-foreground"
+                                        className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring ${formData.promo_type === key
+                                            ? "border-primary bg-primary/5 text-primary shadow-sm"
+                                            : "border-border hover:border-muted-foreground/30 text-muted-foreground hover:bg-muted/50"
                                             }`}
                                     >
                                         {info.icon}
@@ -537,43 +581,43 @@ export function ProductPromotions() {
 
                         {/* Type-specific fields */}
                         {formData.promo_type === "NxM" && (
-                            <div className="p-3 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/30">
+                            <div className="p-4 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/30 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Package className="h-4 w-4 text-violet-500" />
                                     <span className="text-sm font-medium text-violet-700 dark:text-violet-300">Compra N, Paga M</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="text-xs">Compra (N)</Label>
+                                        <Label className="text-xs font-semibold">Compra (N)</Label>
                                         <Input
                                             type="number"
                                             min={2}
-                                            max={10}
+                                            max={20}
                                             value={formData.buy_quantity}
                                             onChange={(e) => setFormData({ ...formData, buy_quantity: parseInt(e.target.value) || 2 })}
-                                            className="mt-1"
+                                            className="mt-1.5"
                                         />
                                     </div>
                                     <div>
-                                        <Label className="text-xs">Paga (M)</Label>
+                                        <Label className="text-xs font-semibold">Paga (M)</Label>
                                         <Input
                                             type="number"
                                             min={1}
-                                            max={9}
+                                            max={19}
                                             value={formData.pay_quantity}
                                             onChange={(e) => setFormData({ ...formData, pay_quantity: parseInt(e.target.value) || 1 })}
-                                            className="mt-1"
+                                            className="mt-1.5"
                                         />
                                     </div>
                                 </div>
-                                <p className="text-xs text-violet-600 dark:text-violet-400 mt-2">
-                                    El cliente compra {formData.buy_quantity} y paga solo {formData.pay_quantity}
+                                <p className="text-xs text-violet-600 dark:text-violet-400 mt-3 font-medium text-center bg-violet-100/50 dark:bg-violet-900/40 py-2 rounded">
+                                    El cliente compra <span className="font-bold">{formData.buy_quantity}</span> y paga solo <span className="font-bold">{formData.pay_quantity}</span>
                                 </p>
                             </div>
                         )}
 
                         {formData.promo_type === "PERCENT_DISCOUNT" && (
-                            <div className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30">
+                            <div className="p-4 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Percent className="h-4 w-4 text-amber-500" />
                                     <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Descuento Porcentual</span>
@@ -585,15 +629,15 @@ export function ProductPromotions() {
                                         max={100}
                                         value={formData.discount_percent}
                                         onChange={(e) => setFormData({ ...formData, discount_percent: parseFloat(e.target.value) || 0 })}
-                                        className="w-24"
+                                        className="w-full text-lg font-medium"
                                     />
-                                    <span className="text-sm font-medium text-muted-foreground">%</span>
+                                    <span className="text-lg font-bold text-amber-600">%</span>
                                 </div>
                             </div>
                         )}
 
                         {formData.promo_type === "FIXED_PRICE" && (
-                            <div className="p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
+                            <div className="p-4 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="flex items-center gap-2 mb-3">
                                     <DollarSign className="h-4 w-4 text-emerald-500" />
                                     <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Precio Especial</span>
@@ -606,7 +650,7 @@ export function ProductPromotions() {
                                         step={0.01}
                                         value={formData.fixed_price || ""}
                                         onChange={(e) => setFormData({ ...formData, fixed_price: parseFloat(e.target.value) || 0 })}
-                                        className="w-32"
+                                        className="w-full text-lg font-medium"
                                     />
                                     <span className="text-sm text-muted-foreground">MXN</span>
                                 </div>
@@ -621,8 +665,8 @@ export function ProductPromotions() {
                                     type="button"
                                     onClick={() => setFormData({ ...formData, scope: "product", category_id: "", subcategory_id: "" })}
                                     className={`p-2.5 rounded-lg border-2 text-sm font-medium transition-all ${formData.scope === "product"
-                                            ? "border-primary bg-primary/5 text-primary"
-                                            : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                                        ? "border-primary bg-primary/5 text-primary"
+                                        : "border-border text-muted-foreground hover:border-muted-foreground/30"
                                         }`}
                                 >
                                     Producto específico
@@ -631,8 +675,8 @@ export function ProductPromotions() {
                                     type="button"
                                     onClick={() => setFormData({ ...formData, scope: "category", product_id: "" })}
                                     className={`p-2.5 rounded-lg border-2 text-sm font-medium transition-all ${formData.scope === "category"
-                                            ? "border-primary bg-primary/5 text-primary"
-                                            : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                                        ? "border-primary bg-primary/5 text-primary"
+                                        : "border-border text-muted-foreground hover:border-muted-foreground/30"
                                         }`}
                                 >
                                     Categoría
@@ -642,7 +686,7 @@ export function ProductPromotions() {
 
                         {/* Product selector */}
                         {formData.scope === "product" && (
-                            <div>
+                            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                                 <Label className="text-xs mb-1 block">Buscar Producto</Label>
                                 <div className="relative">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -653,7 +697,7 @@ export function ProductPromotions() {
                                         className="pl-8"
                                     />
                                 </div>
-                                <div className="mt-2 max-h-40 overflow-y-auto border rounded-lg divide-y">
+                                <div className="mt-2 max-h-40 overflow-y-auto border rounded-lg divide-y bg-background/50">
                                     {filteredProducts.slice(0, 20).map(p => (
                                         <button
                                             key={p.id}
@@ -683,13 +727,13 @@ export function ProductPromotions() {
 
                         {/* Category/Subcategory selector */}
                         {formData.scope === "category" && (
-                            <div className="space-y-3">
+                            <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                 <div>
                                     <Label className="text-xs">Categoría</Label>
                                     <select
                                         value={formData.category_id}
                                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value, subcategory_id: "" })}
-                                        className="w-full px-3 py-2 border rounded-lg bg-background mt-1"
+                                        className="w-full px-3 py-2 border rounded-lg bg-background mt-1 focus:ring-2 focus:ring-ring focus:outline-none"
                                     >
                                         <option value="">Seleccionar categoría...</option>
                                         {categories.map(c => (
@@ -703,7 +747,7 @@ export function ProductPromotions() {
                                         <select
                                             value={formData.subcategory_id}
                                             onChange={(e) => setFormData({ ...formData, subcategory_id: e.target.value })}
-                                            className="w-full px-3 py-2 border rounded-lg bg-background mt-1"
+                                            className="w-full px-3 py-2 border rounded-lg bg-background mt-1 focus:ring-2 focus:ring-ring focus:outline-none"
                                         >
                                             <option value="">Toda la categoría</option>
                                             {filteredSubcategories.map(s => (
@@ -714,6 +758,37 @@ export function ProductPromotions() {
                                 )}
                             </div>
                         )}
+
+                        {/* Conditions */}
+                        <div>
+                            <Label className="text-sm font-medium">Condiciones</Label>
+                            <div className="mt-2 space-y-2">
+                                {Object.values(PROMO_CONDITIONS).map((condition) => (
+                                    <div key={condition.id}>
+                                        {condition.type === 'BOOLEAN' && (
+                                            <label className="flex items-center gap-2 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={(formData.conditions && formData.conditions[condition.id]) || false}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        conditions: { ...(formData.conditions || {}), [condition.id]: e.target.checked }
+                                                    })}
+                                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-medium">{condition.label}</span>
+                                                    {condition.description && (
+                                                        <span className="text-xs text-muted-foreground">{condition.description}</span>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        )}
+                                        {/* Future support for other types like NUMBER or SELECT can be added here */}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
                         {/* Vigencia */}
                         <div>
