@@ -58,6 +58,11 @@ export async function updateSession(request: NextRequest) {
   // with the Supabase client, your users may be randomly logged out.
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Allow requests with a code parameter (PKCE flow) to proceed
+  if (request.nextUrl.searchParams.has("code")) {
+    return supabaseResponse;
+  }
+
   // Allow guest portal access ONLY with valid token in query params
   const isGuestPortal = pathname.startsWith("/guest-portal");
   if (isGuestPortal) {

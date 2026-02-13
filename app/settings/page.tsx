@@ -22,6 +22,7 @@ import {
     Wallet,
     TrendingUp,
     Package,
+    Tag,
     History,
     Shield,
     Globe,
@@ -38,10 +39,11 @@ import { useSystemConfig } from "@/hooks/use-system-config";
 import { usePrinterSettings } from "@/hooks/use-printer-settings";
 import { useUserRole } from "@/hooks/use-user-role";
 import { BottlePackageRules } from "@/components/settings/bottle-package-rules";
+import { ProductPromotions } from "@/components/settings/product-promotions";
 import { cn } from "@/lib/utils";
 
 // --- Section definitions ---
-type SectionId = "general" | "rooms" | "reports" | "printing" | "scanner" | "sounds" | "packages" | "history";
+type SectionId = "general" | "rooms" | "reports" | "printing" | "scanner" | "sounds" | "packages" | "promotions" | "history";
 
 interface SectionDef {
     id: SectionId;
@@ -60,6 +62,7 @@ const SECTIONS: SectionDef[] = [
     { id: "scanner", label: "Escáner", icon: <Barcode className="h-4 w-4" />, color: "text-blue-500", scope: "local" },
     { id: "sounds", label: "Sonidos", icon: <Volume2 className="h-4 w-4" />, color: "text-green-500", scope: "local" },
     { id: "packages", label: "Paquetes", icon: <Package className="h-4 w-4" />, color: "text-amber-500", scope: "shared" },
+    { id: "promotions", label: "Promociones", icon: <Tag className="h-4 w-4" />, color: "text-rose-500", scope: "shared" },
     { id: "history", label: "Historial", icon: <History className="h-4 w-4" />, color: "text-gray-500", scope: "info", adminOnly: true },
 ];
 
@@ -657,6 +660,11 @@ export default function SettingsPage() {
                         {/* ==================== PAQUETES ==================== */}
                         {activeSection === "packages" && (
                             <BottlePackageRules />
+                        )}
+
+                        {/* ==================== PROMOCIONES ==================== */}
+                        {activeSection === "promotions" && (
+                            <ProductPromotions />
                         )}
 
                         {/* ==================== HISTORIAL ==================== */}

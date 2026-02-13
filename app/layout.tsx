@@ -10,6 +10,7 @@ import { TrainingProvider } from "@/contexts/training-context";
 import { InteractiveOverlay } from "@/components/training/interactive-overlay";
 import { ChatProvider } from "@/contexts/chat-context";
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { AuthListener } from "@/components/auth/auth-listener";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
@@ -109,6 +110,7 @@ export default function RootLayout({
               <InteractiveOverlay />
               <ChatWidget />
               <ToastProvider />
+              <AuthListener />
               <PWAInstaller />
               <PWAStatus />
               <DataDebug />

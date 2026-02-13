@@ -19,7 +19,8 @@ import {
   Trash2,
   Barcode,
   Check,
-  AlertCircle
+  AlertCircle,
+  Tag
 } from "lucide-react";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { usePOSConfigRead } from "@/hooks/use-pos-config";
@@ -37,6 +38,8 @@ interface Product {
   price: number;
   barcode?: string | null;
   unit?: string;
+  category_id?: string;
+  subcategory_id?: string;
 }
 
 interface CartItem {
@@ -46,6 +49,19 @@ interface CartItem {
   courtesy_reason?: string;
   is_package_item?: boolean;
   included_with?: string; // ID del producto padre (botella)
+}
+
+interface ActivePromotion {
+  id: string;
+  name: string;
+  promo_type: 'NxM' | 'PERCENT_DISCOUNT' | 'FIXED_PRICE';
+  buy_quantity: number | null;
+  pay_quantity: number | null;
+  discount_percent: number | null;
+  fixed_price: number | null;
+  product_id: string | null;
+  category_id: string | null;
+  subcategory_id: string | null;
 }
 
 interface AddConsumptionModalProps {
@@ -86,6 +102,9 @@ export function AddConsumptionModal({
   const [pendingBottle, setPendingBottle] = useState<Product | null>(null);
   const [activePackageRule, setActivePackageRule] = useState<BottlePackageRule | null>(null);
 
+  // Estado para promociones activas
+  const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
+
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -105,10 +124,11 @@ export function AddConsumptionModal({
   const SCAN_COMPLETE_DELAY = posConfig.scanCompleteDelay;
   const MIN_SCAN_LENGTH = posConfig.minScanLength;
 
-  // Cargar productos al abrir
+  // Cargar productos y promociones al abrir
   useEffect(() => {
     if (isOpen) {
       fetchProducts();
+      fetchActivePromotions();
       setCartItems(new Map());
       setSearchValue("");
       setSelectedRow(-1);
@@ -209,7 +229,7 @@ export function AddConsumptionModal({
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, price, barcode, unit")
+        .select("id, name, sku, price, barcode, unit, category_id, subcategory_id")
         .eq("is_active", true)
         .neq("sku", "SVC-ROOM")
         .order("name");
@@ -223,6 +243,79 @@ export function AddConsumptionModal({
       setLoading(false);
     }
   };
+
+  const fetchActivePromotions = async () => {
+    const supabase = createClient();
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("product_promotions")
+        .select("id, name, promo_type, buy_quantity, pay_quantity, discount_percent, fixed_price, product_id, category_id, subcategory_id")
+        .eq("is_active", true)
+        .or(`start_date.is.null,start_date.lte.${now}`)
+        .or(`end_date.is.null,end_date.gte.${now}`);
+
+      if (error) {
+        console.error("Error fetching promotions:", error);
+      } else {
+        setActivePromotions(data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching promotions:", err);
+    }
+  };
+
+  // Buscar la promoción aplicable para un producto
+  const findPromoForProduct = useCallback((product: Product & { category_id?: string; subcategory_id?: string }): ActivePromotion | null => {
+    if (activePromotions.length === 0) return null;
+
+    // Prioridad: producto específico > subcategoría > categoría
+    const byProduct = activePromotions.find(p => p.product_id === product.id);
+    if (byProduct) return byProduct;
+
+    if ((product as any).subcategory_id) {
+      const bySub = activePromotions.find(p => p.subcategory_id === (product as any).subcategory_id && !p.product_id);
+      if (bySub) return bySub;
+    }
+
+    if ((product as any).category_id) {
+      const byCat = activePromotions.find(p => p.category_id === (product as any).category_id && !p.product_id && !p.subcategory_id);
+      if (byCat) return byCat;
+    }
+
+    return null;
+  }, [activePromotions]);
+
+  // Calcular precio efectivo de un item considerando promociones
+  const calcItemPromoTotal = useCallback((product: Product, qty: number, isCourtesy: boolean): { total: number; promo: ActivePromotion | null; savedAmount: number } => {
+    if (isCourtesy) return { total: 0, promo: null, savedAmount: 0 };
+
+    const promo = findPromoForProduct(product);
+    if (!promo) return { total: product.price * qty, promo: null, savedAmount: 0 };
+
+    let total = product.price * qty;
+    switch (promo.promo_type) {
+      case 'NxM': {
+        const buyN = promo.buy_quantity || 2;
+        const payM = promo.pay_quantity || 1;
+        const fullSets = Math.floor(qty / buyN);
+        const remainder = qty % buyN;
+        total = (fullSets * payM + remainder) * product.price;
+        break;
+      }
+      case 'PERCENT_DISCOUNT': {
+        const disc = promo.discount_percent || 0;
+        total = product.price * qty * (1 - disc / 100);
+        break;
+      }
+      case 'FIXED_PRICE': {
+        total = (promo.fixed_price || product.price) * qty;
+        break;
+      }
+    }
+    const savedAmount = (product.price * qty) - total;
+    return { total, promo, savedAmount };
+  }, [findPromoForProduct]);
 
   // Buscar producto por código de barras, SKU o nombre
   const findProduct = useCallback((code: string): Product | null => {
@@ -509,17 +602,19 @@ export function AddConsumptionModal({
     });
   };
 
-  // Calcular totales
-  const { totalAmount, totalItems } = useMemo(() => {
+  // Calcular totales con promociones
+  const { totalAmount, totalItems, totalSaved } = useMemo(() => {
     let amount = 0;
     let items = 0;
+    let saved = 0;
     cartItems.forEach(({ product, qty, is_courtesy }) => {
-      const price = is_courtesy ? 0 : product.price;
-      amount += price * qty;
+      const { total, savedAmount } = calcItemPromoTotal(product, qty, is_courtesy || false);
+      amount += total;
+      saved += savedAmount;
       items += qty;
     });
-    return { totalAmount: amount, totalItems: items };
-  }, [cartItems]);
+    return { totalAmount: amount, totalItems: items, totalSaved: saved };
+  }, [cartItems, calcItemPromoTotal]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-MX", {
@@ -575,18 +670,22 @@ export function AddConsumptionModal({
         return;
       }
 
-      // Insertar items en sales_order_items
-      const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => ({
-        sales_order_id: salesOrderId,
-        product_id: product.id,
-        qty,
-        unit_price: is_courtesy ? 0 : product.price,
-        concept_type: "CONSUMPTION",
-        is_paid: false,
-        is_courtesy: is_courtesy || false,
-        courtesy_reason: courtesy_reason || null,
-        delivery_status: 'PENDING_VALET'
-      }));
+      // Insertar items en sales_order_items (con precios ajustados por promo)
+      const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => {
+        const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
+        const effectiveUnitPrice = is_courtesy ? 0 : (qty > 0 ? total / qty : product.price);
+        return {
+          sales_order_id: salesOrderId,
+          product_id: product.id,
+          qty,
+          unit_price: Math.round(effectiveUnitPrice * 100) / 100,
+          concept_type: "CONSUMPTION",
+          is_paid: false,
+          is_courtesy: is_courtesy || false,
+          courtesy_reason: courtesy_reason || null,
+          delivery_status: 'PENDING_VALET'
+        };
+      });
 
       const { error: itemsError } = await supabase
         .from("sales_order_items")
@@ -842,16 +941,29 @@ export function AddConsumptionModal({
                   >
                     <td className="px-6 py-4 text-muted-foreground">{index + 1}</td>
                     <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium">{item.product.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.product.sku}</p>
-                        {item.is_package_item && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-cyan-600 dark:text-cyan-400 font-medium">
-                            <Package className="h-3 w-3" />
-                            Incluido en paquete
+                      {(() => {
+                        const itemPromo = findPromoForProduct(item.product);
+                        return (
+                          <div>
+                            <p className="font-medium">{item.product.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+                            {item.is_package_item && (
+                              <div className="flex items-center gap-1 mt-1 text-xs text-cyan-600 dark:text-cyan-400 font-medium">
+                                <Package className="h-3 w-3" />
+                                Incluido en paquete
+                              </div>
+                            )}
+                            {itemPromo && !item.is_courtesy && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <Badge className="text-[10px] px-1.5 py-0 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border-0 gap-1">
+                                  <Tag className="h-2.5 w-2.5" />
+                                  {itemPromo.name}
+                                </Badge>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-right font-mono">
                       {formatCurrency(item.product.price)}
@@ -885,9 +997,23 @@ export function AddConsumptionModal({
                         </Button>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right font-mono font-bold text-green-600">
-                      {formatCurrency(item.product.price * item.qty)}
-                    </td>
+                    {(() => {
+                      const { total: promoTotal, promo: rowPromo } = calcItemPromoTotal(item.product, item.qty, item.is_courtesy || false);
+                      const originalTotal = item.is_courtesy ? 0 : item.product.price * item.qty;
+                      const hasDiscount = rowPromo && promoTotal < originalTotal;
+                      return (
+                        <td className="px-6 py-4 text-right font-mono font-bold">
+                          {hasDiscount ? (
+                            <div>
+                              <span className="line-through text-xs text-muted-foreground block">{formatCurrency(originalTotal)}</span>
+                              <span className="text-rose-600">{formatCurrency(promoTotal)}</span>
+                            </div>
+                          ) : (
+                            <span className="text-green-600">{formatCurrency(promoTotal)}</span>
+                          )}
+                        </td>
+                      );
+                    })()}
                     <td className="px-6 py-4">
                       <Button
                         variant="ghost"
@@ -920,6 +1046,12 @@ export function AddConsumptionModal({
               </span>
             </div>
             <div className="text-right">
+              {totalSaved > 0 && (
+                <div className="flex items-center gap-1.5 justify-end mb-1">
+                  <Tag className="h-3.5 w-3.5 text-rose-500" />
+                  <span className="text-sm font-medium text-rose-500">Ahorro: {formatCurrency(totalSaved)}</span>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">TOTAL</p>
               <p className="text-3xl font-bold text-green-600">
                 {formatCurrency(totalAmount)}
