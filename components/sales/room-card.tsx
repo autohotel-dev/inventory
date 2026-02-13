@@ -60,6 +60,8 @@ export interface RoomCardProps {
     hasVehicle: boolean;
     isReady: boolean;
     plate?: string;
+    model?: string;
+    brand?: string;
     isWaitingAuthorization?: boolean;
   } | null;
   onInfo: () => void;
@@ -122,14 +124,65 @@ export function RoomCard({
 
           {/* Indicador de Vehículo */}
           {vehicleStatus?.hasVehicle && (
-            <div
-              className={`flex items-center justify-center h-5 w-5 rounded-md shadow-sm border ${vehicleStatus.isReady
-                ? "bg-emerald-500 border-emerald-400 text-white animate-pulse"
-                : "bg-blue-600 border-blue-500 text-white"
-                }`}
-              title={vehicleStatus.isReady ? `Auto listo! Placa: ${vehicleStatus.plate}` : `Auto en custodia. Placa: ${vehicleStatus.plate}`}
-            >
-              <Car className="h-3 w-3" />
+            <div className="relative group/vehicle">
+              <div
+                className={`flex items-center justify-center h-5 w-5 rounded-md shadow-sm border cursor-help ${vehicleStatus.isReady
+                  ? "bg-emerald-500 border-emerald-400 text-white animate-pulse"
+                  : "bg-blue-600 border-blue-500 text-white"
+                  }`}
+              >
+                <Car className="h-3 w-3" />
+              </div>
+
+              {/* Rich Tooltip (Premium Modern Dark) */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 opacity-0 invisible group-hover/vehicle:opacity-100 group-hover/vehicle:visible transition-all duration-300 z-50 pointer-events-none transform group-hover/vehicle:-translate-y-1">
+                <div className="bg-[#0a0a0a] text-white text-xs rounded-xl shadow-2xl border border-white/10 p-0 overflow-hidden ring-1 ring-white/5 relative">
+                  {/* Subtle Gradient Glow at top */}
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-70"></div>
+
+                  <div className="p-3.5 flex flex-col gap-3">
+                    {/* Header */}
+                    <div className="flex items-center gap-2.5 pb-2 border-b border-white/5">
+                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-1.5 rounded-lg shadow-lg shadow-indigo-500/20">
+                        <Car className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-bold tracking-tight text-sm text-white">Vehículo</span>
+                        <span className="text-[10px] text-zinc-500 font-medium">Detalles Registrados</span>
+                      </div>
+                    </div>
+
+                    {/* Grid Info */}
+                    <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-2 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-zinc-500">
+                        <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
+                        <span className="font-medium">Marca</span>
+                      </div>
+                      <span className="font-medium text-zinc-300 truncate tracking-wide">{vehicleStatus.brand || '---'}</span>
+
+                      <div className="flex items-center gap-1.5 text-zinc-500">
+                        <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
+                        <span className="font-medium">Modelo</span>
+                      </div>
+                      <span className="font-medium text-zinc-300 truncate tracking-wide">{vehicleStatus.model || '---'}</span>
+
+                      <div className="flex items-center gap-1.5 text-zinc-500">
+                        <div className="w-1 h-1 rounded-full bg-indigo-500/50 shadow-[0_0_5px_rgba(99,102,241,0.5)]"></div>
+                        <span className="font-medium text-indigo-300">Placa</span>
+                      </div>
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 blur-sm rounded"></div>
+                        <span className="relative font-mono font-bold text-white bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit block shadow-sm tracking-wider">
+                          {vehicleStatus.plate || '---'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flechita decorativa */}
+                  <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0a0a0a] border-r border-b border-white/10 rotate-45 transform"></div>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -2521,6 +2521,8 @@ function RoomsBoardInternal() {
                 hasVehicle: !!activeStay?.vehicle_plate,
                 isReady: !!activeStay?.checkout_valet_employee_id,
                 plate: activeStay?.vehicle_plate || undefined,
+                model: activeStay?.vehicle_model || undefined,
+                brand: activeStay?.vehicle_brand || undefined,
                 isWaitingAuthorization: !!activeStay?.valet_checkout_requested_at && !activeStay?.vehicle_requested_at
               };
 
