@@ -2362,32 +2362,42 @@ function RoomsBoardInternal() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Tablero de Habitaciones</h1>
-          <p className="text-muted-foreground text-sm hidden sm:block">
+          <p className="text-muted-foreground text-sm hidden md:block">
             Vista general de todas las habitaciones.
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={async () => {
-            setIsRefreshing(true);
-            await fetchRooms(true);
-            setTimeout(() => setIsRefreshing(false), 500);
-          }}
-          disabled={isRefreshing}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-          <span className="hidden sm:inline">{isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
-          <span className="sm:hidden">{isRefreshing ? '...' : 'Sync'}</span>
-        </Button>
-      </div>
 
-      {/* Reloj global - solo visible en tablero de habitaciones */}
-      <GlobalClock />
+        <div className="flex items-center gap-3 w-full sm:w-auto self-end sm:self-auto justify-between sm:justify-end">
+          {/* Reloj móvil: visible a la izquierda en móvil, oculto en desktop */}
+          <div className="sm:hidden flex-1">
+            <GlobalClock />
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              setIsRefreshing(true);
+              await fetchRooms(true);
+              setTimeout(() => setIsRefreshing(false), 500);
+            }}
+            disabled={isRefreshing}
+            className="text-muted-foreground hover:text-foreground transition-colors h-10 px-3 order-2 sm:order-1"
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+            <span className="hidden sm:inline">{isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
+            <span className="sm:hidden">{isRefreshing ? '...' : 'Sync'}</span>
+          </Button>
+
+          {/* Reloj desktop: visible a la derecha en desktop, oculto en móvil */}
+          <div className="hidden sm:block order-1 sm:order-2">
+            <GlobalClock />
+          </div>
+        </div>
+      </div>
 
       {/* Mini-dashboard de contadores por estado */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

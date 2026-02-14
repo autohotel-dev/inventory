@@ -31,15 +31,13 @@ export function GlobalClock() {
     };
 
     return (
-        <div className="w-full flex justify-center md:justify-end mb-4">
-            <div className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl shadow-sm px-6 py-3">
-                <div className="flex flex-col items-center md:items-end gap-0.5">
-                    <div className="text-3xl md:text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                        {formatTime(time)}
-                    </div>
-                    <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">
-                        {formatDate(time)}
-                    </div>
+        <div className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl shadow-sm px-4 py-2">
+            <div className="flex flex-col items-end gap-0.5">
+                <div className="text-xl font-bold tabular-nums tracking-tight text-foreground leading-none">
+                    {formatTime(time)}
+                </div>
+                <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider leading-none">
+                    {formatDate(time)}
                 </div>
             </div>
         </div>
