@@ -46,10 +46,11 @@ export interface RoomActionsWheelProps {
   isValet?: boolean; // Indica si el usuario actual es valet
   hasPendingValetPayment?: boolean; // Si hay pagos cobrados por valet sin confirmar
   hasValetCheckoutRequest?: boolean; // Si el valet propuso salida
+  onCancelValetCheckout?: () => void; // Cancelar/Rechazar solicitud de salida
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onViewServices';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onViewServices' | 'onCancelValetCheckout';
 
 interface ActionConfig {
   id: string;
@@ -64,6 +65,7 @@ interface ActionConfig {
   showOnlyValet?: boolean; // Solo mostrar si es valet
   showOnlyWithCheckoutRequest?: boolean; // Solo mostrar si hay solicitud de salida del valet
   showOnlyWithPendingServices?: boolean; // Solo mostrar si hay consumos pendientes de entrega
+  showOnlyWithActiveCheckout?: boolean; // Solo mostrar si el checkout ya fue autorizado o iniciado
 }
 
 // Configuración de acciones por estado
@@ -90,6 +92,8 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "hour", label: "Gestionar", icon: <Clock className="h-5 w-5" />, color: "text-pink-400", hoverBg: "hover:bg-pink-500/30", action: "onAddHour" },
     { id: "damage", label: "Daños", icon: <AlertTriangle className="h-5 w-5" />, color: "text-red-500", hoverBg: "hover:bg-red-500/30", action: "onAddDamageCharge" },
     { id: "auth_checkout", label: "Autorizar", icon: <Check className="h-5 w-5" />, color: "text-amber-500", hoverBg: "hover:bg-amber-500/30", action: "onAuthorizeValetCheckout", showOnlyWithCheckoutRequest: true },
+    { id: "cancel_checkout", label: "Rechazar", icon: <XCircle className="h-5 w-5" />, color: "text-red-500", hoverBg: "hover:bg-red-500/30", action: "onCancelValetCheckout", showOnlyWithCheckoutRequest: true },
+    { id: "cancel_active_checkout", label: "Cancelar Salida", icon: <XCircle className="h-5 w-5" />, color: "text-orange-500", hoverBg: "hover:bg-orange-500/30", action: "onCancelValetCheckout", showOnlyWithActiveCheckout: true },
     { id: "notify_out", label: "Notificar", icon: <Car className="h-5 w-5" />, color: "text-fuchsia-400", hoverBg: "hover:bg-fuchsia-500/30", action: "onNotifyCheckout", showOnlyValet: true },
     { id: "cancelstay", label: "Cancelar", icon: <XCircle className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onCancelStay" },
   ],
@@ -196,6 +200,7 @@ export function RoomActionsWheel({
   hasPendingValetPayment = false,
   hasValetCheckoutRequest = false,
   onAuthorizeValetCheckout,
+  onCancelValetCheckout,
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -222,6 +227,14 @@ export function RoomActionsWheel({
 
     // Mostrar Solo con solicitud de salida
     if (action.showOnlyWithCheckoutRequest && !hasValetCheckoutRequest) return false;
+
+    // Mostrar Solo con checkout activo (autorizado o valet asignado)
+    if (action.showOnlyWithActiveCheckout) {
+      const isAuthorized = !!activeStay?.vehicle_requested_at;
+      const isReady = !!activeStay?.checkout_valet_employee_id;
+      // Mostrar si está autorizado O asignado, PERO NO si solo es una solicitud pendiente (eso lo cubre 'cancel_checkout')
+      if (!(isAuthorized || isReady) || hasValetCheckoutRequest) return false;
+    }
 
     // Mostrar Servicios siempre en habitaciones ocupadas (el modal mostrará lista vacía si no hay)
     // Nota: podríamos agregar prop hasPendingServices para controlar esto si se requiere
@@ -266,6 +279,7 @@ export function RoomActionsWheel({
     onNotifyCheckout,
     onViewServices,
     onAuthorizeValetCheckout: onAuthorizeValetCheckout || (() => { }),
+    onCancelValetCheckout: onCancelValetCheckout || (() => { }),
   };
 
   return (

@@ -972,6 +972,7 @@ function RoomsBoardInternal() {
     requestVehicle,
     handleAddDamageCharge,
     handleAuthorizeValetCheckout,
+    handleCancelValetCheckout,
   } = useRoomActions(async () => await fetchRooms(true));
 
   useEffect(() => {
@@ -2739,6 +2740,12 @@ function RoomsBoardInternal() {
         onAuthorizeValetCheckout={async () => {
           if (selectedRoom) {
             await handleAuthorizeValetCheckout(selectedRoom);
+            setShowActionsModal(false);
+          }
+        }}
+        onCancelValetCheckout={async () => {
+          if (selectedRoom) {
+            await handleCancelValetCheckout(selectedRoom);
             setShowActionsModal(false);
           }
         }}

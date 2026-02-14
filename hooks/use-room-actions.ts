@@ -332,6 +332,7 @@ export interface UseRoomActionsReturn {
   ) => Promise<boolean>;
   requestVehicle: (stayId: string) => Promise<boolean>;
   handleAuthorizeValetCheckout: (room: Room) => Promise<boolean>;
+  handleCancelValetCheckout: (room: Room) => Promise<boolean>;
 }
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
@@ -1790,6 +1791,40 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     }
   };
 
+  const handleCancelValetCheckout = async (room: Room): Promise<boolean> => {
+    setActionLoading(true);
+    const supabase = createClient();
+    try {
+      const activeStay = getActiveStay(room);
+      if (!activeStay) throw new Error("No hay estancia activa");
+
+      // 1. Cancelar la solicitud (limpiar timestamps)
+      const { error } = await supabase
+        .from('room_stays')
+        .update({
+          valet_checkout_requested_at: null,
+          vehicle_requested_at: null,
+          checkout_valet_employee_id: null
+        })
+        .eq('id', activeStay.id);
+
+      if (error) throw error;
+
+      // 2. Notificar a valets
+      await notifyValetRequestCancelled(supabase, room.number, activeStay.id);
+
+      toast.success("Solicitud cancelada correctamente");
+      await onRefresh();
+      return true;
+    } catch (error) {
+      console.error("Error cancelling valet checkout:", error);
+      toast.error("Error al cancelar la solicitud");
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return {
     actionLoading,
     handleAddPerson,
@@ -1805,5 +1840,22 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     processCheckout,
     requestVehicle,
     handleAuthorizeValetCheckout,
+    handleCancelValetCheckout,
   };
+}
+
+/**
+ * Helper para notificar a valets de la cancelación
+ */
+async function notifyValetRequestCancelled(supabase: any, roomNumber: string, stayId: string) {
+    await notifyActiveValets(
+        supabase,
+        '🚫 Solicitud Cancelada',
+        `Recepción canceló la solicitud de salida de la Habitación ${roomNumber}.`,
+        {
+            type: 'CHECKOUT_CANCELLED',
+            stayId: stayId,
+            roomNumber: roomNumber
+        }
+    );
 }
