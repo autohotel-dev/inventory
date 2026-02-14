@@ -82,10 +82,12 @@ export function RoomCard({
   onInfo,
   onActions,
 }: RoomCardProps) {
+  /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
+  const showDoorAlert = isDoorOpen && status === "OCUPADA";
 
   // Clases dinámicas para alerta de puerta abierta
-  const containerClasses = isDoorOpen
+  const containerClasses = showDoorAlert
     ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-transform duration-300"
     : `${bgClass || "bg-slate-900/80"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : "border-white/5 hover:border-white/20"}`;
 
@@ -96,22 +98,22 @@ export function RoomCard({
       data-room-number={number}
       className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer shadow-sm hover:shadow-md border transition-colors duration-200 ${containerClasses}`}
     >
-      {/* Indicador de pago pendiente (Solo si NO está la puerta abierta para no saturar) */}
-      {hasPendingPayment && !isDoorOpen && (
+      {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
+      {hasPendingPayment && !showDoorAlert && (
         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse" title="Pago pendiente">
           <AlertCircle className="h-3 w-3 text-white" />
         </div>
       )}
 
-      {/* Indicador de Sensor (Puerta Abierta) */}
-      {isDoorOpen && (
+      {/* Indicador de Sensor (Puerta Abierta) - Solo si está ocupada */}
+      {showDoorAlert && (
         <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-30 animate-bounce">
           ¡PUERTA ABIERTA!
         </div>
       )}
 
       {/* Indicador de Valet solicitando salida (Notificación del cochero) */}
-      {vehicleStatus?.isWaitingAuthorization && !isDoorOpen && (
+      {vehicleStatus?.isWaitingAuthorization && !showDoorAlert && (
         <div className="absolute -top-2 -left-2 bg-amber-600 text-white p-1 rounded-md shadow-lg border border-amber-400 z-30 animate-pulse" title="Valet avisa que el cliente está saliendo">
           <Car className="h-3.5 w-3.5" />
         </div>

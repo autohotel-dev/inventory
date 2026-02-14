@@ -1,7 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { NotificationCenter } from "@/components/notifications/notification-center";
 
 function toTitle(segment: string) {
   if (!segment) return "";
@@ -40,9 +39,6 @@ export function Breadcrumbs() {
             ))}
           </div>
         </nav>
-
-        {/* Notification Center */}
-        <NotificationCenter />
       </div>
       <h1 className="text-lg md:text-xl font-semibold">{title}</h1>
     </div>

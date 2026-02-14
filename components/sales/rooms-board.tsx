@@ -2480,25 +2480,7 @@ function RoomsBoardInternal() {
         </div>
       </div>
 
-      {/* Botones de prueba para alertas - ELIMINAR EN PRODUCCIÓN */}
-      <div className="flex gap-2 justify-end sm:ml-auto">
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 text-[10px] border-amber-500/50 text-amber-400 hover:bg-amber-500/20"
-          onClick={() => setReminderAlert({ roomNumber: "101", minutes: 18, level: "20" })}
-        >
-          Test Alerta 20min
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 text-[10px] border-red-500/50 text-red-400 hover:bg-red-500/20"
-          onClick={() => setReminderAlert({ roomNumber: "102", minutes: 3, level: "5" })}
-        >
-          Test Alerta 5min
-        </Button>
-      </div>
+
 
 
       {/* Grid único de habitaciones */}
