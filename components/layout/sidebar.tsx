@@ -110,6 +110,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", permissionId: "purchases-sales", adminOnly: true },
   { href: "/purchases", label: "Compras", icon: "cart", permissionId: "purchases", adminOnly: true },
   { href: "/sales", label: "Ventas", icon: "cart", permissionId: "sales", adminOnly: true },
+  { href: "/room-types", label: "Tipos de Habitación", icon: "settings", permissionId: "room-types", adminOnly: true },
   { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
   { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", permissionId: "sensors", adminOnly: true },
   { divider: true, adminOnly: true },

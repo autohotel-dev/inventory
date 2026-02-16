@@ -1676,10 +1676,10 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     setActionLoading(true);
     const supabase = createClient();
     try {
-      // 1. Obtener la estancia para saber quién es el valet
+      // 1. Obtener la estancia para saber quién es el valet y si tiene placas registradas
       const { data: stay, error: stayError } = await supabase
         .from('room_stays')
-        .select('valet_employee_id, vehicle_requested_at, room:rooms(number)')
+        .select('valet_employee_id, vehicle_requested_at, vehicle_plate, room:rooms(number)')
         .eq('id', stayId)
         .single();
 
@@ -1718,17 +1718,22 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       if (error) throw error;
 
-      // 4. Crear notificación para el cochero
-      // Asegurarse que `room` es un objeto y acceder a `number`
+      // 4. Crear notificación contextual para el cochero
       const roomNumber = (stay.room as any)?.number || "Desconocida";
+      const hasPlate = !!stay.vehicle_plate;
+
+      const title = hasPlate ? '🚗 Solicitar Auto' : '🚗 Registro Pendiente';
+      const message = hasPlate
+        ? `Recepción solicita el vehículo de la Habitación ${roomNumber} (Placas: ${stay.vehicle_plate})`
+        : `Recepción te recuerda registrar el vehículo de la Habitación ${roomNumber}`;
 
       const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           user_id: valetUser.auth_user_id,
           type: 'system_alert',
-          title: '🚗 Registro Pendiente',
-          message: `Recepción te recuerda registrar el vehículo de la Habitación ${roomNumber}`,
+          title: title,
+          message: message,
           data: { stay_id: stayId, room_number: roomNumber },
           is_read: false
         });

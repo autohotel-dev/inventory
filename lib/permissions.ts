@@ -195,6 +195,7 @@ export function getAllMenuResources(): Array<{ id: string; label: string; href: 
         { id: 'purchases-sales', label: 'Dashboard Compras/Ventas', href: '/purchases-sales' },
         { id: 'purchases', label: 'Compras', href: '/purchases' },
         { id: 'sales', label: 'Ventas', href: '/sales' },
+        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types' },
         { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos' },
         { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors' },
         { id: 'employees', label: 'Empleados', href: '/employees' },
