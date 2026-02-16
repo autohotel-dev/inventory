@@ -880,8 +880,8 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         ]
     },
     {
-        value: "chery",
-        label: "Chery",
+        value: "chirey",
+        label: "Chirey",
         models: [
             "Tiggo 2",
             "Tiggo 3",
@@ -990,6 +990,37 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         ]
     },
     {
+        value: "alfa_romeo",
+        label: "Alfa Romeo",
+        models: [
+            "Giulietta",
+            "Giulia",
+            "Stelvio",
+            "Tonale",
+            "MiTo"
+        ]
+    },
+    {
+        value: "jaguar",
+        label: "Jaguar",
+        models: [
+            "XE",
+            "XF",
+            "F-Pace",
+            "E-Pace",
+            "I-Pace",
+            "F-Type"
+        ]
+    },
+    {
+        value: "smart",
+        label: "Smart",
+        models: [
+            "Fortwo",
+            "Forfour"
+        ]
+    },
+    {
         value: "motocicleta",
         label: "Motocicleta",
         models: [
@@ -1011,6 +1042,31 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Kurazai",
             "Dinamo",
             "Otro"
+        ]
+    },
+    {
+        value: "no_especificado",
+        label: "No Especificado",
+        models: [
+            "No Especificado"
+        ]
+    },
+    {
+        value: "sin_vehiculo",
+        label: "Sin Vehículo",
+        models: [
+            "Caminando"
+        ]
+    },
+    {
+        value: "transporte_app",
+        label: "Transporte / App",
+        models: [
+            "Taxi",
+            "InDriver",
+            "Uber",
+            "Didi",
+            "Cabify"
         ]
     }
 ];
