@@ -33,7 +33,18 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Urvan",
             "Maxima",
             "240SX",
-            "300ZX"
+            "300ZX",
+            "Rogue",
+            "Murano",
+            "Armada",
+            "Leaf",
+            "Ariya",
+            "V-Drive",
+            "Juke",
+            "Quest",
+            "Pickup (720)",
+            "D21",
+            "Xterra"
         ]
     },
     {
@@ -41,6 +52,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         label: "Toyota",
         models: [
             "Corolla",
+            "Corolla Cross",
             "Camry",
             "Yaris",
             "Hilux",
@@ -55,7 +67,19 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Celica",
             "Supra",
             "Tundra",
-            "Previa"
+            "Previa",
+            "Highlander",
+            "Land Cruiser",
+            "C-HR",
+            "GR86",
+            "Sequoia",
+            "FJ Cruiser",
+            "Matrix",
+            "Echo",
+            "Paseo",
+            "MR2",
+            "Fortuner",
+            "bZ4X"
         ]
     },
     {
@@ -73,6 +97,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Tahoe",
             "Suburban",
             "Silverado",
+            "Cheyenne",
             "Camaro",
             "Corvette",
             "Chevy",
@@ -84,8 +109,22 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Optra",
             "Spark",
             "Blazer (Clásica)",
+            "Blazer",
             "Astro",
-            "S-10"
+            "S-10",
+            "Captiva",
+            "Tracker",
+            "Colorado",
+            "Traverse",
+            "Groove",
+            "Tornado",
+            "Impala",
+            "Monte Carlo",
+            "Nova",
+            "Celebrity",
+            "Lumina",
+            "Venture",
+            "Express"
         ]
     },
     {
@@ -106,11 +145,24 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Derby",
             "Pointer",
             "Gol",
-            "Golf",
             "Caribe",
             "Combi",
             "Brasilia",
-            "Safari"
+            "Safari",
+            "T-Cross",
+            "Taos",
+            "Virtus",
+            "Nivus",
+            "ID.4",
+            "ID.3",
+            "Saveiro",
+            "Bora",
+            "Lupo",
+            "Clásico",
+            "CrossFox",
+            "Eurovan",
+            "Transporter",
+            "Crafter"
         ]
     },
     {
@@ -130,7 +182,13 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Prelude",
             "Integra",
             "Element",
-            "S2000"
+            "S2000",
+            "BR-V",
+            "ZR-V",
+            "Passport",
+            "Ridgeline",
+            "Insight",
+            "CR-Z"
         ]
     },
     {
@@ -145,7 +203,16 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "CX-9",
             "CX-30",
             "CX-50",
-            "MX-5"
+            "CX-70",
+            "CX-90",
+            "MX-5",
+            "BT-50",
+            "RX-8",
+            "Protegé",
+            "MPV",
+            "Tribute",
+            "626",
+            "323"
         ]
     },
     {
@@ -164,7 +231,14 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Pride",
             "Sephia",
             "Spectra",
-            "Optima"
+            "Optima",
+            "Telluride",
+            "EV6",
+            "EV9",
+            "Niro",
+            "Picanto",
+            "Stonic",
+            "Ceed"
         ]
     },
     {
@@ -180,7 +254,21 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Santa Fe",
             "Palisade",
             "Veloster",
-            "Ioniq"
+            "Ioniq",
+            "Ioniq 5",
+            "Ioniq 6",
+            "Kona",
+            "Grand i10",
+            "i10",
+            "i20",
+            "i30",
+            "HB20",
+            "Starex",
+            "H-100",
+            "Atos",
+            "Genesis Coupé",
+            "Azera",
+            "ix35"
         ]
     },
     {
@@ -199,6 +287,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Ranger",
             "Mustang",
             "Bronco",
+            "Bronco Sport",
             "Ikon",
             "Escort",
             "Contour",
@@ -209,7 +298,18 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Econoline",
             "F-250",
             "F-350",
-            "Ka"
+            "Ka",
+            "Maverick",
+            "Territory",
+            "Puma",
+            "Lobo",
+            "EcoSport",
+            "Flex",
+            "Transit",
+            "Courier",
+            "Thunderbird",
+            "Galaxy",
+            "Grand Marquis"
         ]
     },
     {
@@ -221,7 +321,21 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Toledo",
             "Arona",
             "Ateca",
-            "Tarraco"
+            "Tarraco",
+            "Córdoba",
+            "Mii",
+            "Alhambra"
+        ]
+    },
+    {
+        value: "cupra",
+        label: "CUPRA",
+        models: [
+            "Formentor",
+            "Ateca",
+            "León",
+            "Born",
+            "Tavascan"
         ]
     },
     {
@@ -236,7 +350,15 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Kwid",
             "Duster",
             "Koleos",
-            "Oroch"
+            "Oroch",
+            "Arkana",
+            "Megane",
+            "Kangoo",
+            "Fluence",
+            "Symbol",
+            "Scala",
+            "Trafic",
+            "Master"
         ]
     },
     {
@@ -246,10 +368,18 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Swift",
             "Baleno",
             "Vitara",
+            "Grand Vitara",
             "Ignis",
             "Ciaz",
             "S-Cross",
-            "Jimny"
+            "Jimny",
+            "Ertiga",
+            "Alto",
+            "Fronx",
+            "SX4",
+            "Samurai",
+            "Sidekick",
+            "XL-7"
         ]
     },
     {
@@ -261,7 +391,16 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Eclipse Cross",
             "L200",
             "Montero",
-            "ASX"
+            "Montero Sport",
+            "ASX",
+            "Xpander",
+            "Lancer",
+            "Galant",
+            "Endeavor",
+            "Eclipse",
+            "Pajero",
+            "3000GT",
+            "Space Star"
         ]
     },
     {
@@ -270,11 +409,34 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         models: [
             "208",
             "301",
+            "308",
+            "408",
+            "508",
             "2008",
             "3008",
             "5008",
             "Partner",
-            "Rifter"
+            "Rifter",
+            "Expert",
+            "Boxer",
+            "206",
+            "207",
+            "307",
+            "405"
+        ]
+    },
+    {
+        value: "citroen",
+        label: "Citroën",
+        models: [
+            "C3",
+            "C4",
+            "C4 Cactus",
+            "C5 Aircross",
+            "Berlingo",
+            "Jumpy",
+            "C-Elysée",
+            "C1"
         ]
     },
     {
@@ -284,11 +446,21 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Uno",
             "Palio",
             "500",
+            "500X",
             "Mobi",
             "Argo",
             "Cronos",
             "Toro",
-            "Ducato"
+            "Ducato",
+            "Pulse",
+            "Fastback",
+            "Strada",
+            "Fiorino",
+            "Doblò",
+            "Tipo",
+            "Punto",
+            "Linea",
+            "Siena"
         ]
     },
     {
@@ -300,13 +472,56 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Challenger",
             "Charger",
             "Durango",
-            "Ram",
             "Atos",
             "Stratus",
             "Intrepid",
             "Dakota",
             "Viper",
-            "Caravan"
+            "Caravan",
+            "Grand Caravan",
+            "Journey",
+            "Vision",
+            "Avenger",
+            "Dart",
+            "Nitro",
+            "Caliber",
+            "Shadow",
+            "Spirit",
+            "Stealth"
+        ]
+    },
+    {
+        value: "ram",
+        label: "RAM",
+        models: [
+            "700",
+            "1200",
+            "1500",
+            "2500",
+            "3500",
+            "4000",
+            "ProMaster",
+            "ProMaster City"
+        ]
+    },
+    {
+        value: "chrysler",
+        label: "Chrysler",
+        models: [
+            "300",
+            "Pacifica",
+            "Voyager",
+            "Town & Country",
+            "PT Cruiser",
+            "Sebring",
+            "200",
+            "Crossfire",
+            "Neon",
+            "Cirrus",
+            "Concorde",
+            "New Yorker",
+            "LeBaron",
+            "Shadow"
         ]
     },
     {
@@ -318,8 +533,15 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Cherokee",
             "Rubicon",
             "Grand Cherokee",
+            "Grand Cherokee L",
             "Wrangler",
-            "Gladiator"
+            "Gladiator",
+            "Avenger",
+            "Wagoneer",
+            "Grand Wagoneer",
+            "Liberty",
+            "Patriot",
+            "Commander"
         ]
     },
     {
@@ -332,12 +554,21 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Serie 4",
             "Serie 5",
             "Serie 7",
+            "Serie 8",
             "X1",
+            "X2",
             "X3",
+            "X4",
             "X5",
             "X6",
             "X7",
-            "Z4"
+            "Z4",
+            "i4",
+            "iX",
+            "iX3",
+            "M3",
+            "M4",
+            "M5"
         ]
     },
     {
@@ -348,11 +579,23 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Clase C",
             "Clase E",
             "Clase S",
+            "CLA",
+            "CLS",
             "GLA",
             "GLB",
             "GLC",
             "GLE",
-            "GLS"
+            "GLS",
+            "AMG GT",
+            "EQA",
+            "EQB",
+            "EQE",
+            "EQS",
+            "Sprinter",
+            "Vito",
+            "Metris",
+            "SLK",
+            "SL"
         ]
     },
     {
@@ -372,7 +615,204 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Q7",
             "Q8",
             "TT",
-            "R8"
+            "R8",
+            "e-tron",
+            "e-tron GT",
+            "Q4 e-tron",
+            "RS3",
+            "RS5",
+            "S3",
+            "S4"
+        ]
+    },
+    {
+        value: "acura",
+        label: "Acura",
+        models: [
+            "ILX",
+            "TLX",
+            "RDX",
+            "MDX",
+            "Integra",
+            "NSX",
+            "TSX",
+            "RSX",
+            "TL",
+            "RL"
+        ]
+    },
+    {
+        value: "infiniti",
+        label: "Infiniti",
+        models: [
+            "Q50",
+            "Q60",
+            "QX50",
+            "QX55",
+            "QX60",
+            "QX80",
+            "G35",
+            "G37",
+            "FX35",
+            "FX45"
+        ]
+    },
+    {
+        value: "lexus",
+        label: "Lexus",
+        models: [
+            "IS",
+            "ES",
+            "GS",
+            "LS",
+            "NX",
+            "RX",
+            "UX",
+            "GX",
+            "LX",
+            "LC",
+            "RC",
+            "CT"
+        ]
+    },
+    {
+        value: "lincoln",
+        label: "Lincoln",
+        models: [
+            "Corsair",
+            "Nautilus",
+            "Aviator",
+            "Navigator",
+            "MKZ",
+            "MKC",
+            "MKX",
+            "Continental",
+            "Town Car"
+        ]
+    },
+    {
+        value: "cadillac",
+        label: "Cadillac",
+        models: [
+            "CT4",
+            "CT5",
+            "XT4",
+            "XT5",
+            "XT6",
+            "Escalade",
+            "LYRIQ",
+            "ATS",
+            "CTS",
+            "SRX",
+            "XTS",
+            "DeVille",
+            "Seville"
+        ]
+    },
+    {
+        value: "buick",
+        label: "Buick",
+        models: [
+            "Enclave",
+            "Encore",
+            "Encore GX",
+            "Envision",
+            "LaCrosse",
+            "Regal",
+            "Verano",
+            "Century",
+            "LeSabre",
+            "Park Avenue",
+            "Rendezvous"
+        ]
+    },
+    {
+        value: "gmc",
+        label: "GMC",
+        models: [
+            "Sierra",
+            "Canyon",
+            "Terrain",
+            "Acadia",
+            "Yukon",
+            "Yukon XL",
+            "Savana",
+            "Hummer EV"
+        ]
+    },
+    {
+        value: "porsche",
+        label: "Porsche",
+        models: [
+            "Cayenne",
+            "Macan",
+            "911",
+            "Panamera",
+            "Taycan",
+            "Boxster",
+            "Cayman",
+            "718"
+        ]
+    },
+    {
+        value: "land_rover",
+        label: "Land Rover",
+        models: [
+            "Defender",
+            "Discovery",
+            "Discovery Sport",
+            "Range Rover",
+            "Range Rover Sport",
+            "Range Rover Evoque",
+            "Range Rover Velar",
+            "Freelander"
+        ]
+    },
+    {
+        value: "volvo",
+        label: "Volvo",
+        models: [
+            "S40",
+            "S60",
+            "S90",
+            "V40",
+            "V60",
+            "XC40",
+            "XC60",
+            "XC90",
+            "C40",
+            "C30",
+            "V50",
+            "850"
+        ]
+    },
+    {
+        value: "subaru",
+        label: "Subaru",
+        models: [
+            "Impreza",
+            "Crosstrek",
+            "Legacy",
+            "Outback",
+            "Forester",
+            "WRX",
+            "BRZ",
+            "Ascent",
+            "XV",
+            "Solterra"
+        ]
+    },
+    {
+        value: "mini",
+        label: "MINI",
+        models: [
+            "Cooper",
+            "Cooper S",
+            "Countryman",
+            "Clubman",
+            "Paceman",
+            "Convertible",
+            "John Cooper Works"
         ]
     },
     {
@@ -380,26 +820,35 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
         label: "BYD",
         models: [
             "Dolphin",
+            "Dolphin Mini",
             "Seal",
             "Atto 3",
             "Han",
             "Tang",
             "Song Plus",
             "Yuan Plus",
-            "Qin"
+            "Qin",
+            "Shark",
+            "King"
         ]
     },
     {
         value: "mg",
         label: "MG",
         models: [
+            "MG3",
+            "MG4",
             "MG5",
             "MG6",
             "MG ZS",
+            "MG ZS EV",
             "MG RX5",
             "MG HS",
             "MG GT",
-            "MG ONE"
+            "MG ONE",
+            "MG VS",
+            "MG Marvel R",
+            "MG Mulan"
         ]
     },
     {
@@ -411,7 +860,10 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Azkarra",
             "Emgrand",
             "GS",
-            "Tugella"
+            "Tugella",
+            "Monjaro",
+            "Preface",
+            "Starray"
         ]
     },
     {
@@ -421,6 +873,7 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "X70",
             "X70 Plus",
             "X90",
+            "X90 Plus",
             "Dashing",
             "T1",
             "T2"
@@ -433,12 +886,26 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Tiggo 2",
             "Tiggo 3",
             "Tiggo 4",
+            "Tiggo 4 Pro",
             "Tiggo 7",
+            "Tiggo 7 Pro",
             "Tiggo 8",
             "Tiggo 8 Pro",
+            "Tiggo 8 Pro Max",
             "Arrizo 5",
             "Arrizo 6",
-            "Omoda 5"
+            "Arrizo 6 Pro"
+        ]
+    },
+    {
+        value: "omoda",
+        label: "Omoda / Jaecoo",
+        models: [
+            "Omoda 5",
+            "Omoda C5",
+            "Omoda E5",
+            "Jaecoo 7",
+            "Jaecoo 8"
         ]
     },
     {
@@ -449,11 +916,17 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "CS35",
             "CS35 Plus",
             "CS55",
+            "CS55 Plus",
             "CS75",
+            "CS75 Plus",
             "CS85",
+            "CS95",
             "Alsvin",
             "Eado",
-            "Hunter"
+            "Hunter",
+            "UNI-T",
+            "UNI-K",
+            "UNI-V"
         ]
     },
     {
@@ -467,7 +940,42 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "T6",
             "T8",
             "E10X",
-            "JS4"
+            "JS4",
+            "JS3",
+            "JS2",
+            "Sei 4",
+            "Sei 7",
+            "Sunray",
+            "Refine",
+            "Frison"
+        ]
+    },
+    {
+        value: "haval",
+        label: "Haval / Great Wall",
+        models: [
+            "H6",
+            "Jolion",
+            "Dargo",
+            "H2",
+            "H5",
+            "H9",
+            "Poer",
+            "Wingle",
+            "ORA 03"
+        ]
+    },
+    {
+        value: "baic",
+        label: "BAIC",
+        models: [
+            "X35",
+            "X55",
+            "X65",
+            "D20",
+            "U5 Plus",
+            "Beijing X7",
+            "Senova"
         ]
     },
     {
@@ -479,6 +987,30 @@ export const VEHICLE_BRANDS: VehicleBrand[] = [
             "Model S",
             "Model X",
             "Cybertruck"
+        ]
+    },
+    {
+        value: "motocicleta",
+        label: "Motocicleta",
+        models: [
+            "Italika",
+            "Honda",
+            "Yamaha",
+            "Suzuki",
+            "Kawasaki",
+            "BMW",
+            "Harley-Davidson",
+            "KTM",
+            "Ducati",
+            "Bajaj",
+            "Vento",
+            "Benelli",
+            "Royal Enfield",
+            "CF Moto",
+            "Carabela",
+            "Kurazai",
+            "Dinamo",
+            "Otro"
         ]
     }
 ];
