@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IncomeReport } from "@/components/reports/income-report";
+import { ShiftMigrationTool } from "@/components/reports/shift-migration-tool";
 import { createClient } from "@/lib/supabase/client";
 import { Filter, Settings2, ArrowDownCircle, CheckCircle2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -61,34 +62,53 @@ function IncomeReportContent() {
 
         console.log("🔍 All recent sessions (for debugging):", { allSessions, allSessionsError });
 
-        // 2. Obtener turno actual activo
+        // 2. Obtener turnos activos (puede haber varios: recepcionista, cochero, etc.)
         const { data: activeSessions, error: sessionError } = await supabase
             .from("shift_sessions")
-            .select("id, clock_in_at, employee_id, status")
-            .eq("status", "active");
+            .select(`
+                id, 
+                clock_in_at, 
+                employee_id, 
+                status,
+                employees (
+                    id,
+                    first_name,
+                    last_name,
+                    role
+                )
+            `)
+            .in("status", ["active", "open"])
+            .order("clock_in_at", { ascending: false });
 
         console.log("🔍 Open sessions query result:", { activeSessions, sessionError });
 
-        // Tomar la primera sesión abierta (debería haber solo una)
-        const activeSession = activeSessions && activeSessions.length > 0 ? activeSessions[0] : null;
+        // Filtrar y priorizar sesión de recepción
+        let activeSession = null;
+        if (activeSessions && activeSessions.length > 0) {
+            // Buscar primero un recepcionista, admin o manager
+            activeSession = activeSessions.find((s: any) =>
+                ['receptionist', 'admin', 'manager'].includes(s.employees?.role)
+            );
+
+            // Si no hay ninguno de esos, usar el primero que haya (fallback)
+            if (!activeSession) {
+                activeSession = activeSessions[0];
+            }
+        }
 
         if (sessionError) {
             console.error("Error fetching active session:", sessionError);
         }
 
-        // Si hay turno activo, obtener info del empleado por separado
+        // Si hay turno activo, usar la info del empleado que ya trajimos (o buscarla si faltara)
         let employeeName = "Usuario Actual";
-        if (activeSession?.employee_id) {
-            const { data: employee } = await supabase
-                .from("employees")
-                .select("first_name, last_name")
-                .eq("id", activeSession.employee_id)
-                .single();
+        let employeeRole = null;
 
-            console.log("👤 Employee data:", employee);
-
-            if (employee) {
-                employeeName = `${employee.first_name} ${employee.last_name}`;
+        if (activeSession) {
+            const emp = activeSession.employees as any;
+            if (emp) {
+                employeeName = `${emp.first_name} ${emp.last_name}`;
+                employeeRole = emp.role;
             }
         }
 
@@ -99,7 +119,9 @@ function IncomeReportContent() {
                 *,
                 employees!shift_closings_employee_id_fkey (
                     first_name,
-                    last_name
+                    last_name,
+                    role
+                )
                 )
             `)
             .order("created_at", { ascending: false })
@@ -118,6 +140,7 @@ function IncomeReportContent() {
                 id: activeSession.id,
                 is_current: true, // Flag para identificar turno actual
                 employee_name: employeeName,
+                role: employeeRole,
                 created_at: activeSession.clock_in_at,
                 type: 'active'
             });
@@ -138,7 +161,35 @@ function IncomeReportContent() {
 
         console.log("📊 All shifts combined:", allShifts);
 
-        setShifts(allShifts);
+        // Filtrar solo turnos de recepción (admin, manager, receptionist)
+        // Esto asegura que el reporte de ingresos se centre en la operación de recepción
+        const receptionShifts = allShifts.filter(shift => {
+            // Si es tipo 'active', necesitamos verificar el rol del empleado asociado
+            // NOTA: Para el turno activo, activeSession no tiene el rol directamente.
+            // Deberíamos haberlo pedido en la query de activeSessions o activeSession.employee query.
+            // Por simplicidad, asumimos que si el usuario está viendo esto es reception/admin
+            // PERO para ser estrictos, deberíamos checar el rol.
+            return true; // Por ahora pasamos todos, y filtraremos abajo con mejor lógica si es necesario
+        });
+
+        // Mejor aproximación: Filtrar por los roles permitidos si tenemos la data
+        const allowedRoles = ['admin', 'manager', 'receptionist'];
+
+        const filteredShifts = allShifts.filter(s => {
+            // SIEMPRE mostrar el turno actual (active) para que el usuario pueda seleccionarlo
+            if (s.is_current) return true;
+
+            // Si viene de closedShifts, tiene employees.role
+            const empRole = s.employees?.role || s.role; // Helper si lo trajimos
+            if (empRole) {
+                return allowedRoles.includes(empRole);
+            }
+            return true; // Si no hay info de rol, lo mostramos por si acaso
+        });
+
+        console.log("📊 Filtered shifts:", filteredShifts);
+
+        setShifts(filteredShifts);
 
         // Auto-seleccionar el turno actual si no hay selección y estamos en modo turno
         if (reportType === 'shift' && !selectedShift && activeSession) {
@@ -421,6 +472,9 @@ function IncomeReportContent() {
                     </div>
                 </div>
             </CollapsibleSection>
+
+            {/* Herramienta temporal de migración */}
+            <ShiftMigrationTool />
 
             {/* Componente de reporte */}
             <IncomeReport

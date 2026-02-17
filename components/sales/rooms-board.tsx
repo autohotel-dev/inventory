@@ -24,7 +24,7 @@ import {
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { VehicleInfo } from "@/components/sales/room-start-stay-modal";
 import { useThermalPrinter, ConsumptionTicketData } from "@/hooks/use-thermal-printer";
-import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getActiveStay, generatePaymentReference, getCurrentShiftId } from "@/hooks/use-room-actions";
+import { useRoomActions, isToleranceExpired, getToleranceRemainingMinutes, getActiveStay, generatePaymentReference, getCurrentShiftId, getReceptionShiftId } from "@/hooks/use-room-actions";
 import { createServiceItem } from "@/lib/services/product-service";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -130,6 +130,7 @@ function RoomsBoardInternal() {
     salesOrderId: string;
     remainingAmount: number;
     pendingItems?: { concept_type: string; total: number; count: number }[];
+    hasUndeliveredItems?: boolean;
   } | null>(null);
   // Estados para pagar extras
   const [showPayExtraModal, setShowPayExtraModal] = useState(false);
@@ -1011,11 +1012,13 @@ function RoomsBoardInternal() {
       const supabase = createClient();
       const { data: itemsData } = await supabase
         .from("sales_order_items")
-        .select("concept_type, total, is_paid")
+        .select("concept_type, total, is_paid, delivery_status")
         .eq("sales_order_id", info.salesOrderId);
 
-      // Agrupar por concepto los items no pagados
+      // Agrupar por concepto los items no pagados y verificar entregas
       const pendingByType: Record<string, { total: number; count: number }> = {};
+      let hasUndeliveredItems = false;
+
       if (itemsData) {
         itemsData.forEach((item: any) => {
           if (!item.is_paid) {
@@ -1025,6 +1028,12 @@ function RoomsBoardInternal() {
             }
             pendingByType[type].total += item.total || 0;
             pendingByType[type].count += 1;
+
+            // Verificación de flujo estricto: Bloquear si hay entrega/servicio pendiente
+            if (item.delivery_status &&
+              item.delivery_status !== 'DELIVERED' && item.delivery_status !== 'COMPLETED') {
+              hasUndeliveredItems = true;
+            }
           }
         });
       }
@@ -1035,7 +1044,7 @@ function RoomsBoardInternal() {
         count: data.count,
       }));
 
-      setCheckoutInfo({ ...info, pendingItems });
+      setCheckoutInfo({ ...info, pendingItems, hasUndeliveredItems });
       setCheckoutAmount(info.remainingAmount);
       setSelectedRoom(room);
       setShowCheckoutModal(true);
@@ -1791,7 +1800,8 @@ function RoomsBoardInternal() {
       } = await supabase.auth.getUser();
 
       // Obtener turno actual y employee_id
-      const currentShiftId = await getCurrentShiftId(supabase);
+      // FIX: Usar turno de recepción para asignar ingresos, no el del usuario actual (si es valet)
+      const currentShiftId = await getReceptionShiftId(supabase);
       const currentEmployeeId = await getCurrentEmployeeId(supabase);
 
       // FIX #1: Verificar que la habitación siga disponible antes de proceder
@@ -2052,7 +2062,7 @@ function RoomsBoardInternal() {
       }
 
       // FIX #4: Notificar a todos los cocheros (VALETS) usando helper
-      await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id);
+      // await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id); // Reemplazado por Trigger DB
 
       // Imprimir ticket de entrada
       try {
@@ -2159,7 +2169,8 @@ function RoomsBoardInternal() {
       const { data: { user } } = await supabase.auth.getUser();
 
       // Obtener turno actual y employee_id
-      const currentShiftId = await getCurrentShiftId(supabase);
+      // FIX: Usar turno de recepción para asignar ingresos
+      const currentShiftId = await getReceptionShiftId(supabase);
       const currentEmployeeId = await getCurrentEmployeeId(supabase);
 
       // Crear orden de venta con pago PENDIENTE
@@ -2279,7 +2290,7 @@ function RoomsBoardInternal() {
         .eq("id", selectedRoom.id);
 
       // FIX #4: Notificar a valets también en quick check-in
-      await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id);
+      // await notifyValetsOfNewEntry(supabase, selectedRoom.number, selectedRoom.id, stayData.id); // Reemplazado por Trigger DB
 
       const timeDiff = Math.round((new Date().getTime() - entryTime.getTime()) / 60000);
 
@@ -2544,8 +2555,22 @@ function RoomsBoardInternal() {
                     setSelectedRoom(room);
                     setShowInfoModal(true);
                   }}
-                  onActions={() => openActionsDock(room)}
+                  onActions={() => {
+                    // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
+                    // Se considera pendiente si está OCUPADA, tiene PLACA registrada, pero NO tiene valet asignado
+                    const valetPending = status === "OCUPADA" && activeStay && activeStay.vehicle_plate && !activeStay.valet_employee_id;
+
+                    if (valetPending) {
+                      toast.error("Esperando al Cochero", {
+                        description: "No se pueden realizar acciones hasta que el cochero verifique el vehículo.",
+                        duration: 4000
+                      });
+                      return;
+                    }
+                    openActionsDock(room);
+                  }}
                   data-tutorial="room-card"
+                  isValetPending={status === "OCUPADA" && !!activeStay && !!activeStay.vehicle_plate && !activeStay.valet_employee_id}
                 />
               );
             })}
@@ -2577,6 +2602,7 @@ function RoomsBoardInternal() {
         checkoutAmount={checkoutAmount}
         actionLoading={actionLoading}
         pendingItems={checkoutInfo?.pendingItems}
+        hasUndeliveredItems={checkoutInfo?.hasUndeliveredItems}
         onAmountChange={setCheckoutAmount}
         onClose={() => {
           setShowCheckoutModal(false);

@@ -37,12 +37,44 @@ export async function getCurrentShiftId(supabase: any): Promise<string | null> {
       .from("shift_sessions")
       .select("id")
       .eq("employee_id", employee.id)
-      .eq("status", "active")
+      .in("status", ["active", "open"])
       .maybeSingle();
 
     return session?.id || null;
   } catch (error) {
     console.error("Error getting current shift:", error);
+    return null;
+  }
+}
+
+// FIX: Helper para obtener SIEMPRE el turno de recepción activo
+// Prioriza:
+// 1. Turno de recepción activo (role = 'receptionist' o 'admin'/'manager')
+// 2. Turno actual del usuario si no hay recepción (fallback)
+export async function getReceptionShiftId(supabase: any): Promise<string | null> {
+  try {
+    // Buscar cualquier sesión activa de un recepcionista
+    const { data: receptionSessions, error } = await supabase
+      .from("shift_sessions")
+      .select(`
+        id,
+        employees!inner (
+          role
+        )
+      `)
+      .in("status", ["active", "open"])
+      .or("role.eq.receptionist,role.eq.admin,role.eq.manager", { foreignTable: "employees" })
+      .order("clock_in_at", { ascending: false }) // Tomar el más reciente si hay varios
+      .limit(1);
+
+    if (receptionSessions && receptionSessions.length > 0) {
+      return receptionSessions[0].id;
+    }
+
+    // Si no hay recepcionista activo, fallback al turno del usuario actual (por si acaso)
+    return await getCurrentShiftId(supabase);
+  } catch (error) {
+    console.error("Error getting reception shift:", error);
     return null;
   }
 }
@@ -177,20 +209,10 @@ async function updatePendingPaymentsHelper(
       // Crear subpagos proporcionales para este pago pendiente
       const proportion = amountForThis / totalPaid;
 
-      // Obtener turno actual para los subpagos nuevos
-      // Nota: getCurrentShiftId debería pasarse o estar disponible. Como es helper aislado, podemos requerir pasarlo o usar supabase.
-      // Modificamos slightly para usar el supabase client que ya viene
-      const { data: { user } } = await supabase.auth.getUser();
-      let currentShiftId = null;
-      if (user) {
-        const { data: emp } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
-        if (emp) {
-          const { data: sess } = await supabase.from("shift_sessions").select("id").eq("employee_id", emp.id).eq("status", "open").maybeSingle();
-          currentShiftId = sess?.id;
-        }
-      }
-
-      const subpayments = validPayments.map(p => ({
+        // Obtener turno para los subpagos nuevos (Recepción)
+        const currentShiftId = await getReceptionShiftId(supabase);
+        
+        const subpayments = validPayments.map(p => ({
         sales_order_id: salesOrderId,
         amount: Math.round(p.amount * proportion * 100) / 100,
         payment_method: p.method,
@@ -218,16 +240,8 @@ async function updatePendingPaymentsHelper(
       // Pago único - actualizar el pago pendiente directamente
       const p = validPayments[0];
 
-      // Obtener turno actual para actualizar el pago
-      const { data: { user } } = await supabase.auth.getUser();
-      let currentShiftId = null;
-      if (user) {
-        const { data: emp } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
-        if (emp) {
-          const { data: sess } = await supabase.from("shift_sessions").select("id").eq("employee_id", emp.id).eq("status", "open").maybeSingle();
-          currentShiftId = sess?.id;
-        }
-      }
+      // Obtener turno actual para actualizar el pago (Recepción)
+      const currentShiftId = await getReceptionShiftId(supabase);
 
       const updateData: any = {
         status: "PAGADO",
@@ -416,7 +430,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
                 concept: "TOLERANCIA_EXPIRADA",
                 status: "PENDIENTE",
                 payment_type: "COMPLETO",
-                shift_session_id: await getCurrentShiftId(supabase) // Vincular al turno
+                shift_session_id: await getReceptionShiftId(supabase) // Vincular al turno de recepción
               });
 
               toast.warning("Tolerancia expirada - Habitación cobrada", {
@@ -517,7 +531,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               concept: "PERSONA_EXTRA",
               status: "PENDIENTE",
               payment_type: "COMPLETO",
-              shift_session_id: await getCurrentShiftId(supabase),
+              shift_session_id: await getReceptionShiftId(supabase),
             });
 
             if (paymentError) {
@@ -881,7 +895,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         concept: "DAMAGE_CHARGE",
         status: "PENDIENTE",
         payment_type: "COMPLETO",
-        shift_session_id: await getCurrentShiftId(supabase),
+        shift_session_id: await getReceptionShiftId(supabase),
         notes: description
       });
 
@@ -990,7 +1004,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
         // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
         if (remainingAfterPending > 0 && !isCourtesy) {
-          const currentShiftId = await getCurrentShiftId(supabase);
+          const currentShiftId = await getReceptionShiftId(supabase);
           const validPayments = payments.filter(p => p.amount > 0);
 
           for (const p of validPayments) {
@@ -1124,7 +1138,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
         // Esto sucede cuando la estancia original ya estaba pagada y la renovación es un cargo nuevo
         if (remainingAfterPending > 0) {
-          const currentShiftId = await getCurrentShiftId(supabase);
+          const currentShiftId = await getReceptionShiftId(supabase);
           const validPayments = payments.filter(p => p.amount > 0);
 
           for (const p of validPayments) {
@@ -1283,7 +1297,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
         // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
         if (remainingAfterPending > 0) {
-          const currentShiftId = await getCurrentShiftId(supabase);
+          const currentShiftId = await getReceptionShiftId(supabase);
           const validPayments = payments.filter(p => p.amount > 0);
 
           for (const p of validPayments) {
@@ -1443,7 +1457,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           }
 
           // 2. Crear registros de pago PENDIENTES para que aparezcan en Granular Payment
-          const currentShiftId = await getCurrentShiftId(supabase);
+          const currentShiftId = await getReceptionShiftId(supabase);
           const pendingPayments = [];
           for (let i = 0; i < hoursToCharge; i++) {
             pendingPayments.push({
@@ -1514,15 +1528,16 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
     try {
-      // 1. REVALIDAR TOLERANCIA
+      // 1. REVALIDAR TOLERANCIA Y VERIFICAR ESTADO (Strict Workflow)
       const { data: freshStay, error: stayError } = await supabase
         .from("room_stays")
-        .select("tolerance_started_at, tolerance_type, id")
+        .select("tolerance_started_at, tolerance_type, id, vehicle_plate, checkout_valet_employee_id")
         .eq("sales_order_id", checkoutInfo.salesOrderId)
         .eq("status", "ACTIVA")
         .single();
 
       if (!stayError && freshStay) {
+        // Validación de Tolerancia
         if (freshStay.tolerance_started_at && freshStay.tolerance_type) {
           if (isToleranceExpired(freshStay.tolerance_started_at)) {
             setActionLoading(false);
@@ -1533,8 +1548,49 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             return false;
           }
         }
+
+        // Validación de Salida de Vehículo (Strict Checkout Workflow)
+        // SI hay placa registrada, DEBE haber un cochero de salida asignado (Verificado)
+        if (freshStay.vehicle_plate && !freshStay.checkout_valet_employee_id) {
+          setActionLoading(false);
+          logger.warn("Checkout blocked due to unverified vehicle exit", {
+            salesOrderId: checkoutInfo.salesOrderId,
+            plate: freshStay.vehicle_plate
+          });
+          toast.error("Salida de vehículo no verificada", {
+            description: "El cochero debe verificar la salida del vehículo antes de finalizar.",
+            duration: 6000
+          });
+          return false;
+        }
+
       } else {
         toast.error("No se encontró la estancia activa o ya fue finalizada.");
+        return false;
+      }
+
+      // 1.5. VALIDACIÓN DE ENTREGAS PENDIENTES (Strict Consumption Workflow)
+      // Bloquear checkout si hay productos de consumo que no han sido entregados
+      const { data: pendingDeliveries } = await supabase
+        .from("sales_order_items")
+        .select("id")
+        .eq("sales_order_id", checkoutInfo.salesOrderId)
+        .eq("concept_type", "CONSUMPTION")
+        .not("delivery_status", "is", null) // Solo validar si tiene estado de entrega
+        .neq("delivery_status", "DELIVERED")
+        .neq("delivery_status", "COMPLETED")
+        .neq("delivery_status", "CANCELLED");
+
+      if (pendingDeliveries && pendingDeliveries.length > 0) {
+        setActionLoading(false);
+        logger.warn("Checkout blocked due to undelivered items", {
+          salesOrderId: checkoutInfo.salesOrderId,
+          count: pendingDeliveries.length
+        });
+        toast.error("Entregas pendientes", {
+          description: "No se puede finalizar. Hay productos sin entregar por el valet.",
+          duration: 5000
+        });
         return false;
       }
 
@@ -1578,7 +1634,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       // Preparamos los "Nuevos Pagos" que la RPC debe insertar
       // Solo si sobra dinero después de cubrir los pendientes
       const newPaymentsToInsert: any[] = [];
-      const currentShiftId = await getCurrentShiftId(supabase);
+      const currentShiftId = await getReceptionShiftId(supabase);
 
       if (remainingAfterPending > 0 && payments && payments.length > 0) {
         const validPayments = payments.filter(p => p.amount > 0);

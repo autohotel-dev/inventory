@@ -511,6 +511,17 @@ export function GranularPaymentModal({
     return baseTotal;
   };
 
+  // Helper para determinar si un item se puede pagar (Workflow Estricto)
+  const isItemPayable = (item: OrderItem) => {
+    // Si tiene estado de entrega, debe estar ENTREGADO o COMPLETADO
+    if (item.delivery_status &&
+      item.delivery_status !== 'DELIVERED' &&
+      item.delivery_status !== 'COMPLETED') {
+      return false;
+    }
+    return true;
+  };
+
   const selectedTotal = items
     .filter((item: any) => selectedItems.has(item.id))
     .reduce((sum: number, item: any) => sum + getItemTotal(item), 0);
@@ -543,6 +554,16 @@ export function GranularPaymentModal({
 
   // Toggle selección de item
   const toggleItem = (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (!isItemPayable(item)) {
+      toast.error("Concepto no disponible para pago", {
+        description: "El servicio o entrega debe completarse primero."
+      });
+      return;
+    }
+
     const newSelected = new Set(selectedItems);
     if (newSelected.has(itemId)) {
       newSelected.delete(itemId);
@@ -554,7 +575,17 @@ export function GranularPaymentModal({
 
   // Seleccionar todos los pendientes
   const selectAllPending = () => {
-    const allPendingIds = pendingItems.map(item => item.id);
+    // Solo seleccionar los que son pagables
+    const allPendingIds = pendingItems
+      .filter(item => isItemPayable(item))
+      .map(item => item.id);
+
+    if (allPendingIds.length < pendingItems.length) {
+      toast.info("Algunos items no se seleccionaron", {
+        description: "Hay conceptos con entrega o servicio pendiente."
+      });
+    }
+
     setSelectedItems(new Set(allPendingIds));
   };
 
@@ -1150,6 +1181,11 @@ export function GranularPaymentModal({
                       const itemDiscount = discounts[item.id] || 0;
                       const finalTotal = getItemTotal(item);
 
+                      // WORKFLOW ESTRICTO: Bloquear selección si no está listo para pago
+                      const isPayable = isItemPayable(item);
+                      // Usamos isLocked para la UI
+                      const isLocked = !isPayable;
+
                       return (
                         <div
                           key={item.id}
@@ -1157,16 +1193,30 @@ export function GranularPaymentModal({
                             "group relative flex flex-col gap-2 p-3 rounded-xl border transition-all duration-200",
                             selectedItems.has(item.id)
                               ? "bg-primary/5 border-primary/30 shadow-sm"
-                              : "bg-card border-border/50 hover:bg-muted/30 hover:border-primary/20"
+                              : isLocked
+                                ? "bg-muted/10 border-border/30 opacity-70 cursor-not-allowed"
+                                : "bg-card border-border/50 hover:bg-muted/30 hover:border-primary/20"
                           )}
                         >
                           <div
-                            className="flex items-start gap-3 cursor-pointer select-none"
-                            onClick={() => toggleItem(item.id)}
+                            className={cn(
+                              "flex items-start gap-3 select-none",
+                              isLocked ? "cursor-not-allowed" : "cursor-pointer"
+                            )}
+                            onClick={() => {
+                              if (isLocked) {
+                                toast.error("Servicio Pendiente", {
+                                  description: "El servicio o entrega debe completarse primero antes de cobrar."
+                                });
+                                return;
+                              }
+                              toggleItem(item.id);
+                            }}
                           >
                             <Checkbox
                               checked={selectedItems.has(item.id)}
                               onCheckedChange={() => toggleItem(item.id)}
+                              disabled={isLocked}
                               className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                             />
 
@@ -1208,10 +1258,18 @@ export function GranularPaymentModal({
                                 </p>
                               )}
 
-                              <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal bg-muted/50 border-border/50 text-muted-foreground group-hover:border-primary/20">
                                   {CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
                                 </Badge>
+
+                                {isLocked && (
+                                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-medium border-orange-500/30 text-orange-500 bg-orange-500/5 animate-pulse">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Pendiente
+                                  </Badge>
+                                )}
+
                                 <span className="text-[10px] text-muted-foreground font-medium">
                                   {item.qty} un. × {formatCurrency(item.unit_price)}
                                 </span>

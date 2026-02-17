@@ -264,7 +264,13 @@ export function IncomeReport({
                 return;
             }
 
-            let processedEntries: IncomeEntry[] = (data || []).map((stay: any, index: number) => {
+            // Filtrar habitaciones de prueba (13 y 113)
+            const filteredData = (data || []).filter((stay: any) => {
+                const roomNum = stay.rooms?.number;
+                return roomNum !== '13' && roomNum !== '113' && roomNum !== 'Habitación 13' && roomNum !== 'Habitación 113';
+            });
+
+            let processedEntries: IncomeEntry[] = filteredData.map((stay: any, index: number) => {
                 const order = stay.sales_orders;
                 const items = order?.sales_order_items || [];
                 const payments = order?.payments || [];

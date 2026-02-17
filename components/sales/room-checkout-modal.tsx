@@ -8,6 +8,7 @@ import { PaymentMethod } from "@/components/sales/room-types";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 interface PendingItem {
   concept_type: string;
@@ -30,6 +31,7 @@ export interface RoomCheckoutModalProps {
   vehiclePlate?: string | null;
   onRequestValet?: () => Promise<void>;
   checkoutPaymentData?: PaymentEntry[];
+  hasUndeliveredItems?: boolean;
 }
 
 export function RoomCheckoutModal({
@@ -46,6 +48,7 @@ export function RoomCheckoutModal({
   defaultValetId,
   vehiclePlate,
   onRequestValet,
+  hasUndeliveredItems,
   ...props
 }: RoomCheckoutModalProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -158,6 +161,19 @@ export function RoomCheckoutModal({
             </div>
           )}
 
+          {/* Alerta de bloqueo por entregas pendientes */}
+          {hasUndeliveredItems && (
+            <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg p-4 space-y-2 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-medium">
+                <Clock className="h-5 w-5" />
+                <span>Cobro Bloqueado: Servicios Pendientes</span>
+              </div>
+              <p className="text-sm text-orange-600/90 dark:text-orange-400/90">
+                No se puede realizar el cobro ni finalizar la estancia porque hay <strong>consumos o servicios que no han sido marcados como ENTREGADOS</strong> por el staff.
+              </p>
+            </div>
+          )}
+
           {/* Validación de Vehículo - Muestra advertencia si hay auto pero no cochero de salida */}
           {!!vehiclePlate && !defaultValetId && (
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 space-y-3">
@@ -208,12 +224,21 @@ export function RoomCheckoutModal({
             </p>
           </div>
           {remainingAmount > 0 && (
-            <MultiPaymentInput
-              totalAmount={remainingAmount}
-              payments={payments}
-              onPaymentsChange={setPayments}
-              disabled={actionLoading}
-            />
+            <div className={!!vehiclePlate && !defaultValetId ? "opacity-50 pointer-events-none grayscale relative" : ""}>
+              <MultiPaymentInput
+                totalAmount={remainingAmount}
+                payments={payments}
+                onPaymentsChange={setPayments}
+                disabled={actionLoading || (!!vehiclePlate && !defaultValetId)}
+              />
+              {!!vehiclePlate && !defaultValetId && (
+                <div className="absolute inset-0 flex items-center justify-center z-10">
+                  <span className="bg-background/80 backdrop-blur-sm border border-red-200 text-red-600 px-3 py-1 rounded-md text-sm font-medium shadow-sm">
+                    🔒 Verifica salida primero
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="space-y-3 pt-2 border-t">
@@ -259,15 +284,25 @@ export function RoomCheckoutModal({
             onClick={() => {
               const selectedValet = valets.find(v => v.id === checkoutValetId);
               const valetName = selectedValet ? `${selectedValet.first_name} ${selectedValet.last_name}` : undefined;
+
+              if (hasUndeliveredItems) {
+                toast.error("Entregas pendientes", {
+                  description: "No se puede finalizar la estancia. Hay productos marcados como 'Por Entregar'. El cochero debe confirmar la entrega o se deben eliminar de la orden.",
+                  duration: 5000
+                });
+                return;
+              }
+
               onConfirm({
                 payments,
                 checkoutValetId: checkoutValetId === "none" ? null : checkoutValetId,
                 checkoutValetName: valetName
               });
             }}
-            disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) < remainingAmount)}
+            disabled={actionLoading || (remainingAmount > 0 && payments.reduce((s, p) => s + p.amount, 0) < remainingAmount) || hasUndeliveredItems || (!!vehiclePlate && !defaultValetId)}
+            className={hasUndeliveredItems || (!!vehiclePlate && !defaultValetId) ? "opacity-90 cursor-not-allowed bg-orange-600 hover:bg-orange-700 text-white" : ""}
           >
-            {actionLoading ? "Procesando..." : "Confirmar Salida"}
+            {actionLoading ? "Procesando..." : hasUndeliveredItems ? "Entrega Pendiente" : (!!vehiclePlate && !defaultValetId) ? "Esperando Revisión" : "Confirmar Salida"}
           </Button>
         </div>
       </div>

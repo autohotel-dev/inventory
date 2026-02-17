@@ -64,9 +64,44 @@ export function UserNav() {
 
     const handleLogout = async () => {
         try {
+            // FIX: Auto-cerrar turno si es cochero
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: employee } = await supabase
+                    .from("employees")
+                    .select("id, role")
+                    .eq("auth_user_id", user.id)
+                    .single();
+
+                if (employee && employee.role === 'cochero') {
+                    // Buscar sesión activa
+                    const { data: session } = await supabase
+                        .from("shift_sessions")
+                        .select("id")
+                        .eq("employee_id", employee.id)
+                        .eq("status", "active")
+                        .is("clock_out_at", null)
+                        .maybeSingle();
+
+                    if (session) {
+                        // Cerrar sesión automáticamente
+                        await supabase
+                            .from("shift_sessions")
+                            .update({
+                                clock_out_at: new Date().toISOString(),
+                                status: "pending_closing"
+                            })
+                            .eq("id", session.id);
+
+                        console.log("🚗 Turno de cochero cerrado automáticamente al salir.");
+                    }
+                }
+            }
+
             await supabase.auth.signOut();
             router.push("/auth/login");
         } catch (error) {
+            console.error("Logout error", error);
             showError("Error", "No se pudo cerrar sesión");
         }
     };

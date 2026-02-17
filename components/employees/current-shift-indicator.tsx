@@ -256,10 +256,13 @@ export function CurrentShiftIndicator({
       if (error) throw error;
 
       success("Entrada registrada", "Se ha registrado tu entrada al turno");
+
+      // Actualización optimista para UX inmediato
       setActiveSession(data);
-      onShiftChange?.(data);
       setIsClockInModalOpen(false);
       setSelectedEmployeeId("");
+
+      await loadData(); // Recarga completa en segundo plano
     } catch (err: any) {
       console.error("Error clocking in:", err);
       console.log("Error details:", {
@@ -305,12 +308,20 @@ export function CurrentShiftIndicator({
     }
   };
 
-  // Clock Out - Mostrar opciones
+  // Clock Out - Mostrar opciones o salir directo (Cocheros)
   const handleClockOutClick = () => {
     if (!activeSession) {
       showError("Error", "No hay un turno activo");
       return;
     }
+
+    // FIX: Los cocheros NO hacen corte de caja, solo marcan salida
+    const role = activeSession.employees?.role;
+    if (role === 'cochero') {
+      handleClockOutDeferred(); // Reutilizamos "Deferred" porque solo cierra el turno sin modal de conteo
+      return;
+    }
+
     setShowClockOutOptions(true);
   };
 
@@ -348,8 +359,8 @@ export function CurrentShiftIndicator({
   };
 
   // Clock Out diferido (sin corte inmediato)
-  const handleClockOutDeferred = async () => {
-    if (!activeSession || actionLoading) return; // Prevent race conditions
+  const handleClockOutDeferred = async (targetSession: ShiftSession | null = activeSession) => {
+    if (!targetSession || actionLoading) return; // Prevent race conditions
 
     setActionLoading(true);
     try {
@@ -359,17 +370,23 @@ export function CurrentShiftIndicator({
           clock_out_at: new Date().toISOString(),
           status: "pending_closing",
         })
-        .eq("id", activeSession.id);
+        .eq("id", targetSession.id);
 
       if (error) throw error;
 
       success(
         "Turno cerrado",
-        "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo"
+        "El turno se ha cerrado correctamente."
       );
-      setActiveSession(null);
-      onShiftChange?.(null);
+
+      // Si cerramos la sesión activa actual, limpiarla
+      if (activeSession?.id === targetSession.id) {
+        setActiveSession(null);
+        onShiftChange?.(null);
+      }
+
       setShowClockOutOptions(false);
+      loadData(); // Recargar lista
     } catch (err: any) {
       console.error("Error clocking out:", err);
       showError("Error", err.message || "No se pudo registrar la salida");
@@ -643,6 +660,14 @@ export function CurrentShiftIndicator({
                     className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-70 group-hover:opacity-100 transition-all"
                     title="Cerrar turno de este empleado"
                     onClick={() => {
+                      // FIX: Si es cochero, cerrar directo sin preguntar corte
+                      if (session.employees?.role === 'cochero') {
+                        if (confirm(`¿Cerrar turno de ${session.employees.first_name} ${session.employees.last_name}?`)) {
+                          handleClockOutDeferred(session);
+                        }
+                        return;
+                      }
+
                       setActiveSession(session);
                       setSessionToClose(session);
                       setShowClockOutOptions(true);
@@ -727,7 +752,7 @@ export function CurrentShiftIndicator({
 
             <button
               className="w-full p-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-600 transition-all flex items-center justify-between group disabled:opacity-50"
-              onClick={handleClockOutDeferred}
+              onClick={() => handleClockOutDeferred()}
               disabled={actionLoading}
             >
               <div className="flex items-center gap-3">
