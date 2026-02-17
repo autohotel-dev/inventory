@@ -65,6 +65,7 @@ export interface RoomCardProps {
     isWaitingAuthorization?: boolean;
   } | null;
   isValetPending?: boolean; // New prop for strict workflow
+  valetId?: string | null; // For debugging
   onInfo: () => void;
   onActions: () => void;
 }
@@ -81,6 +82,7 @@ export function RoomCard({
   sensorStatus,
   vehicleStatus,
   isValetPending,
+  valetId,
   onInfo,
   onActions,
 }: RoomCardProps) {
@@ -113,6 +115,10 @@ export function RoomCard({
           <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center animate-pulse cursor-not-allowed group-hover:bg-background/60 transition-colors">
             <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm">
               Esperando Cochero
+            </span>
+            {/* DEBUG INFO */}
+            <span className="text-[9px] text-white/50 font-mono mt-1">
+              ID: {isValetPending ? (valetId || 'NULL') : ''}
             </span>
           </div>
           <div className="absolute -top-1.5 -right-1.5 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 ring-2 ring-background animate-pulse" title="Esperando registro de vehículo por Valet">

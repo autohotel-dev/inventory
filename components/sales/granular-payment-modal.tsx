@@ -513,6 +513,12 @@ export function GranularPaymentModal({
 
   // Helper para determinar si un item se puede pagar (Workflow Estricto)
   const isItemPayable = (item: OrderItem) => {
+    // Excepción: Conceptos de servicio que no requieren entrega
+    const serviceConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'DAMAGE_CHARGE', 'TOLERANCE_EXPIRED'];
+    if (serviceConcepts.includes(item.concept_type)) {
+      return true;
+    }
+
     // Si tiene estado de entrega, debe estar ENTREGADO o COMPLETADO
     if (item.delivery_status &&
       item.delivery_status !== 'DELIVERED' &&

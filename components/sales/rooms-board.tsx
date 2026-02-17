@@ -2571,6 +2571,7 @@ function RoomsBoardInternal() {
                   }}
                   data-tutorial="room-card"
                   isValetPending={status === "OCUPADA" && !!activeStay && !!activeStay.vehicle_plate && !activeStay.valet_employee_id}
+                  valetId={activeStay ? activeStay.valet_employee_id : null}
                 />
               );
             })}
