@@ -117,6 +117,9 @@ export default function SettingsPage() {
                     valetAdvanceAmount: systemConfig.valetAdvanceAmount,
                     includeGlobalSalesInShift: systemConfig.includeGlobalSalesInShift,
                     maxPendingQuickCheckins: systemConfig.maxPendingQuickCheckins,
+                    maxShiftsReceptionist: systemConfig.maxShiftsReceptionist,
+                    maxShiftsValet: systemConfig.maxShiftsValet,
+                    maxShiftsAdmin: systemConfig.maxShiftsAdmin,
                 });
             }
         }
@@ -144,6 +147,9 @@ export default function SettingsPage() {
                     valetAdvanceAmount: localConfig.valetAdvanceAmount,
                     includeGlobalSalesInShift: localConfig.includeGlobalSalesInShift,
                     maxPendingQuickCheckins: localConfig.maxPendingQuickCheckins,
+                    maxShiftsReceptionist: localConfig.maxShiftsReceptionist,
+                    maxShiftsValet: localConfig.maxShiftsValet,
+                    maxShiftsAdmin: localConfig.maxShiftsAdmin,
                 });
                 toast.success("Configuración guardada", {
                     description: "Los cambios se aplicarán en todos los dispositivos"
@@ -348,6 +354,56 @@ export default function SettingsPage() {
                                         <p className="text-sm text-emerald-700 dark:text-emerald-300">
                                             <strong>Fórmula:</strong> Disponible = Fondo + Cobros − Gastos − (Cocheros × Adelanto)
                                         </p>
+                                    </div>
+
+                                    <Separator />
+
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <Label className="text-base font-medium">Límites de Turnos Activos</Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                Máximo número de empleados por rol que pueden tener turno abierto simultáneamente.
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div className="space-y-2">
+                                                <Label className="text-sm">Recepcionistas</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={localConfig.maxShiftsReceptionist}
+                                                    onChange={(e) => updateLocalConfig('maxShiftsReceptionist', parseInt(e.target.value) || 1)}
+                                                    min={1}
+                                                    max={10}
+                                                    className="max-w-[120px]"
+                                                    disabled={!canEditShared}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm">Cocheros</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={localConfig.maxShiftsValet}
+                                                    onChange={(e) => updateLocalConfig('maxShiftsValet', parseInt(e.target.value) || 1)}
+                                                    min={1}
+                                                    max={20}
+                                                    className="max-w-[120px]"
+                                                    disabled={!canEditShared}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm">Administradores</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={localConfig.maxShiftsAdmin}
+                                                    onChange={(e) => updateLocalConfig('maxShiftsAdmin', parseInt(e.target.value) || 1)}
+                                                    min={1}
+                                                    max={10}
+                                                    className="max-w-[120px]"
+                                                    disabled={!canEditShared}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -724,6 +780,10 @@ export default function SettingsPage() {
                                                     <div>
                                                         <p className="text-xs text-muted-foreground">Ventas globales</p>
                                                         <p className="font-medium">{systemConfig.includeGlobalSalesInShift ? "Sí" : "No"}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-muted-foreground">Límites (R/C/A)</p>
+                                                        <p className="font-mono font-medium">{systemConfig.maxShiftsReceptionist} / {systemConfig.maxShiftsValet} / {systemConfig.maxShiftsAdmin}</p>
                                                     </div>
                                                 </div>
                                             </div>

@@ -59,7 +59,15 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     valet_employee_id: valetId,
                     current_people: personCount,
                     total_people: Math.max(personCount, activeStay.total_people || 0),
-                    vehicle_requested_at: null // Limpiar cualquier solicitud previa
+                    vehicle_requested_at: null, // Limpiar cualquier solicitud previa
+                    // Guardar datos de pago para el checkout
+                    checkout_payment_data: [{
+                        amount: paymentData.amount,
+                        method: paymentData.method,
+                        reference: paymentData.reference,
+                        // Indicar que es pago de entrada
+                        concept: 'ENTRADA'
+                    }]
                 })
                 .eq('id', activeStay.id)
                 .or(`valet_employee_id.is.null,valet_employee_id.eq.${valetId}`); // Permitir si es null O es el mismo valet

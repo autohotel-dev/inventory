@@ -21,12 +21,17 @@ export interface POSConfig {
     // Caja
     initialCashFund: number;     // Fondo de caja inicial para cada turno
     valetAdvanceAmount: number;  // Adelanto en efectivo por cada cochero en turno
-    
+
     // Reportes
     includeGlobalSalesInShift: boolean; // Si es true, incluye ventas de Admin/Otros en el reporte de turno
 
     // Habitaciones
     maxPendingQuickCheckins: number; // Máx. habitaciones con pago pendiente (entrada rápida)
+
+    // Límites de turnos activos por rol
+    maxShiftsReceptionist: number;
+    maxShiftsValet: number;
+    maxShiftsAdmin: number;
 }
 
 const DEFAULT_CONFIG: POSConfig = {
@@ -42,6 +47,9 @@ const DEFAULT_CONFIG: POSConfig = {
     valetAdvanceAmount: 300,     // $300 MXN por cochero
     includeGlobalSalesInShift: true, // Por defecto incluimos todo lo que pasa en el turno
     maxPendingQuickCheckins: 4,      // Máx. 4 habitaciones con pago pendiente
+    maxShiftsReceptionist: 1,
+    maxShiftsValet: 4,
+    maxShiftsAdmin: 2,
 };
 
 const STORAGE_KEY = 'pos-config';
@@ -71,7 +79,7 @@ export function usePOSConfig() {
             try {
                 const json = JSON.stringify(updated);
                 localStorage.setItem(STORAGE_KEY, json);
-                
+
                 // Verificar que se guardó correctamente
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved !== json) {

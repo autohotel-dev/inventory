@@ -9,6 +9,9 @@ export interface SystemConfig {
     valetAdvanceAmount: number;       // Adelanto en efectivo por cada cochero en turno
     includeGlobalSalesInShift: boolean; // Si incluye ventas globales en el reporte de turno
     maxPendingQuickCheckins: number;  // Máximo de habitaciones con pago pendiente (entrada rápida)
+    maxShiftsReceptionist: number;    // Máximo de recepcionistas activos
+    maxShiftsValet: number;           // Máximo de cocheros activos
+    maxShiftsAdmin: number;           // Máximo de administradores activos
 }
 
 // Metadata de auditoría
@@ -22,6 +25,9 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     valetAdvanceAmount: 300,
     includeGlobalSalesInShift: true,
     maxPendingQuickCheckins: 4,
+    maxShiftsReceptionist: 1,
+    maxShiftsValet: 4,
+    maxShiftsAdmin: 2,
 };
 
 const DEFAULT_META: SystemConfigMeta = { updatedAt: null, updatedBy: null };
@@ -35,7 +41,7 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
     const supabase = createClient();
     const { data, error } = await supabase
         .from('system_config')
-        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, updated_at, updated_by')
+        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, updated_at, updated_by')
         .limit(1)
         .single();
 
@@ -49,6 +55,9 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
         valetAdvanceAmount: Number(data.valet_advance_amount) || DEFAULT_SYSTEM_CONFIG.valetAdvanceAmount,
         includeGlobalSalesInShift: data.include_global_sales_in_shift ?? DEFAULT_SYSTEM_CONFIG.includeGlobalSalesInShift,
         maxPendingQuickCheckins: Number(data.max_pending_quick_checkins) || DEFAULT_SYSTEM_CONFIG.maxPendingQuickCheckins,
+        maxShiftsReceptionist: Number(data.max_shifts_receptionist) || DEFAULT_SYSTEM_CONFIG.maxShiftsReceptionist,
+        maxShiftsValet: Number(data.max_shifts_valet) || DEFAULT_SYSTEM_CONFIG.maxShiftsValet,
+        maxShiftsAdmin: Number(data.max_shifts_admin) || DEFAULT_SYSTEM_CONFIG.maxShiftsAdmin,
     };
 
     const meta: SystemConfigMeta = {
@@ -126,6 +135,15 @@ export function useSystemConfig() {
             }
             if (newConfig.maxPendingQuickCheckins !== undefined) {
                 dbUpdate.max_pending_quick_checkins = newConfig.maxPendingQuickCheckins;
+            }
+            if (newConfig.maxShiftsReceptionist !== undefined) {
+                dbUpdate.max_shifts_receptionist = newConfig.maxShiftsReceptionist;
+            }
+            if (newConfig.maxShiftsValet !== undefined) {
+                dbUpdate.max_shifts_valet = newConfig.maxShiftsValet;
+            }
+            if (newConfig.maxShiftsAdmin !== undefined) {
+                dbUpdate.max_shifts_admin = newConfig.maxShiftsAdmin;
             }
 
             // Update the singleton row (there's only one row)

@@ -828,7 +828,10 @@ function RoomsBoardInternal() {
         return a.number.localeCompare(b.number, undefined, { numeric: true });
       }) || [];
 
-      setRooms(sortedRooms);
+      // Deduplicar por si acaso (aunque Supabase no debería retornar duplicados, previene errores de keys)
+      const uniqueRooms = Array.from(new Map(sortedRooms.map(r => [r.id, r])).values());
+
+      setRooms(uniqueRooms);
     } catch (err) {
       console.error("Error fetching rooms:", err);
       if (!silent) setRooms([]);

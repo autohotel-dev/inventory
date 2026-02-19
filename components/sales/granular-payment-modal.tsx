@@ -323,7 +323,8 @@ export function GranularPaymentModal({
       setItems(mappedItems as OrderItem[]);
 
       // Extraer reportes de pago de valets desde issue_description
-      const reports: any[] = [];
+      const reportsMap = new Map<string, any>();
+
       mappedItems.forEach((item: any) => {
         if (item.delivery_status === 'DELIVERED' && !item.is_paid && item.issue_description) {
           try {
@@ -334,21 +335,41 @@ export function GranularPaymentModal({
                 ? `${item.delivered_by_employee.first_name || ''} ${item.delivered_by_employee.last_name || ''}`.trim()
                 : 'Cochero Desconocido';
 
-              reports.push({
-                itemId: item.id,
-                amount: item.total,
-                payments: meta.valetPaymentReport.payments,
-                reportedBy: meta.valetPaymentReport.reportedBy,
-                itemDescription: item.products?.name || item.concept_type,
-                valetName: valetName
-              });
+              // Clave única basada en los pagos reportados y quien reporta
+              // Esto agrupa items que fueron pagados en conjunto
+              const sig = JSON.stringify(meta.valetPaymentReport.payments) + valetName + meta.valetPaymentReport.reportedBy;
+
+              if (!reportsMap.has(sig)) {
+                reportsMap.set(sig, {
+                  itemIds: [item.id],
+                  amount: 0, // Se sumará abajo
+                  payments: meta.valetPaymentReport.payments,
+                  reportedBy: meta.valetPaymentReport.reportedBy,
+                  itemDescription: [item.products?.name || item.concept_type],
+                  valetName: valetName,
+                  timestamp: meta.valetPaymentReport.timestamp || new Date().toISOString()
+                });
+              } else {
+                const existing = reportsMap.get(sig);
+                existing.itemIds.push(item.id);
+                existing.itemDescription.push(item.products?.name || item.concept_type);
+              }
+
+              // Sumar el total de este item al reporte (aunque los pagos reportados YA deberían sumar el total de todos los items)
+              // OJO: Los pagos reportados son el total GLOBAL cobrado. No debemos sumarlos.
+              // El amount que mostramos debe ser la suma de los items involucrados? 
+              // NO, el amount debe ser lo que el cochero reporta haber cobrado (la suma de payments).
+              // Pero por consistencia visual, mostramos la suma de los items seleccionados o la suma de pagos reportados?
+              // Mostremos la suma de pagos reportados, que es lo que el cochero cobró.
+              const existing = reportsMap.get(sig);
+              existing.amount = existing.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
             }
           } catch (e) {
             console.error("Error parsing issue_description:", e);
           }
         }
       });
-      setValetReports(reports);
+      setValetReports(Array.from(reportsMap.values()));
 
       // 2. Cargar pagos COBRADO_POR_VALET para este sales_order
       const { data: valetPays, error: valetError } = await supabase
@@ -393,21 +414,20 @@ export function GranularPaymentModal({
   };
 
   // Corroborar la recepción física del dinero/voucher (solo auditoría de pago)
-  const corroborateValetPayment = async (paymentId: string) => {
-    setConfirmingPaymentId(paymentId);
+  const corroborateValetPayment = async (paymentIds: string[]) => {
+    setConfirmingPaymentId(paymentIds[0]); // Usar el primero como ID de carga
     const supabase = createClient();
     try {
       const employeeId = await getCurrentEmployeeId(supabase);
 
-      const { data: updatedPayment, error } = await supabase
+      const { data: updatedPayments, error } = await supabase
         .from("payments")
         .update({
           confirmed_by: employeeId,
           confirmed_at: new Date().toISOString()
         })
-        .eq("id", paymentId)
-        .select()
-        .single();
+        .in("id", paymentIds)
+        .select();
 
       if (error) throw error;
 
@@ -415,8 +435,11 @@ export function GranularPaymentModal({
         description: "Los datos de pago se han aplicado automáticamente."
       });
 
-      if (updatedPayment) {
-        useValetPaymentData(updatedPayment);
+      if (updatedPayments && updatedPayments.length > 0) {
+        // Optimistic update: Quitar de la lista de pendientes INMEDIATAMENTE para desbloquear la UI
+        setValetPayments(prev => prev.filter(p => !paymentIds.includes(p.id)));
+
+        useValetPaymentData(updatedPayments);
       }
 
       fetchItems();
@@ -428,30 +451,43 @@ export function GranularPaymentModal({
     }
   };
 
-  // Pre-rellenar datos de pago desde un registro de valet
-  const useValetPaymentData = (payment: any) => {
-    setPayments([{
-      id: "p1",
+  // Pre-rellenar datos de pago desde registros de valet (puede ser uno o varios)
+  const useValetPaymentData = (paymentInput: any | any[]) => {
+    const valetPaymentsList = Array.isArray(paymentInput) ? paymentInput : [paymentInput];
+
+    const newPayments = valetPaymentsList.map((payment: any) => ({
+      id: payment.id || `vp-${Date.now()}-${Math.random()}`,
       amount: payment.amount,
       method: payment.payment_method as any || "EFECTIVO",
       reference: payment.reference || "",
       terminal: payment.terminal_code || undefined,
       cardLast4: payment.card_last_4 || undefined,
       cardType: payment.card_type || undefined
-    }]);
+    }));
+
+    setPayments(newPayments);
     toast.success("Datos del cochero aplicados al formulario de pago");
     setStep("select"); // Mantener en select para que elija conceptods si quiere
   };
 
   // Aplicar datos de reporte del valet (desde issue_description)
   const useValetReportData = (report: any) => {
-    // 1. Seleccionar AUTOMÁTICAMENTE el item relacionado
+    // 1. Seleccionar AUTOMÁTICAMENTE items relacionados (ahora puede ser múltiple)
     const newSelected = new Set(selectedItems);
-    newSelected.add(report.itemId);
+
+    // Si viene como array (nueva lógica)
+    if (Array.isArray(report.itemIds)) {
+      report.itemIds.forEach((id: string) => newSelected.add(id));
+    } else if (report.itemId) {
+      // Fallback lógica antigua
+      newSelected.add(report.itemId);
+    }
+
     setSelectedItems(newSelected);
 
-    // Determinar si el item es una devolución para ajustar signos
-    const item = items.find(i => i.id === report.itemId);
+    // Determinar si el item es una devolución (usamos el primero como referencia)
+    const firstItemId = Array.isArray(report.itemIds) ? report.itemIds[0] : report.itemId;
+    const item = items.find(i => i.id === firstItemId);
     const isRefund = item ? isRefundItem(item) : false;
 
     // 2. Pre-llenar pagos con lo que reportó el cochero
@@ -1036,48 +1072,66 @@ export function GranularPaymentModal({
                   </div>
 
                   <div className="space-y-2">
-                    {valetReports.map((report, idx) => (
-                      <div
-                        key={`report-${idx}`}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-[#0f111a] border-indigo-500/20"
-                      >
-                        <div className="flex items-center gap-3">
-                          {/* Mostrar pagos reportados */}
-                          {report.payments && report.payments.map((p: any, i: number) => (
-                            <Badge key={i} variant="outline" className="border-indigo-500 text-indigo-400 bg-indigo-500/10 px-3 py-1">
-                              {p.method}
-                            </Badge>
-                          ))}
-                          <span className="font-bold text-lg text-white">
-                            {formatCurrency(report.amount)}
-                          </span>
+                    {valetReports.map((report, idx) => {
+                      const desc = Array.isArray(report.itemDescription)
+                        ? report.itemDescription.length > 3
+                          ? `${report.itemDescription.slice(0, 3).join(", ")} +${report.itemDescription.length - 3}`
+                          : report.itemDescription.join(", ")
+                        : report.itemDescription;
 
-                          <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold tracking-tighter">
-                            {report.itemDescription} {/* Usualmente 'ROOM_CHANGE_ADJUSTMENT' o similar */}
-                          </Badge>
+                      const reportDate = report.timestamp ? new Date(report.timestamp) : new Date();
 
-                          <span className="text-sm text-zinc-400 ml-2">
-                            Cobrado por <span className="text-indigo-400 font-medium">{report.valetName}</span>
-                          </span>
+                      return (
+                        <div
+                          key={`report-${idx}`}
+                          className="flex items-center justify-between p-4 border rounded-lg bg-[#0f111a] border-indigo-500/20"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Mostrar pagos reportados */}
+                            <div className="flex flex-col gap-1 items-start">
+                              <div className="flex flex-wrap gap-1">
+                                {report.payments && report.payments.map((p: any, i: number) => (
+                                  <Badge key={i} variant="outline" className="border-indigo-500 text-indigo-400 bg-indigo-500/10 px-2 h-5 text-[10px]">
+                                    {p.method} ${formatCurrency(p.amount)}
+                                  </Badge>
+                                ))}
+                              </div>
+                              <span className="font-bold text-lg text-white">
+                                {formatCurrency(report.amount)} <span className="text-xs text-muted-foreground font-normal">total reportado</span>
+                              </span>
+                            </div>
+
+                            <div className="border-l border-zinc-700 h-8 mx-2"></div>
+
+                            <div className="flex flex-col">
+                              <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold tracking-tighter self-start mb-1 max-w-[200px] truncate">
+                                {desc}
+                              </Badge>
+
+                              <span className="text-xs text-zinc-400">
+                                Cobrado por <span className="text-indigo-400 font-medium">{report.valetName}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            {/* Hora simulada o real si la tenemos en metadata */}
+                            <span className="text-xs text-zinc-500 italic">
+                              {reportDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
+                            </span>
+
+                            <Button
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
+                              onClick={() => useValetReportData(report)}
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Corroborar Recibo
+                            </Button>
+                          </div>
                         </div>
-
-                        <div className="flex items-center gap-4">
-                          {/* Hora simulada o real si la tenemos en metadata */}
-                          <span className="text-xs text-zinc-500 italic">
-                            {new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
-                          </span>
-
-                          <Button
-                            size="sm"
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
-                            onClick={() => useValetReportData(report)}
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            Corroborar Recibo
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -1091,79 +1145,116 @@ export function GranularPaymentModal({
                   </div>
 
                   <div className="space-y-2">
-                    {valetPayments.filter(p => !p.confirmed_at).map((payment) => (
-                      <div
-                        key={payment.id}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-indigo-500/5 dark:bg-indigo-500/10 border-indigo-500/20"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="border-indigo-500 text-indigo-500">
-                            {payment.payment_method}
-                          </Badge>
-                          <span className="font-bold text-lg">
-                            {formatCurrency(payment.amount)}
-                          </span>
-                          <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-tighter">
-                            {payment.concept === 'CONSUMPTION' ? 'CONSUMO' :
-                              payment.concept === 'ESTANCIA' ? 'ESTANCIA' :
-                                payment.concept === 'HORA_EXTRA' ? 'HORA EXTRA' :
-                                  payment.concept === 'PERSONA_EXTRA' ? 'PERS. EXTRA' :
-                                    payment.concept === 'DAMAGE_CHARGE' ? 'DAÑO' :
-                                      payment.concept || 'PAGO'}
-                          </Badge>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-muted-foreground">
-                            Cobrado por <span className="font-medium text-foreground">{payment.employees?.first_name} {payment.employees?.last_name}</span>
-                          </p>
-                          {payment.payment_method === 'TARJETA' && (
-                            <div className="flex items-center gap-2 mt-1">
-                              {payment.terminal_code && (
-                                <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                  Terminal: {payment.terminal_code}
-                                </Badge>
-                              )}
-                              {payment.card_last_4 && (
-                                <Badge variant="secondary" className="text-[10px] bg-zinc-500/10 text-zinc-500 border-zinc-500/20">
-                                  Terminación: **** {payment.card_last_4}
-                                </Badge>
-                              )}
-                              {payment.card_type && (
-                                <Badge variant="secondary" className="text-[10px] bg-indigo-500/10 text-indigo-500 border-indigo-500/20">
-                                  Tipo: {payment.card_type}
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground italic">
-                            {new Date(payment.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {payment.reference && !payment.reference.includes('VALET_') && (
-                            <span className="text-[10px] bg-muted px-1.5 rounded-full border border-border">
-                              Ref: {payment.reference}
-                            </span>
-                          )}
-                        </div>
+                    {(() => {
+                      const visiblePayments = valetPayments.filter(p => !p.confirmed_at);
+                      // DEDUPLICAR para evitar keys repetidas (React crash)
+                      const seenIds = new Set();
+                      const uniqueVisible = visiblePayments.filter(p => {
+                        const duplicate = seenIds.has(p.id);
+                        seenIds.add(p.id);
+                        return !duplicate;
+                      });
 
-                        <Button
-                          size="sm"
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                          onClick={() => corroborateValetPayment(payment.id)}
-                          disabled={confirmingPaymentId === payment.id}
+                      const groupsMap = new Map<string, any>();
+
+                      uniqueVisible.forEach(p => {
+                        // Agrupar por EMPLEADO + TIEMPO (tolerancia 1 min)
+                        const timeKey = Math.floor(new Date(p.collected_at).getTime() / 60000);
+                        const empKey = p.collected_by || 'unknown';
+                        const key = `${empKey}-${timeKey}`;
+
+                        if (!groupsMap.has(key)) {
+                          groupsMap.set(key, {
+                            payments: [],
+                            totalAmount: 0,
+                            employeeName: p.employees ? `${p.employees.first_name} ${p.employees.last_name}` : 'Desconocido',
+                            collectedAt: p.collected_at
+                          });
+                        }
+                        const group = groupsMap.get(key);
+                        group.payments.push(p);
+                        group.totalAmount += p.amount;
+                      });
+
+                      const paymentGroups = Array.from(groupsMap.values());
+
+                      return paymentGroups.map((group, groupIdx) => (
+                        <div
+                          key={`group-${groupIdx}`}
+                          className="flex items-center justify-between p-4 border rounded-lg bg-indigo-500/5 dark:bg-indigo-500/10 border-indigo-500/20"
                         >
-                          {confirmingPaymentId === payment.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                              Corroborar Recibo
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {group.payments.map((payment: any) => (
+                                <Badge key={`pay-${payment.id}`} variant="outline" className="border-indigo-500 text-indigo-500 px-2 h-5 text-[10px]">
+                                  {payment.payment_method} ${formatCurrency(payment.amount)}
+                                </Badge>
+                              ))}
+                              <span className="font-bold text-lg ml-2">
+                                {formatCurrency(group.totalAmount)}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1">
+                              {group.payments.map((payment: any) => (
+                                <Badge key={`concept-${payment.id}`} variant="secondary" className="text-[10px] uppercase font-bold tracking-tighter self-start">
+                                  {payment.concept === 'CONSUMPTION' ? 'CONSUMO' :
+                                    payment.concept === 'ESTANCIA' ? 'ESTANCIA' :
+                                      payment.concept === 'HORA_EXTRA' ? 'HORA EXTRA' :
+                                        payment.concept === 'PERSONA_EXTRA' ? 'PERS. EXTRA' :
+                                          payment.concept === 'DAMAGE_CHARGE' ? 'DAÑO' :
+                                            payment.concept || 'PAGO'}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex-1 ml-4 border-l border-indigo-500/20 pl-4">
+                            <p className="text-sm text-muted-foreground">
+                              Cobrado por <span className="font-medium text-foreground">{group.employeeName}</span>
+                            </p>
+                            <div className="flex flex-col gap-1 mt-1">
+                              {group.payments.map((payment: any) => payment.payment_method === 'TARJETA' && (
+                                <div key={`card-${payment.id}`} className="flex items-center gap-2">
+                                  {payment.terminal_code && (
+                                    <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                      Ter: {payment.terminal_code}
+                                    </Badge>
+                                  )}
+                                  {payment.card_last_4 && (
+                                    <Badge variant="secondary" className="text-[10px] bg-zinc-500/10 text-zinc-500 border-zinc-500/20">
+                                      **** {payment.card_last_4}
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-0.5 ml-4">
+                            <span className="text-xs text-muted-foreground italic">
+                              {new Date(group.collectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white ml-4"
+                            onClick={() => corroborateValetPayment(group.payments.map((p: any) => p.id))}
+                            disabled={confirmingPaymentId !== null}
+                          >
+                            {confirmingPaymentId === group.payments[0].id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Corroborar ({group.payments.length})
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
@@ -1187,10 +1278,14 @@ export function GranularPaymentModal({
                       const itemDiscount = discounts[item.id] || 0;
                       const finalTotal = getItemTotal(item);
 
-                      // WORKFLOW ESTRICTO: Bloquear selección si no está listo para pago
+                      // Verificar si hay pagos de cochero sin confirmar
+                      const hasUnconfirmedValetPayments = valetPayments.some(p => !p.confirmed_at);
+
+                      // WORKFLOW ESTRICTO: Bloquear selección si:
+                      // 1. No está entregado (isPayable)
+                      // 2. Hay pagos de cochero pendientes de corroborar
                       const isPayable = isItemPayable(item);
-                      // Usamos isLocked para la UI
-                      const isLocked = !isPayable;
+                      const isLocked = !isPayable || hasUnconfirmedValetPayments;
 
                       return (
                         <div
@@ -1200,22 +1295,41 @@ export function GranularPaymentModal({
                             selectedItems.has(item.id)
                               ? "bg-primary/5 border-primary/30 shadow-sm"
                               : isLocked
-                                ? "bg-muted/10 border-border/30 opacity-70 cursor-not-allowed"
+                                ? "bg-muted/10 border-border/30 opacity-70 cursor-not-allowed" // Más opaco si está bloqueado por cochero
                                 : "bg-card border-border/50 hover:bg-muted/30 hover:border-primary/20"
                           )}
                         >
+                          {/* Overlay de bloqueo explícito si hay pagos pendientes */}
+                          {hasUnconfirmedValetPayments && (
+                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-xs font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded shadow-sm border border-red-500/20">
+                                Corrobora el cobro del cochero primero
+                              </span>
+                            </div>
+                          )}
+
                           <div
                             className={cn(
                               "flex items-start gap-3 select-none",
                               isLocked ? "cursor-not-allowed" : "cursor-pointer"
                             )}
                             onClick={() => {
+                              // 1. Bloqueo por cochero
+                              if (hasUnconfirmedValetPayments) {
+                                toast.error("Acción Requerida", {
+                                  description: "Debes corroborar los cobros del cochero antes de procesar otros pagos."
+                                });
+                                return;
+                              }
+
+                              // 2. Bloqueo normal (servicio no listo)
                               if (isLocked) {
                                 toast.error("Servicio Pendiente", {
                                   description: "El servicio o entrega debe completarse primero antes de cobrar."
                                 });
                                 return;
                               }
+
                               toggleItem(item.id);
                             }}
                           >
@@ -1536,7 +1650,7 @@ export function GranularPaymentModal({
                         variant="outline"
                         size="sm"
                         className="h-auto py-2 px-3 flex flex-col items-start gap-1 border-indigo-500/30 hover:bg-indigo-500/5"
-                        onClick={() => useValetPaymentData(p)}
+                        onClick={() => useValetPaymentData([p])}
                       >
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-[10px] px-1 h-4 border-indigo-500/50 text-indigo-500">
