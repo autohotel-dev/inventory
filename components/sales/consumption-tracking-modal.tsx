@@ -32,24 +32,28 @@ import {
     CardFooter
 } from "@/components/ui/card";
 import {
+    Clock,
+    Truck,
     Package,
     CheckCircle2,
-    Clock,
-    HandPlatter,
-    Banknote,
     AlertCircle,
-    User,
-    Loader2,
-    CreditCard,
     XCircle,
+    User,
     ConciergeBell,
     MoreHorizontal,
-    Truck,
-    CheckCircle,
-    Coins,
     ChevronRight,
+    Search,
+    Filter,
+    ArrowUpDown,
+    Coins,
+    CheckCircle,
+    AlertTriangle,
+    HandPlatter,
+    Banknote,
+    Loader2,
     MessageSquare,
-    Info
+    Info,
+    CreditCard
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils/formatters";
@@ -101,6 +105,7 @@ interface ConsumptionItem {
         first_name: string;
         last_name: string;
     } | null;
+    created_at?: string;
 }
 
 interface ConsumptionTrackingModalProps {
@@ -109,6 +114,7 @@ interface ConsumptionTrackingModalProps {
     salesOrderId: string | null;
     roomNumber: string;
     receptionistId: string;
+    defaultFilter?: string;
 }
 
 const STATUS_CONFIG: Record<DeliveryStatus, {
@@ -141,7 +147,8 @@ export function ConsumptionTrackingModal({
     onClose,
     salesOrderId,
     roomNumber,
-    receptionistId
+    receptionistId,
+    defaultFilter
 }: ConsumptionTrackingModalProps) {
     const [consumptions, setConsumptions] = useState<ConsumptionItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -152,6 +159,13 @@ export function ConsumptionTrackingModal({
     const [receivedAmount, setReceivedAmount] = useState<number>(0);
     const [paymentNotes, setPaymentNotes] = useState("");
     const [activeFilter, setActiveFilter] = useState<string>('ALL');
+
+    // Inicializar filtro por defecto
+    useEffect(() => {
+        if (defaultFilter) {
+            setActiveFilter(defaultFilter);
+        }
+    }, [defaultFilter, isOpen]);
 
     const fetchConsumptions = useCallback(async (silent = false) => {
         if (!salesOrderId) return;
@@ -164,11 +178,12 @@ export function ConsumptionTrackingModal({
                 .from('sales_order_items')
                 .select(`
                     *,
-                    products(name, sku),
-                    valet_employee:employees!sales_order_items_delivery_accepted_by_fkey(first_name, last_name)
+                    products:product_id ( name, sku ),
+                    valet_employee:delivery_accepted_by ( first_name, last_name )
                 `)
                 .eq('sales_order_id', salesOrderId)
-                .eq('concept_type', 'CONSUMPTION');
+                .eq('concept_type', 'CONSUMPTION')
+                .order('created_at', { ascending: true });
 
             if (error) {
                 console.error('Error fetching consumptions:', error.message, error.details, error.hint);
@@ -538,6 +553,11 @@ export function ConsumptionTrackingModal({
                                     const isActionable = actionLoading === item.id;
                                     const currentStep = config.step;
 
+                                    const minutesElapsed = item.created_at
+                                        ? Math.floor((new Date().getTime() - new Date(item.created_at).getTime()) / (1000 * 60))
+                                        : 0;
+                                    const isDelayed = ['PENDING_VALET', 'ACCEPTED'].includes(status) && minutesElapsed > 15;
+
                                     return (
                                         <Card key={item.id} className={cn(
                                             "overflow-hidden border-2 transition-all duration-300",
@@ -564,6 +584,15 @@ export function ConsumptionTrackingModal({
                                                             </div>
                                                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                                                 <span className="font-bold text-foreground">{formatCurrency(item.total)}</span>
+                                                                <span>•</span>
+                                                                <span className={cn(
+                                                                    "flex items-center gap-1 font-medium",
+                                                                    isDelayed ? "text-red-500 animate-pulse font-bold" : "text-muted-foreground"
+                                                                )}>
+                                                                    <Clock className="h-3 w-3" />
+                                                                    {minutesElapsed} min
+                                                                    {isDelayed && <AlertTriangle className="ml-1 h-3 w-3" />}
+                                                                </span>
                                                                 <span>•</span>
                                                                 <span className="flex items-center gap-1">
                                                                     <User className="h-3 w-3" />

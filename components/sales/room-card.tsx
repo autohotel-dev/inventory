@@ -67,6 +67,7 @@ export interface RoomCardProps {
   } | null;
   isValetPending?: boolean; // New prop for strict workflow
   hasPendingService?: boolean; // Indica si hay consumos pendientes de entrega
+  isCriticalService?: boolean; // Indica si el servicio lleva más de 15 min pendiente
   valetId?: string | null; // For debugging
   onInfo: () => void;
   onActions: () => void;
@@ -85,6 +86,7 @@ export function RoomCard({
   vehicleStatus,
   isValetPending,
   hasPendingService,
+  isCriticalService,
   valetId,
   onInfo,
   onActions,
@@ -115,10 +117,11 @@ export function RoomCard({
       {/* Indicador de Servicio de Consumo Pendiente (Charola de Comida) */}
       {hasPendingService && !showDoorAlert && (
         <div className={cn(
-          "absolute bg-orange-500 rounded-full p-1 shadow-lg animate-pulse z-30 ring-2 ring-background",
+          "absolute rounded-full p-1 shadow-lg z-30 ring-2 ring-background",
+          isCriticalService ? "bg-red-600 animate-[pulse_0.8s_infinite] scale-110 shadow-red-500/50" : "bg-orange-500 animate-pulse",
           hasPendingPayment ? "-top-1.5 right-4" : "-top-1.5 -right-1.5"
-        )} title="Servicio de consumo en proceso">
-          <HandPlatter className="h-2.5 w-2.5 text-white" />
+        )} title={isCriticalService ? "¡SERVICIO CRÍTICO! (>15 min)" : "Servicio de consumo en proceso"}>
+          <HandPlatter className={cn("h-2.5 w-2.5 text-white", isCriticalService && "animate-bounce")} />
         </div>
       )}
 

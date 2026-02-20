@@ -162,6 +162,7 @@ function RoomsBoardInternal() {
     "receptionist",
     rooms.map((r) => ({ id: r.id, number: r.number }))
   );
+  const [trackingFilter, setTrackingFilter] = useState<string>('ALL');
   const [showQuickCheckinModal, setShowQuickCheckinModal] = useState(false);
   const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
   const [showEditValetModal, setShowEditValetModal] = useState(false);
@@ -804,7 +805,7 @@ function RoomsBoardInternal() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, valet_checkout_requested_at, vehicle_requested_at, guest_access_token, checkout_payment_data, sales_orders ( id, remaining_amount, sales_order_items ( id, delivery_status, concept_type ) ) )`
+          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, valet_checkout_requested_at, vehicle_requested_at, guest_access_token, checkout_payment_data, sales_orders ( id, remaining_amount, sales_order_items ( id, delivery_status, concept_type, created_at ) ) )`
         );
 
       if (error) {
@@ -928,6 +929,13 @@ function RoomsBoardInternal() {
                 itemId: payload.new?.id || payload.old?.id,
                 concept: payload.new?.concept_type,
               });
+
+              // Alerta sonora para nuevos pedidos de consumo
+              if (payload.eventType === 'INSERT' && payload.new?.concept_type === 'CONSUMPTION') {
+                console.log("🔔 [RoomBoard] ¡Nuevo consumo detectado! Reproduciendo alerta...");
+                playAlert();
+              }
+
               fetchRooms(true);
             }
           )
@@ -2537,22 +2545,32 @@ function RoomsBoardInternal() {
               };
 
               const items = activeStay?.sales_orders?.sales_order_items || [];
-              const hasPendingService = items.some(item =>
+              const pendingItems = items.filter(item =>
                 item.concept_type === 'CONSUMPTION' &&
                 ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
               );
+              const hasPendingService = pendingItems.length > 0;
+
+              // Semáforo: Crítico si lleva más de 15 minutos pendiente (PENDING_VALET o ACCEPTED)
+              const isCriticalService = pendingItems.some(item => {
+                if (!item.created_at || item.delivery_status === 'IN_TRANSIT') return false;
+                const createdDate = new Date(item.created_at);
+                const diffMins = (new Date().getTime() - createdDate.getTime()) / (1000 * 60);
+                return diffMins > 15;
+              });
 
               return (
                 <RoomCard
                   key={room.id}
                   id={room.id}
                   number={room.number}
-                  status={status}
-                  bgClass={isSaliendo ? "bg-orange-900/80" : ROOM_STATUS_BG[status]}
+                  status={room.status}
+                  bgClass={isSaliendo ? "bg-orange-950/80" : ROOM_STATUS_BG[status]}
                   accentClass={isSaliendo ? "ring-1 ring-orange-500/40" : ROOM_STATUS_ACCENT[status]}
                   statusBadge={renderStatusBadge(status, isSaliendo)}
                   hasPendingPayment={!!hasPendingPayment}
                   hasPendingService={hasPendingService}
+                  isCriticalService={isCriticalService}
                   roomTypeName={room.room_types?.name}
                   notes={room.notes}
                   sensorStatus={(() => {
@@ -2654,6 +2672,17 @@ function RoomsBoardInternal() {
         hasExtraCharges={selectedRoom ? hasExtraCharges(selectedRoom) : false}
         isHotelRoom={selectedRoom?.room_types?.is_hotel === true}
         onClose={closeActionsDock}
+        onViewServices={() => {
+          if (!selectedRoom) return;
+          const stay = getActiveStay(selectedRoom);
+          if (stay?.sales_order_id) {
+            setConsumptionOrderId(stay.sales_order_id);
+            // Si hay servicios pendientes, filtrar por TRANSIT (que incluye PENDING/ACCEPTED/IN_TRANSIT)
+            setTrackingFilter('TRANSIT');
+            setShowTrackingModal(true);
+            setShowActionsModal(false);
+          }
+        }}
         onStartStay={() => {
           setShowActionsModal(false);
           setShowStartStayModal(true);
@@ -2795,10 +2824,6 @@ function RoomsBoardInternal() {
             setShowActionsModal(false);
           }
         }}
-        onViewServices={() => {
-          setShowActionsModal(false);
-          setShowTrackingModal(true);
-        }}
       />
       <RoomPayExtraModal
         isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
@@ -2831,7 +2856,8 @@ function RoomsBoardInternal() {
         isOpen={showTrackingModal && !!selectedRoom}
         salesOrderId={selectedRoom ? getActiveStay(selectedRoom)?.sales_order_id || null : null}
         roomNumber={selectedRoom?.number || ""}
-        receptionistId={employeeId || ""}
+        receptionistId={employeeId || ''}
+        defaultFilter={trackingFilter}
         onClose={() => setShowTrackingModal(false)}
       />
       <GranularPaymentModal

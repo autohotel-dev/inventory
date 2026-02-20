@@ -83,6 +83,7 @@ export interface RoomStay {
       id: string;
       delivery_status: string | null;
       concept_type: string | null;
+      created_at?: string | null;
     }[];
   } | null;
   checkout_payment_data?: PaymentEntry[] | null;
