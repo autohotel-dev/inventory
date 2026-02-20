@@ -119,13 +119,18 @@ export const EMPLOYEE_ROLES = [
   { value: 'mantenimiento', label: 'Mantenimiento', color: 'bg-slate-500' },
 ] as const;
 
-// Límites de turnos activos por rol
+/**
+ * @deprecated Usar los valores dinámicos de useSystemConfigRead() en su lugar.
+ * Estos son solo valores de respaldo. Los límites reales se configuran
+ * en Settings > General > Límites de Turnos Activos y se almacenan en system_config (Supabase).
+ */
 export const SHIFT_LIMITS_BY_ROLE: Record<string, number> = {
   receptionist: 1,
-  cochero: 2,
+  cochero: 4,
+  admin: 2,
+  manager: 2,
   camarista: 1,
   mantenimiento: 2,
-  // Los demás roles no tienen límite explícito
 };
 
 // Constantes de turnos

@@ -33,8 +33,9 @@ import {
   ChevronRight,
   Receipt,
 } from "lucide-react";
-import { Employee, ShiftDefinition, ShiftSession, SHIFT_COLORS, SHIFT_LIMITS_BY_ROLE, EMPLOYEE_ROLES } from "./types";
+import { Employee, ShiftDefinition, ShiftSession, SHIFT_COLORS, EMPLOYEE_ROLES } from "./types";
 import { ShiftClosingModal } from "./shift-closing";
+import { useSystemConfigRead } from "@/hooks/use-system-config";
 
 // Iconos por turno
 const SHIFT_ICONS: Record<string, React.ReactNode> = {
@@ -57,6 +58,18 @@ export function CurrentShiftIndicator({
 }: CurrentShiftIndicatorProps) {
   const supabase = createClient();
   const { success, error: showError } = useToast();
+  const systemConfig = useSystemConfigRead();
+
+  // Obtener límite dinámico por rol desde la configuración del sistema
+  const getRoleLimit = (role: string): number | undefined => {
+    switch (role) {
+      case 'receptionist': return systemConfig.maxShiftsReceptionist;
+      case 'cochero': return systemConfig.maxShiftsValet;
+      case 'admin':
+      case 'manager': return systemConfig.maxShiftsAdmin;
+      default: return undefined; // Sin límite explícito para otros roles
+    }
+  };
 
   const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
   const [nextShift, setNextShift] = useState<ShiftDefinition | null>(null);
@@ -206,7 +219,7 @@ export function CurrentShiftIndicator({
       }
 
       const employeeRole = selectedEmployee.role;
-      const roleLimit = SHIFT_LIMITS_BY_ROLE[employeeRole];
+      const roleLimit = getRoleLimit(employeeRole);
       const roleLabel = EMPLOYEE_ROLES.find(r => r.value === employeeRole)?.label || employeeRole;
 
       // 🔒 VALIDACIÓN POR ROL: Verificar límite de turnos activos para este rol

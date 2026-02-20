@@ -77,7 +77,13 @@ export interface RoomStay {
   valet_checkout_requested_at?: string | null; // Hora de propuesta de salida por el cochero
   guest_access_token?: string | null; // Token de acceso al portal de huéspedes
   sales_orders?: {
+    id?: string;
     remaining_amount?: number;
+    sales_order_items?: {
+      id: string;
+      delivery_status: string | null;
+      concept_type: string | null;
+    }[];
   } | null;
   checkout_payment_data?: PaymentEntry[] | null;
 }

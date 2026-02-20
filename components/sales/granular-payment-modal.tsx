@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SupervisorAuthDialog } from "@/components/auth/supervisor-auth-dialog";
 import {
   Bed,
   Clock,
@@ -173,6 +174,15 @@ export function GranularPaymentModal({
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number>(0);
+  const [forcedUnlockedItems, setForcedUnlockedItems] = useState<Set<string>>(new Set());
+
+  // Estado para el dialog de autorización de supervisor
+  const [authDialog, setAuthDialog] = useState<{
+    isOpen: boolean;
+    action: 'unlock' | 'delete';
+    itemId: string | null;
+    itemLabel: string;
+  }>({ isOpen: false, action: 'unlock', itemId: null, itemLabel: '' });
 
   // Obtener nombre descriptivo del item
   const getItemDescription = (item: OrderItem) => {
@@ -518,6 +528,7 @@ export function GranularPaymentModal({
       setShowDiscountInput(null);
       setConfirmDeleteId(null);
       setTipAmount(0);
+      setForcedUnlockedItems(new Set());
       setStep("select");
     }
   }, [isOpen, salesOrderId]);
@@ -549,19 +560,51 @@ export function GranularPaymentModal({
 
   // Helper para determinar si un item se puede pagar (Workflow Estricto)
   const isItemPayable = (item: OrderItem) => {
+    // Si recepción forzó el desbloqueo, siempre es pagable
+    if (forcedUnlockedItems.has(item.id)) return true;
+
     // Excepción: Conceptos de servicio que no requieren entrega
     const serviceConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'DAMAGE_CHARGE', 'TOLERANCE_EXPIRED'];
     if (serviceConcepts.includes(item.concept_type)) {
       return true;
     }
 
-    // Si tiene estado de entrega, debe estar ENTREGADO o COMPLETADO
-    if (item.delivery_status &&
-      item.delivery_status !== 'DELIVERED' &&
-      item.delivery_status !== 'COMPLETED') {
+    // Si tiene estado de entrega, debe estar COMPLETADO (Workflow estricto)
+    // Anteriormente permitíamos DELIVERED, pero el usuario solicitó bloquear hasta completar tracking.
+    if (item.delivery_status && item.delivery_status !== 'COMPLETED') {
       return false;
     }
     return true;
+  };
+
+  // Forzar desbloqueo de un item atascado (para recepción)
+  const forceUnlockItem = async (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+
+    const supabase = createClient();
+    try {
+      // Actualizar delivery_status a DELIVERED en la base de datos
+      await supabase
+        .from('sales_order_items')
+        .update({ delivery_status: 'DELIVERED' })
+        .eq('id', itemId);
+
+      // Actualizar el estado local inmediatamente
+      setForcedUnlockedItems(prev => new Set(prev).add(itemId));
+
+      toast.success("Concepto desbloqueado", {
+        description: `${item.products?.name || CONCEPT_LABELS[item.concept_type] || 'Concepto'} ahora puede ser cobrado o eliminado.`
+      });
+
+      // Refrescar items
+      await fetchItems();
+    } catch (error) {
+      console.error('Error force-unlocking item:', error);
+      toast.error("Error al desbloquear", {
+        description: "No se pudo desbloquear el concepto. Intenta de nuevo."
+      });
+    }
   };
 
   const selectedTotal = items
@@ -653,10 +696,10 @@ export function GranularPaymentModal({
     setStep("pay");
   };
 
-  // Eliminar consumo no pagado
-  const deleteConsumption = async (itemId: string) => {
+  // Eliminar concepto no pagado (consumo, producto, o cualquier concepto atascado)
+  const deleteUnpaidItem = async (itemId: string) => {
     const item = items.find(i => i.id === itemId);
-    if (!item || item.is_paid || item.concept_type !== 'CONSUMPTION') {
+    if (!item || item.is_paid) {
       toast.error("Este concepto no puede eliminarse");
       return;
     }
@@ -665,33 +708,49 @@ export function GranularPaymentModal({
     const supabase = createClient();
 
     try {
-      // 1. Obtener el warehouse_id de la orden
-      const { data: orderData } = await supabase
-        .from('sales_orders')
-        .select('warehouse_id')
-        .eq('id', salesOrderId)
-        .single();
-
-      if (!orderData?.warehouse_id) {
-        throw new Error('No se encontró el almacén de la orden');
-      }
-
-      // 2. Revertir movimiento de inventario (crear movimiento IN)
+      // 1. Si tiene producto asociado, revertir inventario
       if (item.product_id) {
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('inventory_movements').insert({
-          product_id: item.product_id,
-          warehouse_id: orderData.warehouse_id,
-          quantity: item.qty,
-          movement_type: 'IN',
-          reason_id: 7, // RETURN/DEVOLUCION
-          reason: 'RETURN',
-          notes: `Consumo eliminado - Habitación ${roomNumber || 'N/A'}`,
-          reference_table: 'sales_order_items',
-          reference_id: itemId,
-          created_by: user?.id || null,
-        });
+        const { data: orderData } = await supabase
+          .from('sales_orders')
+          .select('warehouse_id')
+          .eq('id', salesOrderId)
+          .single();
+
+        if (orderData?.warehouse_id) {
+          const { data: { user } } = await supabase.auth.getUser();
+          await supabase.from('inventory_movements').insert({
+            product_id: item.product_id,
+            warehouse_id: orderData.warehouse_id,
+            quantity: item.qty,
+            movement_type: 'IN',
+            reason_id: 7, // RETURN/DEVOLUCION
+            reason: 'RETURN',
+            notes: `Concepto eliminado por recepción - Habitación ${roomNumber || 'N/A'} - Tipo: ${item.concept_type}`,
+            reference_table: 'sales_order_items',
+            reference_id: itemId,
+            created_by: user?.id || null,
+          });
+        }
       }
+
+      // 2. También limpiar pagos pendientes asociados a este concepto
+      const conceptMapping: Record<string, string> = {
+        'EXTRA_PERSON': 'PERSONA_EXTRA',
+        'EXTRA_HOUR': 'HORA_EXTRA',
+        'ROOM_BASE': 'ESTANCIA',
+        'TOLERANCE_EXPIRED': 'TOLERANCIA_EXPIRADA',
+        'DAMAGE_CHARGE': 'DAMAGE_CHARGE',
+      };
+      const paymentConcept = conceptMapping[item.concept_type] || item.concept_type;
+
+      // Eliminar pagos PENDIENTES o COBRADO_POR_VALET asociados (para no dejar pagos huérfanos)
+      await supabase
+        .from('payments')
+        .delete()
+        .eq('sales_order_id', salesOrderId)
+        .eq('concept', paymentConcept)
+        .in('status', ['PENDIENTE', 'COBRADO_POR_VALET'])
+        .is('confirmed_at', null);
 
       // 3. Eliminar el item de la orden
       const { error: deleteError } = await supabase
@@ -719,8 +778,9 @@ export function GranularPaymentModal({
         })
         .eq('id', salesOrderId);
 
-      toast.success("Consumo eliminado", {
-        description: `${item.products?.name || 'Producto'} ha sido removido y el inventario fue restaurado`
+      const conceptLabel = item.products?.name || CONCEPT_LABELS[item.concept_type] || 'Concepto';
+      toast.success("Concepto eliminado", {
+        description: `${conceptLabel} ha sido removido de la cuenta.${item.product_id ? ' El inventario fue restaurado.' : ''}`
       });
 
       // 5. Refrescar lista de items
@@ -728,9 +788,9 @@ export function GranularPaymentModal({
       setConfirmDeleteId(null);
 
     } catch (error) {
-      console.error('Error deleting consumption:', error);
-      toast.error("Error al eliminar consumo", {
-        description: "No se pudo eliminar el consumo. Intenta de nuevo."
+      console.error('Error deleting item:', error);
+      toast.error("Error al eliminar concepto", {
+        description: "No se pudo eliminar el concepto. Intenta de nuevo."
       });
     } finally {
       setDeletingItemId(null);
@@ -1010,474 +1070,495 @@ export function GranularPaymentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-7xl mx-4 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
-              Cobro por Concepto
-            </h2>
-            {roomNumber && (
-              <p className="text-sm text-muted-foreground">Habitación {roomNumber}</p>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            disabled={processing}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-7xl mx-4 max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                Cobro por Concepto
+              </h2>
+              {roomNumber && (
+                <p className="text-sm text-muted-foreground">Habitación {roomNumber}</p>
+              )}
             </div>
-          ) : step === "select" ? (
-            <div className="p-6 space-y-4">
-              {/* Resumen */}
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total pendiente</p>
-                  <p className="text-xl font-bold text-amber-500">{formatCurrency(pendingTotal)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Seleccionado</p>
-                  <p className="text-xl font-bold text-primary">{formatCurrency(selectedTotal)}</p>
-                </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              disabled={processing}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-
-              {/* Acciones rápidas */}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={selectAllPending}>
-                  Seleccionar todo
-                </Button>
-                <Button variant="outline" size="sm" onClick={deselectAll}>
-                  Deseleccionar
-                </Button>
-              </div>
-
-              {/* Reportes de Cochero (Items entregados via app de cocheros) */}
-              {valetReports.length > 0 && (
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400">
-                    <AlertTriangle className="h-5 w-5" />
-                    <p className="text-sm font-medium">Información de cobros informados por Cochero pendientes de corroborar</p>
+            ) : step === "select" ? (
+              <div className="p-6 space-y-4">
+                {/* Resumen */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total pendiente</p>
+                    <p className="text-xl font-bold text-amber-500">{formatCurrency(pendingTotal)}</p>
                   </div>
-
-                  <div className="space-y-2">
-                    {valetReports.map((report, idx) => {
-                      const desc = Array.isArray(report.itemDescription)
-                        ? report.itemDescription.length > 3
-                          ? `${report.itemDescription.slice(0, 3).join(", ")} +${report.itemDescription.length - 3}`
-                          : report.itemDescription.join(", ")
-                        : report.itemDescription;
-
-                      const reportDate = report.timestamp ? new Date(report.timestamp) : new Date();
-
-                      return (
-                        <div
-                          key={`report-${idx}`}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-[#0f111a] border-indigo-500/20"
-                        >
-                          <div className="flex items-center gap-3">
-                            {/* Mostrar pagos reportados */}
-                            <div className="flex flex-col gap-1 items-start">
-                              <div className="flex flex-wrap gap-1">
-                                {report.payments && report.payments.map((p: any, i: number) => (
-                                  <Badge key={i} variant="outline" className="border-indigo-500 text-indigo-400 bg-indigo-500/10 px-2 h-5 text-[10px]">
-                                    {p.method} ${formatCurrency(p.amount)}
-                                  </Badge>
-                                ))}
-                              </div>
-                              <span className="font-bold text-lg text-white">
-                                {formatCurrency(report.amount)} <span className="text-xs text-muted-foreground font-normal">total reportado</span>
-                              </span>
-                            </div>
-
-                            <div className="border-l border-zinc-700 h-8 mx-2"></div>
-
-                            <div className="flex flex-col">
-                              <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold tracking-tighter self-start mb-1 max-w-[200px] truncate">
-                                {desc}
-                              </Badge>
-
-                              <span className="text-xs text-zinc-400">
-                                Cobrado por <span className="text-indigo-400 font-medium">{report.valetName}</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-4">
-                            {/* Hora simulada o real si la tenemos en metadata */}
-                            <span className="text-xs text-zinc-500 italic">
-                              {reportDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
-                            </span>
-
-                            <Button
-                              size="sm"
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
-                              onClick={() => useValetReportData(report)}
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Corroborar Recibo
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Seleccionado</p>
+                    <p className="text-xl font-bold text-primary">{formatCurrency(selectedTotal)}</p>
                   </div>
                 </div>
-              )}
 
-              {/* Pagos de Cochero Pendientes de Corroboración */}
-              {valetPayments.filter(p => !p.confirmed_at).length > 0 && (
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-600 dark:text-indigo-400">
-                    <AlertTriangle className="h-5 w-5" />
-                    <p className="text-sm font-medium">Información de cobros informados por Cochero pendientes de corroborar</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {(() => {
-                      const visiblePayments = valetPayments.filter(p => !p.confirmed_at);
-                      // DEDUPLICAR para evitar keys repetidas (React crash)
-                      const seenIds = new Set();
-                      const uniqueVisible = visiblePayments.filter(p => {
-                        const duplicate = seenIds.has(p.id);
-                        seenIds.add(p.id);
-                        return !duplicate;
-                      });
-
-                      const groupsMap = new Map<string, any>();
-
-                      uniqueVisible.forEach(p => {
-                        // Agrupar por EMPLEADO + TIEMPO (tolerancia 1 min)
-                        const timeKey = Math.floor(new Date(p.collected_at).getTime() / 60000);
-                        const empKey = p.collected_by || 'unknown';
-                        const key = `${empKey}-${timeKey}`;
-
-                        if (!groupsMap.has(key)) {
-                          groupsMap.set(key, {
-                            payments: [],
-                            totalAmount: 0,
-                            employeeName: p.employees ? `${p.employees.first_name} ${p.employees.last_name}` : 'Desconocido',
-                            collectedAt: p.collected_at
-                          });
-                        }
-                        const group = groupsMap.get(key);
-                        group.payments.push(p);
-                        group.totalAmount += p.amount;
-                      });
-
-                      const paymentGroups = Array.from(groupsMap.values());
-
-                      return paymentGroups.map((group, groupIdx) => (
-                        <div
-                          key={`group-${groupIdx}`}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-indigo-500/5 dark:bg-indigo-500/10 border-indigo-500/20"
-                        >
-                          <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap gap-2 items-center">
-                              {group.payments.map((payment: any) => (
-                                <Badge key={`pay-${payment.id}`} variant="outline" className="border-indigo-500 text-indigo-500 px-2 h-5 text-[10px]">
-                                  {payment.payment_method} ${formatCurrency(payment.amount)}
-                                </Badge>
-                              ))}
-                              <span className="font-bold text-lg ml-2">
-                                {formatCurrency(group.totalAmount)}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap gap-1">
-                              {group.payments.map((payment: any) => (
-                                <Badge key={`concept-${payment.id}`} variant="secondary" className="text-[10px] uppercase font-bold tracking-tighter self-start">
-                                  {payment.concept === 'CONSUMPTION' ? 'CONSUMO' :
-                                    payment.concept === 'ESTANCIA' ? 'ESTANCIA' :
-                                      payment.concept === 'HORA_EXTRA' ? 'HORA EXTRA' :
-                                        payment.concept === 'PERSONA_EXTRA' ? 'PERS. EXTRA' :
-                                          payment.concept === 'DAMAGE_CHARGE' ? 'DAÑO' :
-                                            payment.concept || 'PAGO'}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="flex-1 ml-4 border-l border-indigo-500/20 pl-4">
-                            <p className="text-sm text-muted-foreground">
-                              Cobrado por <span className="font-medium text-foreground">{group.employeeName}</span>
-                            </p>
-                            <div className="flex flex-col gap-1 mt-1">
-                              {group.payments.map((payment: any) => payment.payment_method === 'TARJETA' && (
-                                <div key={`card-${payment.id}`} className="flex items-center gap-2">
-                                  {payment.terminal_code && (
-                                    <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                      Ter: {payment.terminal_code}
-                                    </Badge>
-                                  )}
-                                  {payment.card_last_4 && (
-                                    <Badge variant="secondary" className="text-[10px] bg-zinc-500/10 text-zinc-500 border-zinc-500/20">
-                                      **** {payment.card_last_4}
-                                    </Badge>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-0.5 ml-4">
-                            <span className="text-xs text-muted-foreground italic">
-                              {new Date(group.collectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-
-                          <Button
-                            size="sm"
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white ml-4"
-                            onClick={() => corroborateValetPayment(group.payments.map((p: any) => p.id))}
-                            disabled={confirmingPaymentId !== null}
-                          >
-                            {confirmingPaymentId === group.payments[0].id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                Corroborar ({group.payments.length})
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      ));
-                    })()}
-                  </div>
+                {/* Acciones rápidas */}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={selectAllPending}>
+                    Seleccionar todo
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={deselectAll}>
+                    Deseleccionar
+                  </Button>
                 </div>
-              )}
 
-              {/* Lista de conceptos pendientes */}
-              {pendingItems.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">
-                      Conceptos Pendientes ({pendingItems.length})
-                    </h3>
-                    {totalDiscount > 0 && (
-                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
-                        <Tag className="h-3 w-3 mr-1" />
-                        Descuento: -{formatCurrency(totalDiscount)}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {pendingItems.map((item) => {
-                      const itemDiscount = discounts[item.id] || 0;
-                      const finalTotal = getItemTotal(item);
+                {/* Reportes de Cochero (Items entregados via app de cocheros) */}
+                {valetReports.length > 0 && (
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400">
+                      <AlertTriangle className="h-5 w-5" />
+                      <p className="text-sm font-medium">Información de cobros informados por Cochero pendientes de corroborar</p>
+                    </div>
 
-                      // Verificar si hay pagos de cochero sin confirmar
-                      const hasUnconfirmedValetPayments = valetPayments.some(p => !p.confirmed_at);
+                    <div className="space-y-2">
+                      {valetReports.map((report, idx) => {
+                        const desc = Array.isArray(report.itemDescription)
+                          ? report.itemDescription.length > 3
+                            ? `${report.itemDescription.slice(0, 3).join(", ")} +${report.itemDescription.length - 3}`
+                            : report.itemDescription.join(", ")
+                          : report.itemDescription;
 
-                      // WORKFLOW ESTRICTO: Bloquear selección si:
-                      // 1. No está entregado (isPayable)
-                      // 2. Hay pagos de cochero pendientes de corroborar
-                      const isPayable = isItemPayable(item);
-                      const isLocked = !isPayable || hasUnconfirmedValetPayments;
+                        const reportDate = report.timestamp ? new Date(report.timestamp) : new Date();
 
-                      return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "group relative flex flex-col gap-2 p-3 rounded-xl border transition-all duration-200",
-                            selectedItems.has(item.id)
-                              ? "bg-primary/5 border-primary/30 shadow-sm"
-                              : isLocked
-                                ? "bg-muted/10 border-border/30 opacity-70 cursor-not-allowed" // Más opaco si está bloqueado por cochero
-                                : "bg-card border-border/50 hover:bg-muted/30 hover:border-primary/20"
-                          )}
-                        >
-                          {/* Overlay de bloqueo explícito si hay pagos pendientes */}
-                          {hasUnconfirmedValetPayments && (
-                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="text-xs font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded shadow-sm border border-red-500/20">
-                                Corrobora el cobro del cochero primero
-                              </span>
-                            </div>
-                          )}
-
+                        return (
                           <div
-                            className={cn(
-                              "flex items-start gap-3 select-none",
-                              isLocked ? "cursor-not-allowed" : "cursor-pointer"
-                            )}
-                            onClick={() => {
-                              // 1. Bloqueo por cochero
-                              if (hasUnconfirmedValetPayments) {
-                                toast.error("Acción Requerida", {
-                                  description: "Debes corroborar los cobros del cochero antes de procesar otros pagos."
-                                });
-                                return;
-                              }
-
-                              // 2. Bloqueo normal (servicio no listo)
-                              if (isLocked) {
-                                toast.error("Servicio Pendiente", {
-                                  description: "El servicio o entrega debe completarse primero antes de cobrar."
-                                });
-                                return;
-                              }
-
-                              toggleItem(item.id);
-                            }}
+                            key={`report-${idx}`}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-[#0f111a] border-indigo-500/20"
                           >
-                            <Checkbox
-                              checked={selectedItems.has(item.id)}
-                              onCheckedChange={() => toggleItem(item.id)}
-                              disabled={isLocked}
-                              className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-
-                            <div className={cn(
-                              "flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground transition-colors",
-                              selectedItems.has(item.id) && "bg-primary/10 text-primary"
-                            )}>
-                              {CONCEPT_ICONS[item.concept_type || "PRODUCT"]}
-                            </div>
-
-                            <div className="flex-1 min-w-0 pt-0.5">
-                              <div className="flex justify-between items-start gap-2">
-                                <p className={cn(
-                                  "font-semibold text-sm leading-tight",
-                                  selectedItems.has(item.id) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
-                                )}>
-                                  {item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
-                                </p>
-                                <div className="text-right leading-tight">
-                                  {itemDiscount > 0 ? (
-                                    <>
-                                      <p className="text-[10px] line-through text-muted-foreground">{formatCurrency(item.total)}</p>
-                                      <p className="font-bold text-green-600 dark:text-green-400 text-sm">{formatCurrency(finalTotal)}</p>
-                                    </>
-                                  ) : (
-                                    <p className={cn(
-                                      "font-bold text-sm",
-                                      isRefundItem(item) ? "text-red-500" : "text-foreground"
-                                    )}>
-                                      {formatCurrency(finalTotal)}
-                                    </p>
-                                  )}
+                            <div className="flex items-center gap-3">
+                              {/* Mostrar pagos reportados */}
+                              <div className="flex flex-col gap-1 items-start">
+                                <div className="flex flex-wrap gap-1">
+                                  {report.payments && report.payments.map((p: any, i: number) => (
+                                    <Badge key={i} variant="outline" className="border-indigo-500 text-indigo-400 bg-indigo-500/10 px-2 h-5 text-[10px]">
+                                      {p.method} ${formatCurrency(p.amount)}
+                                    </Badge>
+                                  ))}
                                 </div>
+                                <span className="font-bold text-lg text-white">
+                                  {formatCurrency(report.amount)} <span className="text-xs text-muted-foreground font-normal">total reportado</span>
+                                </span>
                               </div>
 
-                              {item.courtesy_reason && (
-                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                                  {item.courtesy_reason}
-                                </p>
-                              )}
+                              <div className="border-l border-zinc-700 h-8 mx-2"></div>
 
-                              <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal bg-muted/50 border-border/50 text-muted-foreground group-hover:border-primary/20">
-                                  {CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
+                              <div className="flex flex-col">
+                                <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold tracking-tighter self-start mb-1 max-w-[200px] truncate">
+                                  {desc}
                                 </Badge>
 
-                                {isLocked && (
-                                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-medium border-orange-500/30 text-orange-500 bg-orange-500/5 animate-pulse">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    Pendiente
-                                  </Badge>
-                                )}
-
-                                <span className="text-[10px] text-muted-foreground font-medium">
-                                  {item.qty} un. × {formatCurrency(item.unit_price)}
+                                <span className="text-xs text-zinc-400">
+                                  Cobrado por <span className="text-indigo-400 font-medium">{report.valetName}</span>
                                 </span>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Controles de descuento */}
-                          <div className="mt-2 pt-2 border-t border-border/50 flex items-center gap-2">
-                            {showDiscountInput === item.id ? (
-                              <div className="flex items-center gap-2 flex-1">
-                                <Input
-                                  type="number"
-                                  placeholder="Monto descuento"
-                                  className="h-8 text-sm w-32"
-                                  max={item.total}
-                                  min={0}
-                                  autoFocus
-                                  onClick={(e) => e.stopPropagation()}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      applyDiscount(item.id, parseFloat((e.target as HTMLInputElement).value) || 0);
-                                    } else if (e.key === 'Escape') {
-                                      setShowDiscountInput(null);
-                                    }
-                                  }}
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                                    applyDiscount(item.id, parseFloat(input?.value) || 0);
-                                  }}
-                                >
-                                  Aplicar
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowDiscountInput(null);
-                                  }}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                            <div className="flex items-center gap-4">
+                              {/* Hora simulada o real si la tenemos en metadata */}
+                              <span className="text-xs text-zinc-500 italic">
+                                {reportDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
+                              </span>
+
+                              <Button
+                                size="sm"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
+                                onClick={() => useValetReportData(report)}
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                Corroborar Recibo
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pagos de Cochero Pendientes de Corroboración */}
+                {valetPayments.filter(p => !p.confirmed_at).length > 0 && (
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-600 dark:text-indigo-400">
+                      <AlertTriangle className="h-5 w-5" />
+                      <p className="text-sm font-medium">Información de cobros informados por Cochero pendientes de corroborar</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(() => {
+                        const visiblePayments = valetPayments.filter(p => !p.confirmed_at);
+                        // DEDUPLICAR para evitar keys repetidas (React crash)
+                        const seenIds = new Set();
+                        const uniqueVisible = visiblePayments.filter(p => {
+                          const duplicate = seenIds.has(p.id);
+                          seenIds.add(p.id);
+                          return !duplicate;
+                        });
+
+                        const groupsMap = new Map<string, any>();
+
+                        uniqueVisible.forEach(p => {
+                          // Agrupar por EMPLEADO + TIEMPO (tolerancia 1 min)
+                          const timeKey = Math.floor(new Date(p.collected_at).getTime() / 60000);
+                          const empKey = p.collected_by || 'unknown';
+                          const key = `${empKey}-${timeKey}`;
+
+                          if (!groupsMap.has(key)) {
+                            groupsMap.set(key, {
+                              payments: [],
+                              totalAmount: 0,
+                              employeeName: p.employees ? `${p.employees.first_name} ${p.employees.last_name}` : 'Desconocido',
+                              collectedAt: p.collected_at
+                            });
+                          }
+                          const group = groupsMap.get(key);
+                          group.payments.push(p);
+                          group.totalAmount += p.amount;
+                        });
+
+                        const paymentGroups = Array.from(groupsMap.values());
+
+                        return paymentGroups.map((group, groupIdx) => (
+                          <div
+                            key={`group-${groupIdx}`}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-indigo-500/5 dark:bg-indigo-500/10 border-indigo-500/20"
+                          >
+                            <div className="flex flex-col gap-2">
+                              <div className="flex flex-wrap gap-2 items-center">
+                                {group.payments.map((payment: any) => (
+                                  <Badge key={`pay-${payment.id}`} variant="outline" className="border-indigo-500 text-indigo-500 px-2 h-5 text-[10px]">
+                                    {payment.payment_method} ${formatCurrency(payment.amount)}
+                                  </Badge>
+                                ))}
+                                <span className="font-bold text-lg ml-2">
+                                  {formatCurrency(group.totalAmount)}
+                                </span>
                               </div>
-                            ) : (
-                              <>
-                                {itemDiscount > 0 ? (
-                                  <Badge
+
+                              <div className="flex flex-wrap gap-1">
+                                {group.payments.map((payment: any) => (
+                                  <Badge key={`concept-${payment.id}`} variant="secondary" className="text-[10px] uppercase font-bold tracking-tighter self-start">
+                                    {payment.concept === 'CONSUMPTION' ? 'CONSUMO' :
+                                      payment.concept === 'ESTANCIA' ? 'ESTANCIA' :
+                                        payment.concept === 'HORA_EXTRA' ? 'HORA EXTRA' :
+                                          payment.concept === 'PERSONA_EXTRA' ? 'PERS. EXTRA' :
+                                            payment.concept === 'DAMAGE_CHARGE' ? 'DAÑO' :
+                                              payment.concept || 'PAGO'}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex-1 ml-4 border-l border-indigo-500/20 pl-4">
+                              <p className="text-sm text-muted-foreground">
+                                Cobrado por <span className="font-medium text-foreground">{group.employeeName}</span>
+                              </p>
+                              <div className="flex flex-col gap-1 mt-1">
+                                {group.payments.map((payment: any) => payment.payment_method === 'TARJETA' && (
+                                  <div key={`card-${payment.id}`} className="flex items-center gap-2">
+                                    {payment.terminal_code && (
+                                      <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                        Ter: {payment.terminal_code}
+                                      </Badge>
+                                    )}
+                                    {payment.card_last_4 && (
+                                      <Badge variant="secondary" className="text-[10px] bg-zinc-500/10 text-zinc-500 border-zinc-500/20">
+                                        **** {payment.card_last_4}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-0.5 ml-4">
+                              <span className="text-xs text-muted-foreground italic">
+                                {new Date(group.collectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+
+                            <Button
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white ml-4"
+                              onClick={() => corroborateValetPayment(group.payments.map((p: any) => p.id))}
+                              disabled={confirmingPaymentId !== null}
+                            >
+                              {confirmingPaymentId === group.payments[0].id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Corroborar ({group.payments.length})
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de conceptos pendientes */}
+                {pendingItems.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">
+                        Conceptos Pendientes ({pendingItems.length})
+                      </h3>
+                      {totalDiscount > 0 && (
+                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
+                          <Tag className="h-3 w-3 mr-1" />
+                          Descuento: -{formatCurrency(totalDiscount)}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {pendingItems.map((item) => {
+                        const itemDiscount = discounts[item.id] || 0;
+                        const finalTotal = getItemTotal(item);
+
+                        // Verificar si hay pagos de cochero sin confirmar
+                        const hasUnconfirmedValetPayments = valetPayments.some(p => !p.confirmed_at);
+
+                        // WORKFLOW ESTRICTO: Bloquear selección si:
+                        // 1. No está entregado (isPayable)
+                        // 2. Hay pagos de cochero pendientes de corroborar
+                        const isPayable = isItemPayable(item);
+                        const isLocked = !isPayable || hasUnconfirmedValetPayments;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              "group relative flex flex-col gap-2 p-3 rounded-xl border transition-all duration-200",
+                              selectedItems.has(item.id)
+                                ? "bg-primary/5 border-primary/30 shadow-sm"
+                                : isLocked
+                                  ? "bg-muted/10 border-border/30 opacity-70 cursor-not-allowed" // Más opaco si está bloqueado por cochero
+                                  : "bg-card border-border/50 hover:bg-muted/30 hover:border-primary/20"
+                            )}
+                          >
+                            {/* Overlay de bloqueo explícito si hay pagos pendientes */}
+                            {hasUnconfirmedValetPayments && (
+                              <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="text-xs font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded shadow-sm border border-red-500/20">
+                                  Corrobora el cobro del cochero primero
+                                </span>
+                              </div>
+                            )}
+
+                            <div
+                              className={cn(
+                                "flex items-start gap-3 select-none",
+                                isLocked ? "cursor-not-allowed" : "cursor-pointer"
+                              )}
+                              onClick={() => {
+                                // 1. Bloqueo por cochero
+                                if (hasUnconfirmedValetPayments) {
+                                  toast.error("Acción Requerida", {
+                                    description: "Debes corroborar los cobros del cochero antes de procesar otros pagos."
+                                  });
+                                  return;
+                                }
+
+                                // 2. Bloqueo normal (servicio no listo)
+                                if (isLocked) {
+                                  toast.error("Servicio Pendiente", {
+                                    description: "El servicio o entrega debe completarse primero antes de cobrar."
+                                  });
+                                  return;
+                                }
+
+                                toggleItem(item.id);
+                              }}
+                            >
+                              <Checkbox
+                                checked={selectedItems.has(item.id)}
+                                onCheckedChange={() => toggleItem(item.id)}
+                                disabled={isLocked}
+                                className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                              />
+
+                              <div className={cn(
+                                "flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground transition-colors",
+                                selectedItems.has(item.id) && "bg-primary/10 text-primary"
+                              )}>
+                                {CONCEPT_ICONS[item.concept_type || "PRODUCT"]}
+                              </div>
+
+                              <div className="flex-1 min-w-0 pt-0.5">
+                                <div className="flex justify-between items-start gap-2">
+                                  <p className={cn(
+                                    "font-semibold text-sm leading-tight",
+                                    selectedItems.has(item.id) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                                  )}>
+                                    {item.products?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
+                                  </p>
+                                  <div className="text-right leading-tight">
+                                    {itemDiscount > 0 ? (
+                                      <>
+                                        <p className="text-[10px] line-through text-muted-foreground">{formatCurrency(item.total)}</p>
+                                        <p className="font-bold text-green-600 dark:text-green-400 text-sm">{formatCurrency(finalTotal)}</p>
+                                      </>
+                                    ) : (
+                                      <p className={cn(
+                                        "font-bold text-sm",
+                                        isRefundItem(item) ? "text-red-500" : "text-foreground"
+                                      )}>
+                                        {formatCurrency(finalTotal)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {item.courtesy_reason && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                                    {item.courtesy_reason}
+                                  </p>
+                                )}
+
+                                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal bg-muted/50 border-border/50 text-muted-foreground group-hover:border-primary/20">
+                                    {CONCEPT_LABELS[item.concept_type || "PRODUCT"]}
+                                  </Badge>
+
+                                  {isLocked && (
+                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-medium border-orange-500/30 text-orange-500 bg-orange-500/5 animate-pulse">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      Pendiente
+                                    </Badge>
+                                  )}
+
+                                  <span className="text-[10px] text-muted-foreground font-medium">
+                                    {item.qty} un. × {formatCurrency(item.unit_price)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Controles de descuento */}
+                            <div className="mt-2 pt-2 border-t border-border/50 flex items-center gap-2">
+                              {showDiscountInput === item.id ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Input
+                                    type="number"
+                                    placeholder="Monto descuento"
+                                    className="h-8 text-sm w-32"
+                                    max={item.total}
+                                    min={0}
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        applyDiscount(item.id, parseFloat((e.target as HTMLInputElement).value) || 0);
+                                      } else if (e.key === 'Escape') {
+                                        setShowDiscountInput(null);
+                                      }
+                                    }}
+                                  />
+                                  <Button
+                                    size="sm"
                                     variant="outline"
-                                    className="text-xs bg-green-500/10 text-green-500 border-green-500/30 cursor-pointer"
+                                    className="h-8"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      removeDiscount(item.id);
+                                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                      applyDiscount(item.id, parseFloat(input?.value) || 0);
                                     }}
                                   >
-                                    <Tag className="h-3 w-3 mr-1" />
-                                    -{formatCurrency(itemDiscount)}
-                                    <X className="h-3 w-3 ml-1" />
-                                  </Badge>
-                                ) : (
+                                    Aplicar
+                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="h-7 text-xs text-muted-foreground hover:text-primary"
+                                    className="h-8"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setShowDiscountInput(item.id);
+                                      setShowDiscountInput(null);
                                     }}
                                   >
-                                    <Percent className="h-3 w-3 mr-1" />
-                                    Descuento
+                                    <X className="h-3 w-3" />
                                   </Button>
-                                )}
+                                </div>
+                              ) : (
+                                <>
+                                  {itemDiscount > 0 ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-green-500/10 text-green-500 border-green-500/30 cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeDiscount(item.id);
+                                      }}
+                                    >
+                                      <Tag className="h-3 w-3 mr-1" />
+                                      -{formatCurrency(itemDiscount)}
+                                      <X className="h-3 w-3 ml-1" />
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-muted-foreground hover:text-primary"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDiscountInput(item.id);
+                                      }}
+                                    >
+                                      <Percent className="h-3 w-3 mr-1" />
+                                      Descuento
+                                    </Button>
+                                  )}
 
-                                {/* Botón de eliminar para consumos no pagados */}
-                                {item.concept_type === 'CONSUMPTION' && (
-                                  confirmDeleteId === item.id ? (
+                                  {/* Botón de forzar desbloqueo para items atascados */}
+                                  {isLocked && !hasUnconfirmedValetPayments && !isItemPayable(item) && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAuthDialog({
+                                          isOpen: true,
+                                          action: 'unlock',
+                                          itemId: item.id,
+                                          itemLabel: item.products?.name || CONCEPT_LABELS[item.concept_type] || 'Concepto',
+                                        });
+                                      }}
+                                    >
+                                      <AlertTriangle className="h-3 w-3 mr-1" />
+                                      Desbloquear
+                                    </Button>
+                                  )}
+
+                                  {/* Botón de eliminar para cualquier concepto no pagado */}
+                                  {confirmDeleteId === item.id ? (
                                     <div className="flex items-center gap-1 ml-auto">
                                       <span className="text-xs text-destructive flex items-center gap-1">
                                         <AlertTriangle className="h-3 w-3" />
-                                        ¿Eliminar?
+                                        ¿Eliminar{item.product_id ? ' (se restaurará inventario)' : ''}?
                                       </span>
                                       <Button
                                         size="sm"
@@ -1486,7 +1567,13 @@ export function GranularPaymentModal({
                                         disabled={deletingItemId === item.id}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          deleteConsumption(item.id);
+                                          setConfirmDeleteId(null);
+                                          setAuthDialog({
+                                            isOpen: true,
+                                            action: 'delete',
+                                            itemId: item.id,
+                                            itemLabel: item.products?.name || CONCEPT_LABELS[item.concept_type] || 'Concepto',
+                                          });
                                         }}
                                       >
                                         {deletingItemId === item.id ? (
@@ -1520,200 +1607,225 @@ export function GranularPaymentModal({
                                       <Trash2 className="h-3 w-3 mr-1" />
                                       Eliminar
                                     </Button>
-                                  )
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Lista de conceptos pagados */}
-              {paidItems.length > 0 && (
-                <div className="space-y-2 opacity-60">
-                  <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">
-                    Ya Pagados ({paidItems.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {paidItems.map((item) => {
-                      const paymentInfo = getPaymentInfo(item);
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-start gap-3 p-3 bg-muted/20 border border-green-900/20 rounded-lg group hover:bg-muted/30 transition-colors"
-                        >
-                          <div className="mt-1 h-5 w-5 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center border border-green-900/30">
-                            <CheckCircle2 className="h-3 w-3" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-green-600 dark:text-green-400">
-                              {getItemDescription(item)}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 px-1.5 py-0 h-5">
-                                {item.payment_method || "EFECTIVO"}
-                              </Badge>
-
-                              {/* Información de quien cobró */}
-                              {paymentInfo && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted p-0.5 px-2 rounded-full border border-border">
-                                  <span className={paymentInfo.role.includes('Cochero') ? 'text-indigo-400 font-medium' : ''}>
-                                    {paymentInfo.role}:
-                                  </span>
-                                  <span className="text-foreground/80">{paymentInfo.name}</span>
-                                </div>
+                                  )}
+                                </>
                               )}
-
-                              {/* Detalles extra */}
-                              {/* (Removido badge redundante de "Ajuste de tarifa" ya que la descripción lo dice explícitamente) */}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className={cn(
-                              "font-medium",
-                              isRefundItem(item) ? "text-red-500" : "text-green-500"
-                            )}>
-                              {formatCurrency(getItemTotal(item))}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {new Date(item.paid_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {pendingItems.length === 0 && (
-                <div className="text-center py-8">
-                  <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
-                  <p className="font-medium">¡Todo pagado!</p>
-                  <p className="text-sm text-muted-foreground">No hay conceptos pendientes</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Paso de pago */
-            <div className="p-6 space-y-4">
-              <div className="flex items-end justify-between p-4 rounded-lg border bg-card shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Total a cobrar</p>
-                  <p className="text-3xl font-bold text-primary tracking-tight">{formatCurrency(selectedTotal)}</p>
-                  <p className="text-xs text-muted-foreground mt-1 font-medium">
-                    {selectedItems.size} concepto{selectedItems.size !== 1 && 's'} seleccionado{selectedItems.size !== 1 && 's'}
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-end gap-2">
-                  <Label htmlFor="tip-amount" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Propina (Opcional)
-                  </Label>
-                  <div className="relative w-32">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
-                    <Input
-                      id="tip-amount"
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="pl-7 text-right h-9 font-semibold bg-background border-input focus-visible:ring-primary/20"
-                      placeholder="0.00"
-                      value={tipAmount || ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        const newTip = isNaN(val) ? 0 : val;
-                        setTipAmount(newTip);
-                      }}
-                    />
-                  </div>
-                  {tipAmount > 0 && (
-                    <div className="text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50">
-                      Total c/ propina: {formatCurrency(selectedTotal + tipAmount)}
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                )}
 
-              {/* Sugerencias de Valet en el paso de pago */}
-              {valetPayments.length > 0 && (
-                <div className="space-y-2 mb-6">
-                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Cobros sugeridos por cochero:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {valetPayments.map(p => (
-                      <Button
-                        key={p.id}
-                        variant="outline"
-                        size="sm"
-                        className="h-auto py-2 px-3 flex flex-col items-start gap-1 border-indigo-500/30 hover:bg-indigo-500/5"
-                        onClick={() => useValetPaymentData([p])}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] px-1 h-4 border-indigo-500/50 text-indigo-500">
-                            {p.confirmed_at && <CheckCircle2 className="h-2 w-2 mr-1 inline" />}
-                            {p.payment_method}
-                          </Badge>
-                          <span className="font-bold text-sm tracking-tight">{formatCurrency(p.amount)}</span>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">
-                          {p.confirmed_at ? "Usar cobro corroborado" : "Usar cobro (Pendiente corrob.)"}
-                        </span>
-                      </Button>
-                    ))}
+                {/* Lista de conceptos pagados */}
+                {paidItems.length > 0 && (
+                  <div className="space-y-2 opacity-60">
+                    <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">
+                      Ya Pagados ({paidItems.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {paidItems.map((item) => {
+                        const paymentInfo = getPaymentInfo(item);
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-start gap-3 p-3 bg-muted/20 border border-green-900/20 rounded-lg group hover:bg-muted/30 transition-colors"
+                          >
+                            <div className="mt-1 h-5 w-5 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center border border-green-900/30">
+                              <CheckCircle2 className="h-3 w-3" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-green-600 dark:text-green-400">
+                                {getItemDescription(item)}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20 px-1.5 py-0 h-5">
+                                  {item.payment_method || "EFECTIVO"}
+                                </Badge>
+
+                                {/* Información de quien cobró */}
+                                {paymentInfo && (
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted p-0.5 px-2 rounded-full border border-border">
+                                    <span className={paymentInfo.role.includes('Cochero') ? 'text-indigo-400 font-medium' : ''}>
+                                      {paymentInfo.role}:
+                                    </span>
+                                    <span className="text-foreground/80">{paymentInfo.name}</span>
+                                  </div>
+                                )}
+
+                                {/* Detalles extra */}
+                                {/* (Removido badge redundante de "Ajuste de tarifa" ya que la descripción lo dice explícitamente) */}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={cn(
+                                "font-medium",
+                                isRefundItem(item) ? "text-red-500" : "text-green-500"
+                              )}>
+                                {formatCurrency(getItemTotal(item))}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {new Date(item.paid_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {pendingItems.length === 0 && (
+                  <div className="text-center py-8">
+                    <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                    <p className="font-medium">¡Todo pagado!</p>
+                    <p className="text-sm text-muted-foreground">No hay conceptos pendientes</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Paso de pago */
+              <div className="p-6 space-y-4">
+                <div className="flex items-end justify-between p-4 rounded-lg border bg-card shadow-sm">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Total a cobrar</p>
+                    <p className="text-3xl font-bold text-primary tracking-tight">{formatCurrency(selectedTotal)}</p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      {selectedItems.size} concepto{selectedItems.size !== 1 && 's'} seleccionado{selectedItems.size !== 1 && 's'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    <Label htmlFor="tip-amount" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Propina (Opcional)
+                    </Label>
+                    <div className="relative w-32">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
+                      <Input
+                        id="tip-amount"
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="pl-7 text-right h-9 font-semibold bg-background border-input focus-visible:ring-primary/20"
+                        placeholder="0.00"
+                        value={tipAmount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          const newTip = isNaN(val) ? 0 : val;
+                          setTipAmount(newTip);
+                        }}
+                      />
+                    </div>
+                    {tipAmount > 0 && (
+                      <div className="text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50">
+                        Total c/ propina: {formatCurrency(selectedTotal + tipAmount)}
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
 
-              <MultiPaymentInput
-                totalAmount={selectedTotal + tipAmount}
-                payments={payments}
-                onPaymentsChange={setPayments}
-                disabled={processing}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex justify-between gap-2 flex-shrink-0">
-          {step === "select" ? (
-            <>
-              <Button variant="outline" onClick={onClose} disabled={processing}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={goToPayment}
-                disabled={selectedItems.size === 0 || processing}
-              >
-                Continuar al Pago ({formatCurrency(selectedTotal)})
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setStep("select")} disabled={processing}>
-                ← Volver
-              </Button>
-              <Button
-                onClick={processPayment}
-                disabled={processing || Math.abs(payments.reduce((s: number, p: any) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
-              >
-                {processing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Procesando...
-                  </>
-                ) : (
-                  "Confirmar Pago"
+                {/* Sugerencias de Valet en el paso de pago */}
+                {valetPayments.length > 0 && (
+                  <div className="space-y-2 mb-6">
+                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Cobros sugeridos por cochero:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {valetPayments.map(p => (
+                        <Button
+                          key={p.id}
+                          variant="outline"
+                          size="sm"
+                          className="h-auto py-2 px-3 flex flex-col items-start gap-1 border-indigo-500/30 hover:bg-indigo-500/5"
+                          onClick={() => useValetPaymentData([p])}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] px-1 h-4 border-indigo-500/50 text-indigo-500">
+                              {p.confirmed_at && <CheckCircle2 className="h-2 w-2 mr-1 inline" />}
+                              {p.payment_method}
+                            </Badge>
+                            <span className="font-bold text-sm tracking-tight">{formatCurrency(p.amount)}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {p.confirmed_at ? "Usar cobro corroborado" : "Usar cobro (Pendiente corrob.)"}
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </Button>
-            </>
-          )}
+
+                <MultiPaymentInput
+                  totalAmount={selectedTotal + tipAmount}
+                  payments={payments}
+                  onPaymentsChange={setPayments}
+                  disabled={processing}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-border flex justify-between gap-2 flex-shrink-0">
+            {step === "select" ? (
+              <>
+                <Button variant="outline" onClick={onClose} disabled={processing}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={goToPayment}
+                  disabled={selectedItems.size === 0 || processing}
+                >
+                  Continuar al Pago ({formatCurrency(selectedTotal)})
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setStep("select")} disabled={processing}>
+                  ← Volver
+                </Button>
+                <Button
+                  onClick={processPayment}
+                  disabled={processing || Math.abs(payments.reduce((s: number, p: any) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
+                >
+                  {processing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Procesando...
+                    </>
+                  ) : (
+                    "Confirmar Pago"
+                  )}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Dialog de autorización por supervisor */}
+      <SupervisorAuthDialog
+        isOpen={authDialog.isOpen}
+        onClose={() => setAuthDialog(prev => ({ ...prev, isOpen: false }))}
+        onAuthorized={(supervisorName) => {
+          if (!authDialog.itemId) return;
+
+          if (authDialog.action === 'unlock') {
+            toast.info(`Desbloqueo autorizado por ${supervisorName}`);
+            forceUnlockItem(authDialog.itemId);
+          } else if (authDialog.action === 'delete') {
+            toast.info(`Eliminación autorizada por ${supervisorName}`);
+            deleteUnpaidItem(authDialog.itemId);
+          }
+        }}
+        title={authDialog.action === 'unlock' ? 'Desbloquear Concepto' : 'Eliminar Concepto'}
+        description={
+          authDialog.action === 'unlock'
+            ? `Se desbloqueará "${authDialog.itemLabel}" para poder cobrarlo o eliminarlo. Ingresa el PIN de un supervisor para continuar.`
+            : `Se eliminará "${authDialog.itemLabel}" de la cuenta permanentemente. Ingresa el PIN de un supervisor para continuar.`
+        }
+        actionLabel={authDialog.action === 'unlock' ? 'Desbloquear' : 'Eliminar'}
+        variant={authDialog.action === 'delete' ? 'danger' : 'warning'}
+      />
+    </>
   );
 }

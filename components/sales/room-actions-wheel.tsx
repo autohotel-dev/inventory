@@ -2,7 +2,8 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Room } from "@/components/sales/room-types";
 
 export interface RoomActionsWheelProps {
@@ -47,6 +48,7 @@ export interface RoomActionsWheelProps {
   hasPendingValetPayment?: boolean; // Si hay pagos cobrados por valet sin confirmar
   hasValetCheckoutRequest?: boolean; // Si el valet propuso salida
   onCancelValetCheckout?: () => void; // Cancelar/Rechazar solicitud de salida
+  hasPendingServices?: boolean; // Indica si hay consumos pendientes de entrega
 }
 
 // Tipo para las acciones
@@ -199,6 +201,7 @@ export function RoomActionsWheel({
   hasVehicleRegistered = false,
   hasPendingValetPayment = false,
   hasValetCheckoutRequest = false,
+  hasPendingServices = false,
   onAuthorizeValetCheckout,
   onCancelValetCheckout,
 }: RoomActionsWheelProps) {
@@ -407,6 +410,11 @@ export function RoomActionsWheel({
                     {/* Indicador de pago pendiente de valet */}
                     {action.action === 'onGranularPayment' && hasPendingValetPayment && (
                       <circle cx="12" cy="-24" r="5" fill="#ef4444" className="animate-pulse" />
+                    )}
+
+                    {/* Indicador de servicios de consumo pendientes (Charola) */}
+                    {action.action === 'onViewServices' && hasPendingServices && (
+                      <circle cx="12" cy="-24" r="5" fill="#f59e0b" className="animate-pulse shadow-lg" />
                     )}
                   </g>
                 </g>

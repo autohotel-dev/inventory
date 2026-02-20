@@ -2,7 +2,8 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle, Car, Check } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
 
@@ -65,6 +66,7 @@ export interface RoomCardProps {
     isWaitingAuthorization?: boolean;
   } | null;
   isValetPending?: boolean; // New prop for strict workflow
+  hasPendingService?: boolean; // Indica si hay consumos pendientes de entrega
   valetId?: string | null; // For debugging
   onInfo: () => void;
   onActions: () => void;
@@ -82,6 +84,7 @@ export function RoomCard({
   sensorStatus,
   vehicleStatus,
   isValetPending,
+  hasPendingService,
   valetId,
   onInfo,
   onActions,
@@ -104,8 +107,18 @@ export function RoomCard({
     >
       {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
       {hasPendingPayment && !showDoorAlert && (
-        <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse" title="Pago pendiente">
+        <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse z-20" title="Pago pendiente">
           <AlertCircle className="h-3 w-3 text-white" />
+        </div>
+      )}
+
+      {/* Indicador de Servicio de Consumo Pendiente (Charola de Comida) */}
+      {hasPendingService && !showDoorAlert && (
+        <div className={cn(
+          "absolute bg-orange-500 rounded-full p-1 shadow-lg animate-pulse z-30 ring-2 ring-background",
+          hasPendingPayment ? "-top-1.5 right-4" : "-top-1.5 -right-1.5"
+        )} title="Servicio de consumo en proceso">
+          <HandPlatter className="h-2.5 w-2.5 text-white" />
         </div>
       )}
 

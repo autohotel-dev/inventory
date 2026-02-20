@@ -95,7 +95,7 @@ const SHIFT_COLORS: Record<string, string> = {
 };
 
 export function ReceptionistDashboard() {
-  const { employeeName, userId, employeeId, isLoading: roleLoading, isValet, isHousekeeping, isMaintenance, isAdmin, isManager } = useUserRole();
+  const { employeeName, userId, employeeId, role, isLoading: roleLoading, isValet, isHousekeeping, isMaintenance, isAdmin, isManager, isSupervisor } = useUserRole();
   const { success, error: showError } = useToast();
 
   // Roles con acceso limitado (sin reportes financieros ni acciones de venta)
@@ -131,7 +131,7 @@ export function ReceptionistDashboard() {
   const [cashAdjustmentInput, setCashAdjustmentInput] = useState("");
 
   // Permiso para ajustar caja (solo admin/manager)
-  const canAdjustCash = isAdmin || isManager;
+  const canAdjustCash = isAdmin || isManager || isSupervisor;
 
   // Sesión efectiva para gastos (la propia o la del sistema si es admin)
   const effectiveSession = activeSession || systemActiveSession;
@@ -248,6 +248,51 @@ export function ReceptionistDashboard() {
     setStartingShift(true);
     try {
       const supabase = createClient();
+
+      // 🔒 Validación del lado del cliente: verificar límite de turnos activos para este rol
+      const getRoleLimitForDashboard = (r: string | null): number | undefined => {
+        switch (r) {
+          case 'receptionist': return posConfig.maxShiftsReceptionist;
+          case 'cochero': return posConfig.maxShiftsValet;
+          case 'admin':
+          case 'manager': return posConfig.maxShiftsAdmin;
+          default: return undefined;
+        }
+      };
+
+      const roleLimit = getRoleLimitForDashboard(role);
+      if (roleLimit !== undefined && role) {
+        const { data: activeSessions, error: checkError } = await supabase
+          .from("shift_sessions")
+          .select("*, employees!inner(*)")
+          .eq("status", "active")
+          .eq("employees.role", role)
+          .is("clock_out_at", null);
+
+        if (!checkError) {
+          const activeCount = activeSessions?.length || 0;
+          if (activeCount >= roleLimit) {
+            const roleLabels: Record<string, string> = {
+              receptionist: 'recepcionista',
+              cochero: 'cochero',
+              admin: 'administrador',
+              manager: 'gerente',
+            };
+            const activeNames = activeSessions
+              ?.map((s: any) => `${s.employees.first_name} ${s.employees.last_name}`)
+              .join(", ");
+            showError(
+              "Límite de turnos alcanzado",
+              `Ya hay ${activeCount} turno(s) activo(s) de ${roleLabels[role] || role} (máximo permitido: ${roleLimit}). ` +
+              `Empleado(s) activo(s): ${activeNames}. ` +
+              `Primero debe(n) cerrar su turno para que puedas iniciar uno nuevo.`
+            );
+            setStartingShift(false);
+            return;
+          }
+        }
+      }
+
       const { data, error } = await supabase
         .from("shift_sessions")
         .insert({

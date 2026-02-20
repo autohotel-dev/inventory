@@ -15,6 +15,7 @@ import { ShiftIndicatorWrapper } from "@/components/employees/shift-indicator-wr
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 import { CashBalanceCard } from "@/components/dashboard/cash-balance-card";
 import { AdminQuickActions } from "@/components/dashboard/admin-quick-actions";
+import { EmergencyCodeViewer } from "@/components/auth/emergency-code-viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,9 @@ export default async function Home() {
 
         {/* Card de Efectivo en Caja */}
         <CashBalanceCard />
+
+        {/* Código de Autorización Temporal */}
+        <EmergencyCodeViewer />
 
         {/* KPIs principales */}
         <div id="tour-dashboard-kpis" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">

@@ -65,7 +65,7 @@ function useMenuPermissions(role: UserRole | null): { allowedMenuIds: Set<string
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (!role || role === 'admin' || role === 'manager') {
+    if (!role || role === 'admin' || role === 'manager' || role === 'supervisor') {
       setIsLoading(false);
       return;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +11,8 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -30,6 +23,14 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardFooter
+} from "@/components/ui/card";
 import {
     Package,
     CheckCircle2,
@@ -43,6 +44,12 @@ import {
     XCircle,
     ConciergeBell,
     MoreHorizontal,
+    Truck,
+    CheckCircle,
+    Coins,
+    ChevronRight,
+    MessageSquare,
+    Info
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils/formatters";
@@ -54,6 +61,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 type DeliveryStatus =
     | 'PENDING_VALET'
@@ -103,15 +111,30 @@ interface ConsumptionTrackingModalProps {
     receptionistId: string;
 }
 
-const STATUS_CONFIG: Record<DeliveryStatus, { label: string; color: string; icon: React.ReactNode }> = {
-    'PENDING_VALET': { label: 'Esperando', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: <Clock className="h-3 w-3" /> },
-    'ACCEPTED': { label: 'Asignado', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: <User className="h-3 w-3" /> },
-    'IN_TRANSIT': { label: 'En camino', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: <HandPlatter className="h-3 w-3" /> },
-    'DELIVERED': { label: 'Entregado', color: 'bg-orange-100 text-orange-800 border-orange-200', icon: <Package className="h-3 w-3" /> },
-    'COMPLETED': { label: 'Completado', color: 'bg-green-100 text-green-800 border-green-200', icon: <CheckCircle2 className="h-3 w-3" /> },
-    'ISSUE': { label: 'Problema', color: 'bg-red-100 text-red-800 border-red-200', icon: <AlertCircle className="h-3 w-3" /> },
-    'CANCELLED': { label: 'Cancelado', color: 'bg-gray-100 text-gray-800 border-gray-200', icon: <XCircle className="h-3 w-3" /> },
+const STATUS_CONFIG: Record<DeliveryStatus, {
+    label: string;
+    color: string;
+    bg: string;
+    border: string;
+    icon: React.ReactNode;
+    step: number;
+}> = {
+    'PENDING_VALET': { label: 'Esperando Cochero', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: <Clock className="h-4 w-4" />, step: 0 },
+    'ACCEPTED': { label: 'Cochero Asignado', color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: <User className="h-4 w-4" />, step: 1 },
+    'IN_TRANSIT': { label: 'En Camino', color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: <Truck className="h-4 w-4" />, step: 2 },
+    'DELIVERED': { label: 'Pendiente de Pago', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: <Package className="h-4 w-4" />, step: 3 },
+    'COMPLETED': { label: 'Completado', color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', icon: <CheckCircle2 className="h-4 w-4" />, step: 4 },
+    'ISSUE': { label: 'Problema', color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', icon: <AlertCircle className="h-4 w-4" />, step: -1 },
+    'CANCELLED': { label: 'Cancelado', color: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20', icon: <XCircle className="h-4 w-4" />, step: -2 },
 };
+
+const STEPS = [
+    { label: "Solicitado", status: "PENDING_VALET" },
+    { label: "Asignado", status: "ACCEPTED" },
+    { label: "En Camino", status: "IN_TRANSIT" },
+    { label: "Entregado", status: "DELIVERED" },
+    { label: "Pagado", status: "COMPLETED" }
+];
 
 export function ConsumptionTrackingModal({
     isOpen,
@@ -128,11 +151,12 @@ export function ConsumptionTrackingModal({
     const [confirmPaymentItem, setConfirmPaymentItem] = useState<ConsumptionItem | null>(null);
     const [receivedAmount, setReceivedAmount] = useState<number>(0);
     const [paymentNotes, setPaymentNotes] = useState("");
+    const [activeFilter, setActiveFilter] = useState<string>('ALL');
 
-    const fetchConsumptions = useCallback(async () => {
+    const fetchConsumptions = useCallback(async (silent = false) => {
         if (!salesOrderId) return;
 
-        setLoading(true);
+        if (!silent) setLoading(true);
         const supabase = createClient();
 
         try {
@@ -144,26 +168,72 @@ export function ConsumptionTrackingModal({
                     valet_employee:employees!sales_order_items_delivery_accepted_by_fkey(first_name, last_name)
                 `)
                 .eq('sales_order_id', salesOrderId)
-                .eq('concept_type', 'CONSUMPTION')
-                .order('id', { ascending: false });
+                .eq('concept_type', 'CONSUMPTION');
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error fetching consumptions:', error.message, error.details, error.hint);
+                throw error;
+            }
             setConsumptions(data || []);
         } catch (error) {
-            console.error('Error fetching consumptions:', error);
-            toast.error('Error al cargar consumos');
+            console.error('Error fetching consumptions catch block:', error);
+            if (!silent) toast.error('Error al cargar consumos');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [salesOrderId]);
 
+    // Realtime Subscription
     useEffect(() => {
-        if (isOpen && salesOrderId) {
-            fetchConsumptions();
-        }
+        if (!isOpen || !salesOrderId) return;
+
+        fetchConsumptions();
+
+        const supabase = createClient();
+        const channel = supabase
+            .channel(`tracking-${salesOrderId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'sales_order_items',
+                    filter: `sales_order_id=eq.${salesOrderId}`
+                },
+                (payload: any) => {
+                    console.log("🔄 Realtime update in tracking:", payload);
+                    fetchConsumptions(true);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [isOpen, salesOrderId, fetchConsumptions]);
 
-    // Confirmar que el cochero recogió los productos
+    // Estadísticas rápidas
+    const stats = useMemo(() => {
+        const total = consumptions.length;
+        const pending = consumptions.filter(c => c.delivery_status === 'PENDING_VALET').length;
+        const accepted = consumptions.filter(c => c.delivery_status === 'ACCEPTED').length;
+        const inTransit = consumptions.filter(c => c.delivery_status === 'IN_TRANSIT').length;
+        const delivered = consumptions.filter(c => c.delivery_status === 'DELIVERED').length;
+        const completed = consumptions.filter(c => c.delivery_status === 'COMPLETED').length;
+        const totalAmount = consumptions.reduce((acc, c) => acc + Number(c.total), 0);
+
+        return { total, pending, accepted, inTransit, delivered, completed, totalAmount };
+    }, [consumptions]);
+
+    const filteredConsumptions = useMemo(() => {
+        if (activeFilter === 'ALL') return consumptions;
+        if (activeFilter === 'PENDING') return consumptions.filter(c => c.delivery_status === 'PENDING_VALET');
+        if (activeFilter === 'TRANSIT') return consumptions.filter(c => c.delivery_status === 'ACCEPTED' || c.delivery_status === 'IN_TRANSIT');
+        if (activeFilter === 'DELIVERED') return consumptions.filter(c => c.delivery_status === 'DELIVERED');
+        if (activeFilter === 'COMPLETED') return consumptions.filter(c => c.delivery_status === 'COMPLETED');
+        return consumptions;
+    }, [consumptions, activeFilter]);
+
     const handleConfirmPickup = async (item: ConsumptionItem) => {
         setActionLoading(item.id);
         const supabase = createClient();
@@ -179,31 +249,22 @@ export function ConsumptionTrackingModal({
                 .eq('id', item.id);
 
             if (error) throw error;
-
-            toast.success('Recogida confirmada', {
-                description: `${item.products?.name} - Cochero en camino`
-            });
-
-            fetchConsumptions();
+            toast.success('Recogida confirmada');
         } catch (error) {
-            console.error('Error confirming pickup:', error);
-            toast.error('Error al confirmar recogida');
+            console.error('Error:', error);
+            toast.error('Error al confirmar');
         } finally {
             setActionLoading(null);
         }
     };
 
-    // Abrir modal de confirmación de pago
     const openPaymentConfirmation = (item: ConsumptionItem) => {
-        const expectedAmount = Number(item.total) + Number(item.tip_amount || 0);
-        // Solo sumar propina en efectivo al monto a recibir
         const tipInCash = item.tip_method === 'EFECTIVO' ? Number(item.tip_amount || 0) : 0;
         setReceivedAmount(Number(item.total) + tipInCash);
         setPaymentNotes("");
         setConfirmPaymentItem(item);
     };
 
-    // Confirmar recepción de pago - SOLO TRACKING, el pago ya existe
     const handleConfirmPayment = async () => {
         if (!confirmPaymentItem) return;
 
@@ -211,7 +272,6 @@ export function ConsumptionTrackingModal({
         const supabase = createClient();
 
         try {
-            // Solo actualizar campos de tracking
             const { error } = await supabase
                 .from('sales_order_items')
                 .update({
@@ -225,21 +285,16 @@ export function ConsumptionTrackingModal({
 
             if (error) throw error;
 
-            toast.success('Entrega completada', {
-                description: `Dinero recibido del cochero: ${formatCurrency(receivedAmount)}`
-            });
-
+            toast.success('Entrega completada');
             setConfirmPaymentItem(null);
-            fetchConsumptions();
         } catch (error) {
-            console.error('Error confirming payment:', error);
+            console.error('Error:', error);
             toast.error('Error al confirmar');
         } finally {
             setActionLoading(null);
         }
     };
 
-    // Reportar problema
     const handleReportIssue = async (item: ConsumptionItem) => {
         const description = prompt('Describe el problema:');
         if (!description) return;
@@ -257,226 +312,338 @@ export function ConsumptionTrackingModal({
                 .eq('id', item.id);
 
             if (error) throw error;
-
             toast.warning('Problema reportado');
-            fetchConsumptions();
         } catch (error) {
-            console.error('Error reporting issue:', error);
-            toast.error('Error al reportar problema');
+            console.error('Error:', error);
+            toast.error('Error al reportar');
         } finally {
             setActionLoading(null);
         }
     };
 
-    // Confirmar recogida de TODOS los items ACCEPTED
     const handleConfirmAllPickups = async () => {
         const acceptedItems = consumptions.filter(c => c.delivery_status === 'ACCEPTED');
-        if (acceptedItems.length === 0) {
-            toast.error("No hay items pendientes de recoger");
-            return;
-        }
+        if (acceptedItems.length === 0) return;
 
         setActionLoading('bulk-pickup');
         const supabase = createClient();
 
         try {
-            const itemIds = acceptedItems.map(item => item.id);
-            const { error } = await supabase
+            await supabase
                 .from('sales_order_items')
                 .update({
                     delivery_status: 'IN_TRANSIT',
                     delivery_picked_up_at: new Date().toISOString(),
                     delivery_picked_up_by: receptionistId
                 })
-                .in('id', itemIds);
-
-            if (error) throw error;
-
-            toast.success('Todas las recogidas confirmadas', {
-                description: `${acceptedItems.length} productos en camino`
-            });
-
-            fetchConsumptions();
+                .in('id', acceptedItems.map(i => i.id));
+            toast.success('Recogidas confirmadas');
         } catch (error) {
-            console.error('Error confirming all pickups:', error);
-            toast.error('Error al confirmar recogidas');
+            console.error('Error:', error);
         } finally {
             setActionLoading(null);
         }
     };
 
-    // Confirmar pago de TODOS los items DELIVERED
     const handleConfirmAllPayments = async () => {
         const deliveredItems = consumptions.filter(c => c.delivery_status === 'DELIVERED');
-        if (deliveredItems.length === 0) {
-            toast.error("No hay entregas pendientes de pago");
-            return;
-        }
+        if (deliveredItems.length === 0) return;
 
         setActionLoading('bulk-payment');
         const supabase = createClient();
 
         try {
-            const itemIds = deliveredItems.map(item => item.id);
-            const totalAmount = deliveredItems.reduce((sum, item) => {
-                const tipInCash = item.tip_method === 'EFECTIVO' ? Number(item.tip_amount || 0) : 0;
-                return sum + Number(item.total) + tipInCash;
-            }, 0);
-
-            const { error } = await supabase
+            await supabase
                 .from('sales_order_items')
                 .update({
                     delivery_status: 'COMPLETED',
                     payment_received_at: new Date().toISOString(),
                     payment_received_by: receptionistId
                 })
-                .in('id', itemIds);
-
-            if (error) throw error;
-
-            toast.success('Todos los pagos confirmados', {
-                description: `${deliveredItems.length} entregas completadas - ${formatCurrency(totalAmount)}`
-            });
-
-            fetchConsumptions();
+                .in('id', deliveredItems.map(i => i.id));
+            toast.success('Pagos confirmados');
         } catch (error) {
-            console.error('Error confirming all payments:', error);
-            toast.error('Error al confirmar pagos');
+            console.error('Error:', error);
         } finally {
             setActionLoading(null);
         }
     };
 
-    const getValetName = (item: ConsumptionItem) => {
-        if (!item.valet_employee) return 'Sin asignar';
-        return `${item.valet_employee.first_name} ${item.valet_employee.last_name}`;
-    };
-
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                <DialogContent className="sm:max-w-[90vw] max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
-                    <DialogHeader className="px-6 py-4 border-b">
-                        <DialogTitle className="flex items-center gap-2">
-                            <ConciergeBell className="h-5 w-5 text-primary" />
-                            Servicios y Entregas - Hab. {roomNumber}
-                        </DialogTitle>
+                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-background/95 backdrop-blur-xl shadow-2xl">
+                    <DialogHeader className="px-8 py-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <DialogTitle className="flex items-center gap-3 text-2xl font-bold">
+                                    <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                                        <ConciergeBell className="h-6 w-6" />
+                                    </div>
+                                    Seguimiento de Servicios
+                                </DialogTitle>
+                                <DialogDescription className="text-base">
+                                    Habitación <span className="font-bold text-foreground">{roomNumber}</span> • Consumos y entregas activas
+                                </DialogDescription>
+                            </div>
+
+                            <div className="hidden md:flex gap-4">
+                                <div className="text-right">
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Consumos</p>
+                                    <p className="text-2xl font-black text-primary">{formatCurrency(stats.totalAmount)}</p>
+                                </div>
+                            </div>
+                        </div>
                     </DialogHeader>
 
-                    <div className="flex-1 overflow-auto bg-muted/5">
-                        {loading ? (
-                            <div className="flex items-center justify-center py-12">
-                                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    {/* Dashboard de resumen */}
+                    <div className="px-8 py-4 bg-muted/30 flex flex-wrap gap-4 border-b">
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+                            className={cn(
+                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
+                                activeFilter === 'PENDING' ? "bg-amber-500 border-amber-600 shadow-md transform scale-105" : "bg-background border-border hover:border-amber-500/50 shadow-sm"
+                            )}
+                        >
+                            <div className={cn(
+                                "p-2 rounded-lg transition-colors",
+                                activeFilter === 'PENDING' ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-600"
+                            )}>
+                                <Clock className="h-4 w-4" />
                             </div>
-                        ) : consumptions.length === 0 ? (
-                            <div className="text-center py-12 text-muted-foreground">
-                                <ConciergeBell className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                                <p>No hay servicios activos</p>
+                            <div className="text-left">
+                                <p className={cn(
+                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
+                                    activeFilter === 'PENDING' ? "text-white/80" : "text-muted-foreground"
+                                )}>Pendientes</p>
+                                <p className={cn(
+                                    "text-lg font-bold leading-none",
+                                    activeFilter === 'PENDING' ? "text-white" : "text-foreground"
+                                )}>{stats.pending}</p>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === 'TRANSIT' ? 'ALL' : 'TRANSIT')}
+                            className={cn(
+                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
+                                activeFilter === 'TRANSIT' ? "bg-purple-500 border-purple-600 shadow-md transform scale-105" : "bg-background border-border hover:border-purple-500/50 shadow-sm"
+                            )}
+                        >
+                            <div className={cn(
+                                "p-2 rounded-lg transition-colors",
+                                activeFilter === 'TRANSIT' ? "bg-white/20 text-white" : "bg-purple-500/10 text-purple-600"
+                            )}>
+                                <Truck className="h-4 w-4" />
+                            </div>
+                            <div className="text-left">
+                                <p className={cn(
+                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
+                                    activeFilter === 'TRANSIT' ? "text-white/80" : "text-muted-foreground"
+                                )}>En Camino</p>
+                                <p className={cn(
+                                    "text-lg font-bold leading-none",
+                                    activeFilter === 'TRANSIT' ? "text-white" : "text-foreground"
+                                )}>{stats.accepted + stats.inTransit}</p>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === 'DELIVERED' ? 'ALL' : 'DELIVERED')}
+                            className={cn(
+                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
+                                activeFilter === 'DELIVERED' ? "bg-orange-500 border-orange-600 shadow-md transform scale-105" : "bg-background border-border hover:border-orange-500/50 shadow-sm"
+                            )}
+                        >
+                            <div className={cn(
+                                "p-2 rounded-lg transition-colors",
+                                activeFilter === 'DELIVERED' ? "bg-white/20 text-white" : "bg-orange-500/10 text-orange-600"
+                            )}>
+                                <Coins className="h-4 w-4" />
+                            </div>
+                            <div className="text-left">
+                                <p className={cn(
+                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
+                                    activeFilter === 'DELIVERED' ? "text-white/80" : "text-muted-foreground"
+                                )}>Por Cobrar</p>
+                                <p className={cn(
+                                    "text-lg font-bold leading-none",
+                                    activeFilter === 'DELIVERED' ? "text-white" : "text-foreground"
+                                )}>{stats.delivered}</p>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+                            className={cn(
+                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
+                                activeFilter === 'COMPLETED' ? "bg-green-600 border-green-700 shadow-md transform scale-105" : "bg-background border-border hover:border-green-500/50 shadow-sm"
+                            )}
+                        >
+                            <div className={cn(
+                                "p-2 rounded-lg transition-colors",
+                                activeFilter === 'COMPLETED' ? "bg-white/20 text-white" : "bg-green-500/10 text-green-600"
+                            )}>
+                                <CheckCircle className="h-4 w-4" />
+                            </div>
+                            <div className="text-left">
+                                <p className={cn(
+                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
+                                    activeFilter === 'COMPLETED' ? "text-white/80" : "text-muted-foreground"
+                                )}>Completados</p>
+                                <p className={cn(
+                                    "text-lg font-bold leading-none",
+                                    activeFilter === 'COMPLETED' ? "text-white" : "text-foreground"
+                                )}>{stats.completed}</p>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-auto p-8 bg-slate-50/50 dark:bg-slate-900/50">
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                <p className="text-muted-foreground animate-pulse">Actualizando estados...</p>
+                            </div>
+                        ) : filteredConsumptions.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                                <div className="p-4 bg-muted rounded-full">
+                                    <ConciergeBell className="h-12 w-12 text-muted-foreground/30" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold">
+                                        {activeFilter === 'ALL' ? 'Sin servicios activos' : 'No hay consumos con este estatus'}
+                                    </h3>
+                                    <p className="text-muted-foreground max-w-xs mx-auto">
+                                        {activeFilter === 'ALL'
+                                            ? 'No hay pedidos de consumo o servicios de valet registrados para esta habitación.'
+                                            : `No se encontraron consumos ${activeFilter.toLowerCase()} en este momento.`}
+                                    </p>
+                                    {activeFilter !== 'ALL' && (
+                                        <Button
+                                            variant="link"
+                                            onClick={() => setActiveFilter('ALL')}
+                                            className="mt-4"
+                                        >
+                                            Ver todos los consumos
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                         ) : (
-                            <Table>
-                                <TableHeader className="bg-muted/50">
-                                    <TableRow>
-                                        <TableHead>Producto</TableHead>
-                                        <TableHead>Cochero</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="text-right">Monto</TableHead>
-                                        <TableHead className="text-right">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {consumptions.map((item) => {
-                                        const status = item.delivery_status || 'PENDING_VALET';
-                                        const statusConfig = STATUS_CONFIG[status];
-                                        const isLoading = actionLoading === item.id;
-                                        const totalAmount = Number(item.total) + Number(item.tip_amount || 0);
+                            <div className="grid grid-cols-1 gap-6">
+                                {filteredConsumptions.map((item) => {
+                                    const status = item.delivery_status || 'PENDING_VALET';
+                                    const config = STATUS_CONFIG[status];
+                                    const isActionable = actionLoading === item.id;
+                                    const currentStep = config.step;
 
-                                        return (
-                                            <TableRow key={item.id}>
-                                                <TableCell>
-                                                    <div>
-                                                        <p className="font-medium flex items-center gap-2">
-                                                            <span className="text-xs bg-muted px-1.5 py-0.5 rounded-md font-mono text-muted-foreground">
-                                                                x{item.qty}
-                                                            </span>
-                                                            {item.products?.name || 'Producto'}
-                                                        </p>
-                                                        {item.delivery_notes && (
-                                                            <p className="text-xs text-muted-foreground mt-0.5">
-                                                                📝 {item.delivery_notes}
-                                                            </p>
-                                                        )}
-                                                        {item.issue_description && (
-                                                            <p className="text-xs text-red-500 mt-0.5 font-medium">
-                                                                ⚠️ {item.issue_description}
-                                                            </p>
-                                                        )}
+                                    return (
+                                        <Card key={item.id} className={cn(
+                                            "overflow-hidden border-2 transition-all duration-300",
+                                            status === 'ISSUE' ? "border-red-500/50 shadow-red-500/10" : "border-border/50 hover:border-primary/20 shadow-xl shadow-slate-200/50 dark:shadow-none"
+                                        )}>
+                                            <div className="p-6">
+                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                    {/* Info del Producto */}
+                                                    <div className="flex items-start gap-4 flex-1">
+                                                        <div className={cn(
+                                                            "p-3 rounded-xl shrink-0",
+                                                            config.bg, config.color
+                                                        )}>
+                                                            {config.icon}
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="font-bold text-lg leading-tight uppercase tracking-tight">
+                                                                    {item.products?.name || 'Producto'}
+                                                                </h4>
+                                                                <Badge variant="secondary" className="font-mono font-bold">
+                                                                    x{item.qty}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                                                <span className="font-bold text-foreground">{formatCurrency(item.total)}</span>
+                                                                <span>•</span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <User className="h-3 w-3" />
+                                                                    {item.valet_employee ? `${item.valet_employee.first_name}` : 'Sin cochero'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
+
+                                                    {/* Stepper Visual */}
+                                                    <div className="flex-1 max-w-md w-full">
+                                                        <div className="relative flex justify-between">
+                                                            {/* Linea de fondo */}
+                                                            <div className="absolute top-4 left-0 w-full h-0.5 bg-muted -z-0" />
+                                                            {/* Linea de progreso */}
+                                                            <div
+                                                                className="absolute top-4 left-0 h-0.5 bg-primary transition-all duration-500 -z-0"
+                                                                style={{ width: `${Math.max(0, currentStep) * 25}%` }}
+                                                            />
+
+                                                            {STEPS.map((step, idx) => {
+                                                                const isCompleted = currentStep >= idx;
+                                                                const isCurrent = currentStep === idx;
+                                                                return (
+                                                                    <div key={step.status} className="flex flex-col items-center gap-2 relative z-10">
+                                                                        <div className={cn(
+                                                                            "h-8 w-8 rounded-full flex items-center justify-center border-2 transition-all duration-300",
+                                                                            isCompleted ? "bg-primary border-primary text-primary-foreground" : "bg-background border-muted text-muted-foreground",
+                                                                            isCurrent && "ring-4 ring-primary/20 scale-110"
+                                                                        )}>
+                                                                            {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-1.5 w-1.5 rounded-full bg-current" />}
+                                                                        </div>
+                                                                        <span className={cn(
+                                                                            "text-[10px] font-bold uppercase tracking-tighter",
+                                                                            isCurrent ? "text-primary" : "text-muted-foreground"
+                                                                        )}>
+                                                                            {step.label}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Acciones */}
                                                     <div className="flex items-center gap-2">
-                                                        <User className="h-3 w-3 text-muted-foreground" />
-                                                        <span className="text-sm">
-                                                            {getValetName(item)}
-                                                        </span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className={`${statusConfig.color} font-normal`}>
-                                                        {statusConfig.icon}
-                                                        <span className="ml-1.5">{statusConfig.label}</span>
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="font-medium">{formatCurrency(totalAmount)}</span>
-                                                        {Number(item.tip_amount) > 0 && (
-                                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                                <span className="text-[10px]">+</span>
-                                                                {formatCurrency(Number(item.tip_amount))} propina
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-2">
                                                         {status === 'ACCEPTED' && (
                                                             <Button
-                                                                size="sm"
+                                                                variant="default"
                                                                 onClick={() => handleConfirmPickup(item)}
-                                                                disabled={isLoading}
-                                                                className="h-8 bg-purple-600 hover:bg-purple-700 text-white"
+                                                                disabled={isActionable}
+                                                                className="shrink-0"
                                                             >
-                                                                {isLoading ? <Loader2 className="h-3 w-3 animate-spin identity" /> : <HandPlatter className="h-3 w-3 mr-1" />}
-                                                                Recogiendo Consumos
+                                                                {isActionable ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandPlatter className="h-4 w-4 mr-2" />}
+                                                                Confirmar Recogida
                                                             </Button>
                                                         )}
 
                                                         {status === 'DELIVERED' && (
                                                             <Button
-                                                                size="sm"
+                                                                variant="default"
                                                                 onClick={() => openPaymentConfirmation(item)}
-                                                                disabled={isLoading}
-                                                                className="h-8 bg-green-600 hover:bg-green-700 text-white"
+                                                                disabled={isActionable}
+                                                                className="bg-green-600 hover:bg-green-700 text-white shrink-0"
                                                             >
-                                                                {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Banknote className="h-3 w-3 mr-1" />}
-                                                                Pago
+                                                                {isActionable ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Banknote className="h-4 w-4 mr-2" />}
+                                                                Validar Pago
                                                             </Button>
                                                         )}
 
                                                         {['ACCEPTED', 'IN_TRANSIT', 'DELIVERED'].includes(status) && (
                                                             <DropdownMenu>
                                                                 <DropdownMenuTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
                                                                         <MoreHorizontal className="h-4 w-4" />
                                                                     </Button>
                                                                 </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end">
-                                                                    <DropdownMenuLabel>Opciones</DropdownMenuLabel>
-                                                                    <DropdownMenuItem
-                                                                        onClick={() => handleReportIssue(item)}
-                                                                        className="text-red-600"
-                                                                    >
+                                                                <DropdownMenuContent align="end" className="w-48">
+                                                                    <DropdownMenuLabel>Gestión de Servicio</DropdownMenuLabel>
+                                                                    <DropdownMenuItem onClick={() => handleReportIssue(item)} className="text-destructive">
                                                                         <AlertCircle className="mr-2 h-4 w-4" />
                                                                         Reportar Problema
                                                                     </DropdownMenuItem>
@@ -484,83 +651,99 @@ export function ConsumptionTrackingModal({
                                                             </DropdownMenu>
                                                         )}
                                                     </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
+                                                </div>
+
+                                                {/* Notas y Problemas */}
+                                                {(item.delivery_notes || item.issue_description) && (
+                                                    <div className="mt-4 pt-4 border-t flex flex-wrap gap-4">
+                                                        {item.delivery_notes && (
+                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg">
+                                                                <MessageSquare className="h-3.5 w-3.5" />
+                                                                <span className="font-medium text-foreground">Nota:</span> {item.delivery_notes}
+                                                            </div>
+                                                        )}
+                                                        {item.issue_description && (
+                                                            <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg border border-destructive/20">
+                                                                <AlertCircle className="h-3.5 w-3.5" />
+                                                                <span className="font-bold">Incidencia:</span> {item.issue_description}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
 
-
-                    <div className="p-4 border-t flex justify-between items-center bg-background">
-                        <div className="flex gap-2">
-                            {/* Bulk action: Confirm all pickups */}
-                            {consumptions.filter(c => c.delivery_status === 'ACCEPTED').length > 1 && (
-                                <Button
-                                    variant="outline"
-                                    onClick={handleConfirmAllPickups}
-                                    disabled={actionLoading === 'bulk-pickup'}
-                                    className="border-purple-500 text-purple-600 hover:bg-purple-50"
-                                >
-                                    {actionLoading === 'bulk-pickup' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandPlatter className="h-4 w-4 mr-2" />}
-                                    Confirmar Recogida Todos ({consumptions.filter(c => c.delivery_status === 'ACCEPTED').length})
-                                </Button>
-                            )}
-                            {/* Bulk action: Confirm all payments */}
-                            {consumptions.filter(c => c.delivery_status === 'DELIVERED').length > 1 && (
-                                <Button
-                                    onClick={handleConfirmAllPayments}
-                                    disabled={actionLoading === 'bulk-payment'}
-                                    className="bg-green-600 hover:bg-green-700"
-                                >
-                                    {actionLoading === 'bulk-payment' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Banknote className="h-4 w-4 mr-2" />}
-                                    Confirmar Pago Todos ({consumptions.filter(c => c.delivery_status === 'DELIVERED').length})
-                                </Button>
-                            )}
+                    <div className="p-8 border-t flex flex-col md:flex-row justify-between items-center bg-background gap-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={handleConfirmAllPickups}
+                                disabled={actionLoading === 'bulk-pickup' || stats.accepted === 0}
+                                className="border-primary/20 hover:bg-muted group transition-all"
+                            >
+                                <HandPlatter className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                                Todo Entregado a Cochero
+                            </Button>
+                            <Button
+                                variant="default"
+                                onClick={handleConfirmAllPayments}
+                                disabled={actionLoading === 'bulk-payment' || stats.delivered === 0}
+                                className="bg-green-600 hover:bg-green-700 shadow-sm transition-all text-white"
+                            >
+                                <Banknote className="h-4 w-4 mr-2" />
+                                Confirmar Todos los Pagos
+                            </Button>
                         </div>
-                        <Button variant="outline" onClick={onClose}>
-                            Cerrar
-                        </Button>
+                        <div className="flex items-center gap-3 w-full md:w-auto">
+                            <Button variant="ghost" onClick={() => fetchConsumptions()} className="text-muted-foreground">
+                                <Clock className="h-4 w-4 mr-2" />
+                                Actualizar
+                            </Button>
+                            <Button variant="outline" onClick={onClose} className="px-8 font-bold">
+                                Cerrar
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
 
             {/* Modal de confirmación de pago */}
             <AlertDialog open={!!confirmPaymentItem} onOpenChange={(open) => !open && setConfirmPaymentItem(null)}>
-                <AlertDialogContent>
+                <AlertDialogContent className="max-w-md border-none shadow-2xl">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                            <Banknote className="h-5 w-5 text-green-600" />
-                            Confirmar Recepción de Pago
+                        <AlertDialogTitle className="flex items-center gap-3 text-xl">
+                            <div className="p-2 bg-green-100 text-green-700 rounded-lg">
+                                <Banknote className="h-6 w-6" />
+                            </div>
+                            Validar Recepción de Dinero
                         </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Verifica el monto recibido del cochero
+                        <AlertDialogDescription className="text-base pt-2">
+                            Confirma que has recibido el efectivo/comprobante del cochero por el producto <span className="font-bold text-foreground underline decoration-primary/30">{confirmPaymentItem?.products?.name}</span>.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
                     {confirmPaymentItem && (
-                        <div className="space-y-4 py-4">
-                            <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Producto:</span>
-                                    <span className="font-medium">{confirmPaymentItem.products?.name}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Total consumo:</span>
-                                    <span>{formatCurrency(Number(confirmPaymentItem.total))}</span>
+                        <div className="space-y-6 py-4">
+                            <div className="bg-slate-50 dark:bg-slate-900 border rounded-2xl p-5 space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground font-medium">Costo del Producto</span>
+                                    <span className="font-bold">{formatCurrency(Number(confirmPaymentItem.total))}</span>
                                 </div>
                                 {Number(confirmPaymentItem.tip_amount) > 0 && (
                                     <>
-                                        <div className="flex justify-between text-amber-600">
-                                            <span>Propina ({confirmPaymentItem.tip_method}):</span>
-                                            <span>{formatCurrency(Number(confirmPaymentItem.tip_amount))}</span>
+                                        <div className="flex justify-between items-center text-amber-600 font-medium pb-2 border-b border-dashed">
+                                            <span>Propina ({confirmPaymentItem.tip_method})</span>
+                                            <span>+{formatCurrency(Number(confirmPaymentItem.tip_amount))}</span>
                                         </div>
                                         {confirmPaymentItem.tip_method === 'EFECTIVO' && (
-                                            <div className="flex justify-between font-bold border-t pt-2">
-                                                <span>Total a recibir:</span>
-                                                <span className="text-green-600">
+                                            <div className="flex justify-between items-center pt-1">
+                                                <span className="font-bold text-lg">Total a Recibir</span>
+                                                <span className="text-2xl font-black text-green-600">
                                                     {formatCurrency(Number(confirmPaymentItem.total) + Number(confirmPaymentItem.tip_amount))}
                                                 </span>
                                             </div>
@@ -569,44 +752,47 @@ export function ConsumptionTrackingModal({
                                 )}
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Monto recibido</label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                                    <Input
-                                        type="number"
-                                        value={receivedAmount}
-                                        onChange={(e) => setReceivedAmount(Number(e.target.value))}
-                                        className="pl-7 text-lg"
+                            <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Monto Real Recibido</label>
+                                    <div className="relative group">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-muted-foreground group-focus-within:text-green-600 transition-colors">$</div>
+                                        <Input
+                                            type="number"
+                                            value={receivedAmount}
+                                            onChange={(e) => setReceivedAmount(Number(e.target.value))}
+                                            className="pl-10 h-14 text-2xl font-black rounded-2xl border-2 focus-visible:ring-green-500/20 focus-visible:border-green-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Notas de Recepción</label>
+                                    <Textarea
+                                        placeholder="Detalles sobre el dinero o entrega..."
+                                        value={paymentNotes}
+                                        onChange={(e) => setPaymentNotes(e.target.value)}
+                                        rows={3}
+                                        className="rounded-2xl border-2 focus-visible:ring-primary/20"
                                     />
                                 </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Notas (opcional)</label>
-                                <Textarea
-                                    placeholder="Ej: Cochero reportó que cliente estaba satisfecho..."
-                                    value={paymentNotes}
-                                    onChange={(e) => setPaymentNotes(e.target.value)}
-                                    rows={2}
-                                />
                             </div>
                         </div>
                     )}
 
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogFooter className="gap-2 sm:gap-0">
+                        <AlertDialogCancel className="rounded-xl border-2 hover:bg-slate-100 transition-colors">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleConfirmPayment}
-                            className="bg-green-600 hover:bg-green-700"
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold h-11 px-6 rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95"
                             disabled={actionLoading === confirmPaymentItem?.id}
                         >
                             {actionLoading === confirmPaymentItem?.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                <Loader2 className="h-5 w-5 animate-spin mr-2" />
                             ) : (
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                <CheckCircle2 className="h-5 w-5 mr-2" />
                             )}
-                            Confirmar Pago
+                            Finalizar Seguimiento
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

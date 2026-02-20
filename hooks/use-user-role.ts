@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export type UserRole = "admin" | "manager" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
+export type UserRole = "admin" | "manager" | "supervisor" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
 
 interface UserRoleData {
   role: UserRole;
@@ -14,6 +14,7 @@ interface UserRoleData {
   isLoading: boolean;
   isAdmin: boolean;
   isManager: boolean;
+  isSupervisor: boolean;
   isReceptionist: boolean;
   isValet: boolean;
   isHousekeeping: boolean;
@@ -168,11 +169,12 @@ export function useUserRole(): UserRoleData {
 
   const isAdmin = role === "admin";
   const isManager = role === "manager";
+  const isSupervisor = role === "supervisor";
   const isReceptionist = role === "receptionist";
   const isValet = role === "cochero";
   const isHousekeeping = role === "camarista";
   const isMaintenance = role === "mantenimiento";
-  const canAccessAdmin = isAdmin || isManager;
+  const canAccessAdmin = isAdmin || isManager || isSupervisor;
 
   return {
     role,
@@ -183,6 +185,7 @@ export function useUserRole(): UserRoleData {
     isLoading,
     isAdmin,
     isManager,
+    isSupervisor,
     isReceptionist,
     isValet,
     isHousekeeping,

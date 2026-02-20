@@ -804,7 +804,7 @@ function RoomsBoardInternal() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, valet_checkout_requested_at, vehicle_requested_at, guest_access_token, checkout_payment_data, sales_orders ( remaining_amount ) )`
+          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, valet_checkout_requested_at, vehicle_requested_at, guest_access_token, checkout_payment_data, sales_orders ( id, remaining_amount, sales_order_items ( id, delivery_status, concept_type ) ) )`
         );
 
       if (error) {
@@ -2536,6 +2536,12 @@ function RoomsBoardInternal() {
                 isWaitingAuthorization: !!activeStay?.valet_checkout_requested_at && !activeStay?.vehicle_requested_at
               };
 
+              const items = activeStay?.sales_orders?.sales_order_items || [];
+              const hasPendingService = items.some(item =>
+                item.concept_type === 'CONSUMPTION' &&
+                ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
+              );
+
               return (
                 <RoomCard
                   key={room.id}
@@ -2546,6 +2552,7 @@ function RoomsBoardInternal() {
                   accentClass={isSaliendo ? "ring-1 ring-orange-500/40" : ROOM_STATUS_ACCENT[status]}
                   statusBadge={renderStatusBadge(status, isSaliendo)}
                   hasPendingPayment={!!hasPendingPayment}
+                  hasPendingService={hasPendingService}
                   roomTypeName={room.room_types?.name}
                   notes={room.notes}
                   sensorStatus={(() => {
@@ -2637,6 +2644,12 @@ function RoomsBoardInternal() {
         isVisible={actionsDockVisible}
         actionLoading={actionLoading}
         hasPendingValetPayment={hasPendingValetPayment}
+        hasPendingServices={
+          selectedRoom ? (getActiveStay(selectedRoom)?.sales_orders?.sales_order_items || []).some(item =>
+            item.concept_type === 'CONSUMPTION' &&
+            ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
+          ) : false
+        }
         statusBadge={selectedRoom ? renderStatusBadge(selectedRoom.status) : null}
         hasExtraCharges={selectedRoom ? hasExtraCharges(selectedRoom) : false}
         isHotelRoom={selectedRoom?.room_types?.is_hotel === true}
