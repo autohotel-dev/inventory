@@ -135,6 +135,25 @@ export function ChatWidget() {
         }
     };
 
+    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file) {
+                    setSelectedFile(file);
+                    const reader = new FileReader();
+                    reader.onloadend = () => setPreviewUrl(reader.result as string);
+                    reader.readAsDataURL(file);
+                    e.preventDefault();
+                    break;
+                }
+            }
+        }
+    };
+
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -146,12 +165,13 @@ export function ChatWidget() {
             let messageType: 'text' | 'image' = 'text';
 
             if (selectedFile) {
+                console.log("Found selected file to upload:", selectedFile.name, selectedFile.type, selectedFile.size);
                 mediaUrl = await uploadMedia(selectedFile);
                 messageType = 'image';
+                console.log("Upload successful, public URL:", mediaUrl);
             }
 
-            // If we have text AND an image, we send the image with the text as caption
-            // (Our sendMessage supports content and mediaUrl in one message)
+            console.log("Sending message...", { inputValue, mediaUrl, messageType });
             await sendMessage(inputValue, mediaUrl, messageType);
             
             setInputValue("");
@@ -553,6 +573,7 @@ export function ChatWidget() {
                                     setInputValue(e.target.value);
                                     handleTypingInput();
                                 }}
+                                onPaste={handlePaste}
                                 className="flex-1 h-11 rounded-2xl border-border/50 bg-background/60 focus-visible:ring-primary/30 focus-visible:ring-offset-0 px-4 placeholder:text-muted-foreground/60 transition-all shadow-sm"
                             />
                             <Button

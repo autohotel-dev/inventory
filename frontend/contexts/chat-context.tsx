@@ -78,9 +78,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, [isOpen, messages, currentUser, supabase]);
 
-    const sendMessage = async (content: string) => {
+    const sendMessage = async (content: string, mediaUrl?: string, messageType: 'text' | 'image' = 'text') => {
         if (!currentUser) return;
-        await sendMsgFn(content, currentUser);
+        await sendMsgFn(content, currentUser, mediaUrl, messageType);
     };
 
     const value = {
