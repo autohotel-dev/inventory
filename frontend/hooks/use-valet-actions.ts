@@ -33,7 +33,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleRegisterVehicleAndPayment = useCallback(async (
         room: Room,
         vehicleData: VehicleData,
-        paymentData: PaymentEntry,
+        payments: PaymentEntry[],
         valetId: string,
         personCount: number
     ) => {
@@ -49,7 +49,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             }
 
             // 1. Actualizar vehículo y asignar valet
-            // Permitir actualización si: NO tiene valet O el valet soy YO
             const { error: stayError, count } = await supabase
                 .from('room_stays')
                 .update({
@@ -59,26 +58,23 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     valet_employee_id: valetId,
                     current_people: personCount,
                     total_people: Math.max(personCount, activeStay.total_people || 0),
-                    vehicle_requested_at: null, // Limpiar cualquier solicitud previa
-                    // Guardar datos de pago para el checkout
-                    checkout_payment_data: [{
-                        amount: paymentData.amount,
-                        method: paymentData.method,
-                        reference: paymentData.reference,
-                        // Indicar que es pago de entrada
+                    vehicle_requested_at: null,
+                    // Guardar datos de pago para el checkout (JSON)
+                    checkout_payment_data: payments.map(p => ({
+                        amount: p.amount,
+                        method: p.method,
+                        reference: p.reference,
                         concept: 'ENTRADA'
-                    }]
+                    }))
                 })
                 .eq('id', activeStay.id)
-                .or(`valet_employee_id.is.null,valet_employee_id.eq.${valetId}`); // Permitir si es null O es el mismo valet
+                .or(`valet_employee_id.is.null,valet_employee_id.eq.${valetId}`);
 
-            // Verificar si la actualización afectó alguna fila
             if (stayError) {
                 console.error('Error updating room stay:', stayError);
                 throw stayError;
             }
 
-            // Si count es 0, significa que otro valet ya está asignado
             if (count === 0) {
                 toast.warning('Entrada ya asignada', {
                     description: 'Otro cochero ya aceptó esta entrada.'
@@ -86,19 +82,18 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 return false;
             }
 
-            // 2. Obtener shift actual del valet
+            // 2. Obtener shift actual del valet (estado 'active' para consistencia con móvil)
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
                 .eq('employee_id', valetId)
-                .eq('status', 'open')
+                .eq('status', 'active')
                 .maybeSingle();
 
-            // 3. El cochero NO crea un pago nuevo.
-            // Debe tomar el pago principal creado por recepción (ESTANCIA, PENDIENTE)
+            // 3. Tomar el pago principal creado por recepción (ESTANCIA, PENDIENTE)
             const { data: pendingMain, error: pendingMainError } = await supabase
                 .from('payments')
-                .select('id')
+                .select('id, amount')
                 .eq('sales_order_id', activeStay.sales_order_id)
                 .eq('concept', 'ESTANCIA')
                 .eq('status', 'PENDIENTE')
@@ -106,43 +101,55 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .order('created_at', { ascending: true })
                 .maybeSingle();
 
-            if (pendingMainError) {
-                console.error('Error finding pending main payment:', pendingMainError);
-                throw pendingMainError;
-            }
+            if (pendingMainError) throw pendingMainError;
 
             if (!pendingMain?.id) {
-                toast.error('No se encontró el pago pendiente de la estancia', {
-                    description: 'Pide a recepción que genere/valide el cargo de la habitación antes de registrar el cobro.'
+                toast.error('No se encontró el cargo de la estancia', {
+                    description: 'Pide a recepción que valide el cargo de la habitación.'
                 });
                 return false;
             }
 
-            const { error: paymentUpdateError } = await supabase
-                .from('payments')
-                .update({
-                    amount: paymentData.amount,
-                    payment_method: paymentData.method,
-                    reference: paymentData.reference || null,
-                    status: 'COBRADO_POR_VALET',
-                    payment_type: 'COMPLETO',
-                    collected_by: valetId,
-                    collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null,
-                })
-                .eq('id', pendingMain.id);
-
-            if (paymentUpdateError) {
-                console.error('Error updating payment as COBRADO_POR_VALET:', paymentUpdateError);
-                throw paymentUpdateError;
+            // 4. Registrar los pagos
+            for (let i = 0; i < payments.length; i++) {
+                const p = payments[i];
+                if (i === 0) {
+                    // El primero actualiza el registro principal
+                    await supabase.from('payments').update({
+                        amount: p.amount,
+                        payment_method: p.method,
+                        terminal_code: p.terminal,
+                        card_last_4: p.cardLast4,
+                        card_type: p.cardType,
+                        reference: p.reference || null,
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    }).eq('id', pendingMain.id);
+                } else {
+                    // Los demás se insertan como parciales vinculados
+                    await supabase.from('payments').insert({
+                        sales_order_id: activeStay.sales_order_id,
+                        amount: p.amount,
+                        payment_method: p.method,
+                        terminal_code: p.terminal,
+                        card_last_4: p.cardLast4,
+                        card_type: p.cardType,
+                        reference: p.reference || null,
+                        concept: 'ESTANCIA',
+                        status: 'COBRADO_POR_VALET',
+                        payment_type: 'PARCIAL',
+                        parent_payment_id: pendingMain.id,
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    });
+                }
             }
 
-            const methodLabel = paymentData.method === 'EFECTIVO' ? 'el dinero' :
-                paymentData.method === 'TARJETA' ? 'el voucher' :
-                    'el comprobante';
-
             toast.success('✅ Entrada registrada', {
-                description: `Hab. ${room.number}: Lleva ${methodLabel} a recepción para confirmar`,
+                description: `Hab. ${room.number}: Entrega dinero/vouchers en recepción.`,
                 duration: 5000
             });
 
@@ -151,7 +158,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
 
         } catch (error) {
             console.error('Error registering vehicle and payment:', error);
-            toast.error('Error al registrarentrada');
+            toast.error('Error al registrar entrada');
             return false;
         } finally {
             setLoading(false);
@@ -361,7 +368,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .from('shift_sessions')
                 .select('id')
                 .eq('employee_id', valetId)
-                .eq('status', 'open')
+                .eq('status', 'active')
                 .maybeSingle();
 
             // 2. Obtener sales_order_id
@@ -444,7 +451,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .from('shift_sessions')
                 .select('id')
                 .eq('employee_id', valetId)
-                .eq('status', 'open')
+                .eq('status', 'active')
                 .maybeSingle();
 
             const itemIds = items.map(item => item.id);
@@ -540,7 +547,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 .from('shift_sessions')
                 .select('id')
                 .eq('employee_id', valetId)
-                .eq('status', 'open')
+                .eq('status', 'active')
                 .maybeSingle();
 
             // 2. Crear el cargo por daño en sales_order_items
@@ -553,14 +560,14 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     unit_price: amount,
                     qty: 1,
                     total: amount,
-                    is_paid: false // Reception will mark as paid
+                    is_paid: false
                 })
                 .select()
                 .single();
 
             if (itemError) throw itemError;
 
-            // 3. Registrar los pagos si los hay
+            // 3. Registrar los pagos
             for (const p of payments) {
                 await supabase.from('payments').insert({
                     sales_order_id: salesOrderId,
@@ -592,6 +599,134 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh]);
 
+    const handleRegisterExtraHour = useCallback(async (
+        salesOrderId: string,
+        roomNumber: string,
+        amount: number,
+        payments: PaymentEntry[],
+        valetId: string
+    ) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            const { data: session } = await supabase
+                .from('shift_sessions')
+                .select('id')
+                .eq('employee_id', valetId)
+                .eq('status', 'active')
+                .maybeSingle();
+
+            const { data: item, error: itemError } = await supabase
+                .from('sales_order_items')
+                .insert({
+                    sales_order_id: salesOrderId,
+                    concept_type: 'EXTRA_HOUR',
+                    description: 'HORA EXTRA (VALET)',
+                    unit_price: amount,
+                    qty: 1,
+                    total: amount,
+                    is_paid: false
+                })
+                .select()
+                .single();
+
+            if (itemError) throw itemError;
+
+            for (const p of payments) {
+                await supabase.from('payments').insert({
+                    sales_order_id: salesOrderId,
+                    amount: p.amount,
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || `VALET_HOUR:${item?.id}`,
+                    concept: 'HORA_EXTRA',
+                    status: 'COBRADO_POR_VALET',
+                    collected_by: valetId,
+                    collected_at: new Date().toISOString(),
+                    shift_session_id: session?.id || null,
+                });
+            }
+
+            toast.success('✅ Hora Extra Informada', {
+                description: `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`
+            });
+            await onRefresh();
+            return true;
+        } catch (error: any) {
+            console.error('Error registering extra hour:', error);
+            toast.error('No se pudo registrar la hora extra.');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, [onRefresh]);
+
+    const handleRegisterExtraPerson = useCallback(async (
+        salesOrderId: string,
+        roomNumber: string,
+        amount: number,
+        payments: PaymentEntry[],
+        valetId: string
+    ) => {
+        setLoading(true);
+        const supabase = createClient();
+        try {
+            const { data: session } = await supabase
+                .from('shift_sessions')
+                .select('id')
+                .eq('employee_id', valetId)
+                .eq('status', 'active')
+                .maybeSingle();
+
+            const { data: item, error: itemError } = await supabase
+                .from('sales_order_items')
+                .insert({
+                    sales_order_id: salesOrderId,
+                    concept_type: 'EXTRA_PERSON',
+                    description: 'PERSONA EXTRA (VALET)',
+                    unit_price: amount,
+                    qty: 1,
+                    total: amount,
+                    is_paid: false
+                })
+                .select()
+                .single();
+
+            if (itemError) throw itemError;
+
+            for (const p of payments) {
+                await supabase.from('payments').insert({
+                    sales_order_id: salesOrderId,
+                    amount: p.amount,
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || `VALET_PERSON:${item?.id}`,
+                    concept: 'PERSONA_EXTRA',
+                    status: 'COBRADO_POR_VALET',
+                    collected_by: valetId,
+                    collected_at: new Date().toISOString(),
+                    shift_session_id: session?.id || null,
+                });
+            }
+
+            toast.success('✅ Persona Extra Informada', {
+                description: `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`
+            });
+            await onRefresh();
+            return true;
+        } catch (error: any) {
+            console.error('Error registering extra person:', error);
+            toast.error('No se pudo registrar la persona extra.');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, [onRefresh]);
+
     return {
         loading,
         handleAcceptEntry,
@@ -603,6 +738,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         handleConfirmDelivery,
         handleConfirmAllDeliveries,
         handleCancelConsumption,
-        handleReportDamage
+        handleReportDamage,
+        handleRegisterExtraHour,
+        handleRegisterExtraPerson
     };
 }

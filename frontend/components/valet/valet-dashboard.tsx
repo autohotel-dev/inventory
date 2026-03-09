@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
-import { useValetActions } from "@/hooks/use-valet-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { ValetCheckInModal } from "./valet-checkin-modal";
 import { ValetCheckoutModal } from "./valet-checkout-modal";
 import { ValetDeliveryConfirmModal } from "./valet-delivery-confirm-modal";
+import { ValetExtraChargeModal } from "./valet-extra-charge-modal";
+import { useValetActions } from "@/hooks/use-valet-actions";
 import { usePushRegistration } from "@/hooks/use-push-registration";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -56,6 +57,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [showCheckInModal, setShowCheckInModal] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [showExtraChargeModal, setShowExtraChargeModal] = useState(false);
+    const [extraChargeType, setExtraChargeType] = useState<'EXTRA_HOUR' | 'EXTRA_PERSON'>('EXTRA_HOUR');
     const [showDeliveryModal, setShowDeliveryModal] = useState(false);
     const [selectedConsumption, setSelectedConsumption] = useState<any | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -165,6 +168,8 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
     const {
         loading: actionLoading,
         handleRegisterVehicleAndPayment,
+        handleRegisterExtraHour,
+        handleRegisterExtraPerson,
         handleConfirmCheckout,
         handleProposeCheckout,
         handleAcceptEntry,
@@ -730,6 +735,15 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 onConfirm={handleCheckout}
                 loading={actionLoading}
             />
+            <ValetExtraChargeModal
+                isOpen={showExtraChargeModal}
+                onClose={() => setShowExtraChargeModal(false)}
+                type={extraChargeType}
+                room={selectedRoom as any}
+                employeeId={employeeId}
+                onConfirm={extraChargeType === 'EXTRA_HOUR' ? handleRegisterExtraHour : handleRegisterExtraPerson}
+            />
+
             <ValetDeliveryConfirmModal
                 isOpen={showDeliveryModal}
                 onClose={() => {
@@ -826,7 +840,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                     {isValetRequested && <Badge className="bg-amber-500 hover:bg-amber-600">Aviso Enviado</Badge>}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                <div className="grid grid-cols-2 gap-2 mt-3">
                     {isRequested ? (
                         <Button onClick={() => handleOpenCheckout(room)} className="col-span-2 bg-red-600 hover:bg-red-700 text-white h-10 text-lg">
                             <LogOut className="h-4 w-4 mr-2" /> Entregar
@@ -841,6 +855,23 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                             </Button>
                         </>
                     )}
+                    
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => { setSelectedRoom(room); setExtraChargeType('EXTRA_HOUR'); setShowExtraChargeModal(true); }}
+                        className="h-9 text-xs border-amber-200 bg-amber-50 text-amber-700" 
+                    >
+                        <Clock className="h-3 w-3 mr-1" /> Hora Extra
+                    </Button>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => { setSelectedRoom(room); setExtraChargeType('EXTRA_PERSON'); setShowExtraChargeModal(true); }}
+                        className="h-9 text-xs border-blue-200 bg-blue-50 text-blue-700" 
+                    >
+                        <Users className="h-3 w-3 mr-1" /> Pers. Extra
+                    </Button>
                 </div>
             </>
         );

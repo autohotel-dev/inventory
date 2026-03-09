@@ -26,7 +26,8 @@ import {
   Tag,
   Trash2,
   AlertTriangle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Car
 } from "lucide-react";
 
 // Generar referencia única para pagos
@@ -154,6 +155,7 @@ export function GranularPaymentModal({
   const [valetPayments, setValetPayments] = useState<any[]>([]); // Pagos cobrados por valet (tabla payments)
   const [historicalPayments, setHistoricalPayments] = useState<any[]>([]); // Historial de todos los pagos de la orden
   const [valetReports, setValetReports] = useState<any[]>([]); // Reportes de pago en items (issue_description)
+  const [checkInReport, setCheckInReport] = useState<any | null>(null); // Nuevo: Reporte de entrada (desde room_stays)
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [step, setStep] = useState<"select" | "pay">("select");
   const [discounts, setDiscounts] = useState<Record<string, number>>({});
@@ -400,6 +402,24 @@ export function GranularPaymentModal({
         );
         setValetPayments(activeValetPayments);
         setHistoricalPayments(valetPays || []);
+      }
+
+      // 3. Cargar reporte de entrada desde room_stays (checkout_payment_data)
+      const { data: stayData } = await supabase
+        .from("room_stays")
+        .select(`
+          checkout_payment_data,
+          employees:valet_employee_id(first_name, last_name)
+        `)
+        .eq("sales_order_id", salesOrderId)
+        .maybeSingle();
+
+      if (stayData?.checkout_payment_data) {
+        setCheckInReport({
+          payments: stayData.checkout_payment_data,
+          valetName: stayData.employees ? `${stayData.employees.first_name} ${stayData.employees.last_name}` : 'Cochero de Entrada',
+          itemDescription: 'Pago de Entrada (Check-in)'
+        });
       }
 
     } catch (error) {
@@ -1112,6 +1132,69 @@ export function GranularPaymentModal({
                     Deseleccionar
                   </Button>
                 </div>
+
+                {/* Reporte de Entrada (Check-in report en room_stays) */}
+                {checkInReport && !items.find(i => i.concept_type === 'ROOM_BASE')?.is_paid && (
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400">
+                      <Car className="h-5 w-5" />
+                      <p className="text-sm font-medium">Reporte de Pago de Entrada (Check-in)</p>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-[#0f111a] border-emerald-500/20">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-1 items-start">
+                          <div className="flex flex-wrap gap-1">
+                            {checkInReport.payments.map((p: any, i: number) => (
+                              <Badge key={i} variant="outline" className="border-emerald-500 text-emerald-400 bg-emerald-500/10 px-2 h-5 text-[10px]">
+                                {p.method} ${formatCurrency(p.amount)}
+                              </Badge>
+                            ))}
+                          </div>
+                          <span className="font-bold text-lg text-white">
+                            {formatCurrency(checkInReport.payments.reduce((s: number, p: any) => s + p.amount, 0))}
+                            <span className="text-xs text-muted-foreground font-normal ml-2 text-white/70">Cobrado al entrar</span>
+                          </span>
+                        </div>
+                        <div className="border-l border-zinc-700 h-8 mx-2"></div>
+                        <div className="flex flex-col">
+                          <Badge variant="secondary" className="bg-emerald-900/30 text-emerald-400 text-[10px] uppercase font-bold tracking-tighter self-start mb-1">
+                            {checkInReport.itemDescription}
+                          </Badge>
+                          <span className="text-xs text-zinc-400">
+                            Registrado por <span className="text-emerald-400 font-medium">{checkInReport.valetName}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20"
+                        onClick={() => {
+                          const roomBaseItem = items.find(i => i.concept_type === 'ROOM_BASE');
+                          if (roomBaseItem) {
+                            const newSelected = new Set(selectedItems);
+                            newSelected.add(roomBaseItem.id);
+                            setSelectedItems(newSelected);
+                          }
+                          setPayments(checkInReport.payments.map((p: any, i: number) => ({
+                            id: `cip-${i}-${Date.now()}`,
+                            amount: p.amount,
+                            method: p.method,
+                            reference: p.reference || "",
+                            terminal: p.terminal,
+                            cardLast4: p.cardLast4,
+                            cardType: p.cardType
+                          })));
+                          setStep("pay");
+                          toast.success("Reporte de entrada aplicado");
+                        }}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Usar Reporte de Entrada
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Reportes de Cochero (Items entregados via app de cocheros) */}
                 {valetReports.length > 0 && (

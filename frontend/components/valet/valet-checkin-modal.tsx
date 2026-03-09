@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/utils/formatters";
 import { toast } from "sonner";
 import { Car, CreditCard, Banknote, Building2, AlertCircle, Search } from "lucide-react";
 import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
+import { MultiPaymentInput } from "@/components/sales/multi-payment-input";
 
 interface ValetCheckInModalProps {
     room: Room | null;
@@ -33,32 +34,46 @@ export function ValetCheckInModal({
     const [model, setModel] = useState("");
     const [vehicleSearch, setVehicleSearch] = useState("");
     const [showSearchResults, setShowSearchResults] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
-    const [reference, setReference] = useState("");
+    const [payments, setPayments] = useState<any[]>([]);
     const [personCount, setPersonCount] = useState(2);
 
     // Reset form cuando el modal se abre
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && room) {
             setPlate("");
             setBrand("");
             setModel("");
             setVehicleSearch("");
             setShowSearchResults(false);
-            setPaymentMethod('EFECTIVO');
-            setReference("");
             setPersonCount(2);
+            
+            // Inicializar pago basado en el precio total
+            const baseAmount = room.room_types?.base_price ?? 0;
+            const extraPersonPrice = room.room_types?.extra_person_price ?? 0;
+            const totalAmount = baseAmount + (Math.max(0, 2 - 2) * extraPersonPrice); // Initial 2 people
+            
+            setPayments([{
+                id: crypto.randomUUID(),
+                amount: totalAmount,
+                method: 'EFECTIVO',
+                reference: ""
+            }]);
         }
-    }, [isOpen]);
+    }, [isOpen, room]);
 
     if (!room) return null;
 
     const baseAmount = room.room_types?.base_price ?? 0;
     const extraPersonPrice = room.room_types?.extra_person_price ?? 0;
     const extraPeopleCount = Math.max(0, personCount - 2);
-    const amount = baseAmount + (extraPeopleCount * extraPersonPrice);
+    const totalAmount = baseAmount + (extraPeopleCount * extraPersonPrice);
 
-    const needsReference = paymentMethod !== 'EFECTIVO';
+    // Sincronizar monto total de pagos si cambia personCount
+    useEffect(() => {
+        if (payments.length === 1) {
+            setPayments(prev => [{ ...prev[0], amount: totalAmount }]);
+        }
+    }, [totalAmount]);
 
     const handleSubmit = async () => {
         // Validaciones
@@ -67,8 +82,9 @@ export function ValetCheckInModal({
             return;
         }
 
-        if (needsReference && !reference.trim()) {
-            toast.error(`Ingresa la referencia del ${paymentMethod === 'TARJETA' ? 'voucher' : 'comprobante'}`);
+        const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+        if (Math.abs(totalPaid - totalAmount) > 0.01) {
+            toast.error(`El monto pagado (${formatCurrency(totalPaid)}) no coincide con el total (${formatCurrency(totalAmount)})`);
             return;
         }
 
@@ -78,20 +94,13 @@ export function ValetCheckInModal({
             model: model.trim()
         };
 
-        const paymentData = {
-            amount,
-            method: paymentMethod,
-            reference: needsReference ? reference.trim() : undefined
-        };
-
-        await onConfirm(vehicleData, paymentData, personCount);
+        await onConfirm(vehicleData, payments, personCount);
 
         // Reset form
         setPlate("");
         setBrand("");
         setModel("");
-        setPaymentMethod('EFECTIVO');
-        setReference("");
+        setPayments([]);
     };
 
     return (
@@ -249,7 +258,7 @@ export function ValetCheckInModal({
 
                             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
                                 <p className="text-xs text-muted-foreground mb-1">Monto a cobrar</p>
-                                <p className="text-2xl font-bold text-green-500">{formatCurrency(amount)}</p>
+                                <p className="text-2xl font-bold text-green-500">{formatCurrency(totalAmount)}</p>
                             </div>
                         </div>
 
@@ -261,45 +270,12 @@ export function ValetCheckInModal({
 
                         <div className="space-y-3">
                             <Label className="text-base">Método de pago</Label>
-                            <RadioGroup
-                                value={paymentMethod}
-                                onValueChange={(v) => setPaymentMethod(v as any)}
-                                className="space-y-2"
-                            >
-                                <div className={`flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-colors ${paymentMethod === 'EFECTIVO' ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
-                                    }`}>
-                                    <RadioGroupItem value="EFECTIVO" id="efectivo" />
-                                    <Label htmlFor="efectivo" className="flex items-center gap-2 cursor-pointer flex-1">
-                                        <Banknote className="h-5 w-5 text-green-500" />
-                                        <span className="text-base">Efectivo</span>
-                                    </Label>
-                                </div>
-
-                                <div className={`flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-colors ${paymentMethod === 'TARJETA' ? 'bg-primary/10 border-primary' : 'hover:bg-muted'
-                                    }`}>
-                                    <RadioGroupItem value="TARJETA" id="tarjeta" />
-                                    <Label htmlFor="tarjeta" className="flex items-center gap-2 cursor-pointer flex-1">
-                                        <CreditCard className="h-5 w-5 text-blue-500" />
-                                        <span className="text-base">Tarjeta</span>
-                                    </Label>
-                                </div>
-                            </RadioGroup>
-
-                            {needsReference && (
-                                <div className="animate-in slide-in-from-top-2 duration-200">
-                                    <Label htmlFor="reference" className="text-base">
-                                        Últimos 4 dígitos del voucher
-                                    </Label>
-                                    <Input
-                                        id="reference"
-                                        value={reference}
-                                        onChange={(e) => setReference(e.target.value)}
-                                        placeholder="1234"
-                                        maxLength={20}
-                                        className="text-lg h-12"
-                                    />
-                                </div>
-                            )}
+                            <MultiPaymentInput
+                                totalAmount={totalAmount}
+                                payments={payments}
+                                onPaymentsChange={setPayments}
+                                showReference={true}
+                            />
                         </div>
                     </div>
 
@@ -310,9 +286,7 @@ export function ValetCheckInModal({
                             <div>
                                 <p className="font-semibold text-amber-200 mb-1">¡IMPORTANTE!</p>
                                 <p className="text-sm text-amber-100">
-                                    Lleva {paymentMethod === 'EFECTIVO' ? 'el dinero' :
-                                        paymentMethod === 'TARJETA' ? 'el voucher' :
-                                            'el comprobante'} a recepción para confirmar el pago.
+                                    Lleva el dinero o los comprobantes a recepción para confirmar el pago.
                                 </p>
                             </div>
                         </div>
