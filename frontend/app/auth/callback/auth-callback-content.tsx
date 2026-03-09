@@ -34,8 +34,8 @@ export function AuthCallbackHandler() {
         console.log(`🚀 FORCING REDIRECT TO ${redirectTo}...`);
 
         // Ensure middleware/server components see the new session
-        router.refresh();
-        router.push(redirectTo);
+        // and perform a hard redirect to ensure everything is in sync.
+        window.location.href = redirectTo;
 
       } catch (error) {
         console.error('Callback processing error:', error);

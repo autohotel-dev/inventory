@@ -48,9 +48,9 @@ export function LoginForm({
       if (error) throw error;
 
       success("¡Bienvenido!", "Has iniciado sesión correctamente");
-      // Force refresh to ensure middleware/server components see the new session
-      router.refresh();
-      router.push("/dashboard");
+      // Use window.location.href for a hard redirect to ensure cookies are 
+      // properly propagated to both client and server before loading the dashboard.
+      window.location.href = "/dashboard";
     } catch (error: unknown) {
       showError(
         "Error al iniciar sesión",

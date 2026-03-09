@@ -4,12 +4,22 @@ import type { Metadata } from "next";
 import { ArrowRight, BedDouble, BarChart3, Smartphone, Zap, ShieldCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
 export const metadata: Metadata = {
   title: "Luxor Manager - Gestión Hotelera Inteligente",
   description: "Plataforma integral para la administración de Auto Hotel Luxor. Control de habitaciones, POS, inventarios y reportes en tiempo real.",
 };
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Navbar */}
