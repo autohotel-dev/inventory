@@ -7,8 +7,6 @@ import {
   TrendingUp,
   ShoppingCart,
   Activity,
-  RefreshCw,
-  Plus,
   ArrowRight
 } from "lucide-react";
 import { ShiftIndicatorWrapper } from "@/components/employees/shift-indicator-wrapper";

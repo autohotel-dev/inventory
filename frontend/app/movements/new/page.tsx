@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BatchMovementForm } from "@/components/movements/batch-movement-form";
 import { IndividualMovementForm } from "@/components/movements/individual-movement-form";
+import { UserRole } from "@/hooks/use-user-role";
 
 // Server-side stock check (uses server supabase client)
 async function getAvailableStockServer(productId: string, warehouseId: string): Promise<number> {
@@ -275,6 +276,25 @@ async function createBatchMovementsAction(formData: FormData) {
 }
 
 export default async function NewMovementPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  // Check role
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("role")
+    .eq("auth_user_id", user.id)
+    .single();
+
+  const role = employee?.role as UserRole;
+  const isAuthorized = role === "receptionist" || role === "admin" || role === "manager";
+
+  if (!isAuthorized) {
+    redirect("/dashboard");
+  }
+
   const { products, warehouses, reasons } = await getFormData();
 
   const handleBatchSubmit = async (data: {

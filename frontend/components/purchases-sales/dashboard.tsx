@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -373,11 +374,11 @@ export function PurchasesSalesDashboard() {
               <span className="text-sm">Pendientes</span>
               <Badge variant="destructive">{stats.purchases.pendingOrders}</Badge>
             </div>
-            <Button className="w-full" size="sm">
-              <a href="/purchases" className="flex items-center gap-2">
+            <Button className="w-full" size="sm" asChild>
+              <Link href="/purchases" className="flex items-center gap-2">
                 Ver todas las compras
                 <ArrowUpRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -398,11 +399,11 @@ export function PurchasesSalesDashboard() {
               <span className="text-sm">Pendientes</span>
               <Badge variant="destructive">{stats.sales.pendingOrders}</Badge>
             </div>
-            <Button className="w-full" size="sm">
-              <a href="/sales" className="flex items-center gap-2">
+            <Button className="w-full" size="sm" asChild>
+              <Link href="/sales" className="flex items-center gap-2">
                 Ver todas las ventas
                 <ArrowUpRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </CardContent>
         </Card>

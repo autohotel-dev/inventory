@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,6 @@ export function CurrentShiftIndicator({
   const [nextShift, setNextShift] = useState<ShiftDefinition | null>(null);
   const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [shifts, setShifts] = useState<ShiftDefinition[]>([]);
   const [activeSessionsList, setActiveSessionsList] = useState<ShiftSession[]>([]); // Lista de todas las sesiones activas (para admins)
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -92,7 +91,7 @@ export function CurrentShiftIndicator({
   const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
 
   // Cargar datos
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       // Cargar turnos, empleados y sesión activa
       const [shiftsRes, employeesRes, sessionRes] = await Promise.all([
@@ -148,7 +147,6 @@ export function CurrentShiftIndicator({
       }
 
       const allShifts = shiftsRes.data || [];
-      setShifts(allShifts);
       setEmployees(employeesRes.data || []);
 
       // Determinar turno actual basado en la hora
@@ -195,14 +193,14 @@ export function CurrentShiftIndicator({
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, onShiftChange]);
 
   useEffect(() => {
     loadData();
     // Actualizar cada minuto
     const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData]);
 
   // Clock In
   const handleClockIn = async () => {
@@ -427,7 +425,7 @@ export function CurrentShiftIndicator({
 
     const now = new Date();
     const [endHour, endMin] = currentShift.end_time.split(":").map(Number);
-    let endDate = new Date(now);
+    const endDate = new Date(now);
     endDate.setHours(endHour, endMin, 0, 0);
 
     // Si el turno cruza medianoche y estamos antes de medianoche
@@ -781,7 +779,7 @@ export function CurrentShiftIndicator({
           </div>
 
           <p className="text-xs text-muted-foreground text-center pb-2">
-            Si eliges "después", podrás completar el corte desde cualquier dispositivo.
+            Si eliges &quot;después&quot;, podrás completar el corte desde cualquier dispositivo.
           </p>
 
           <DialogFooter className="sm:justify-center">

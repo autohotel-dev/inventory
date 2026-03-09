@@ -19,7 +19,6 @@ import {
   Package,
   MoreHorizontal,
   CheckCircle2,
-  Circle,
   Loader2,
   Receipt,
   X,
@@ -113,18 +112,6 @@ const CONCEPT_LABELS: Record<string, string> = {
   TOLERANCE_EXPIRED: "Tolerancia Expirada",
 };
 
-const CONCEPT_COLORS: Record<string, string> = {
-  ROOM_BASE: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  EXTRA_HOUR: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  EXTRA_PERSON: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  CONSUMPTION: "bg-green-500/20 text-green-400 border-green-500/30",
-  PRODUCT: "bg-slate-500/20 text-slate-400 border-slate-500/30",
-  RENEWAL: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-  PROMO_4H: "bg-pink-500/20 text-pink-400 border-pink-500/30",
-  OTHER: "bg-slate-500/20 text-slate-400 border-slate-500/30",
-  DAMAGE_CHARGE: "bg-red-500/20 text-red-400 border-red-500/30",
-  TOLERANCE_EXPIRED: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-};
 
 interface OrderItem {
   id: string;
@@ -429,12 +416,14 @@ export function GranularPaymentModal({
     const supabase = createClient();
     try {
       const employeeId = await getCurrentEmployeeId(supabase);
+      const shiftId = await getCurrentShiftId(supabase);
 
       const { data: updatedPayments, error } = await supabase
         .from("payments")
         .update({
           confirmed_by: employeeId,
-          confirmed_at: new Date().toISOString()
+          confirmed_at: new Date().toISOString(),
+          shift_session_id: shiftId // Transfer financial responsibility to current shift
         })
         .in("id", paymentIds)
         .select();
@@ -449,7 +438,7 @@ export function GranularPaymentModal({
         // Optimistic update: Quitar de la lista de pendientes INMEDIATAMENTE para desbloquear la UI
         setValetPayments(prev => prev.filter(p => !paymentIds.includes(p.id)));
 
-        useValetPaymentData(updatedPayments);
+        applyValetPaymentData(updatedPayments);
       }
 
       fetchItems();
@@ -462,7 +451,7 @@ export function GranularPaymentModal({
   };
 
   // Pre-rellenar datos de pago desde registros de valet (puede ser uno o varios)
-  const useValetPaymentData = (paymentInput: any | any[]) => {
+  const applyValetPaymentData = (paymentInput: any | any[]) => {
     const valetPaymentsList = Array.isArray(paymentInput) ? paymentInput : [paymentInput];
 
     const newPayments = valetPaymentsList.map((payment: any) => ({
@@ -481,7 +470,7 @@ export function GranularPaymentModal({
   };
 
   // Aplicar datos de reporte del valet (desde issue_description)
-  const useValetReportData = (report: any) => {
+  const applyValetReportData = (report: any) => {
     // 1. Seleccionar AUTOMÁTICAMENTE items relacionados (ahora puede ser múltiple)
     const newSelected = new Set(selectedItems);
 
@@ -630,7 +619,7 @@ export function GranularPaymentModal({
 
   // Quitar descuento de un item
   const removeDiscount = (itemId: string) => {
-    setDiscounts(prev => {
+    setDiscounts((prev) => {
       const newDiscounts = { ...prev };
       delete newDiscounts[itemId];
       return newDiscounts;
@@ -1184,7 +1173,7 @@ export function GranularPaymentModal({
                               <Button
                                 size="sm"
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
-                                onClick={() => useValetReportData(report)}
+                                onClick={() => applyValetReportData(report)}
                               >
                                 <CheckCircle2 className="w-4 h-4 mr-2" />
                                 Corroborar Recibo
@@ -1736,7 +1725,7 @@ export function GranularPaymentModal({
                           variant="outline"
                           size="sm"
                           className="h-auto py-2 px-3 flex flex-col items-start gap-1 border-indigo-500/30 hover:bg-indigo-500/5"
-                          onClick={() => useValetPaymentData([p])}
+                          onClick={() => applyValetPaymentData([p])}
                         >
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-[10px] px-1 h-4 border-indigo-500/50 text-indigo-500">

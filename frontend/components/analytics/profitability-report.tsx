@@ -10,8 +10,7 @@ import {
     TrendingDown,
     DollarSign,
     Percent,
-    FileSpreadsheet,
-    FileText
+    FileSpreadsheet
 } from "lucide-react";
 import { exportToExcel, exportToPDF, formatCurrency } from "@/lib/export-utils";
 

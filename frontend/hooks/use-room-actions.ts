@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useUserRole } from "@/hooks/use-user-role";
 import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
@@ -71,8 +72,8 @@ export async function getReceptionShiftId(supabase: any): Promise<string | null>
       return receptionSessions[0].id;
     }
 
-    // Si no hay recepcionista activo, fallback al turno del usuario actual (por si acaso)
-    return await getCurrentShiftId(supabase);
+    // Si no hay recepcionista activo, retornar null para evitar que se asigne a un cochero
+    return null;
   } catch (error) {
     console.error("Error getting reception shift:", error);
     return null;
@@ -351,6 +352,17 @@ export interface UseRoomActionsReturn {
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
   const [actionLoading, setActionLoading] = useState(false);
+  const { isReceptionist, isAdmin, isManager } = useUserRole();
+
+  const checkAuthorization = (actionName: string) => {
+    if (!isReceptionist && !isAdmin && !isManager) {
+      toast.error("Acceso denegado", {
+        description: `Solo los recepcionistas pueden realizar la acción: ${actionName}`
+      });
+      return false;
+    }
+    return true;
+  };
 
   /**
    * Agregar persona a la habitación
@@ -366,6 +378,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
    * @param room - Habitación donde se agrega la persona
    */
   const handleAddPerson = async (room: Room) => {
+    if (!checkAuthorization("Agregar Persona")) return;
+
     if (room.status !== "OCUPADA") {
       logger.warn("Cannot add person to non-occupied room", { roomId: room.id, status: room.status });
       return;
@@ -603,6 +617,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
  * @param room - Habitación de donde se quita la persona
  */
   const handleRemovePerson = async (room: Room) => {
+    if (!checkAuthorization("Remover Persona")) return;
+
     if (room.status !== "OCUPADA") {
       logger.warn("Cannot remove person from non-occupied room", { roomId: room.id, status: room.status });
       toast.info("Esta habitación no está ocupada");
@@ -694,6 +710,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
  * @param room - Habitación donde se aplica la acción
  */
   const handlePersonLeftReturning = async (room: Room) => {
+    if (!checkAuthorization("Tolerancia Salida/Regreso")) return;
+
     if (room.status !== "OCUPADA") {
       logger.warn("Cannot toggle tolerance on non-occupied room", { roomId: room.id, status: room.status });
       toast.error("No se puede aplicar tolerancia a una habitación no ocupada");
@@ -849,6 +867,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
    * Agregar cargo por daño
    */
   const handleAddDamageCharge = async (room: Room, amount: number, description: string) => {
+    if (!checkAuthorization("Registrar Daño")) return;
     if (room.status !== "OCUPADA") return;
 
     const activeStay = getActiveStay(room);
@@ -935,6 +954,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
    * Agregar horas personalizadas con pago
    */
   const handleAddCustomHours = async (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => {
+    if (!checkAuthorization("Agregar Horas")) return;
     if (room.status !== "OCUPADA") return;
 
     const activeStay = getActiveStay(room);
@@ -1032,13 +1052,33 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
         // Actualizar paid_amount en sales_orders si hubo pago
         if (totalPaid > 0) {
-          await supabase
-            .from("sales_orders")
-            .update({
-              paid_amount: supabase.rpc('increment', { x: totalPaid }),
-              remaining_amount: supabase.rpc('decrement', { x: totalPaid }),
-            })
-            .eq("id", activeStay.sales_order_id);
+          // Ya se actualizó en updatePendingPaymentsHelper o en el insert de arriba?
+          // Revisamos: updatePendingPaymentsHelper actualiza los totales de la orden.
+          // Si no hay pagos pendientes, el remainingAfterPending > 0 y creamos pagos nuevos.
+          // PERO updatePendingPaymentsHelper solo toca la orden si HAY pagos pendientes.
+          // Debemos asegurar que los totales de la orden reflejen el pago independientemente de si era pendiente o no.
+          
+          if (remainingAfterPending === totalPaid) {
+            // No se aplicó nada a pagos pendientes, actualizamos totales ahora
+            const { data: currentOrder } = await supabase
+              .from("sales_orders")
+              .select("remaining_amount, paid_amount")
+              .eq("id", activeStay.sales_order_id)
+              .single();
+
+            if (currentOrder) {
+              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
+              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
+
+              await supabase
+                .from("sales_orders")
+                .update({
+                  remaining_amount: newRemaining,
+                  paid_amount: newPaid,
+                })
+                .eq("id", activeStay.sales_order_id);
+            }
+          }
         }
 
         // Extender expected_check_out_at según las horas agregadas
@@ -1086,6 +1126,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
    * Renovar habitación con precio base
    */
   const handleRenewRoom = async (room: Room, payments: PaymentEntry[]) => {
+    if (!checkAuthorization("Renovar Habitación")) return;
     if (room.status !== "OCUPADA") return;
 
     const activeStay = getActiveStay(room);
@@ -1164,6 +1205,30 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           });
         }
 
+        // Actualizar paid_amount en sales_orders si hubo pago
+        if (totalPaid > 0) {
+          if (remainingAfterPending === totalPaid) {
+            const { data: currentOrder } = await supabase
+              .from("sales_orders")
+              .select("remaining_amount, paid_amount")
+              .eq("id", activeStay.sales_order_id)
+              .single();
+
+            if (currentOrder) {
+              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
+              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
+
+              await supabase
+                .from("sales_orders")
+                .update({
+                  remaining_amount: newRemaining,
+                  paid_amount: newPaid,
+                })
+                .eq("id", activeStay.sales_order_id);
+            }
+          }
+        }
+
         // Extender expected_check_out_at según las horas del tipo
         if (activeStay.expected_check_out_at) {
           const currentCheckout = new Date(activeStay.expected_check_out_at);
@@ -1226,6 +1291,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
    * Agregar promoción de 4 horas
    */
   const handleAdd4HourPromo = async (room: Room, payments: PaymentEntry[]) => {
+    if (!checkAuthorization("Aplicar Promoción")) return;
     if (room.status !== "OCUPADA") return;
 
     const activeStay = getActiveStay(room);
@@ -1323,6 +1389,30 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           });
         }
 
+        // Actualizar paid_amount en sales_orders si hubo pago
+        if (totalPaid > 0) {
+          if (remainingAfterPending === totalPaid) {
+            const { data: currentOrder } = await supabase
+              .from("sales_orders")
+              .select("remaining_amount, paid_amount")
+              .eq("id", activeStay.sales_order_id)
+              .single();
+
+            if (currentOrder) {
+              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
+              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
+
+              await supabase
+                .from("sales_orders")
+                .update({
+                  remaining_amount: newRemaining,
+                  paid_amount: newPaid,
+                })
+                .eq("id", activeStay.sales_order_id);
+            }
+          }
+        }
+
         // Extender expected_check_out_at en 4 horas
         if (activeStay.expected_check_out_at) {
           const currentCheckout = new Date(activeStay.expected_check_out_at);
@@ -1376,6 +1466,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     successMessage: string,
     notes?: string
   ) => {
+    if (!checkAuthorization("Cambiar Estado de Habitación")) return;
     setActionLoading(true);
     const supabase = createClient();
 
@@ -1523,6 +1614,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     payments?: PaymentEntry[],
     checkoutValetId?: string | null
   ): Promise<boolean> => {
+    if (!checkAuthorization("Finalizar Salida")) return false;
     setActionLoading(true);
     const supabase = createClient();
     const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;

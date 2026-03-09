@@ -35,7 +35,7 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
     const supabase = createAdminClient();
 
     // First, get the room ID from the room number
-    const { data: room, error: roomError } = await supabase
+    const { data: room } = await supabase
         .from('rooms')
         .select('id')
         .eq('number', roomNumber)

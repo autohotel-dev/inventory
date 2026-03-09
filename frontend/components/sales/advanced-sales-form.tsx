@@ -568,7 +568,7 @@ export function AdvancedSalesForm() {
               <div className="text-center py-8 text-muted-foreground">
                 <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No hay productos agregados</p>
-                <p className="text-sm">Haz clic en "Agregar Producto" para comenzar</p>
+                <p className="text-sm">Haz clic en &quot;Agregar Producto&quot; para comenzar</p>
               </div>
             ) : (
               <div id="tour-cart-items" className="space-y-3">

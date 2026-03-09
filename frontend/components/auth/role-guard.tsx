@@ -2,7 +2,7 @@
 
 import { useUserRole } from "@/hooks/use-user-role";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import { getMenuPermissions, type UserRole } from "@/lib/permissions";
 
@@ -50,22 +50,26 @@ export function RoleGuard({
   }, [isLoading, canAccessAdmin, requireAdmin, permissionId, role]);
 
   // Determine if access is allowed
-  const isAccessAllowed = () => {
+  const isAccessAllowed = useCallback(() => {
     if (!requireAdmin) return true;
     if (canAccessAdmin) return true;
     // If permissionId provided, check DB permissions
     if (permissionId && hasPermission === true) return true;
     return false;
-  };
+  }, [requireAdmin, canAccessAdmin, permissionId, hasPermission]);
 
   // Redirect if not allowed (after all checks finish)
-  useEffect(() => {
+  const handleRedirection = useCallback(() => {
     if (isLoading || checkingPermission) return;
     if (hasPermission === null && permissionId && !canAccessAdmin) return; // still waiting
     if (!isAccessAllowed()) {
       router.replace(fallbackUrl);
     }
-  }, [isLoading, checkingPermission, hasPermission, canAccessAdmin, requireAdmin, permissionId, router, fallbackUrl]);
+  }, [isLoading, checkingPermission, hasPermission, permissionId, canAccessAdmin, isAccessAllowed, router, fallbackUrl]);
+
+  useEffect(() => {
+    handleRedirection();
+  }, [handleRedirection]);
 
   if (isLoading || checkingPermission || (permissionId && hasPermission === null && !canAccessAdmin)) {
     return (

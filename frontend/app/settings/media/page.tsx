@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Filter, RefreshCw, Image as ImageIcon, FileText, Folder, ArrowUpDown } from 'lucide-react';
+import { Filter, RefreshCw, Image as ImageIcon, FileText, Folder, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

@@ -81,7 +81,7 @@ export function ShiftMigrationTool() {
             // Extraer IDs de ordenes únicas
             const salesOrderIds = Array.from(new Set(allPayments?.map((p: any) => p.sales_order_id).filter(Boolean)));
 
-            let salesOrderRoomMap = new Map<string, string>();
+            const salesOrderRoomMap = new Map<string, string>();
 
             if (salesOrderIds.length > 0) {
                 // Paso 4a: Obtener room_stays para tener room_id
@@ -127,7 +127,7 @@ export function ShiftMigrationTool() {
             let totalFound = 0;
             let excludedCount = 0;
             let alreadyAssigned = 0;
-            let idsToMigrate: string[] = [];
+            const idsToMigrate: string[] = [];
 
             // Mapas para estadísticas
             const sourceMap = new Map<string, { name: string; count: number; id: string }>();

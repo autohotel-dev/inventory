@@ -37,7 +37,6 @@ export function NotificationComposer() {
 
             if (data) {
                 // Deduplicate rooms
-                // @ts-ignore
                 const uniqueRooms = Array.from(new Set(data.map((item: any) => item.room_number)))
                     .map(num => ({ room_number: num }));
                 setActiveRooms(uniqueRooms as any);
@@ -83,7 +82,7 @@ export function NotificationComposer() {
             } else {
                 throw new Error('Error al enviar notificación');
             }
-        } catch (error) {
+        } catch (_error) {
             setMessage({ type: 'error', text: 'Error al enviar la notificación' });
         } finally {
             setIsSending(false);

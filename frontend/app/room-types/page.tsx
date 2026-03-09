@@ -2,7 +2,7 @@
 
 import { RoomTypesTable } from "@/components/room-types/room-types-table";
 import { RoleGuard } from "@/components/auth/role-guard";
-import { Construction } from "lucide-react";
+
 
 export default function RoomTypesPage() {
     return (

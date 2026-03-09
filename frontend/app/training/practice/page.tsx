@@ -708,6 +708,7 @@ export default function PracticePage() {
         setIsEditVehicleOpen(false);
     }
 
+
     const confirmRegisterExpense = (data: any) => {
         setMockExpense(data);
         if (!completedExercises.includes('register-expense')) setCompletedExercises(prev => [...prev, 'register-expense']);
@@ -744,7 +745,8 @@ export default function PracticePage() {
         setSelectedRoom(null); // Cerrar selección para evitar conflictos visuales
     };
 
-    const confirmEditValet = (valetId: string | null) => {
+
+    const confirmEditValet = (_valetId: string | null) => {
         toast.success("Cochero actualizado correctamente");
         if (!completedExercises.includes('edit-valet')) setCompletedExercises(prev => [...prev, 'edit-valet']);
         // No necesitamos actualizar state profundo para el mock visual, basta confirmar

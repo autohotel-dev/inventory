@@ -41,6 +41,7 @@ import {
   Printer,
   ArrowDownCircle,
   Filter,
+  ShoppingBag,
 } from "lucide-react";
 import {
   Employee,
@@ -88,6 +89,8 @@ interface PaymentSummary {
   salesOrders: any[];
   expenses?: ShiftExpense[];
   total_expenses?: number;
+  total_accrual_sales: number;
+  accrual_items: any[];
 }
 
 export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosingProps) {
@@ -312,6 +315,20 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       const totalExpenses = expenses?.reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
       const total_sales = total_cash + total_card_bbva + total_card_getnet;
 
+      // Obtener ventas Devengadas (Accrual) - Todos los items creados en este rango de tiempo
+      const { data: accrualItemsData } = await supabase
+        .from("sales_order_items")
+        .select(`
+          *,
+          products(name, sku),
+          sales_orders(id, room_stays(rooms(number)))
+        `)
+        .gte("created_at", session.clock_in_at)
+        .lte("created_at", periodEnd);
+
+      const accrual_items = accrualItemsData || [];
+      const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+
       setSummary({
         total_cash,
         total_card_bbva,
@@ -321,7 +338,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         payments: enrichedPayments,
         salesOrders: salesOrders || [],
         expenses: expenses || [],
-        total_expenses: totalExpenses
+        total_expenses: totalExpenses,
+        total_accrual_sales,
+        accrual_items
       });
     } catch (err) {
       console.error("Error loading payment summary:", err);
@@ -581,13 +600,31 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
               <div className="hidden md:flex md:col-span-4 lg:col-span-3 flex-col border-r bg-background/50 overflow-y-auto">
                 <div className="p-6 space-y-6">
 
-                  {/* Total Sales Card */}
+                  {/* Collected (Cash-basis) Card */}
                   <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Ventas Totales</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cobranza Total</h3>
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold text-green-600 bg-green-500/5">Caja</Badge>
+                    </div>
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-bold tracking-tight">{formatCurrency(summary?.total_sales || 0)}</span>
-                      <span className="text-sm text-muted-foreground">({summary?.total_transactions || 0} ops)</span>
+                      <span className="text-sm text-muted-foreground">({summary?.total_transactions || 0} pagos)</span>
                     </div>
+                  </div>
+
+                  {/* Accrual (Sales-basis) Card */}
+                  <div className="space-y-1 p-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Ventas del Turno</h3>
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold text-amber-600 bg-amber-500/5 border-amber-500/20">Registros</Badge>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-bold tracking-tight text-amber-700">{formatCurrency(summary?.total_accrual_sales || 0)}</span>
+                      <span className="text-xs text-muted-foreground">({summary?.accrual_items?.length || 0} conceptos)</span>
+                    </div>
+                    <p className="text-[10px] text-amber-600/70 italic leading-tight mt-1">
+                      Habitaciones y consumos ingresados en este turno.
+                    </p>
                   </div>
 
                   {/* Payment Breakdown */}
@@ -779,6 +816,79 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                     </div>
                   </section>
 
+                  {/* DETALLE DE ITEMS REGISTRADOS (Accrual) */}
+                  <section className="space-y-4 pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <h3 className="flex items-center gap-2 text-lg font-semibold text-amber-700">
+                        <ShoppingBag className="h-5 w-5" />
+                        Ventas Registradas en el Turno
+                      </h3>
+                      <p className="text-sm text-muted-foreground">Lo que se ingresó al sistema</p>
+                    </div>
+
+                    <div className="border rounded-xl overflow-hidden bg-muted/5">
+                      <Table>
+                        <TableHeader className="bg-muted/30">
+                          <TableRow>
+                            <TableHead className="w-[100px]">Hora</TableHead>
+                            <TableHead className="w-[80px]">Hab.</TableHead>
+                            <TableHead>Concepto</TableHead>
+                            <TableHead className="text-right">Monto</TableHead>
+                            <TableHead className="w-[100px] text-center">Estado</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {summary?.accrual_items && summary.accrual_items.length > 0 ? (
+                            summary.accrual_items.map((item: any) => {
+                              const conceptLabels: Record<string, string> = {
+                                ROOM_BASE: "Habitación",
+                                EXTRA_HOUR: "Hora Extra",
+                                EXTRA_PERSON: "Persona Extra",
+                                CONSUMPTION: "Consumo",
+                                PRODUCT: "Producto",
+                                RENEWAL: "Renovación",
+                                PROMO_4H: "Promo 4H",
+                              };
+                              const productName = item.products?.name || conceptLabels[item.concept_type] || "Item";
+                              const roomNumber = item.sales_orders?.room_stays?.[0]?.rooms?.number || "-";
+
+                              return (
+                                <TableRow key={item.id} className="text-sm">
+                                  <TableCell className="text-muted-foreground font-mono">
+                                    {new Date(item.created_at).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
+                                  </TableCell>
+                                  <TableCell className="font-medium">{roomNumber}</TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <span>{productName}</span>
+                                      {item.qty > 1 && <span className="text-[10px] text-muted-foreground">{item.qty} x {formatCurrency(item.unit_price)}</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">
+                                    {formatCurrency(item.total)}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {item.is_paid ? (
+                                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">PAGADO</Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]">PENDIENTE</Badge>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground italic">
+                                No se registraron consumos ni servicios en este turno.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </section>
+
                   {/* NOTES & FINAL RESULT highlight */}
                   <section className="bg-muted/30 rounded-xl p-6 border flex flex-col md:flex-row gap-6">
                     <div className="flex-1 space-y-2">
@@ -790,8 +900,6 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                         className="bg-background"
                       />
                     </div>
-
-
                   </section>
 
                 </div>
@@ -1382,7 +1490,7 @@ export function ShiftClosingHistory() {
               </h4>
               <p className="text-sm text-muted-foreground">
                 Por favor revisa los motivos de rechazo y realiza las correcciones necesarias.
-                Haz clic en "Ver" para ver los detalles de cada corte rechazado.
+                Haz clic en &quot;Ver&quot; para ver los detalles de cada corte rechazado.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {rejectedClosings.slice(0, 3).map((closing) => (
@@ -2206,7 +2314,7 @@ export function ShiftClosingHistory() {
                       </h4>
                       {correctionClosing.rejection_reason && (
                         <p className="text-xs text-amber-800 italic">
-                          " {correctionClosing.rejection_reason} "
+                          &quot; {correctionClosing.rejection_reason} &quot;
                         </p>
                       )}
                     </div>

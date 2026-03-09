@@ -1012,7 +1012,7 @@ export function MockReportPanel({ completed }: { completed: string[] }) {
             </div>
             <h3 className="text-lg font-medium mb-1">Reporte no generado</h3>
             <p className="text-sm text-center max-w-xs">
-                Utiliza los filtros y presiona "Generar Reporte" para visualizar la data financiera.
+                Utiliza los filtros y presiona &quot;Generar Reporte&quot; para visualizar la data financiera.
             </p>
         </div>
     );

@@ -113,8 +113,8 @@ export function StockAlertsReport() {
 
             setAlerts(stockAlerts);
 
-        } catch (error) {
-            console.error("Error fetching stock alerts:", error);
+        } catch (_error) {
+            console.error("Error fetching stock alerts:", _error);
         } finally {
             setLoading(false);
         }

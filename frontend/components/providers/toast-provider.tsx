@@ -31,7 +31,7 @@ export function ToastProvider() {
         className: "!text-lg",
       }}
       style={{
-        // @ts-ignore
+        // @ts-expect-error - sonner style property doesn't officially support these custom CSS variables in the style prop type
         '--toast-close-button-start': '0',
         '--toast-close-button-end': '0',
       }}

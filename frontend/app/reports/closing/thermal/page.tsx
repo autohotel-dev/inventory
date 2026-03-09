@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 
 interface ShiftClosingData {
     id: string;
@@ -42,22 +41,8 @@ function ThermalReceiptContent() {
     const [stays, setStays] = useState<RoomStay[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (shiftId) {
-            fetchData();
-        }
-    }, [shiftId]);
-
-    useEffect(() => {
-        if (!loading && closing) {
-            // Auto-print after data loads
-            setTimeout(() => {
-                window.print();
-            }, 500);
-        }
-    }, [loading, closing]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
+        if (!shiftId) return;
         const supabase = createClient();
 
         // Fetch closing data
@@ -113,7 +98,22 @@ function ThermalReceiptContent() {
         }
 
         setLoading(false);
-    };
+    }, [shiftId]);
+
+    useEffect(() => {
+        if (shiftId) {
+            fetchData();
+        }
+    }, [shiftId, fetchData]);
+
+    useEffect(() => {
+        if (!loading && closing) {
+            // Auto-print after data loads
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+    }, [loading, closing]);
 
     const formatMoney = (amount: number) => `$${amount.toFixed(2)}`;
     const formatDate = (dateStr: string) => {

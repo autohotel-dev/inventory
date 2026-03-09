@@ -243,7 +243,7 @@ export function PracticeIntro({ completedSteps, onCompleteStep, moduleId }: Prac
                     <Card>
                         <CardHeader>
                             <CardTitle>Paso 2: Conoce el Menú</CardTitle>
-                            <CardDescription>Selecciona la opción "Habitaciones" en el menú simulado para continuar.</CardDescription>
+                            <CardDescription>Selecciona la opción &quot;Habitaciones&quot; en el menú simulado para continuar.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg overflow-hidden h-64 border">
@@ -281,7 +281,7 @@ export function PracticeIntro({ completedSteps, onCompleteStep, moduleId }: Prac
                     <Card>
                         <CardHeader>
                             <CardTitle>Paso 3: Dashboard Principal</CardTitle>
-                            <CardDescription>Explora los indicadores clave. Haz clic en "Ocupación" para finalizar.</CardDescription>
+                            <CardDescription>Explora los indicadores clave. Haz clic en &quot;Ocupación&quot; para finalizar.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-3 gap-4">

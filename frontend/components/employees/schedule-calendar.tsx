@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,7 +115,7 @@ export function ScheduleCalendar() {
   };
 
   // Cargar datos
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const startDate = toDateString(weekDays[0]);
@@ -158,11 +158,11 @@ export function ScheduleCalendar() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, weekDays, showError]);
 
   useEffect(() => {
     loadData();
-  }, [weekStart]);
+  }, [loadData]);
 
   // Construir filas de empleados con sus celdas
   const employeeRows: EmployeeRow[] = useMemo(() => {
@@ -477,7 +477,7 @@ export function ScheduleCalendar() {
 
       {/* Instrucciones */}
       <p className="text-sm text-muted-foreground text-center">
-        💡 Haz clic en cada celda para asignar un turno. Los cambios se guardan al presionar "Guardar".
+        💡 Haz clic en cada celda para asignar un turno. Los cambios se guardan al presionar &quot;Guardar&quot;.
       </p>
     </div>
   );

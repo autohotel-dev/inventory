@@ -441,7 +441,7 @@ export function BatchMovementForm({
                         </div>
                         <p className="text-muted-foreground font-medium">No hay productos agregados</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                            Escanea un código de barras o click en "Agregar"
+                            Escanea un código de barras o click en &quot;Agregar&quot;
                         </p>
                     </div>
                 ) : (

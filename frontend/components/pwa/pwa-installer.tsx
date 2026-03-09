@@ -150,10 +150,10 @@ export function PWAInstaller() {
                     Toca el botón <strong>Compartir</strong> en la barra inferior
                   </Step>
                   <Step number={2} icon={<Plus className="h-4 w-4" />} color="purple">
-                    Selecciona <strong>"Agregar a inicio"</strong>
+                    Selecciona <strong>&quot;Agregar a inicio&quot;</strong>
                   </Step>
                   <Step number={3} icon={<Download className="h-4 w-4" />} color="emerald">
-                    Toca <strong>"Agregar"</strong> para confirmar
+                    Toca <strong>&quot;Agregar&quot;</strong> para confirmar
                   </Step>
                 </>
               ) : isAndroid ? (
@@ -162,7 +162,7 @@ export function PWAInstaller() {
                     Toca el menú <strong>⋮</strong> en Chrome
                   </Step>
                   <Step number={2} icon={<Download className="h-4 w-4" />} color="purple">
-                    Selecciona <strong>"Instalar app"</strong>
+                    Selecciona <strong>&quot;Instalar app&quot;</strong>
                   </Step>
                   <Step number={3} icon={<Smartphone className="h-4 w-4" />} color="emerald">
                     Confirma la instalación
@@ -174,7 +174,7 @@ export function PWAInstaller() {
                     Busca el ícono <strong>⊕</strong> en la barra de dirección
                   </Step>
                   <Step number={2} icon={<Smartphone className="h-4 w-4" />} color="purple">
-                    Haz clic en <strong>"Instalar"</strong>
+                    Haz clic en <strong>&quot;Instalar&quot;</strong>
                   </Step>
                   <Step number={3} icon={<Zap className="h-4 w-4" />} color="emerald">
                     ¡Listo! La app se abrirá automáticamente

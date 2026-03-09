@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { FileText, Image as ImageIcon, Copy, Trash2, MoreVertical, Check, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -90,10 +91,12 @@ export function MediaCard({ media, onDelete, onSelect, selected }: MediaCardProp
             {/* Preview */}
             <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
                 {isImage ? (
-                    <img
+                    <Image
                         src={media.file_url}
                         alt={media.filename}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        unoptimized
                     />
                 ) : (
                     <FileText className="h-16 w-16 text-muted-foreground" />

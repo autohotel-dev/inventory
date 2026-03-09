@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useCallback } from "react";
+
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,28 +29,8 @@ function IncomeReportContent() {
     const [shifts, setShifts] = useState<any[]>([]);
     const [rooms, setRooms] = useState<string[]>([]);
 
-    useEffect(() => {
-        fetchShifts();
-        fetchRooms();
 
-        // Auto-seleccionar turno si viene en la URL
-        const shiftId = searchParams.get('shiftId');
-        const autoPrint = searchParams.get('autoPrint');
-
-        if (shiftId) {
-            setReportType("shift");
-            setSelectedShift(shiftId);
-
-            // Auto-imprimir si viene el parámetro
-            if (autoPrint === 'true') {
-                setTimeout(() => {
-                    window.print();
-                }, 1500); // Dar tiempo para que cargue el reporte
-            }
-        }
-    }, [searchParams]);
-
-    const fetchShifts = async () => {
+    const fetchShifts = useCallback(async () => {
         const supabase = createClient();
 
         // 1. Primero obtener TODOS los turnos para debugging
@@ -159,18 +139,6 @@ function IncomeReportContent() {
             })];
         }
 
-        console.log("📊 All shifts combined:", allShifts);
-
-        // Filtrar solo turnos de recepción (admin, manager, receptionist)
-        // Esto asegura que el reporte de ingresos se centre en la operación de recepción
-        const receptionShifts = allShifts.filter(shift => {
-            // Si es tipo 'active', necesitamos verificar el rol del empleado asociado
-            // NOTA: Para el turno activo, activeSession no tiene el rol directamente.
-            // Deberíamos haberlo pedido en la query de activeSessions o activeSession.employee query.
-            // Por simplicidad, asumimos que si el usuario está viendo esto es reception/admin
-            // PERO para ser estrictos, deberíamos checar el rol.
-            return true; // Por ahora pasamos todos, y filtraremos abajo con mejor lógica si es necesario
-        });
 
         // Mejor aproximación: Filtrar por los roles permitidos si tenemos la data
         const allowedRoles = ['admin', 'manager', 'receptionist'];
@@ -195,9 +163,9 @@ function IncomeReportContent() {
         if (reportType === 'shift' && !selectedShift && activeSession) {
             setSelectedShift(activeSession.id);
         }
-    };
+    }, [reportType, selectedShift]);
 
-    const fetchRooms = async () => {
+    const fetchRooms = useCallback(async () => {
         const supabase = createClient();
         const { data } = await supabase
             .from("rooms")
@@ -205,7 +173,28 @@ function IncomeReportContent() {
             .order("number");
 
         if (data) setRooms(data.map((r: any) => r.number));
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchShifts();
+        fetchRooms();
+
+        // Auto-seleccionar turno si viene en la URL
+        const shiftId = searchParams.get('shiftId');
+        const autoPrint = searchParams.get('autoPrint');
+
+        if (shiftId) {
+            setReportType("shift");
+            setSelectedShift(shiftId);
+
+            // Auto-imprimir si viene el parámetro
+            if (autoPrint === 'true') {
+                setTimeout(() => {
+                    window.print();
+                }, 1500); // Dar tiempo para que cargue el reporte
+            }
+        }
+    }, [searchParams, fetchShifts, fetchRooms]);
 
     return (
         <div className="container mx-auto py-6 space-y-6">

@@ -360,7 +360,7 @@ export default function PermissionsPage() {
                             {visibleGroups.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground">
                                     <div className="text-4xl mb-3">🔍</div>
-                                    <p>No se encontraron permisos que coincidan con "{searchQuery}"</p>
+                                    <p>No se encontraron permisos que coincidan con &quot;{searchQuery}&quot;</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

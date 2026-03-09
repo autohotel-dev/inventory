@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         // DESACTIVADO: La responsabilidad de enviar notificaciones móviles ahora recae en 
         // los Triggers de Supabase y la Edge Function 'send-push-notification' para evitar duplicados.
 
-        let expoSuccessCount = 0;
+        const expoSuccessCount = 0;
         /*
         const { data: employeesWithTokens } = await adminSupabase
             .from('employees')

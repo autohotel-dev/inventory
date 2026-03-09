@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export function IncomeReport({
     }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
 
     // Fetch separate info about who is CURRENTLY on duty (for the header/export)
-    const fetchCurrentShift = async () => {
+    const fetchCurrentShift = useCallback(async () => {
         const supabase = createClient();
         const { data: session } = await supabase
             .from("shift_sessions")
@@ -93,9 +93,9 @@ export function IncomeReport({
                 employee_name: emp ? `${emp.first_name} ${emp.last_name}` : "Desconocido"
             });
         }
-    };
+    }, []);
 
-    const fetchIncomeData = async () => {
+    const fetchIncomeData = useCallback(async () => {
         setLoading(true);
         const supabase = createClient();
 
@@ -351,7 +351,7 @@ export function IncomeReport({
         } finally {
             setLoading(false);
         }
-    };
+    }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
 
     const calculateTotals = () => {
         return entries.reduce(

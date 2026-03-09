@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, ArrowDownCircle, X, Filter, Calendar, User } from "lucide-react";
 import Link from "next/link";
+import { useUserRole } from "@/hooks/use-user-role";
 
 interface InventoryMovement {
   id: string;
@@ -42,6 +43,8 @@ export function InventoryMovementsTable() {
   const [dateFilter, setDateFilter] = useState("");
   const [productFilter, setProductFilter] = useState("");
   const { success, error: showError } = useToast();
+  const { isReceptionist, isAdmin, isManager } = useUserRole();
+  const canCreateMovement = isReceptionist || isAdmin || isManager;
 
   const fetchMovements = async () => {
     const supabase = createClient();
@@ -61,7 +64,7 @@ export function InventoryMovementsTable() {
 
       // Resolve created_by UUIDs to employee names
       const uniqueUserIds = [...new Set((movementsData || []).map((m: any) => m.created_by).filter(Boolean))];
-      let employeeMap = new Map<string, string>();
+      const employeeMap = new Map<string, string>();
       if (uniqueUserIds.length > 0) {
         const { data: employees } = await supabase
           .from("employees")
@@ -203,12 +206,14 @@ export function InventoryMovementsTable() {
             <Button onClick={fetchMovements} variant="outline">
               Actualizar
             </Button>
-            <Link href="/movements/new">
-              <Button id="btn-new-transfer">
-                <Plus className="h-4 w-4 mr-2" />
-                Nuevo Movimiento
-              </Button>
-            </Link>
+            {canCreateMovement && (
+              <Link href="/movements/new">
+                <Button id="btn-new-transfer">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuevo Movimiento
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 

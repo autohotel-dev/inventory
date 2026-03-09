@@ -16,6 +16,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 interface GuestPortalQRModalProps {
     isOpen: boolean;
@@ -48,7 +50,7 @@ export function GuestPortalQRModal({
 
         try {
             const supabase = createClient();
-            let { data, error: fetchError } = await supabase
+            const { data, error: fetchError } = await supabase
                 .from('room_stays')
                 .select('guest_access_token')
                 .eq('id', roomStayId)
@@ -196,10 +198,13 @@ export function GuestPortalQRModal({
                             {/* QR Code */}
                             <div className="flex justify-center mb-6">
                                 <div className="bg-white p-4 rounded-xl shadow-lg border-2 border-gray-200">
-                                    <img
+                                    <Image
                                         src={qrCodeDataURL}
                                         alt="QR Code Portal Huésped"
+                                        width={320}
+                                        height={320}
                                         className="w-full max-w-xs"
+                                        unoptimized
                                     />
                                 </div>
                             </div>

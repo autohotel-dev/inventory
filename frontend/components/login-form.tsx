@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
@@ -64,7 +64,7 @@ export function LoginForm({
       <Card>
         <CardHeader className="text-center">
           <div className="mx-auto w-16 h-16 mb-4 relative">
-            <img src="/luxor-logo.png" alt="Luxor Logo" className="object-contain w-full h-full" />
+            <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
           </div>
           <CardTitle className="text-2xl">Luxor Manager</CardTitle>
           <CardDescription>

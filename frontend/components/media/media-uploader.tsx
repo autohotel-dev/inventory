@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -154,7 +155,7 @@ export function MediaUploader({ onUpload, uploading = false }: MediaUploaderProp
                     <div className="flex items-start gap-4">
                         {preview ? (
                             <div className="relative w-32 h-32 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                                <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                                <Image src={preview} alt="Preview" fill className="object-cover" unoptimized />
                             </div>
                         ) : (
                             <div className="w-32 h-32 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">

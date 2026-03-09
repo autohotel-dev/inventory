@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Package, DollarSign, AlertTriangle, Info, Check, CheckCheck, Trash2, Archive, Search, Filter } from "lucide-react";
+import { useState } from "react";
+import { Package, DollarSign, AlertTriangle, Info, Check, CheckCheck, Trash2, Archive, Search } from "lucide-react";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 
@@ -67,8 +66,7 @@ export default function NotificationsPage() {
         loading,
         markAsRead,
         markAllAsRead,
-        archiveNotification,
-        deleteNotification
+        archiveNotification
     } = useNotifications();
 
     const [activeTab, setActiveTab] = useState("all");

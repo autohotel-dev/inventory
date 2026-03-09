@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-    Download,
     TrendingUp,
     DollarSign,
     ShoppingCart,
@@ -14,7 +13,7 @@ import {
     FileSpreadsheet,
     FileText
 } from "lucide-react";
-import { exportToExcel, exportToPDF, exportToCSV, formatCurrency, formatDate } from "@/lib/export-utils";
+import { exportToExcel, exportToPDF, formatCurrency, formatDate } from "@/lib/export-utils";
 
 interface SalesReportData {
     totalSales: number;
@@ -38,12 +37,11 @@ interface SalesReportData {
     }>;
 }
 
-type PeriodType = 'day' | 'week' | 'month' | 'year';
 
 export function SalesReport() {
     const [data, setData] = useState<SalesReportData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [period, setPeriod] = useState<PeriodType>('month');
+    const [period, setPeriod] = useState<'month' | 'day' | 'week' | 'year'>('month');
     const [startDate, setStartDate] = useState<string>(() => {
         const date = new Date();
         date.setMonth(date.getMonth() - 1);
@@ -53,9 +51,9 @@ export function SalesReport() {
         return new Date().toISOString().split('T')[0];
     });
 
-    const fetchSalesReport = async () => {
-        const supabase = createClient();
+    const fetchSalesReport = useCallback(async () => {
         setLoading(true);
+        const supabase = createClient();
 
         try {
             // Obtener órdenes de venta en el período
@@ -164,16 +162,16 @@ export function SalesReport() {
                 salesByCustomer
             });
 
-        } catch (error) {
-            console.error("Error fetching sales report:", error);
+        } catch (_error) {
+            console.error("Error fetching sales report:", _error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [startDate, endDate]);
 
     useEffect(() => {
         fetchSalesReport();
-    }, [startDate, endDate]);
+    }, [fetchSalesReport]);
 
     const handleExportExcel = () => {
         if (!data) return;

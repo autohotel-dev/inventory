@@ -54,6 +54,7 @@ const RoomStatusNoteModal = dynamic(() => import("@/components/sales/room-status
 const RoomHourManagementModal = dynamic(() => import("@/components/sales/room-hour-management-modal").then(m => ({ default: m.RoomHourManagementModal })), { ssr: false });
 const AddDamageChargeModal = dynamic(() => import("@/components/sales/add-damage-charge-modal").then(m => ({ default: m.AddDamageChargeModal })), { ssr: false });
 const GuestPortalQRModal = dynamic(() => import("@/components/sales/guest-portal-qr-modal").then(m => ({ default: m.GuestPortalQRModal })), { ssr: false });
+const ValetDashboard = dynamic(() => import("@/components/valet/valet-dashboard").then(m => ({ default: m.ValetDashboard })), { ssr: false });
 import { AdminBoardControls } from "@/components/sales/admin-board-controls";
 
 
@@ -109,7 +110,6 @@ function RoomsBoardWrapper() {
   }
 
   if (isValet && employeeId) {
-    const ValetDashboard = require("@/components/valet/valet-dashboard").ValetDashboard;
     return <ValetDashboard employeeId={employeeId} />;
   }
 

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useTheme } from "next-themes";
@@ -318,7 +319,7 @@ export function Sidebar() {
 
       return false;
     });
-  }, [canAccessAdmin, roleLoading, permsLoading, isReceptionist, hasActiveShift, allowedMenuIds, role]);
+  }, [canAccessAdmin, roleLoading, permsLoading, isReceptionist, hasActiveShift, allowedMenuIds]);
 
   React.useEffect(() => {
     setMounted(true);
@@ -397,7 +398,7 @@ export function Sidebar() {
           <div className="md:hidden px-1 pb-4 border-b">
             <Link href="/dashboard" className="font-semibold text-lg flex items-center gap-2">
               <div className="relative w-8 h-8">
-                <img src="/luxor-logo.png" alt="Luxor Logo" className="object-contain w-full h-full" />
+                <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
               </div>
               Luxor Manager
             </Link>
@@ -407,7 +408,7 @@ export function Sidebar() {
           <div className="px-1 hidden md:block">
             <Link href="/dashboard" className="block text-center py-2">
               <div className="relative w-full h-12 mx-auto flex justify-center items-center">
-                <img src="/luxor-logo.png" alt="Luxor Logo" className="object-contain h-full w-auto" />
+                <Image src="/luxor-logo.png" alt="Luxor Logo" width={100} height={48} className="object-contain" />
               </div>
             </Link>
           </div>

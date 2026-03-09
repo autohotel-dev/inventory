@@ -23,6 +23,7 @@ import {
   Tag
 } from "lucide-react";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
+import { useUserRole } from "@/hooks/use-user-role";
 import { usePOSConfigRead } from "@/hooks/use-pos-config";
 import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { cn } from "@/lib/utils";
@@ -128,6 +129,7 @@ export function AddConsumptionModal({
   const { printConsumptionTickets, isPrinting, printStatus } = useThermalPrinter();
   const { playSuccess, playError, playClick } = useSoundFeedback();
   const posConfig = usePOSConfigRead();
+  const { isReceptionist, isAdmin, isManager } = useUserRole();
 
   // Usar configuración del sistema (valores dinámicos)
   const SCAN_SPEED_THRESHOLD = posConfig.scanSpeedThreshold;
@@ -715,6 +717,13 @@ export function AddConsumptionModal({
   const processConsumption = async () => {
     if (cartItems.size === 0) {
       toast.error("Agrega al menos un producto");
+      return;
+    }
+
+    if (!isReceptionist && !isAdmin && !isManager) {
+      toast.error("Acceso denegado", {
+        description: "Solo los recepcionistas pueden realizar ventas directas."
+      });
       return;
     }
 

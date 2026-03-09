@@ -282,7 +282,7 @@ export function RoomStartStayModal({
           />
 
           <p className="text-xs text-muted-foreground">
-            Se creará una orden de venta en estado "Abierta" vinculada a esta habitación.
+            Se creará una orden de venta en estado &quot;Abierta&quot; vinculada a esta habitación.
           </p>
         </div>
         <div className="px-6 py-4 border-t flex-shrink-0">

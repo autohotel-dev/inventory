@@ -1,7 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 export function createClient() {
-  // @ts-ignore - Usar globalThis para persistir la instancia durante HMR (Hot Module Replacement)
   if (typeof window !== "undefined") {
     if (!window.supabaseClient) {
       window.supabaseClient = createBrowserClient(

@@ -1,26 +1,22 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-    Download,
     Calendar,
     FileSpreadsheet,
     FileText,
     Hotel,
     Car,
-    User,
     Clock,
     DollarSign,
     CheckCircle2,
-    XCircle,
     ArrowUpRight,
-    Search,
-    Filter
+    Search
 } from "lucide-react";
 import { exportToExcel, exportToPDF, formatCurrency, formatDateTime } from "@/lib/export-utils";
 import { cn } from "@/lib/utils";
@@ -48,7 +44,7 @@ export function RoomStaysReport() {
     const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
     const [searchTerm, setSearchTerm] = useState("");
 
-    const fetchReport = async () => {
+    const fetchReport = useCallback(async () => {
         const supabase = createClient();
         setLoading(true);
 
@@ -123,16 +119,16 @@ export function RoomStaysReport() {
 
             setData(formattedData);
 
-        } catch (error) {
-            console.error("Error in fetchReport:", error);
+        } catch (_error) {
+            console.error("Error in fetchReport:", _error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [startDate, endDate]);
 
     useEffect(() => {
         fetchReport();
-    }, [startDate, endDate]);
+    }, [fetchReport]);
 
     // Computed Metrics
     const metrics = useMemo(() => {

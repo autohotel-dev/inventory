@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -188,7 +188,7 @@ export function ReceptionistDashboard() {
   };
 
   // Cargar PIN del empleado
-  const fetchEmployeePin = async () => {
+  const fetchEmployeePin = useCallback(async () => {
     if (!employeeId) return;
 
     const supabase = createClient();
@@ -199,10 +199,10 @@ export function ReceptionistDashboard() {
       .single();
 
     setEmployeePin(data?.pin_code || null);
-  };
+  }, [employeeId]);
 
   // Cargar sesión de turno activa
-  const fetchActiveSession = async () => {
+  const fetchActiveSession = useCallback(async () => {
     if (!employeeId) return;
 
     const supabase = createClient();
@@ -219,10 +219,10 @@ export function ReceptionistDashboard() {
       .limit(1);
 
     setActiveSession(sessions?.[0] || null);
-  };
+  }, [employeeId]);
 
   // Contar cocheros con turno activo
-  const fetchActiveValetCount = async () => {
+  const fetchActiveValetCount = useCallback(async () => {
     const supabase = createClient();
     const { count } = await supabase
       .from("shift_sessions")
@@ -232,7 +232,7 @@ export function ReceptionistDashboard() {
       .is("clock_out_at", null);
 
     setActiveValetCount(count || 0);
-  };
+  }, []);
 
   // Iniciar turno
   const handleStartShift = async () => {
@@ -357,7 +357,7 @@ export function ReceptionistDashboard() {
   };
 
   // Cargar resumen del turno
-  const fetchShiftSummary = async () => {
+  const fetchShiftSummary = useCallback(async () => {
     if (!userId) return;
 
     setLoading(true);
@@ -440,7 +440,7 @@ export function ReceptionistDashboard() {
 
       // Obtener desglose por concepto de items pagados
       const salesIds = sales?.map((s: any) => s.id) || [];
-      let conceptBreakdown = {
+      const conceptBreakdown = {
         ROOM_BASE: 0,
         EXTRA_HOUR: 0,
         EXTRA_PERSON: 0,
@@ -478,7 +478,7 @@ export function ReceptionistDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, activeSession, posConfig]);
 
   // Mostrar opciones de clock out
   const handleClockOutClick = () => {
@@ -578,7 +578,7 @@ export function ReceptionistDashboard() {
   }, []);
 
   // Cargar sesión activa del SISTEMA (para admins)
-  const fetchSystemActiveSession = async () => {
+  const fetchSystemActiveSession = useCallback(async () => {
     if (!canAdjustCash) return; // Solo admins/managers
 
     const supabase = createClient();
@@ -598,7 +598,7 @@ export function ReceptionistDashboard() {
     if (found && found.employee_id !== employeeId) {
       setSystemActiveSession(found);
     }
-  };
+  }, [canAdjustCash, employeeId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -615,21 +615,21 @@ export function ReceptionistDashboard() {
     return () => {
       isMounted = false;
     };
-  }, [employeeId]);
+  }, [employeeId, fetchActiveSession, fetchEmployeePin]);
 
   // Cargar sesión del sistema si es admin
   useEffect(() => {
     if (canAdjustCash && !activeSession) {
       fetchSystemActiveSession();
     }
-  }, [canAdjustCash, activeSession]);
+  }, [canAdjustCash, activeSession, fetchSystemActiveSession]);
 
   useEffect(() => {
     if (userId) {
       fetchShiftSummary();
       fetchActiveValetCount();
     }
-  }, [userId, activeSession]);
+  }, [userId, activeSession, fetchActiveValetCount, fetchShiftSummary]);
 
   if (roleLoading) {
     return (
@@ -1247,7 +1247,7 @@ export function ReceptionistDashboard() {
           </div>
 
           <p className="text-xs text-muted-foreground text-center pb-2">
-            Si eliges "después", podrás completar el corte desde cualquier dispositivo.
+            Si eliges &quot;después&quot;, podrás completar el corte desde cualquier dispositivo.
           </p>
 
           <DialogFooter className="sm:justify-center">

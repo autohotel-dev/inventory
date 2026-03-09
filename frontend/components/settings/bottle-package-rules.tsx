@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,40 +77,40 @@ export function BottlePackageRules() {
     };
 
     // Fetch rules and subcategories
-    useEffect(() => {
-        const fetchData = async () => {
-            const supabase = createClient();
+    const fetchData = useCallback(async () => {
+        const supabase = createClient();
 
-            // Fetch rules with relations
-            const { data: rulesData, error: rulesError } = await supabase
-                .from("bottle_package_rules")
-                .select(`
-          *,
-          subcategory:subcategories(id, name, category:categories(id, name)),
-          included_category:categories!included_category_id(id, name)
-        `)
-                .order("unit_type");
+        // Fetch rules with relations
+        const { data: rulesData, error: rulesError } = await supabase
+            .from("bottle_package_rules")
+            .select(`
+      *,
+      subcategory:subcategories(id, name, category:categories(id, name)),
+      included_category:categories!included_category_id(id, name)
+    `)
+            .order("unit_type");
 
-            if (rulesError) {
-                console.error("Error fetching rules:", rulesError);
-                showError("Error", "No se pudieron cargar las reglas de paquetes");
-            } else {
-                setRules(rulesData || []);
-            }
+        if (rulesError) {
+            console.error("Error fetching rules:", rulesError);
+            showError("Error", "No se pudieron cargar las reglas de paquetes");
+        } else {
+            setRules(rulesData || []);
+        }
 
-            // Fetch subcategories for VINOS Y LICORES
-            const { data: subData } = await supabase
-                .from("subcategories")
-                .select("*, category:categories(id, name)")
-                .eq("is_active", true)
-                .order("name");
+        // Fetch subcategories for VINOS Y LICORES
+        const { data: subData } = await supabase
+            .from("subcategories")
+            .select("*, category:categories(id, name)")
+            .eq("is_active", true)
+            .order("name");
 
-            setSubcategories(subData || []);
-            setLoading(false);
-        };
-
-        fetchData();
+        setSubcategories(subData || []);
+        setLoading(false);
     }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const openAddModal = () => {
         setEditingRule(null);

@@ -4,9 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Package, AlertTriangle, DollarSign, BarChart3, TrendingUp, Archive } from "lucide-react";
+import { ArrowLeft, Edit, Package, AlertTriangle, DollarSign, BarChart3, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { Separator } from "@/components/ui/separator";
+
 
 async function getProduct(id: string) {
     const supabase = await createClient();
@@ -35,20 +35,19 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     // Stock Status Logic
     let stockStatus: 'good' | 'low' | 'critical' = 'good';
     let stockColor = "text-emerald-500";
-    let stockBg = "bg-emerald-500/10";
     let stockBorder = "border-emerald-500/20";
     let StockIcon = Package;
 
     if (currentStock === 0) {
         stockStatus = 'critical';
         stockColor = "text-red-500";
-        stockBg = "bg-red-500/10";
+        stockColor = "text-red-500";
         stockBorder = "border-red-500/20";
         StockIcon = AlertTriangle;
     } else if (currentStock <= minStock) {
         stockStatus = 'low';
         stockColor = "text-orange-500";
-        stockBg = "bg-orange-500/10";
+        stockColor = "text-orange-500";
         stockBorder = "border-orange-500/20";
         StockIcon = AlertTriangle;
     }

@@ -11,17 +11,7 @@ const supabase = createClient(
 // Tuya envía un JSON firmado. Para este MVP confiamos en recibir un JSON con deviceId y status.
 // En producción, se debe validar la firma (signature).
 
-interface TuyaPayload {
-    data: {
-        deviceId: string;
-        status: {
-            code: string; // 'door_sensor_state' usually
-            value: boolean | string; // true/false or 'open'/'closed'
-            t: number; // timestamp
-        }[];
-    };
-    bizCode: string; // 'edge_device_report'
-}
+// Tuya sends a signed JSON.
 
 export async function POST(req: NextRequest) {
     // const supabase = createClient(); // Ya instanciado arriba con service role
@@ -32,7 +22,7 @@ export async function POST(req: NextRequest) {
 
         // Normalizar entrada (Soporta estructura compleja de Tuya o simple de IFTTT)
         // IFTTT: { "deviceId": "...", "status": "OPEN", "auth": "..." }
-        let deviceId = body?.data?.deviceId || body?.deviceId;
+        const deviceId = body?.data?.deviceId || body?.deviceId;
 
         // Buscar sensor
         if (!deviceId) return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });

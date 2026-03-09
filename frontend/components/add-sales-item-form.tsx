@@ -20,13 +20,11 @@ interface AddSalesItemFormProps {
 }
 
 export function AddSalesItemForm({ orderId, productOptions, addItemAction }: AddSalesItemFormProps) {
-  const [selectedProductId, setSelectedProductId] = useState("");
   const [unitPrice, setUnitPrice] = useState("0");
   const [taxRate, setTaxRate] = useState("0");
 
   // Función para obtener el precio del producto seleccionado
   const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId);
     
     // Buscar el producto seleccionado y autocompletar el precio
     const selectedProduct = productOptions.find(p => p.value === productId);

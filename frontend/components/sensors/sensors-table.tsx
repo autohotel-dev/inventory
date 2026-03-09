@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ export function SensorsTable() {
 
     const supabase = createClient();
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             // Fetch Sensors with Room data
@@ -75,7 +75,7 @@ export function SensorsTable() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [showError, supabase]);
 
     useEffect(() => {
         fetchData();
@@ -107,7 +107,7 @@ export function SensorsTable() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [fetchData, supabase]);
 
     const openForCreate = () => {
         setEditingId(null);

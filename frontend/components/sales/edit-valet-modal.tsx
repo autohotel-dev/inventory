@@ -143,7 +143,7 @@ export function EditValetModal({
                     )}
                     {valets.length === 0 && !loadingValets && (
                         <p className="text-xs text-muted-foreground mt-2">
-                            No hay empleados con rol "Cochero" activos. Crea uno primero en
+                            No hay empleados con rol &quot;Cochero&quot; activos. Crea uno primero en
                             gestión de empleados.
                         </p>
                     )}

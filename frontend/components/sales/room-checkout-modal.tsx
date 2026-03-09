@@ -101,7 +101,6 @@ export function RoomCheckoutModal({
       setCheckoutValetId(defaultValetId || "none");
 
       // Check for pre-filled payment data from Valet
-      // @ts-ignore - checkout_payment_data might not be typed yet in the parent component
       if (props.checkoutPaymentData && Array.isArray(props.checkoutPaymentData) && props.checkoutPaymentData.length > 0) {
         setPayments(props.checkoutPaymentData);
       } else if (remainingAmount > 0) {
