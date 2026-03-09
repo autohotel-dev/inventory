@@ -6,6 +6,7 @@ import { ChatContextType } from '@/lib/chat/chat-types';
 import { useChatMessages } from '@/lib/chat/use-chat-messages';
 import { useChatNotifications } from '@/lib/chat/use-chat-notifications';
 import { useChatPresence } from '@/lib/chat/use-chat-presence';
+import { useSoundEngine } from '@/hooks/use-sound-notifications';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -14,6 +15,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+    const { playNewMessage } = useSoundEngine();
 
     const supabase = createClient();
 
@@ -28,7 +31,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         init();
     }, [supabase]);
 
-    const { messages, sendMessage: sendMsgFn, isLoading, hasMore, loadMore } = useChatMessages();
+    const { messages, sendMessage: sendMsgFn, isLoading, hasMore, loadMore, uploadMedia, editMessage, deleteMessage } = useChatMessages(activeConversationId);
     // Note: useChatMessages currently creates its own subscription. This is fine for now but optimization for later.
 
     const { notifyNewMessage } = useChatNotifications(currentUser?.id, isOpen);
@@ -46,18 +49,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 if ((!isOpen || (typeof document !== 'undefined' && document.hidden)) && lastMsg.user_id !== currentUser?.id) {
                     setUnreadCount(prev => prev + 1);
                     notifyNewMessage(lastMsg);
+                    playNewMessage();
                 }
             }
             lastMessageIdRef.current = lastMsg.id;
         }
     }, [messages, isOpen, currentUser, notifyNewMessage]);
 
-    // Reset unread count when opening
+    // Reset unread count AND mark as read when opening
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && messages.length > 0) {
             setUnreadCount(0);
+            
+            // Mark all current unread messages from others as read
+            const unreadIds = messages
+                .filter(m => !m.is_read && m.user_id !== currentUser?.id)
+                .map(m => m.id);
+            
+            if (unreadIds.length > 0) {
+                supabase
+                    .from('messages')
+                    .update({ is_read: true })
+                    .in('id', unreadIds)
+                    .then(({ error }: { error: any }) => {
+                        if (error) console.error('Error marking messages as read:', error);
+                    });
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, messages, currentUser, supabase]);
 
     const sendMessage = async (content: string) => {
         if (!currentUser) return;
@@ -75,7 +94,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         loadMore,
         onlineUsers,
         typingUsers,
-        handleTypingInput
+        handleTypingInput,
+        uploadMedia,
+        currentUser,
+        editMessage,
+        deleteMessage,
+        activeConversationId,
+        setActiveConversationId
     };
 
     return (
