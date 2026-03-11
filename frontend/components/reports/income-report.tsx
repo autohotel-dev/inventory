@@ -204,37 +204,15 @@ export function IncomeReport({
                 if (shift) {
                     setShiftInfo(shift);
 
-                    // Buscar órdenes que tengan pagos en este turno (por shift_session_id)
-                    // Esto asegura que renovaciones cobradas en este turno aparezcan aquí
-                    if (shiftSessionId) {
-                        const { data: shiftPayments } = await supabase
-                            .from("payments")
-                            .select("sales_order_id")
-                            .eq("shift_session_id", shiftSessionId)
-                            .in("status", ["PAGADO", "PENDIENTE"]);
-
-                        const salesOrderIds = [...new Set(
-                            (shiftPayments || [])
-                                .filter((p: any) => p.sales_order_id)
-                                .map((p: any) => p.sales_order_id)
-                        )];
-
-                        if (salesOrderIds.length > 0) {
-                            query = query.in("sales_order_id", salesOrderIds);
-                        } else {
-                            // No hay pagos en este turno, forzar resultado vacío
-                            query = query.eq("sales_order_id", "00000000-0000-0000-0000-000000000000");
-                        }
+                    // Buscar EXCLUSIVAMENTE las ENTRADAS (Check-in) que ocurrieron durante este turno
+                    // como solicitó el usuario: "Solo deben de registrarse entradas por es el dinero que ingresa recepcion"
+                    query = query.gte("check_in_at", shift.shift_start);
+                    if (shift.shift_end) {
+                        query = query.lte("check_in_at", shift.shift_end);
                     } else {
-                        // Fallback: si no hay shift_session_id, usar check_in_at
-                        query = query.gte("check_in_at", shift.shift_start);
-                        if (shift.shift_end) {
-                            query = query.lte("check_in_at", shift.shift_end);
-                        } else {
-                            query = query.lte("check_in_at", new Date().toISOString());
-                        }
+                        query = query.lte("check_in_at", new Date().toISOString());
                     }
-                    console.log("✅ Query filtered by shift payments");
+                    console.log("✅ Query filtered by true check-in time for shift");
                 } else {
                     console.warn("⚠️ No shift data found for shiftId:", shiftId);
                 }
