@@ -1048,6 +1048,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             remainingAfterPending,
             paymentsCreated: validPayments.length,
           });
+
+          // Asegurar que los items de tipo HORA EXTRA se marquen como pagados
+          await updateUnpaidItems(activeStay.sales_order_id, "EXTRA_HOUR", payments[0]?.method || "EFECTIVO");
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago
@@ -1203,6 +1206,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             remainingAfterPending,
             paymentsCreated: validPayments.length,
           });
+
+          // Asegurar que los items de tipo RENOVACION se marquen como pagados
+          await updateUnpaidItems(activeStay.sales_order_id, "RENEWAL", payments[0]?.method || "EFECTIVO");
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago
@@ -1387,6 +1393,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             remainingAfterPending,
             paymentsCreated: validPayments.length,
           });
+
+          // Asegurar que los items de tipo PROMO 4H se marquen como pagados
+          await updateUnpaidItems(activeStay.sales_order_id, "PROMO_4H", payments[0]?.method || "EFECTIVO");
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago

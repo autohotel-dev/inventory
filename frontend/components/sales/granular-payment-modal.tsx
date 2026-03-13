@@ -573,7 +573,7 @@ export function GranularPaymentModal({
     if (forcedUnlockedItems.has(item.id)) return true;
 
     // Excepción: Conceptos de servicio que no requieren entrega
-    const serviceConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'DAMAGE_CHARGE', 'TOLERANCE_EXPIRED'];
+    const serviceConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'DAMAGE_CHARGE', 'TOLERANCE_EXPIRED', 'RENEWAL', 'PROMO_4H'];
     if (serviceConcepts.includes(item.concept_type)) {
       return true;
     }
