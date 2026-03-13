@@ -1,20 +1,32 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-// Cliente admin de Supabase (usa service_role key)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
-
 export async function POST(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    // Verificar que el service role key existe
+    if (!serviceRoleKey) {
+      console.error("CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing in environment variables");
+      return NextResponse.json(
+        { error: "SUPABASE_SERVICE_ROLE_KEY no está configurado en el servidor" },
+        { status: 500 }
+      );
+    }
+
+    // Cliente admin de Supabase (usa service_role key)
+    const supabaseAdmin = createClient(
+      supabaseUrl!,
+      serviceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
     const body = await request.json();
     const { email, password, employeeId } = body;
 
@@ -22,14 +34,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Email, password y employeeId son requeridos" },
         { status: 400 }
-      );
-    }
-
-    // Verificar que el service role key existe
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json(
-        { error: "SUPABASE_SERVICE_ROLE_KEY no está configurado en el servidor" },
-        { status: 500 }
       );
     }
 
