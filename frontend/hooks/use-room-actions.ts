@@ -1022,35 +1022,50 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           );
         }
 
-        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
-        if (remainingAfterPending > 0 && !isCourtesy) {
+        // Si no había pagos PENDIENTES que actualizar, o si no hay pago (crear pendiente)
+        if (!isCourtesy && (totalPaid === 0 || remainingAfterPending > 0)) {
           const currentShiftId = await getReceptionShiftId(supabase);
           const validPayments = payments.filter(p => p.amount > 0);
 
-          for (const p of validPayments) {
+          if (totalPaid === 0) {
+            // No hay pago inmediato: Crear registro PENDIENTE
             await supabase.from("payments").insert({
               sales_order_id: activeStay.sales_order_id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("HEX"),
+              amount: extraHourPrice * hours,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("HEX"),
               concept: "EXTRA_HOUR",
-              status: "PAGADO",
-              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+              status: "PENDIENTE",
+              payment_type: "COMPLETO",
               shift_session_id: currentShiftId,
-              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
             });
+          } else {
+            // Hay pago: Crear registros PAGADOS
+            for (const p of validPayments) {
+              await supabase.from("payments").insert({
+                sales_order_id: activeStay.sales_order_id,
+                amount: p.amount,
+                payment_method: p.method,
+                reference: p.reference || generatePaymentReference("HEX"),
+                concept: "EXTRA_HOUR",
+                status: "PAGADO",
+                payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+                shift_session_id: currentShiftId,
+                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+                ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+                ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+              });
+            }
+
+            // Asegurar que los items de tipo HORA EXTRA se marquen como pagados
+            await updateUnpaidItems(activeStay.sales_order_id, "EXTRA_HOUR", payments[0]?.method || "EFECTIVO");
           }
 
-          logger.info("Created new payment records for custom hours", {
+          logger.info("Processed payment records for custom hours", {
             salesOrderId: activeStay.sales_order_id,
+            totalPaid,
             remainingAfterPending,
-            paymentsCreated: validPayments.length,
           });
-
-          // Asegurar que los items de tipo HORA EXTRA se marquen como pagados
-          await updateUnpaidItems(activeStay.sales_order_id, "EXTRA_HOUR", payments[0]?.method || "EFECTIVO");
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago
@@ -1179,36 +1194,50 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           "REN"
         );
 
-        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
-        // Esto sucede cuando la estancia original ya estaba pagada y la renovación es un cargo nuevo
-        if (remainingAfterPending > 0) {
+        // Si no hay pagos, o sobró dinero después de cubrir pendientes, manejamos el cargo de renovación
+        if (totalPaid === 0 || remainingAfterPending > 0) {
           const currentShiftId = await getReceptionShiftId(supabase);
           const validPayments = payments.filter(p => p.amount > 0);
 
-          for (const p of validPayments) {
+          if (totalPaid === 0) {
+            // No hay pago inmediato: Crear registro PENDIENTE
             await supabase.from("payments").insert({
               sales_order_id: activeStay.sales_order_id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("REN"),
+              amount: basePrice,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("REN"),
               concept: "RENEWAL",
-              status: "PAGADO",
-              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+              status: "PENDIENTE",
+              payment_type: "COMPLETO",
               shift_session_id: currentShiftId,
-              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
             });
+          } else {
+            // Hay pago: Crear registros PAGADOS
+            for (const p of validPayments) {
+              await supabase.from("payments").insert({
+                sales_order_id: activeStay.sales_order_id,
+                amount: p.amount,
+                payment_method: p.method,
+                reference: p.reference || generatePaymentReference("REN"),
+                concept: "RENEWAL",
+                status: "PAGADO",
+                payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+                shift_session_id: currentShiftId,
+                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+                ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+                ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+              });
+            }
+
+            // Asegurar que los items de tipo RENOVACION se marquen como pagados
+            await updateUnpaidItems(activeStay.sales_order_id, "RENEWAL", payments[0]?.method || "EFECTIVO");
           }
 
-          logger.info("Created new payment records for renewal", {
+          logger.info("Processed payment records for renewal", {
             salesOrderId: activeStay.sales_order_id,
+            totalPaid,
             remainingAfterPending,
-            paymentsCreated: validPayments.length,
           });
-
-          // Asegurar que los items de tipo RENOVACION se marquen como pagados
-          await updateUnpaidItems(activeStay.sales_order_id, "RENEWAL", payments[0]?.method || "EFECTIVO");
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago
@@ -1367,35 +1396,50 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           "P4H"
         );
 
-        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
-        if (remainingAfterPending > 0) {
+        // Si no hay pagos, o sobró dinero después de cubrir pendientes, manejamos el cargo de promoción
+        if (totalPaid === 0 || remainingAfterPending > 0) {
           const currentShiftId = await getReceptionShiftId(supabase);
           const validPayments = payments.filter(p => p.amount > 0);
 
-          for (const p of validPayments) {
+          if (totalPaid === 0) {
+            // No hay pago inmediato: Crear registro PENDIENTE
             await supabase.from("payments").insert({
               sales_order_id: activeStay.sales_order_id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("P4H"),
+              amount: promoPrice,
+              payment_method: "PENDIENTE",
+              reference: generatePaymentReference("P4H"),
               concept: "PROMO_4H",
-              status: "PAGADO",
-              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+              status: "PENDIENTE",
+              payment_type: "COMPLETO",
               shift_session_id: currentShiftId,
-              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
             });
+          } else {
+            // Hay pago: Crear registros PAGADOS
+            for (const p of validPayments) {
+              await supabase.from("payments").insert({
+                sales_order_id: activeStay.sales_order_id,
+                amount: p.amount,
+                payment_method: p.method,
+                reference: p.reference || generatePaymentReference("P4H"),
+                concept: "PROMO_4H",
+                status: "PAGADO",
+                payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+                shift_session_id: currentShiftId,
+                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
+                ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
+                ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
+              });
+            }
+
+            // Asegurar que los items de tipo PROMO 4H se marquen como pagados
+            await updateUnpaidItems(activeStay.sales_order_id, "PROMO_4H", payments[0]?.method || "EFECTIVO");
           }
 
-          logger.info("Created new payment records for 4h promo", {
+          logger.info("Processed payment records for 4h promo", {
             salesOrderId: activeStay.sales_order_id,
+            totalPaid,
             remainingAfterPending,
-            paymentsCreated: validPayments.length,
           });
-
-          // Asegurar que los items de tipo PROMO 4H se marquen como pagados
-          await updateUnpaidItems(activeStay.sales_order_id, "PROMO_4H", payments[0]?.method || "EFECTIVO");
         }
 
         // Actualizar paid_amount en sales_orders si hubo pago

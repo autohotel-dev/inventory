@@ -854,6 +854,8 @@ export function GranularPaymentModal({
 
       // Mapear concept_type a payment concept
       const conceptMapping: Record<string, string> = {
+        'RENEWAL': 'RENEWAL',
+        'PROMO_4H': 'PROMO_4H',
         'EXTRA_PERSON': 'PERSONA_EXTRA',
         'EXTRA_HOUR': 'HORA_EXTRA',
         'ROOM_BASE': 'ESTANCIA',
