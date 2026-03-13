@@ -20,7 +20,8 @@ const getBaseUrl = () => {
   }
   // Variable de entorno personalizada
   if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL;
+    const url = process.env.NEXT_PUBLIC_SITE_URL;
+    return url.startsWith('http') ? url : `https://${url}`;
   }
   // Fallback para desarrollo local
   return 'http://localhost:3000';
