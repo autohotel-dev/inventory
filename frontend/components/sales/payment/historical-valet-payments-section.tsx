@@ -1,0 +1,136 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { CONCEPT_LABELS, formatCurrency } from "./utils";
+
+interface HistoricalValetPaymentsSectionProps {
+  valetPayments: any[];
+  items: any[];
+  selectedItems: Set<string>;
+  corroboratedIds: Set<string>;
+  confirmingPaymentId: string | null;
+  onCorroborate: (paymentIds: string[]) => void;
+  onApplyData: (payments: any[]) => void;
+}
+
+export function HistoricalValetPaymentsSection({
+  valetPayments,
+  items,
+  selectedItems,
+  corroboratedIds,
+  confirmingPaymentId,
+  onCorroborate,
+  onApplyData,
+}: HistoricalValetPaymentsSectionProps) {
+  if (valetPayments.length === 0) return null;
+
+  const groupsMap = new Map<string, any>();
+  valetPayments.forEach(p => {
+    const empKey = p.collected_by || 'unknown';
+    const timeWindow = 1000 * 60 * 10;
+    const timeKey = Math.floor(new Date(p.collected_at).getTime() / timeWindow);
+    const key = `${empKey}-${timeKey}`;
+
+    if (!groupsMap.has(key)) {
+      groupsMap.set(key, {
+        payments: [],
+        totalAmount: 0,
+        employeeName: p.employees ? `${p.employees.first_name} ${p.employees.last_name}` : 'Desconocido',
+        collectedAt: p.collected_at
+      });
+    }
+    const group = groupsMap.get(key);
+    group.payments.push(p);
+    group.totalAmount += p.amount;
+  });
+
+  const visibleGroups = Array.from(groupsMap.values()).filter(group => {
+    if (selectedItems.size === 0) return true;
+    const selectedConcepts = new Set(Array.from(selectedItems).map(id => items.find(i => i.id === id)?.concept_type).filter(Boolean));
+    const conceptMapping: Record<string, string[]> = {
+      'PERSONA_EXTRA': ['EXTRA_PERSON'],
+      'HORA_EXTRA': ['EXTRA_HOUR'],
+      'ESTANCIA': ['ROOM_BASE', 'STAY'],
+      'TOLERANCIA_EXPIRADA': ['TOLERANCE_EXPIRED'],
+      'DAMAGE_CHARGE': ['DAMAGE_CHARGE'],
+      'CONSUMO': ['CONSUMPTION', 'PRODUCT'],
+      'RENEWAL': ['RENEWAL', 'STAY', 'EXTRA_HOUR'],
+      'PRODUCT': ['PRODUCT']
+    };
+    return group.payments.some((p: any) => {
+      const mapped = conceptMapping[p.concept] || [p.concept];
+      return mapped.some(m => selectedConcepts.has(m));
+    });
+  });
+
+  if (visibleGroups.length === 0) return null;
+
+  return (
+    <div className="space-y-3 mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400 shadow-[0_0_15px_-5px_rgba(99,102,241,0.3)]">
+        <AlertTriangle className="h-5 w-5" />
+        <p className="text-xs font-bold uppercase tracking-wider">Información de cobros informados por Cochero</p>
+      </div>
+
+      <div className="space-y-2">
+        {visibleGroups.map((group, groupIdx) => {
+          const allCorroborated = group.payments.every((p: any) => p.confirmed_at || corroboratedIds.has(p.id));
+          return (
+            <div
+              key={`group-${groupIdx}`}
+              className="flex items-center justify-between p-4 border rounded-lg bg-zinc-900/50 border-indigo-500/10 hover:border-indigo-500/30 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-1">
+                    {group.payments.map((p: any) => (
+                      <Badge key={p.id} variant="outline" className="border-indigo-500/50 text-indigo-400 bg-indigo-500/10 px-2 h-5 text-[10px]">
+                        {p.payment_method} {formatCurrency(p.amount)}
+                      </Badge>
+                    ))}
+                  </div>
+                  <span className="font-bold text-2xl text-white">
+                    {formatCurrency(group.totalAmount)}
+                  </span>
+                </div>
+                <div className="w-px h-10 bg-zinc-800 mx-2" />
+                <div className="flex flex-col gap-1">
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from(new Set(group.payments.map((p: any) => p.concept))).filter(c => !!c).map((concept: any) => {
+                      const conceptStr = String(concept || 'PAGO');
+                      const label = CONCEPT_LABELS[conceptStr] || conceptStr;
+                      const isRenewal = conceptStr === 'RENEWAL' || conceptStr === 'STAY' || conceptStr === 'EXTRA_HOUR';
+                      return (
+                        <Badge key={`concept-${conceptStr}`} variant="secondary" className={cn("text-[10px] uppercase font-bold tracking-tighter py-0", isRenewal ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" : "bg-zinc-800 text-zinc-300")}>
+                          {isRenewal ? "RENOVACIÓN" : label}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                  <span className="text-xs text-zinc-400">Cobrado por <span className="text-indigo-400/80 font-medium">{group.employeeName}</span></span>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-zinc-500 italic">{new Date(group.collectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className="flex gap-2">
+                  {!allCorroborated ? (
+                    <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 px-4" onClick={() => onCorroborate(group.payments.map((p: any) => p.id))} disabled={confirmingPaymentId !== null}>
+                      {confirmingPaymentId === group.payments[0].id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4 mr-2" />Corroborar Recibo</>}
+                    </Button>
+                  ) : (
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 shadow-lg shadow-emerald-500/20 animate-in zoom-in-95 duration-200" onClick={() => onApplyData(group.payments)}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />Utilizar datos de cochero
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

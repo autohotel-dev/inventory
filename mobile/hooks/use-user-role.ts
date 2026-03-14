@@ -49,6 +49,7 @@ export function useUserRole(): UserRoleData {
         .single();
 
       if (employeeError || !employee) {
+        console.log("[SHIFT DEBUG] No direct employee link, trying email fallback...");
         // Search by email as fallback
         const { data: employeeByEmail } = await supabase
           .from("employees")
@@ -61,21 +62,26 @@ export function useUserRole(): UserRoleData {
       }
 
       if (!employee) {
+        console.log("[SHIFT DEBUG] Employee not found for user:", user.email);
         setRole(null); // Valet app only for linked employees
         setHasActiveShift(false);
       } else {
+        console.log("[SHIFT DEBUG] Employee found:", employee.id, employee.role);
         setRole(employee.role as UserRole);
         setEmployeeId(employee.id);
         setEmployeeName(`${employee.first_name} ${employee.last_name}`);
 
         // Check for active shift
-        const { data: session } = await supabase
+        const { data: session, error: shiftError } = await supabase
           .from("shift_sessions")
-          .select("id")
+          .select("id, status")
           .eq("employee_id", employee.id)
           .in("status", ["active", "open"])
           .limit(1)
           .maybeSingle();
+
+        if (shiftError) console.error("[SHIFT DEBUG] Error checking shift:", shiftError);
+        console.log("[SHIFT DEBUG] Shift session result:", session);
 
         setHasActiveShift(!!session);
       }
@@ -96,6 +102,34 @@ export function useUserRole(): UserRoleData {
 
     return () => subscription.unsubscribe();
   }, [fetchUserRole]);
+
+  // Subscripción en tiempo real para cambios de turno
+  useEffect(() => {
+    if (!employeeId) return;
+
+    console.log("[SHIFT SYNC] Subscribing to shift_sessions for employee:", employeeId);
+    
+    const channel = supabase
+      .channel(`shift-sync-${employeeId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "shift_sessions",
+          filter: `employee_id=eq.${employeeId}`,
+        },
+        (payload) => {
+          console.log("[SHIFT SYNC] Shift change detected:", payload.eventType);
+          fetchUserRole();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [employeeId, fetchUserRole]);
 
   return {
     role,

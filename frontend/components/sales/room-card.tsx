@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
@@ -71,6 +71,8 @@ export interface RoomCardProps {
   valetId?: string | null; // For debugging
   onInfo: () => void;
   onActions: () => void;
+  onAddProduct?: () => void;
+  onViewServices?: () => void;
 }
 
 export function RoomCard({
@@ -90,6 +92,8 @@ export function RoomCard({
   valetId,
   onInfo,
   onActions,
+  onAddProduct,
+  onViewServices,
 }: RoomCardProps) {
   /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
@@ -98,14 +102,14 @@ export function RoomCard({
   // Clases dinámicas para alerta de puerta abierta
   const containerClasses = showDoorAlert
     ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-transform duration-300"
-    : `${bgClass || "bg-slate-900/80"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : "border-white/5 hover:border-white/20"}`;
+    : `${bgClass || "bg-slate-900/80"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : "border-white/10 hover:border-white/20"}`;
 
   return (
     <div
       id="tour-room-card"
       data-room-status={status}
       data-room-number={number}
-      className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer shadow-sm hover:shadow-md border transition-colors duration-200 ${containerClasses}`}
+      className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer shadow-lg hover:shadow-xl backdrop-blur-md border transition-all duration-300 ease-in-out hover:-translate-y-0.5 ${containerClasses}`}
     >
       {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
       {hasPendingPayment && !showDoorAlert && (
@@ -114,15 +118,23 @@ export function RoomCard({
         </div>
       )}
 
-      {/* Indicador de Servicio de Consumo Pendiente (Charola de Comida) */}
+      {/* Indicador de Servicio de Consumo Pendiente (Charola de Comida) - Ahora Clickable */}
       {hasPendingService && !showDoorAlert && (
-        <div className={cn(
-          "absolute rounded-full p-1 shadow-lg z-30 ring-2 ring-background",
-          isCriticalService ? "bg-red-600 animate-[pulse_0.8s_infinite] scale-110 shadow-red-500/50" : "bg-orange-500 animate-pulse",
-          hasPendingPayment ? "-top-1.5 right-4" : "-top-1.5 -right-1.5"
-        )} title={isCriticalService ? "¡SERVICIO CRÍTICO! (>15 min)" : "Servicio de consumo en proceso"}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewServices?.();
+          }}
+          className={cn(
+            "absolute rounded-full p-1 shadow-lg z-30 ring-2 ring-background hover:scale-110 active:scale-95 transition-transform duration-200 cursor-pointer",
+            isCriticalService ? "bg-red-600 animate-[pulse_0.8s_infinite] shadow-red-500/50" : "bg-orange-500 animate-pulse",
+            hasPendingPayment ? "-top-1.5 right-4" : "-top-1.5 -right-1.5"
+          )}
+          title={isCriticalService ? "¡SERVICIO CRÍTICO! (>15 min) - Click para ver detalles" : "Servicio de consumo en proceso - Click para ver detalles"}
+        >
           <HandPlatter className={cn("h-2.5 w-2.5 text-white", isCriticalService && "animate-bounce")} />
-        </div>
+        </button>
       )}
 
       {/* Indicador de Valet Pendiente (Workflow Estricto) - Bloqueo Visual */}
@@ -131,10 +143,6 @@ export function RoomCard({
           <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center animate-pulse cursor-not-allowed group-hover:bg-background/60 transition-colors">
             <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm">
               Esperando Cochero
-            </span>
-            {/* DEBUG INFO */}
-            <span className="text-[9px] text-white/50 font-mono mt-1">
-              ID: {isValetPending ? (valetId || 'NULL') : ''}
             </span>
           </div>
           <div className="absolute -top-1.5 -right-1.5 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 ring-2 ring-background animate-pulse" title="Esperando registro de vehículo por Valet">
@@ -160,7 +168,7 @@ export function RoomCard({
       {/* Fila superior: Número + Estado */}
       <div className="flex items-start justify-between gap-1 mb-1">
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="font-bold text-lg leading-none">{number}</span>
+          <span className="font-extrabold text-lg leading-none bg-clip-text text-transparent bg-gradient-to-br from-white to-white/70 tracking-tight">{number}</span>
 
           {/* Indicador de Vehículo */}
           {vehicleStatus?.hasVehicle && (
@@ -230,11 +238,11 @@ export function RoomCard({
       </div>
 
       {/* Fila inferior: Tipo + Botones */}
-      <div className="flex items-center justify-between mt-auto">
+      <div className="flex items-center justify-between mt-auto flex-wrap gap-y-1">
         {/* Badge de tipo de habitación */}
         {roomTypeName ? (
           <span
-            className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${getRoomTypeConfig(roomTypeName).color} text-white`}
+            className={`text-[8px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm shadow-sm border border-white/10 ${getRoomTypeConfig(roomTypeName).color} text-white`}
             title={roomTypeName}
           >
             {getRoomTypeConfig(roomTypeName).abbr}
@@ -252,18 +260,52 @@ export function RoomCard({
           </div>
         )}
 
-        {/* Botones de acción (ocultos si hay alerta para limpieza visual, o mantenidos con z-index alto) */}
-        <div className="flex items-center gap-0.5 z-20">
+        {/* Botones de acción directos */}
+        <div className="flex items-center gap-0.5 z-20 flex-wrap justify-end">
+          {status === "OCUPADA" && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 sm:h-7 sm:w-7 p-0 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 hover:from-orange-300 hover:to-orange-500 text-white transition-all duration-300 active:scale-95 border border-orange-300/50 shadow-[0_0_15px_rgba(249,115,22,0.6)] hover:shadow-[0_0_25px_rgba(249,115,22,0.8)]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewServices?.();
+                }}
+                aria-label={`Ver seguimiento habitación ${number}`}
+                title="Seguimiento de Servicios"
+              >
+                <ConciergeBell className="h-3 w-3" />
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 sm:h-7 sm:w-7 p-0 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 hover:from-emerald-300 hover:to-emerald-500 text-white transition-all duration-300 active:scale-95 border border-emerald-300/50 shadow-[0_0_15px_rgba(52,211,153,0.6)] hover:shadow-[0_0_25px_rgba(52,211,153,0.8)]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddProduct?.();
+                }}
+                aria-label={`Agregar consumo habitación ${number}`}
+                title="Agregar Consumo"
+              >
+                <ShoppingBag className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="h-6 w-6 p-0 rounded-full bg-white/5 hover:bg-white/15 text-white/70 hover:text-white transition-colors"
+            className="h-6 w-6 sm:h-7 sm:w-7 p-0 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 hover:from-cyan-300 hover:to-cyan-500 text-white transition-all duration-300 active:scale-95 border border-cyan-300/50 shadow-[0_0_15px_rgba(34,211,238,0.6)] hover:shadow-[0_0_25px_rgba(34,211,238,0.8)]"
             onClick={(e) => {
               e.stopPropagation();
               onInfo();
             }}
             aria-label={`Información habitación ${number}`}
+            title="Información"
           >
             <Info className="h-3 w-3" />
           </Button>
@@ -271,12 +313,13 @@ export function RoomCard({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-6 w-6 p-0 rounded-full bg-white/5 hover:bg-white/15 text-white/70 hover:text-white transition-colors"
+            className="h-6 w-6 sm:h-7 sm:w-7 p-0 rounded-full bg-gradient-to-br from-fuchsia-400 to-fuchsia-600 hover:from-fuchsia-300 hover:to-fuchsia-500 text-white transition-all duration-300 active:scale-95 border border-fuchsia-300/50 shadow-[0_0_15px_rgba(232,121,249,0.6)] hover:shadow-[0_0_25px_rgba(232,121,249,0.8)]"
             onClick={(e) => {
               e.stopPropagation();
               onActions();
             }}
             aria-label={`Acciones habitación ${number}`}
+            title="Acciones"
           >
             <MoreVertical className="h-3 w-3" />
           </Button>

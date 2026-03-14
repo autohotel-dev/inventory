@@ -294,13 +294,14 @@ async function updatePendingPaymentsHelper(
 
     if (currentOrder) {
       const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - paidAmountApplied);
-      const newPaid = (Number(currentOrder.paid_amount) || 0) + paidAmountApplied;
+      // Se removió actualización de paid_amount ya que recepción no cobra directamente
+      // const newPaid = (Number(currentOrder.paid_amount) || 0) + paidAmountApplied;
 
       await supabase
         .from("sales_orders")
         .update({
           remaining_amount: newRemaining,
-          paid_amount: newPaid,
+          // paid_amount: newPaid,
         })
         .eq("id", salesOrderId);
 
@@ -308,7 +309,7 @@ async function updatePendingPaymentsHelper(
         salesOrderId,
         paidAmountApplied,
         newRemaining,
-        newPaid,
+        // newPaid,
       });
     }
   }
@@ -325,9 +326,9 @@ export interface UseRoomActionsReturn {
   handlePersonLeftReturning: (room: Room) => Promise<void>; // Persona salió pero regresa (tolerancia 1h)
   handleAddDamageCharge: (room: Room, amount: number, description: string) => Promise<void>; // Agregar cargo por daño
 
-  handleAddCustomHours: (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => Promise<void>; // Agregar horas personalizadas
-  handleRenewRoom: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Renovar habitación con precio base
-  handleAdd4HourPromo: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Promoción de 4 horas
+  handleAddCustomHours: (room: Room, hours: number, isCourtesy?: boolean, courtesyReason?: string) => Promise<void>; // Agregar horas personalizadas
+  handleRenewRoom: (room: Room) => Promise<void>; // Renovar habitación con precio base
+  handleAdd4HourPromo: (room: Room) => Promise<void>; // Promoción de 4 horas
   updateRoomStatus: (
     room: Room,
     newStatus: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA",
@@ -953,7 +954,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   /**
    * Agregar horas personalizadas con pago
    */
-  const handleAddCustomHours = async (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => {
+  const handleAddCustomHours = async (room: Room, hours: number, isCourtesy?: boolean, courtesyReason?: string) => {
     if (!checkAuthorization("Agregar Horas")) return;
     if (room.status !== "OCUPADA") return;
 
@@ -979,7 +980,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     try {
       const extraHourPrice = room.room_types.extra_hour_price;
       const totalPrice = isCourtesy ? 0 : extraHourPrice * hours;
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
       // Actualizar totales de la orden (solo si hay costo)
       let result = { success: true };
@@ -1010,94 +1010,28 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           if (itemRes.success) lastItemId = itemRes.data;
         }
 
-        // Procesar el pago (solo si no es cortesía)
-        let remainingAfterPending = 0;
-        if (!isCourtesy) {
-          remainingAfterPending = await updatePendingPaymentsHelper(
-            supabase,
-            activeStay.sales_order_id,
-            payments,
-            totalPaid,
-            "HEX"
-          );
-        }
-
-        // Si no había pagos PENDIENTES que actualizar, o si no hay pago (crear pendiente)
-        if (!isCourtesy && (totalPaid === 0 || remainingAfterPending > 0)) {
+        // Si no es cortesía, siempre crear un pago PENDIENTE para que el cochero lo cobre
+        if (!isCourtesy && totalPrice > 0) {
           const currentShiftId = await getReceptionShiftId(supabase);
-          const validPayments = payments.filter(p => p.amount > 0);
+          
+          await supabase.from("payments").insert({
+            sales_order_id: activeStay.sales_order_id,
+            amount: totalPrice,
+            payment_method: "PENDIENTE",
+            reference: generatePaymentReference("HEX"),
+            concept: "EXTRA_HOUR",
+            status: "PENDIENTE",
+            payment_type: "COMPLETO",
+            shift_session_id: currentShiftId,
+          });
 
-          if (totalPaid === 0) {
-            // No hay pago inmediato: Crear registro PENDIENTE
-            await supabase.from("payments").insert({
-              sales_order_id: activeStay.sales_order_id,
-              amount: extraHourPrice * hours,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("HEX"),
-              concept: "EXTRA_HOUR",
-              status: "PENDIENTE",
-              payment_type: "COMPLETO",
-              shift_session_id: currentShiftId,
-            });
-          } else {
-            // Hay pago: Crear registros PAGADOS
-            for (const p of validPayments) {
-              await supabase.from("payments").insert({
-                sales_order_id: activeStay.sales_order_id,
-                amount: p.amount,
-                payment_method: p.method,
-                reference: p.reference || generatePaymentReference("HEX"),
-                concept: "EXTRA_HOUR",
-                status: "PAGADO",
-                payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
-                shift_session_id: currentShiftId,
-                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-                ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-                ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-              });
-            }
-
-            // Asegurar que los items de tipo HORA EXTRA se marquen como pagados
-            await updateUnpaidItems(activeStay.sales_order_id, "EXTRA_HOUR", payments[0]?.method || "EFECTIVO");
-          }
-
-          logger.info("Processed payment records for custom hours", {
+          logger.info("Created PENDIENTE payment for custom hours", {
             salesOrderId: activeStay.sales_order_id,
-            totalPaid,
-            remainingAfterPending,
+            totalPrice,
           });
         }
 
-        // Actualizar paid_amount en sales_orders si hubo pago
-        if (totalPaid > 0) {
-          // Ya se actualizó en updatePendingPaymentsHelper o en el insert de arriba?
-          // Revisamos: updatePendingPaymentsHelper actualiza los totales de la orden.
-          // Si no hay pagos pendientes, el remainingAfterPending > 0 y creamos pagos nuevos.
-          // PERO updatePendingPaymentsHelper solo toca la orden si HAY pagos pendientes.
-          // Debemos asegurar que los totales de la orden reflejen el pago independientemente de si era pendiente o no.
-          
-          if (remainingAfterPending === totalPaid) {
-            // No se aplicó nada a pagos pendientes, actualizamos totales ahora
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("remaining_amount, paid_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
-
-            if (currentOrder) {
-              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
-              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
-
-              await supabase
-                .from("sales_orders")
-                .update({
-                  remaining_amount: newRemaining,
-                  paid_amount: newPaid,
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
-          }
-        }
+// Se removió actualización de paid_amount ya que recepción no cobra directamente 
 
         // Extender expected_check_out_at según las horas agregadas
         if (activeStay.expected_check_out_at) {
@@ -1119,12 +1053,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           // Notificar a cocheros activos estandarizado
           await notifyActiveValets(
             supabase,
-            '⏰ Hora Extra Registrada',
-            `Habitación ${room.number}: Se agregaron ${hours} hora(s) extra. Saldo pendiente: $${(result as any).newRemaining?.toFixed(2) || totalPrice.toFixed(2)} MXN.`,
+            '⏰ Cobro de Horas Extra',
+            `Habitación ${room.number}: Cobrar ${hours} hora(s) extra ($${totalPrice.toFixed(2)} MXN).`,
             {
               type: 'NEW_EXTRA',
               consumptionId: lastItemId,
-              roomNumber: room.number
+              roomNumber: room.number,
+              stayId: activeStay.id
             }
           );
         }
@@ -1143,7 +1078,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   /**
    * Renovar habitación con precio base
    */
-  const handleRenewRoom = async (room: Room, payments: PaymentEntry[]) => {
+  const handleRenewRoom = async (room: Room) => {
     if (!checkAuthorization("Renovar Habitación")) return;
     if (room.status !== "OCUPADA") return;
 
@@ -1163,7 +1098,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
     try {
       const basePrice = room.room_types.base_price;
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
       // Actualizar totales de la orden
       const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
@@ -1185,84 +1119,24 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
         const consumptionId = itemRes.success ? itemRes.data : undefined;
 
-        // Procesar el pago
-        const remainingAfterPending = await updatePendingPaymentsHelper(
-          supabase,
-          activeStay.sales_order_id,
-          payments,
-          totalPaid,
-          "REN"
-        );
+        // Siempre crear un pago PENDIENTE para renovación
+        const currentShiftId = await getReceptionShiftId(supabase);
+        
+        await supabase.from("payments").insert({
+          sales_order_id: activeStay.sales_order_id,
+          amount: basePrice,
+          payment_method: "PENDIENTE",
+          reference: generatePaymentReference("REN"),
+          concept: "RENEWAL",
+          status: "PENDIENTE",
+          payment_type: "COMPLETO",
+          shift_session_id: currentShiftId,
+        });
 
-        // Si no hay pagos, o sobró dinero después de cubrir pendientes, manejamos el cargo de renovación
-        if (totalPaid === 0 || remainingAfterPending > 0) {
-          const currentShiftId = await getReceptionShiftId(supabase);
-          const validPayments = payments.filter(p => p.amount > 0);
-
-          if (totalPaid === 0) {
-            // No hay pago inmediato: Crear registro PENDIENTE
-            await supabase.from("payments").insert({
-              sales_order_id: activeStay.sales_order_id,
-              amount: basePrice,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("REN"),
-              concept: "RENEWAL",
-              status: "PENDIENTE",
-              payment_type: "COMPLETO",
-              shift_session_id: currentShiftId,
-            });
-          } else {
-            // Hay pago: Crear registros PAGADOS
-            for (const p of validPayments) {
-              await supabase.from("payments").insert({
-                sales_order_id: activeStay.sales_order_id,
-                amount: p.amount,
-                payment_method: p.method,
-                reference: p.reference || generatePaymentReference("REN"),
-                concept: "RENEWAL",
-                status: "PAGADO",
-                payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
-                shift_session_id: currentShiftId,
-                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-                ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-                ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-              });
-            }
-
-            // Asegurar que los items de tipo RENOVACION se marquen como pagados
-            await updateUnpaidItems(activeStay.sales_order_id, "RENEWAL", payments[0]?.method || "EFECTIVO");
-          }
-
-          logger.info("Processed payment records for renewal", {
-            salesOrderId: activeStay.sales_order_id,
-            totalPaid,
-            remainingAfterPending,
-          });
-        }
-
-        // Actualizar paid_amount en sales_orders si hubo pago
-        if (totalPaid > 0) {
-          if (remainingAfterPending === totalPaid) {
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("remaining_amount, paid_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
-
-            if (currentOrder) {
-              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
-              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
-
-              await supabase
-                .from("sales_orders")
-                .update({
-                  remaining_amount: newRemaining,
-                  paid_amount: newPaid,
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
-          }
-        }
+        logger.info("Created PENDIENTE payment for renewal", {
+          salesOrderId: activeStay.sales_order_id,
+          basePrice,
+        });
 
         // Extender expected_check_out_at según las horas del tipo
         if (activeStay.expected_check_out_at) {
@@ -1299,8 +1173,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         // Notificación estandarizada a valets activos
         await notifyActiveValets(
           supabase,
-          '🔄 Habitación Renovada',
-          `Habitación ${room.number}: Renovación registada ($${basePrice.toFixed(2)}).`,
+          '🔄 Cobro de Renovación',
+          `Habitación ${room.number}: Cobrar renovación ($${basePrice.toFixed(2)} MXN).`,
           {
             type: 'NEW_EXTRA',
             consumptionId: consumptionId,
@@ -1325,7 +1199,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   /**
    * Agregar promoción de 4 horas
    */
-  const handleAdd4HourPromo = async (room: Room, payments: PaymentEntry[]) => {
+  const handleAdd4HourPromo = async (room: Room) => {
     if (!checkAuthorization("Aplicar Promoción")) return;
     if (room.status !== "OCUPADA") return;
 
@@ -1365,7 +1239,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       }
 
       const promoPrice = pricingData.price;
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
       // Actualizar totales de la orden
       const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, promoPrice);
@@ -1387,84 +1260,24 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
         const consumptionId = itemRes.success ? itemRes.data : undefined;
 
-        // Procesar el pago
-        const remainingAfterPending = await updatePendingPaymentsHelper(
-          supabase,
-          activeStay.sales_order_id,
-          payments,
-          totalPaid,
-          "P4H"
-        );
+        // Siempre crear un pago PENDIENTE para la promoción
+        const currentShiftId = await getReceptionShiftId(supabase);
+        
+        await supabase.from("payments").insert({
+          sales_order_id: activeStay.sales_order_id,
+          amount: promoPrice,
+          payment_method: "PENDIENTE",
+          reference: generatePaymentReference("P4H"),
+          concept: "PROMO_4H",
+          status: "PENDIENTE",
+          payment_type: "COMPLETO",
+          shift_session_id: currentShiftId,
+        });
 
-        // Si no hay pagos, o sobró dinero después de cubrir pendientes, manejamos el cargo de promoción
-        if (totalPaid === 0 || remainingAfterPending > 0) {
-          const currentShiftId = await getReceptionShiftId(supabase);
-          const validPayments = payments.filter(p => p.amount > 0);
-
-          if (totalPaid === 0) {
-            // No hay pago inmediato: Crear registro PENDIENTE
-            await supabase.from("payments").insert({
-              sales_order_id: activeStay.sales_order_id,
-              amount: promoPrice,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("P4H"),
-              concept: "PROMO_4H",
-              status: "PENDIENTE",
-              payment_type: "COMPLETO",
-              shift_session_id: currentShiftId,
-            });
-          } else {
-            // Hay pago: Crear registros PAGADOS
-            for (const p of validPayments) {
-              await supabase.from("payments").insert({
-                sales_order_id: activeStay.sales_order_id,
-                amount: p.amount,
-                payment_method: p.method,
-                reference: p.reference || generatePaymentReference("P4H"),
-                concept: "PROMO_4H",
-                status: "PAGADO",
-                payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
-                shift_session_id: currentShiftId,
-                ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-                ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-                ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-              });
-            }
-
-            // Asegurar que los items de tipo PROMO 4H se marquen como pagados
-            await updateUnpaidItems(activeStay.sales_order_id, "PROMO_4H", payments[0]?.method || "EFECTIVO");
-          }
-
-          logger.info("Processed payment records for 4h promo", {
-            salesOrderId: activeStay.sales_order_id,
-            totalPaid,
-            remainingAfterPending,
-          });
-        }
-
-        // Actualizar paid_amount en sales_orders si hubo pago
-        if (totalPaid > 0) {
-          if (remainingAfterPending === totalPaid) {
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("remaining_amount, paid_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
-
-            if (currentOrder) {
-              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
-              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
-
-              await supabase
-                .from("sales_orders")
-                .update({
-                  remaining_amount: newRemaining,
-                  paid_amount: newPaid,
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
-          }
-        }
+        logger.info("Created PENDIENTE payment for 4h promo", {
+          salesOrderId: activeStay.sales_order_id,
+          promoPrice,
+        });
 
         // Extender expected_check_out_at en 4 horas
         if (activeStay.expected_check_out_at) {
@@ -1488,8 +1301,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         // Notificación estandarizada a valets activos
         await notifyActiveValets(
           supabase,
-          '🏷️ Promoción 4H Aplicada',
-          `Habitación ${room.number}: Se aplicó promoción de 4 horas ($${promoPrice.toFixed(2)}).`,
+          '🏷️ Cobro de Promoción 4H',
+          `Habitación ${room.number}: Cobrar promoción de 4 horas ($${promoPrice.toFixed(2)} MXN).`,
           {
             type: 'NEW_EXTRA',
             consumptionId: consumptionId,

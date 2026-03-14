@@ -39,7 +39,6 @@ import { useTraining } from "@/contexts/training-context";
 // Dynamic imports para modales (reducción de bundle)
 const RoomStartStayModal = dynamic(() => import("@/components/sales/room-start-stay-modal").then(m => ({ default: m.RoomStartStayModal })), { ssr: false });
 const RoomCheckoutModal = dynamic(() => import("@/components/sales/room-checkout-modal").then(m => ({ default: m.RoomCheckoutModal })), { ssr: false });
-const RoomPayExtraModal = dynamic(() => import("@/components/sales/room-pay-extra-modal").then(m => ({ default: m.RoomPayExtraModal })), { ssr: false });
 const RoomDetailsModal = dynamic(() => import("@/components/sales/room-details-modal").then(m => ({ default: m.RoomDetailsModal })), { ssr: false });
 const GranularPaymentModal = dynamic(() => import("@/components/sales/granular-payment-modal").then(m => ({ default: m.GranularPaymentModal })), { ssr: false });
 const AddConsumptionModal = dynamic(() => import("@/components/sales/add-consumption-modal").then(m => ({ default: m.AddConsumptionModal })), { ssr: false });
@@ -131,13 +130,6 @@ function RoomsBoardInternal() {
     remainingAmount: number;
     pendingItems?: { concept_type: string; total: number; count: number }[];
     hasUndeliveredItems?: boolean;
-  } | null>(null);
-  // Estados para pagar extras
-  const [showPayExtraModal, setShowPayExtraModal] = useState(false);
-  const [payExtraAmount, setPayExtraAmount] = useState<number>(0);
-  const [payExtraInfo, setPayExtraInfo] = useState<{
-    salesOrderId: string;
-    extraAmount: number;
   } | null>(null);
   const [reminderNotifiedStayIds20, setReminderNotifiedStayIds20] = useState<string[]>([]);
   const [reminderNotifiedStayIds5, setReminderNotifiedStayIds5] = useState<string[]>([]);
@@ -1107,24 +1099,6 @@ function RoomsBoardInternal() {
     }
   };
 
-  // Abrir modal de pagar extras
-  const openPayExtraModal = async (room: Room) => {
-    const info = await prepareCheckout(room);
-    if (info && info.remainingAmount > 0) {
-      setPayExtraInfo({
-        salesOrderId: info.salesOrderId,
-        extraAmount: info.remainingAmount,
-      });
-      setPayExtraAmount(info.remainingAmount);
-      setSelectedRoom(room);
-      setShowPayExtraModal(true);
-    } else {
-      toast.info("Sin cargos pendientes", {
-        description: "No hay cargos extra por pagar en esta habitación.",
-      });
-    }
-  };
-
   // Abrir modal de cobro granular (por concepto)
   const openGranularPaymentModal = async (room: Room) => {
     const activeStay = getActiveStay(room);
@@ -1214,190 +1188,7 @@ function RoomsBoardInternal() {
     }
   };
 
-  // Cerrar modal de pagar extras
-  const handleClosePayExtraModal = () => {
-    if (actionLoading) return;
-    setShowPayExtraModal(false);
-    setSelectedRoom(null);
-    setPayExtraInfo(null);
-    setPayExtraAmount(0);
-  };
-
-  // Procesar pago de extras (sin checkout)
-  const handlePayExtra = async (payments: PaymentEntry[]) => {
-    if (!payExtraInfo || !selectedRoom || payments.length === 0) return;
-
-    const supabase = createClient();
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-
-    try {
-      // Obtener la orden actual
-      const { data: order, error: orderError } = await supabase
-        .from("sales_orders")
-        .select("paid_amount, remaining_amount")
-        .eq("id", payExtraInfo.salesOrderId)
-        .single();
-
-      if (orderError || !order) {
-        toast.error("Error al obtener la orden");
-        return;
-      }
-
-      // Buscar pagos pendientes existentes para esta orden
-      const { data: pendingPayments, error: pendingError } = await supabase
-        .from("payments")
-        .select("id, amount, concept")
-        .eq("sales_order_id", payExtraInfo.salesOrderId)
-        .eq("status", "PENDIENTE")
-        .is("parent_payment_id", null)
-        .order("created_at", { ascending: true });
-
-      if (pendingError) {
-        console.error("Error fetching pending payments:", pendingError);
-      }
-
-      const validPayments = payments.filter(p => p.amount > 0);
-      const isMultipago = validPayments.length > 1;
-      let remainingToPay = totalPaid;
-
-      // Obtener turno actual para vincular nuevos pagos
-      const currentShiftId = await getCurrentShiftId(supabase);
-
-      // Actualizar pagos pendientes existentes
-      if (pendingPayments && pendingPayments.length > 0) {
-        for (const pending of pendingPayments) {
-          if (remainingToPay <= 0) break;
-
-          const amountForThis = Math.min(pending.amount, remainingToPay);
-          remainingToPay -= amountForThis;
-
-          if (isMultipago) {
-            // Actualizar el pago pendiente a PAGADO y agregar subpagos
-            await supabase
-              .from("payments")
-              .update({
-                status: "PAGADO",
-                payment_method: "PENDIENTE",
-              })
-              .eq("id", pending.id);
-
-            // Crear subpagos proporcionales para este pago pendiente
-            const proportion = amountForThis / totalPaid;
-            const subpayments = validPayments.map(p => ({
-              sales_order_id: payExtraInfo.salesOrderId,
-              amount: Math.round(p.amount * proportion * 100) / 100,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("SUB"),
-              concept: pending.concept,
-              status: "PAGADO",
-              payment_type: "PARCIAL",
-              parent_payment_id: pending.id,
-              shift_session_id: currentShiftId,
-            }));
-
-            const { error: subError } = await supabase
-              .from("payments")
-              .insert(subpayments);
-
-            if (subError) {
-              console.error("Error inserting subpayments:", subError);
-            }
-          } else {
-            // Pago único - actualizar el pago pendiente directamente
-            const p = validPayments[0];
-            await supabase
-              .from("payments")
-              .update({
-                status: "PAGADO",
-                payment_method: p.method,
-                reference: p.reference || generatePaymentReference("PAG"),
-              })
-              .eq("id", pending.id);
-          }
-        }
-      }
-
-      // Si sobra monto (no había suficientes pagos pendientes), crear pago nuevo genérico
-      if (remainingToPay > 0) {
-        if (isMultipago) {
-          const { data: mainPayment, error: mainError } = await supabase
-            .from("payments")
-            .insert({
-              sales_order_id: payExtraInfo.salesOrderId,
-              amount: remainingToPay,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("EXT"),
-              concept: "PAGO_EXTRA",
-              status: "PAGADO",
-              payment_type: "COMPLETO",
-              shift_session_id: currentShiftId,
-            })
-            .select("id")
-            .single();
-
-          if (!mainError && mainPayment) {
-            const proportion = remainingToPay / totalPaid;
-            const subpayments = validPayments.map(p => ({
-              sales_order_id: payExtraInfo.salesOrderId,
-              amount: Math.round(p.amount * proportion * 100) / 100,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("SUB"),
-              concept: "PAGO_EXTRA",
-              status: "PAGADO",
-              payment_type: "PARCIAL",
-              parent_payment_id: mainPayment.id,
-              shift_session_id: currentShiftId,
-            }));
-
-            await supabase.from("payments").insert(subpayments);
-          }
-        } else {
-          const p = validPayments[0];
-          await supabase.from("payments").insert({
-            sales_order_id: payExtraInfo.salesOrderId,
-            amount: remainingToPay,
-            payment_method: p.method,
-            reference: p.reference || generatePaymentReference("EXT"),
-            concept: "PAGO_EXTRA",
-            status: "PAGADO",
-            payment_type: "COMPLETO",
-            shift_session_id: currentShiftId,
-          });
-        }
-      }
-
-      // Actualizar montos pagados
-      const newPaidAmount = (order.paid_amount || 0) + totalPaid;
-      const newRemainingAmount = Math.max(0, (order.remaining_amount || 0) - totalPaid);
-
-      const { error: updateError } = await supabase
-        .from("sales_orders")
-        .update({
-          paid_amount: newPaidAmount,
-          remaining_amount: newRemainingAmount,
-        })
-        .eq("id", payExtraInfo.salesOrderId);
-
-      if (updateError) {
-        toast.error("Error al procesar el pago");
-        return;
-      }
-
-      const methodsSummary = payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ');
-      toast.success("Pago registrado", {
-        description: `Se pagaron $${totalPaid.toFixed(2)} MXN (${methodsSummary}). La habitación sigue ocupada.`,
-      });
-
-      setShowPayExtraModal(false);
-      setSelectedRoom(null);
-      setPayExtraInfo(null);
-      setPayExtraAmount(0);
-      await fetchRooms(true);
-    } catch (error) {
-      console.error("Error paying extra:", error);
-      toast.error("Error al procesar el pago");
-    }
-  };
+  // Procesar pago de extras (sin checkout) removido - usar pago granular
 
   // Verificar si una habitación tiene cargos extra pendientes
   const hasExtraCharges = (room: Room): boolean => {
@@ -1593,13 +1384,13 @@ function RoomsBoardInternal() {
     return () => clearInterval(interval);
   }, [rooms, fetchRooms]);
 
-  const calculateExpectedCheckout = (roomType: RoomType) => {
+  const calculateExpectedCheckout = (roomType: RoomType, durationNights: number = 1) => {
     const now = new Date();
 
     if (roomType.is_hotel) {
-      // Hotel (Torre): check-out siempre a las 12 pm del día siguiente
+      // Hotel (Torre): check-out siempre a las 12 pm según las noches seleccionadas
       const checkout = new Date(now);
-      checkout.setDate(checkout.getDate() + 1);
+      checkout.setDate(checkout.getDate() + durationNights);
       checkout.setHours(12, 0, 0, 0);
       return checkout;
     }
@@ -1683,10 +1474,12 @@ function RoomsBoardInternal() {
     const diffMsFromNow = checkout.getTime() - now.getTime();
     const diffMinutes = Math.floor(diffMsFromNow / 60000);
     const absMinutes = Math.abs(diffMinutes);
-    const hours = Math.floor(absMinutes / 60);
+    const days = Math.floor(absMinutes / (60 * 24));
+    const hours = Math.floor((absMinutes % (60 * 24)) / 60);
     const minutes = absMinutes % 60;
 
     const labelParts = [] as string[];
+    if (days > 0) labelParts.push(`${days}d`);
     if (hours > 0) labelParts.push(`${hours}h`);
     labelParts.push(`${minutes}m`);
 
@@ -1764,7 +1557,7 @@ function RoomsBoardInternal() {
   };
 
 
-  const handleStartStay = async (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => {
+  const handleStartStay = async (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo, durationNights: number = 1) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
     const isAuthed = await ensureAuthenticated();
@@ -1778,7 +1571,13 @@ function RoomsBoardInternal() {
     try {
       const roomType = selectedRoom.room_types;
       const now = new Date();
-      const expectedCheckout = calculateExpectedCheckout(roomType);
+      
+      let expectedCheckout = calculateExpectedCheckout(roomType);
+      if (roomType.is_hotel) {
+        expectedCheckout = new Date();
+        expectedCheckout.setDate(expectedCheckout.getDate() + durationNights);
+        expectedCheckout.setHours(12, 0, 0, 0);
+      }
 
       const basePrice = roomType.base_price ?? 0;
       const extraPersonPrice = roomType.extra_person_price ?? 0;
@@ -1786,7 +1585,7 @@ function RoomsBoardInternal() {
       // Calcular costo extra por personas adicionales (más de 2)
       const extraPeopleCount = Math.max(0, initialPeople - 2);
       const extraPeopleCost = extraPeopleCount * extraPersonPrice;
-      const totalPrice = basePrice + extraPeopleCost;
+      const totalPrice = (basePrice + extraPeopleCost) * (roomType.is_hotel ? durationNights : 1);
 
       // Obtener almacén específico para ventas de recepción (ALM002-R)
       const { data: defaultWarehouse, error: warehouseError } = await supabase
@@ -1910,7 +1709,7 @@ function RoomsBoardInternal() {
         orderItems.push({
           sales_order_id: salesOrder.id,
           product_id: serviceProductId,
-          qty: 1,
+          qty: roomType.is_hotel ? durationNights : 1,
           unit_price: basePrice,
           concept_type: "ROOM_BASE",
           is_paid: totalPaid >= basePrice,
@@ -1920,13 +1719,14 @@ function RoomsBoardInternal() {
 
         // Items de personas extra (si aplica)
         if (extraPeopleCount > 0 && extraPersonPrice > 0) {
+          const qtyPerPerson = roomType.is_hotel ? durationNights : 1;
           for (let i = 0; i < extraPeopleCount; i++) {
             const itemTotal = basePrice + (i + 1) * extraPersonPrice;
             const isPaidUpToThis = totalPaid >= itemTotal;
             orderItems.push({
               sales_order_id: salesOrder.id,
               product_id: serviceProductId,
-              qty: 1,
+              qty: qtyPerPerson,
               unit_price: extraPersonPrice,
               concept_type: "EXTRA_PERSON",
               is_paid: isPaidUpToThis,
@@ -2117,6 +1917,7 @@ function RoomsBoardInternal() {
   const handleQuickCheckin = async (data: {
     initialPeople: number;
     actualEntryTime: Date;
+    durationNights: number;
   }) => {
     if (!selectedRoom || !selectedRoom.room_types) return;
 
@@ -2137,32 +1938,40 @@ function RoomsBoardInternal() {
     try {
       const roomType = selectedRoom.room_types;
       const entryTime = data.actualEntryTime;
+      const durationNights = data.durationNights || 1;
 
       // Calcular hora de salida basada en la hora REAL de entrada
-      // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
-      const day = entryTime.getDay();
-      const hour = entryTime.getHours();
-      let isWeekendPeriod = false;
+      let expectedCheckout: Date;
+      if (roomType.is_hotel) {
+        expectedCheckout = new Date(entryTime);
+        expectedCheckout.setDate(expectedCheckout.getDate() + durationNights);
+        expectedCheckout.setHours(12, 0, 0, 0);
+      } else {
+        // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
+        const day = entryTime.getDay();
+        const hour = entryTime.getHours();
+        let isWeekendPeriod = false;
 
-      if (day === 5 && hour >= 6) {
-        isWeekendPeriod = true;
-      } else if (day === 6) {
-        isWeekendPeriod = true;
-      } else if (day === 0 && hour < 6) {
-        isWeekendPeriod = true;
+        if (day === 5 && hour >= 6) {
+          isWeekendPeriod = true;
+        } else if (day === 6) {
+          isWeekendPeriod = true;
+        } else if (day === 0 && hour < 6) {
+          isWeekendPeriod = true;
+        }
+
+        const hours = isWeekendPeriod
+          ? (roomType.weekend_hours ?? 4)
+          : (roomType.weekday_hours ?? 4);
+        expectedCheckout = new Date(entryTime);
+        expectedCheckout.setHours(expectedCheckout.getHours() + hours);
       }
-
-      const hours = isWeekendPeriod
-        ? (roomType.weekend_hours ?? 4)
-        : (roomType.weekday_hours ?? 4);
-      const expectedCheckout = new Date(entryTime);
-      expectedCheckout.setHours(expectedCheckout.getHours() + hours);
 
       const basePrice = roomType.base_price ?? 0;
       const extraPersonPrice = roomType.extra_person_price ?? 0;
       const extraPeopleCount = Math.max(0, data.initialPeople - 2);
       const extraPeopleCost = extraPeopleCount * extraPersonPrice;
-      const totalPrice = basePrice + extraPeopleCost;
+      const totalPrice = (basePrice + extraPeopleCost) * (roomType.is_hotel ? durationNights : 1);
 
       // Obtener almacén de recepción
       const { data: defaultWarehouse, error: warehouseError } = await supabase
@@ -2230,7 +2039,7 @@ function RoomsBoardInternal() {
         orderItems.push({
           sales_order_id: salesOrder.id,
           product_id: serviceProductId,
-          qty: 1,
+          qty: roomType.is_hotel ? durationNights : 1,
           unit_price: basePrice,
           concept_type: "ROOM_BASE",
           is_paid: false,
@@ -2240,11 +2049,12 @@ function RoomsBoardInternal() {
 
         // Items de personas extra
         if (extraPeopleCount > 0 && extraPersonPrice > 0) {
+          const qtyPerPerson = roomType.is_hotel ? durationNights : 1;
           for (let i = 0; i < extraPeopleCount; i++) {
             orderItems.push({
               sales_order_id: salesOrder.id,
               product_id: serviceProductId,
-              qty: 1,
+              qty: qtyPerPerson,
               unit_price: extraPersonPrice,
               concept_type: "EXTRA_PERSON",
               is_paid: false,
@@ -2565,8 +2375,8 @@ function RoomsBoardInternal() {
                   id={room.id}
                   number={room.number}
                   status={room.status}
-                  bgClass={isSaliendo ? "bg-orange-950/80" : ROOM_STATUS_BG[status]}
-                  accentClass={isSaliendo ? "ring-1 ring-orange-500/40" : ROOM_STATUS_ACCENT[status]}
+                  bgClass={isSaliendo ? "bg-gradient-to-br from-orange-950/60 to-amber-900/40" : ROOM_STATUS_BG[status]}
+                  accentClass={isSaliendo ? "ring-1 ring-orange-500/40 border-orange-500/20" : ROOM_STATUS_ACCENT[status]}
                   statusBadge={renderStatusBadge(status, isSaliendo)}
                   hasPendingPayment={!!hasPendingPayment}
                   hasPendingService={hasPendingService}
@@ -2585,20 +2395,25 @@ function RoomsBoardInternal() {
                   }}
                   onActions={() => {
                     // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
-                    // Se considera pendiente si está OCUPADA, tiene PLACA registrada, pero NO tiene valet asignado
-                    const valetPending = status === "OCUPADA" && activeStay && activeStay.vehicle_plate && !activeStay.valet_employee_id;
+                    // Se considera pendiente si está OCUPADA (o en Quick Check-in) y NO tiene checkout_payment_data
+                    const valetPending = status === "OCUPADA" && activeStay && !activeStay.checkout_payment_data;
 
                     if (valetPending) {
                       toast.error("Esperando al Cochero", {
-                        description: "No se pueden realizar acciones hasta que el cochero verifique el vehículo.",
-                        duration: 4000
+                        description: "No se pueden realizar acciones hasta que el cochero envíe el formulario de entrada.",
+                        duration: 5000
                       });
                       return;
                     }
                     openActionsDock(room);
                   }}
+                  onAddProduct={() => openConsumptionModal(room)}
+                  onViewServices={() => {
+                    setSelectedRoom(room);
+                    setShowTrackingModal(true);
+                  }}
                   data-tutorial="room-card"
-                  isValetPending={status === "OCUPADA" && !!activeStay && !!activeStay.vehicle_plate && !activeStay.valet_employee_id}
+                  isValetPending={status === "OCUPADA" && !!activeStay && !activeStay.checkout_payment_data}
                   valetId={activeStay ? activeStay.valet_employee_id : null}
                 />
               );
@@ -2613,7 +2428,7 @@ function RoomsBoardInternal() {
         expectedCheckout={selectedRoom?.room_types ? calculateExpectedCheckout(selectedRoom.room_types) : new Date()}
         actionLoading={startStayLoading || actionLoading}
         onClose={handleCloseModal}
-        onConfirm={handleStartStay}
+        onConfirm={(initialPeople, payments, vehicle, durationNights) => handleStartStay(initialPeople, payments, vehicle, durationNights)}
       />
       <RoomInfoPopover
         room={selectedRoom}
@@ -2662,27 +2477,10 @@ function RoomsBoardInternal() {
         isVisible={actionsDockVisible}
         actionLoading={actionLoading}
         hasPendingValetPayment={hasPendingValetPayment}
-        hasPendingServices={
-          selectedRoom ? (getActiveStay(selectedRoom)?.sales_orders?.sales_order_items || []).some(item =>
-            item.concept_type === 'CONSUMPTION' &&
-            ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
-          ) : false
-        }
         statusBadge={selectedRoom ? renderStatusBadge(selectedRoom.status) : null}
         hasExtraCharges={selectedRoom ? hasExtraCharges(selectedRoom) : false}
         isHotelRoom={selectedRoom?.room_types?.is_hotel === true}
         onClose={closeActionsDock}
-        onViewServices={() => {
-          if (!selectedRoom) return;
-          const stay = getActiveStay(selectedRoom);
-          if (stay?.sales_order_id) {
-            setConsumptionOrderId(stay.sales_order_id);
-            // Si hay servicios pendientes, filtrar por TRANSIT (que incluye PENDING/ACCEPTED/IN_TRANSIT)
-            setTrackingFilter('TRANSIT');
-            setShowTrackingModal(true);
-            setShowActionsModal(false);
-          }
-        }}
         onStartStay={() => {
           setShowActionsModal(false);
           setShowStartStayModal(true);
@@ -2690,12 +2488,6 @@ function RoomsBoardInternal() {
         onCheckout={() => {
           if (selectedRoom) {
             openCheckoutModal(selectedRoom);
-            setShowActionsModal(false);
-          }
-        }}
-        onPayExtra={() => {
-          if (selectedRoom) {
-            openPayExtraModal(selectedRoom);
             setShowActionsModal(false);
           }
         }}
@@ -2717,12 +2509,6 @@ function RoomsBoardInternal() {
         onGranularPayment={() => {
           if (selectedRoom) {
             openGranularPaymentModal(selectedRoom);
-            setShowActionsModal(false);
-          }
-        }}
-        onAddProduct={() => {
-          if (selectedRoom) {
-            openConsumptionModal(selectedRoom);
             setShowActionsModal(false);
           }
         }}
@@ -2824,17 +2610,6 @@ function RoomsBoardInternal() {
             setShowActionsModal(false);
           }
         }}
-      />
-      <RoomPayExtraModal
-        isOpen={showPayExtraModal && !!selectedRoom && !!payExtraInfo}
-        roomNumber={selectedRoom?.number || ""}
-        roomTypeName={selectedRoom?.room_types?.name || ""}
-        extraAmount={payExtraInfo?.extraAmount || 0}
-        payAmount={payExtraAmount}
-        actionLoading={actionLoading}
-        onAmountChange={setPayExtraAmount}
-        onClose={handleClosePayExtraModal}
-        onConfirm={handlePayExtra}
       />
       <RoomReminderAlert
         isOpen={!!reminderAlert}
@@ -2973,6 +2748,8 @@ function RoomsBoardInternal() {
           try {
             const newRoom = rooms.find(r => r.id === data.newRoomId);
             if (!newRoom) throw new Error("Habitación no encontrada");
+            const roomType = newRoom.room_types;
+            if (!roomType) throw new Error("Tipo de habitación no encontrado");
 
             // Calcular nueva hora de salida
             let newExpectedCheckout: string;
@@ -2981,26 +2758,7 @@ function RoomsBoardInternal() {
               newExpectedCheckout = activeStay.expected_check_out_at || new Date().toISOString();
             } else {
               // Reiniciar tiempo desde ahora
-              const now = new Date();
-              const roomType = newRoom.room_types;
-
-              // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
-              const day = now.getDay();
-              const hour = now.getHours();
-              let isWeekendPeriod = false;
-
-              if (day === 5 && hour >= 6) {
-                isWeekendPeriod = true;
-              } else if (day === 6) {
-                isWeekendPeriod = true;
-              } else if (day === 0 && hour < 6) {
-                isWeekendPeriod = true;
-              }
-
-              const hours = isWeekendPeriod ? (roomType?.weekend_hours ?? 4) : (roomType?.weekday_hours ?? 4);
-              const checkout = new Date(now);
-              checkout.setHours(checkout.getHours() + hours);
-              newExpectedCheckout = checkout.toISOString();
+              newExpectedCheckout = calculateExpectedCheckout(roomType).toISOString();
             }
 
             // Actualizar la estancia con la nueva habitación
@@ -3337,23 +3095,23 @@ function RoomsBoardInternal() {
         room={selectedRoom}
         actionLoading={actionLoading}
         onClose={() => setShowHourManagementModal(false)}
-        onConfirmCustomHours={async (hours, payments, isCourtesy, courtesyReason) => {
+        onConfirmCustomHours={async (hours, isCourtesy, courtesyReason) => {
           if (selectedRoom) {
-            await handleAddCustomHours(selectedRoom, hours, payments, isCourtesy, courtesyReason);
+            await handleAddCustomHours(selectedRoom, hours, isCourtesy, courtesyReason);
             setShowHourManagementModal(false);
             setShowInfoModal(false); // Cerrar para refrescar tiempo
           }
         }}
-        onConfirmRenew={async (payments) => {
+        onConfirmRenew={async () => {
           if (selectedRoom) {
-            await handleRenewRoom(selectedRoom, payments);
+            await handleRenewRoom(selectedRoom);
             setShowHourManagementModal(false);
             setShowInfoModal(false); // Cerrar para refrescar tiempo
           }
         }}
-        onConfirmPromo4H={async (payments) => {
+        onConfirmPromo4H={async () => {
           if (selectedRoom) {
-            await handleAdd4HourPromo(selectedRoom, payments);
+            await handleAdd4HourPromo(selectedRoom);
             setShowHourManagementModal(false);
             setShowInfoModal(false); // Cerrar para refrescar tiempo
           }

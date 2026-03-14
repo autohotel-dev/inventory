@@ -25,7 +25,7 @@ export interface RoomStartStayModalProps {
   expectedCheckout: Date;
   actionLoading: boolean;
   onClose: () => void;
-  onConfirm: (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo) => void;
+  onConfirm: (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo, durationNights: number) => void;
 }
 
 // FIX #9: Removed local formatDateTime - using centralized utility from export-utils
@@ -34,12 +34,13 @@ export function RoomStartStayModal({
   isOpen,
   roomNumber,
   roomType,
-  expectedCheckout,
+  expectedCheckout: initialExpectedCheckout,
   actionLoading,
   onClose,
   onConfirm,
 }: RoomStartStayModalProps) {
   const [initialPeople, setInitialPeople] = useState(2);
+  const [durationNights, setDurationNights] = useState(1);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [vehicle, setVehicle] = useState<VehicleInfo>({ plate: "", brand: "", model: "" });
   const [vehicleSearch, setVehicleSearch] = useState("");
@@ -50,12 +51,23 @@ export function RoomStartStayModal({
   // Calcular costo extra por personas adicionales
   const extraPeopleCount = Math.max(0, initialPeople - 2);
   const extraPeopleCost = extraPeopleCount * extraPersonPrice;
-  const totalPrice = (roomType?.base_price ?? 0) + extraPeopleCost;
+  const basePricePerNight = (roomType?.base_price ?? 0) + extraPeopleCost;
+  const totalPrice = roomType?.is_hotel ? (basePricePerNight * durationNights) : basePricePerNight;
+
+  // Calcular nueva fecha de salida si es hotel
+  const displayExpectedCheckout = (() => {
+    if (!roomType?.is_hotel) return initialExpectedCheckout;
+    const checkout = new Date(); // Asumimos entrada hoy para el previo visual
+    checkout.setDate(checkout.getDate() + durationNights);
+    checkout.setHours(12, 0, 0, 0);
+    return checkout;
+  })();
 
   // Reset al abrir y actualizar pagos cuando cambia el total
   useEffect(() => {
     if (isOpen) {
       setInitialPeople(2);
+      setDurationNights(1);
       setPayments(createInitialPayment(roomType?.base_price ?? 0));
       setVehicle({ plate: "", brand: "", model: "" });
       setVehicleSearch("");
@@ -103,66 +115,110 @@ export function RoomStartStayModal({
               <div className="flex items-center justify-end gap-1.5 text-blue-600 dark:text-blue-400">
                 <Clock className="h-4 w-4" />
                 <span className="text-lg font-bold">
-                  {expectedCheckout.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  {displayExpectedCheckout.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {expectedCheckout.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                {displayExpectedCheckout.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Selector de personas */}
-            <div className="space-y-3 p-4 border rounded-lg bg-card shadow-sm">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <Users className="h-4 w-4" />
-                <span className="text-sm font-medium">Ocupación</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10"
-                  onClick={() => setInitialPeople(Math.max(1, initialPeople - 1))}
-                  disabled={actionLoading || initialPeople <= 1}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <div className="text-center">
-                  <span className="text-3xl font-bold tabular-nums">{initialPeople}</span>
-                  <span className="text-xs text-muted-foreground block">personas</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10"
-                  onClick={() => setInitialPeople(Math.min(maxPeople, initialPeople + 1))}
-                  disabled={actionLoading || initialPeople >= maxPeople}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {extraPeopleCount > 0 && (
-                <div className="text-center p-1.5 bg-amber-500/10 rounded text-amber-600 text-xs font-medium border border-amber-200 dark:border-amber-800">
-                  +{extraPeopleCount} extra (+${extraPeopleCost.toFixed(2)})
+            {/* Duración y Ocupación */}
+            <div className="space-y-4 p-4 border rounded-lg bg-card shadow-sm">
+              {/* Selector de Noches (Solo para Hotel) */}
+              {roomType.is_hotel && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-sm font-medium">Duración de estancia</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => setDurationNights(Math.max(1, durationNights - 1))}
+                      disabled={actionLoading || durationNights <= 1}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <div className="text-center">
+                      <span className="text-3xl font-bold tabular-nums">{durationNights}</span>
+                      <span className="text-xs text-muted-foreground block">{durationNights === 1 ? 'Noche' : 'Noches'}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => setDurationNights(Math.min(30, durationNights + 1))}
+                      disabled={actionLoading}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
+
+              {/* Selector de personas */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Users className="h-4 w-4" />
+                  <span className="text-sm font-medium">Ocupación</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    onClick={() => setInitialPeople(Math.max(1, initialPeople - 1))}
+                    disabled={actionLoading || initialPeople <= 1}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <div className="text-center">
+                    <span className="text-3xl font-bold tabular-nums">{initialPeople}</span>
+                    <span className="text-xs text-muted-foreground block">personas</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    onClick={() => setInitialPeople(Math.min(maxPeople, initialPeople + 1))}
+                    disabled={actionLoading || initialPeople >= maxPeople}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {extraPeopleCount > 0 && (
+                  <div className="text-center p-1.5 bg-amber-500/10 rounded text-amber-600 text-xs font-medium border border-amber-200 dark:border-amber-800">
+                    +{extraPeopleCount} extra (+${extraPeopleCost.toFixed(2)} / noche)
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Resumen de Costos */}
             <div className="space-y-3 p-4 border rounded-lg bg-card shadow-sm flex flex-col justify-center">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Precio base:</span>
+                <span className="text-muted-foreground">Precio base x noche:</span>
                 <span className="font-medium">${roomType.base_price?.toFixed(2)}</span>
               </div>
 
               {extraPeopleCost > 0 && (
                 <div className="flex justify-between items-center text-sm text-amber-600">
-                  <span>Personas extra:</span>
+                  <span>Personas extra x noche:</span>
                   <span>+${extraPeopleCost.toFixed(2)}</span>
+                </div>
+              )}
+
+              {roomType.is_hotel && durationNights > 1 && (
+                <div className="flex justify-between items-center text-sm text-blue-600 font-medium">
+                  <span>Multiplicado por:</span>
+                  <span>{durationNights} Noches</span>
                 </div>
               )}
 
@@ -172,6 +228,7 @@ export function RoomStartStayModal({
               </div>
             </div>
           </div>
+
 
 
 
@@ -311,7 +368,7 @@ export function RoomStartStayModal({
             >
               Cancelar
             </Button>
-            <Button onClick={() => onConfirm(initialPeople, payments, vehicle)} disabled={actionLoading}>
+            <Button onClick={() => onConfirm(initialPeople, payments, vehicle, durationNights)} disabled={actionLoading}>
               {actionLoading ? "Iniciando..." : "Iniciar estancia"}
             </Button>
           </div>
