@@ -5,6 +5,7 @@ import { MultiPaymentInput } from '../../MultiPaymentInput';
 import { VehicleSearchResult } from '../../../lib/vehicle-catalog';
 import { PaymentEntry } from '../../../lib/payment-types';
 import { Room } from '../../../lib/types';
+import { cn } from '../../../lib/utils';
 
 export interface EntryModalProps {
     visible: boolean;
@@ -70,17 +71,22 @@ export const EntryModal = memo(({
                                         <TextInput
                                             value={plate}
                                             onChangeText={setPlate}
-                                            placeholder="Placa (ABC-123)"
+                                            placeholder="Placa (Obligatorio) *"
                                             placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
                                             autoCapitalize="characters"
-                                            className="border rounded-xl px-4 py-3 text-lg uppercase bg-zinc-50 border-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:border-zinc-600 dark:text-white"
+                                            className={cn(
+                                                "border rounded-xl px-4 py-3 text-lg font-bold uppercase",
+                                                !plate.trim() ? "bg-red-50 border-red-100" : "bg-zinc-50 border-zinc-200",
+                                                "text-zinc-800 dark:bg-zinc-700 dark:border-zinc-600 dark:text-white"
+                                            )}
                                         />
                                     </View>
+                                    
                                     <View className="mb-4 relative">
                                         <TextInput
                                             value={vehicleSearch}
                                             onChangeText={handleVehicleSearch}
-                                            placeholder="Buscar modelo..."
+                                            placeholder="Buscar en catálogo..."
                                             placeholderTextColor={isDark ? '#3f3f46' : '#a1a1aa'}
                                             className="border-2 rounded-2xl py-4 px-4 font-bold bg-zinc-50 border-zinc-100 text-zinc-900 dark:bg-black dark:border-zinc-800 dark:text-white"
                                         />
@@ -96,6 +102,35 @@ export const EntryModal = memo(({
                                                 </ScrollView>
                                             </View>
                                         )}
+                                    </View>
+
+                                    <View className="flex-row gap-2 mb-4">
+                                        <View className="flex-1">
+                                            <TextInput
+                                                value={brand}
+                                                onChangeText={setBrand}
+                                                placeholder="Marca *"
+                                                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                                                className={cn(
+                                                    "border rounded-xl px-4 py-3 text-sm font-bold",
+                                                    !brand.trim() ? "bg-red-50 border-red-100" : "bg-zinc-50 border-zinc-200",
+                                                    "text-zinc-800 dark:bg-zinc-700 dark:border-zinc-600 dark:text-white"
+                                                )}
+                                            />
+                                        </View>
+                                        <View className="flex-1">
+                                            <TextInput
+                                                value={model}
+                                                onChangeText={setModel}
+                                                placeholder="Modelo *"
+                                                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                                                className={cn(
+                                                    "border rounded-xl px-4 py-3 text-sm font-bold",
+                                                    !model.trim() ? "bg-red-50 border-red-100" : "bg-zinc-50 border-zinc-200",
+                                                    "text-zinc-800 dark:bg-zinc-700 dark:border-zinc-600 dark:text-white"
+                                                )}
+                                            />
+                                        </View>
                                     </View>
                                 </View>
                             </View>
@@ -128,13 +163,13 @@ export const EntryModal = memo(({
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={onSubmit}
-                                    disabled={actionLoading || !plate.trim()}
-                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${plate.trim()
+                                    disabled={actionLoading || !plate.trim() || !brand.trim() || !model.trim()}
+                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${(plate.trim() && brand.trim() && model.trim())
                                             ? 'bg-zinc-900 dark:bg-white'
                                             : 'bg-zinc-200'
                                         }`}
                                 >
-                                    <Text className={`font-black ${plate.trim()
+                                    <Text className={`font-black ${(plate.trim() && brand.trim() && model.trim())
                                             ? 'text-white dark:text-black'
                                             : 'text-zinc-400'
                                         }`}>

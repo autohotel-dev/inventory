@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import { CONCEPT_LABELS, formatCurrency } from "./utils";
+import { CONCEPT_LABELS, OrderItem } from "./payment-constants";
+import { formatCurrency } from "./utils";
 
 interface HistoricalValetPaymentsSectionProps {
   valetPayments: any[];
@@ -30,7 +31,10 @@ export function HistoricalValetPaymentsSection({
 
   const groupsMap = new Map<string, any>();
   valetPayments.forEach(p => {
-    const empKey = p.collected_by || 'unknown';
+    // Strict guard: only group payments actually collected by a valet
+    if (!p.collected_by || p.status !== 'COBRADO_POR_VALET') return;
+
+    const empKey = p.collected_by;
     const timeWindow = 1000 * 60 * 10;
     const timeKey = Math.floor(new Date(p.collected_at).getTime() / timeWindow);
     const key = `${empKey}-${timeKey}`;
@@ -49,21 +53,38 @@ export function HistoricalValetPaymentsSection({
   });
 
   const visibleGroups = Array.from(groupsMap.values()).filter(group => {
-    if (selectedItems.size === 0) return true;
-    const selectedConcepts = new Set(Array.from(selectedItems).map(id => items.find(i => i.id === id)?.concept_type).filter(Boolean));
+    const selectedConcepts = new Set(
+      Array.from(selectedItems)
+        .map(id => items.find(i => i.id === id)?.concept_type)
+        .filter(Boolean)
+    );
+
     const conceptMapping: Record<string, string[]> = {
       'PERSONA_EXTRA': ['EXTRA_PERSON'],
+      'EXTRA_PERSON': ['EXTRA_PERSON'],
       'HORA_EXTRA': ['EXTRA_HOUR'],
+      'EXTRA_HOUR': ['EXTRA_HOUR'],
       'ESTANCIA': ['ROOM_BASE', 'STAY'],
+      'ENTRADA': ['ROOM_BASE', 'STAY'],
       'TOLERANCIA_EXPIRADA': ['TOLERANCE_EXPIRED'],
       'DAMAGE_CHARGE': ['DAMAGE_CHARGE'],
+      'DAÑO': ['DAMAGE_CHARGE'],
+      'VALET_DAMAGE': ['DAMAGE_CHARGE'],
       'CONSUMO': ['CONSUMPTION', 'PRODUCT'],
       'RENEWAL': ['RENEWAL', 'STAY', 'EXTRA_HOUR'],
       'PRODUCT': ['PRODUCT']
     };
+
+    // If we have selected items but couldn't identify their concepts, show all (safety)
+    if (selectedConcepts.size === 0) return true;
+
     return group.payments.some((p: any) => {
+      // If payment has no concept, show it when something is selected (safety)
+      if (!p.concept) return true;
+
       const mapped = conceptMapping[p.concept] || [p.concept];
       const hasMatch = mapped.some(m => selectedConcepts.has(m));
+      
       console.log(`Payment concept ${p.concept} mapped to ${mapped}. Selected concepts:`, Array.from(selectedConcepts), `Match: ${hasMatch}`);
       return hasMatch;
     });

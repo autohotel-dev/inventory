@@ -68,6 +68,11 @@ export default function RoomsScreen() {
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutPersonCount, setCheckoutPersonCount] = useState(2);
     const [checkoutPayments, setCheckoutPayments] = useState<PaymentEntry[]>([]);
+    const [checkoutChecklist, setCheckoutChecklist] = useState({
+        roomState: false,
+        linens: false,
+        glassware: false
+    });
 
     // Verify Extra Modal State
     const [showVerifyExtraModal, setShowVerifyExtraModal] = useState(false);
@@ -252,6 +257,12 @@ export default function RoomsScreen() {
             amount: remainingAmount > 0 ? remainingAmount : 0,
             method: 'EFECTIVO'
         }]);
+
+        setCheckoutChecklist({
+            roomState: false,
+            linens: false,
+            glassware: false
+        });
 
         setShowCheckoutModal(true);
         setShowDamageForm(false);
@@ -490,7 +501,8 @@ export default function RoomsScreen() {
             selectedRoom.stay.id,
             selectedRoom.number,
             employeeId,
-            checkoutPersonCount
+            checkoutPersonCount,
+            checkoutChecklist
         );
         if (success) setShowCheckoutModal(false);
     };
@@ -685,6 +697,8 @@ export default function RoomsScreen() {
                 handleExtraPersonSubmit={handleExtraPersonSubmit}
                 payments={checkoutPayments}
                 setPayments={setCheckoutPayments}
+                checklist={checkoutChecklist}
+                setChecklist={setCheckoutChecklist}
             />
 
             <VerifyExtraModal

@@ -95,13 +95,14 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     }
   }, [isOpen, fetchValetData]);
 
-  // Relax logic: If we have selected an EXTRA_HOUR, bypass valet corroboration wait
-  const selectedContainsExtraHour = Array.from(selectedItems).some(id => {
+  // Relax logic: If we have selected any priority valet concept, bypass valet corroboration wait
+  const valetPriorityConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'DAMAGE_CHARGE', 'ROOM_CHANGE_ADJUSTMENT'];
+  const selectedContainsValetConcept = Array.from(selectedItems).some(id => {
     const item = items.find(i => i.id === id);
-    return item?.concept_type === 'EXTRA_HOUR';
+    return valetPriorityConcepts.includes(item?.concept_type || '');
   });
 
-  const hasPendingCorroboration = !selectedContainsExtraHour && (
+  const hasPendingCorroboration = !selectedContainsValetConcept && (
     valetReports.some(r => !corroboratedIds.has(r.id)) ||
     valetPayments.some(p => p.status === 'COBRADO_POR_VALET' && !p.confirmed_at && !corroboratedIds.has(p.id))
   );

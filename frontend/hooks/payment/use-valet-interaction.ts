@@ -1,12 +1,11 @@
-"use client";
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { VALET_CONCEPTS, CONCEPT_LABELS, VALET_TO_SYSTEM_MAP, OrderItem } from "@/components/sales/payment/payment-constants";
 
 interface UseValetInteractionProps {
   salesOrderId: string;
-  items?: any[];
+  items?: OrderItem[];
 }
 
 export function useValetInteraction({ salesOrderId, items = [] }: UseValetInteractionProps) {
@@ -27,131 +26,78 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
         .eq("sales_order_id", salesOrderId)
         .maybeSingle();
 
-      // Fetch real valet payments from the database (including PENDIENTE for auto-extra-hour)
       const { data: paymentsData } = await supabase
         .from("payments")
         .select(`
           *,
-          employees (
+          employees!payments_collected_by_fkey (
             first_name,
             last_name
           )
         `)
         .eq("sales_order_id", salesOrderId)
-        .in("status", ["COBRADO_POR_VALET", "PENDIENTE"])
-        .is("confirmed_at", null);
+        .eq("status", "COBRADO_POR_VALET")
+        .not("collected_by", "is", null);
 
       if (stayData || (paymentsData && paymentsData.length > 0)) {
-        // ¿Está el cochero llenando el formulario de cobro apenas?
-        // RELAX: Si ya hay items cargados (ej. hora extra auto), no bloqueamos con el view de espera
-        const hasExtraHour = items.some(i => i.concept_type === 'EXTRA_HOUR');
+        const hasValetConcept = items.some(i => VALET_CONCEPTS.includes(i.concept_type || ''));
         const hasOrderItems = items && items.length > 0;
         
-        // No esperamos al valet si ya hay una hora extra o consumos que cobrar
-        const isWaiting = stayData?.status === 'ACTIVA' && !stayData?.checkout_payment_data && !hasOrderItems && !hasExtraHour;
+        const isWaiting = stayData?.status === 'ACTIVA' && !stayData?.checkout_payment_data && !hasOrderItems && !hasValetConcept;
         const hasPendingValetItems = items.some(i => !i.is_paid && i.delivery_status === 'pending_delivery');
         
         setIsWaitingForValet(isWaiting || (hasPendingValetItems && !hasOrderItems));
         setWaitingReason(hasPendingValetItems ? 'items' : isWaiting ? 'check-in' : null);
 
-        // Si ya hay datos de cobro enviados por el cochero, los transformamos al reporte visual
-        if (stayData.checkout_payment_data && Array.isArray(stayData.checkout_payment_data)) {
-          const cpdArray = stayData.checkout_payment_data as any[];
-          const totalAmount = cpdArray.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        // Process checkout_payment_data into a report
+        const reports: any[] = [];
+        if (stayData?.checkout_payment_data) {
+          const cpdRaw = stayData.checkout_payment_data;
+          const cpdArray = Array.isArray(cpdRaw) ? cpdRaw : [cpdRaw];
+          const totalAmount = cpdArray.reduce((sum, p) => sum + Number(p.amount || p.totalAmount || 0), 0);
           
-          const conceptLabels: Record<string, string> = {
-             'ENTRADA': 'Cobro de Habitación (Entrada)',
-             'EXTRA_HOUR': 'Cobro de Hora Extra',
-             'EXTRA_PERSON': 'Cobro de Persona Extra',
-             'DAMAGE_CHARGE': 'Cargo por Daños',
-             'PAGO_POR_CONCEPTOS': 'Cobro de Conceptos Varios'
-          };
-
-          const uniqueConcepts = Array.from(new Set(cpdArray.map(p => p.concept).filter(Boolean)));
-          const itemDescription = uniqueConcepts.length > 0 
-            ? uniqueConcepts.map(c => conceptLabels[c as string] || `Cobro de ${c}`)
-            : ['Cobro de Habitación (Entrada)'];
+          if (totalAmount > 0) {
+            const uniqueConcepts = Array.from(new Set(cpdArray.map(p => p.concept || p.concept_type).filter(Boolean)));
+            const itemDescription = uniqueConcepts.length > 0 
+              ? uniqueConcepts.map(c => CONCEPT_LABELS[c as string] || `Cobro de ${c}`)
+              : ['Cobro de Habitación (Entrada)'];
 
           const isCheckInReport = uniqueConcepts.includes('ENTRADA') || uniqueConcepts.length === 0;
 
-          // Construimos un "reporte" virtual tal cual lo espera el UI "ValetReportsSection"
-          const report = {
-            id: 'check-in-fixed', // pseudo-id
+          reports.push({
+            id: 'check-in-fixed',
             sales_order_id: salesOrderId,
             room_stay_id: stayData.id,
             amount: totalAmount,
-            total_amount: totalAmount,
-            tip_amount: 0, 
-            payment_amount: totalAmount,
-            payment_method: cpdArray[0]?.method || "EFECTIVO",
-            itemIds: [], // Aplica a toda la cuenta
+            payment_method: cpdArray[0]?.method || cpdArray[0]?.paymentMethod || "EFECTIVO",
+            itemIds: [],
             note: isCheckInReport ? "Datos registrados por Cochero en Recepción" : "Cobro especial informado por valet",
             timestamp: new Date().toISOString(),
-            created_at: new Date().toISOString(),
             isCheckIn: isCheckInReport, 
             valetName: "Cochero en Turno",
-            itemDescription: itemDescription,
+            itemDescription,
             payments: cpdArray.map((p: any) => ({
-              amount: Number(p.amount) || 0,
-              method: p.method || "EFECTIVO",
+              amount: Number(p.amount || p.totalAmount) || 0,
+              method: p.method || p.paymentMethod || "EFECTIVO",
               card_type: p.cardType || "",
               card_last_4: p.cardLast4 || "",
               terminal_code: p.terminal || "",
               reference: p.reference || ""
             }))
-          };
-
-          // Filtrar el reporte si el concepto ya está pagado
-          const isStale = isCheckInReport && items.some(i => i.concept_type === 'ROOM_BASE' && i.is_paid);
-          
-          if (!isStale) {
-            setValetReports([report]);
-          } else {
-            setValetReports([]);
-          }
-        } else if (stayData.checkout_payment_data) {
-          // Fallback en caso de que guardaron un objeto en vez de arreglo
-          const cpd = stayData.checkout_payment_data as any;
-          const report = {
-            id: 'check-in-fixed',
-            sales_order_id: salesOrderId,
-            room_stay_id: stayData.id,
-            amount: cpd.totalAmount || 0,
-            total_amount: cpd.totalAmount || 0,
-            tip_amount: cpd.tipAmount || 0,
-            payment_amount: cpd.totalAmount || 0,
-            payment_method: cpd.paymentMethod || "EFECTIVO",
-            itemIds: cpd.itemIds || [],
-            note: "Datos registrados por Cochero en Recepción",
-            timestamp: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            isCheckIn: true, // Forzar a true para diseño verde de entrada 
-            valetName: "Cochero en Turno",
-            itemDescription: ["Cobro de Habitación (Entrada)"],
-            payments: cpd.payments || [{
-              amount: cpd.totalAmount || 0,
-              method: cpd.paymentMethod || "EFECTIVO",
-              card_type: cpd.cardType || "",
-              card_last_4: cpd.cardLast4 || "",
-              terminal_code: cpd.terminal || ""
-            }]
-          };
-
-          if (report.tip_amount) report.payments[0].tipAmount = report.tip_amount;
-          
-          const isStale = items.some(i => i.concept_type === 'ROOM_BASE' && i.is_paid);
-          if (!isStale) {
-            setValetReports([report]);
-          } else {
-            setValetReports([]);
-          }
-        } else {
-           setValetReports([]);
+          });
         }
+      }
+        
+        // Filter out stale reports
+        const filteredReports = reports.filter(r => {
+           if (r.isCheckIn) {
+             return !items.some(i => i.concept_type === 'ROOM_BASE' && i.is_paid);
+           }
+           return true;
+        });
 
-        // Set valetPayments only from REAL database records to avoid duplication
+        setValetReports(filteredReports);
         setValetPayments(paymentsData || []);
-
       } else {
         setIsWaitingForValet(false);
         setValetReports([]);
@@ -162,18 +108,19 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
     }
   }, [salesOrderId, items]);
 
+  useEffect(() => {
+    fetchValetData();
+  }, [fetchValetData]);
+
   const corroborateValetPayment = async (paymentIds: string[]) => {
     try {
-      // Filtrar IDs que son UUIDs reales para la base de datos
-      const realIds = paymentIds.filter(id => id.includes('-') && id.length > 20 && !id.startsWith('check-in') && !id.startsWith('report-'));
-      
+      const realIds = paymentIds.filter(id => id.includes('-') && id.length > 20 && !id.startsWith('check-in'));
       if (realIds.length > 0) {
         const supabase = createClient();
         const { error } = await supabase
           .from("valet_receipt_reports")
           .update({ is_corroborated: true, corroborated_at: new Date().toISOString() })
           .in("id", realIds);
-
         if (error) throw error;
       }
 
@@ -183,30 +130,17 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
         return next;
       });
 
-      // Update valetPayments visually so OrderItemsList unlocks
       setValetPayments(prev => prev.map(vp => {
-        if (paymentIds.includes(vp.id) || paymentIds.some(pid => vp.id.includes(pid))) {
-           return { ...vp, confirmed_at: new Date().toISOString() };
-        }
+        if (paymentIds.includes(vp.id)) return { ...vp, confirmed_at: new Date().toISOString() };
         return vp;
       }));
 
       toast.success("Pago corroborado");
-      if (realIds.length > 0) {
-        fetchValetData();
-      }
+      if (realIds.length > 0) fetchValetData();
     } catch (error) {
       console.error("Error corroborating:", error);
       toast.error("Error al corroborar");
     }
-  };
-
-  const applyValetPaymentData = (report: any) => {
-    // Bridge for UI callback
-  };
-
-  const applyValetReportData = (report: any) => {
-    // Bridge for UI callback
   };
 
   return {
@@ -217,8 +151,6 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
     waitingReason,
     fetchValetData,
     corroborateValetPayment,
-    applyValetPaymentData,
-    applyValetReportData,
     setCorroboratedIds
   };
 }

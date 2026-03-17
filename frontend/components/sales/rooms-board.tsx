@@ -797,7 +797,7 @@ function RoomsBoardInternal() {
       const { data, error } = await supabase
         .from("rooms")
         .select(
-          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, valet_checkout_requested_at, vehicle_requested_at, guest_access_token, checkout_payment_data, sales_orders ( id, remaining_amount, sales_order_items ( id, delivery_status, concept_type, created_at ) ) )`
+          `id, number, status, notes, room_types:room_type_id ( id, name, base_price, weekday_hours, weekend_hours, is_hotel, extra_person_price, extra_hour_price, max_people ), room_stays ( id, sales_order_id, status, check_in_at, expected_check_out_at, current_people, total_people, tolerance_started_at, tolerance_type, vehicle_plate, vehicle_brand, vehicle_model, valet_employee_id, checkout_valet_employee_id, valet_checkout_requested_at, vehicle_requested_at, guest_access_token, checkout_payment_data, sales_orders ( id, remaining_amount, payments ( id, status, confirmed_at ), sales_order_items ( id, delivery_status, concept_type, created_at ) ) )`
         );
 
       if (error) {
@@ -2329,9 +2329,13 @@ function RoomsBoardInternal() {
 
               // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)
               const activeStay = getActiveStay(room);
+              const salesOrder = Array.isArray(activeStay?.sales_orders) 
+                ? activeStay.sales_orders[0] 
+                : activeStay?.sales_orders;
+
               const hasPendingPayment = status === "OCUPADA" &&
-                activeStay?.sales_orders &&
-                (activeStay.sales_orders.remaining_amount || 0) > 0;
+                salesOrder &&
+                (salesOrder.remaining_amount || 0) > 0;
 
               // Obtener información del vehículo si existe estancia activa
               const vehicleStatus = {
@@ -2343,15 +2347,15 @@ function RoomsBoardInternal() {
                 isWaitingAuthorization: !!activeStay?.valet_checkout_requested_at && !activeStay?.vehicle_requested_at
               };
 
-              const items = activeStay?.sales_orders?.sales_order_items || [];
-              const pendingItems = items.filter(item =>
+              const items = salesOrder?.sales_order_items || [];
+              const pendingItems = items.filter((item: any) =>
                 item.concept_type === 'CONSUMPTION' &&
                 ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
               );
               const hasPendingService = pendingItems.length > 0;
 
               // Semáforo: Crítico si lleva más de 15 minutos pendiente (PENDING_VALET o ACCEPTED)
-              const isCriticalService = pendingItems.some(item => {
+              const isCriticalService = pendingItems.some((item: any) => {
                 if (!item.created_at || item.delivery_status === 'IN_TRANSIT') return false;
                 const createdDate = new Date(item.created_at);
                 const diffMins = (new Date().getTime() - createdDate.getTime()) / (1000 * 60);
@@ -2361,7 +2365,22 @@ function RoomsBoardInternal() {
               // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
               // RELAX: Si está BLOQUEADA (hora extra auto), PERMITIR abrir acciones para cobrar y desbloquear
               const isExtraHourBlock = status === "BLOQUEADA";
-              const valetPending = status === "OCUPADA" && activeStay && !activeStay.checkout_payment_data && !isExtraHourBlock && hasPendingPayment;
+              // RELAX: Si el cochero ya reportó un pago pero aún no se corrobora, NO bloqueamos (permitimos cobrar)
+              const hasUnconfirmedValetPayment = salesOrder?.payments?.some(
+                (p: any) => p.status === 'COBRADO_POR_VALET' && !p.confirmed_at
+              );
+
+              const valetPriorityConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'DAMAGE_CHARGE', 'ROOM_CHANGE_ADJUSTMENT'];
+              const hasValetPriorityConcept = items.some((item: any) => valetPriorityConcepts.includes(item.concept_type || ''));
+
+              const valetPending =
+                status === "OCUPADA" &&
+                activeStay &&
+                !activeStay.checkout_payment_data &&
+                !isExtraHourBlock &&
+                hasPendingPayment &&
+                hasValetPriorityConcept && // <--- Solo bloqueamos si hay conceptos que el valet debe informar
+                !hasUnconfirmedValetPayment;
 
               return (
                 <RoomCard

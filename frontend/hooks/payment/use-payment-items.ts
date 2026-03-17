@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { OrderItem } from "../use-granular-payment";
-import { CONCEPT_LABELS } from "@/components/sales/payment/utils";
+import { VALET_CONCEPTS, SERVICE_CONCEPTS, CONCEPT_LABELS, OrderItem } from "@/components/sales/payment/payment-constants";
 
 interface UsePaymentItemsProps {
   salesOrderId: string;
@@ -35,29 +34,19 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
         .eq("sales_order_id", salesOrderId)
         .order("created_at", { ascending: true });
 
-      if (itemsError) {
-        console.error("Supabase itemsError:", itemsError);
-        throw itemsError;
-      }
+      if (itemsError) throw itemsError;
 
-      const mappedItems: OrderItem[] = (orderItems || []).map((item: any) => {
-        // En sales_order_items ya vienen los datos is_paid, paid_at, etc.
-        return {
-          ...item,
-          total: Number(item.unit_price) * (Number(item.qty) || 1), // Asegurar cálculo correcto
-        };
-      });
+      const mappedItems: OrderItem[] = (orderItems || []).map((item: any) => ({
+        ...item,
+        total: Number(item.unit_price) * (Number(item.qty) || 1),
+      }));
 
       setItems(mappedItems);
 
-      // Auto-select unpaid items that are not selected yet
-      const unpaidIds = mappedItems
-        .filter((item: OrderItem) => !item.is_paid)
-        .map((item: OrderItem) => item.id);
-      
+      // Auto-select unpaid items only on first load or when switching order
       setSelectedItems(prev => {
         const next = new Set(prev);
-        unpaidIds.forEach(id => next.add(id));
+        mappedItems.filter(i => !i.is_paid).forEach(i => next.add(i.id));
         return next;
       });
 
@@ -83,18 +72,14 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
   };
 
   const selectAllPending = () => {
-    const pendingIds = items.filter(i => !i.is_paid).map(i => i.id);
-    setSelectedItems(new Set(pendingIds));
+    setSelectedItems(new Set(items.filter(i => !i.is_paid).map(i => i.id)));
   };
 
-  const deselectAll = () => {
-    setSelectedItems(new Set());
-  };
+  const deselectAll = () => setSelectedItems(new Set());
 
   const applyDiscount = (itemId: string, percentage: number) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return;
-    
     const amount = (getItemTotal(item) * (percentage / 100));
     setDiscounts(prev => ({ ...prev, [itemId]: amount }));
   };
@@ -111,7 +96,6 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
     try {
       setDeletingItemId(itemId);
       const supabase = createClient();
-
       const { error } = await supabase
         .from("sales_order_items")
         .delete()
@@ -119,7 +103,6 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
         .eq("is_paid", false);
 
       if (error) throw error;
-
       toast.success("Concepto eliminado");
       fetchItems();
     } catch (error) {
@@ -130,19 +113,13 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
     }
   };
 
-  const isRefundItem = (item: OrderItem) => {
-    return item.concept_type === 'REFUND' || item.total < 0;
-  };
+  const isRefundItem = (item: OrderItem) => item.concept_type === 'REFUND' || item.total < 0;
 
-  const getItemTotal = (item: OrderItem) => {
-    const baseTotal = isRefundItem(item) ? -item.total : item.total;
-    return baseTotal;
-  };
+  const getItemTotal = (item: OrderItem) => isRefundItem(item) ? -item.total : item.total;
 
   const getItemDescription = (item: OrderItem) => {
-    // Priority: Concept label for specific system charges, then product name
     const conceptLabel = CONCEPT_LABELS[item.concept_type];
-    if (conceptLabel && item.concept_type !== 'PRODUCT' && item.concept_type !== 'CONSUMPTION') {
+    if (conceptLabel && !['PRODUCT', 'CONSUMPTION'].includes(item.concept_type)) {
       return conceptLabel;
     }
     return item.products?.name || item.concept_type;
@@ -150,39 +127,15 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
 
   const isItemPayable = (item: OrderItem) => {
     if (forcedUnlockedItems.has(item.id)) return true;
-    
-    // Si es un concepto de servicio (horas, personas, etc), requiere que cochero registre los datos
-    const serviceConcepts = ['EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'TOLERANCE_EXPIRED', 'RENEWAL', 'PROMO_4H'];
-    
-    if (serviceConcepts.includes(item.concept_type)) {
-      // Consideramos bloqueado si:
-      // 1. delivery_status es explicitly PENDING_VALET
-      // 2. delivery_status es null/undefined (recién generado)
-      const isPending = !item.delivery_status || item.delivery_status === 'PENDING_VALET';
-      return !isPending;
-    }
-
-    // Para productos de consumo
-    if (item.concept_type === 'CONSUMPTION' || item.concept_type === 'PRODUCT') {
-      const isPending = item.delivery_status === 'PENDING_VALET';
-      return !isPending;
-    }
-
-    // El ROOM_BASE siempre es pagable
     if (item.concept_type === 'ROOM_BASE') return true;
+
+    // Services and Consumptions require 'delivered' or 'ready' status from Valet
+    if (SERVICE_CONCEPTS.includes(item.concept_type) || ['CONSUMPTION', 'PRODUCT'].includes(item.concept_type)) {
+      return item.delivery_status !== 'PENDING_VALET' && !!item.delivery_status;
+    }
 
     return true;
   };
-
-  // Log to debug
-  useEffect(() => {
-    if (isOpen && items.length > 0) {
-      console.log('--- Granular Payment Debug ---');
-      items.filter(i => !i.is_paid).forEach(item => {
-        console.log(`Item: ${item.concept_type} (${item.id.slice(0,5)}), delivery: ${item.delivery_status}, isPayable: ${isItemPayable(item)}`);
-      });
-    }
-  }, [isOpen, items]);
 
   return {
     items,

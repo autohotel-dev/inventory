@@ -3,11 +3,19 @@ import { supabase } from '../lib/supabase';
 import { useFeedback } from '../contexts/feedback-context';
 import { PaymentEntry } from '../lib/payment-types';
 
+import { logActivity } from '../lib/activity-logger';
+
 export function useCheckoutActions(onRefresh: () => Promise<void>) {
     const [loading, setLoading] = useState(false);
     const { showFeedback } = useFeedback();
 
-    const handleConfirmCheckout = useCallback(async (stayId: string, roomNumber: string, valetId: string, personCount: number) => {
+    const handleConfirmCheckout = useCallback(async (
+        stayId: string, 
+        roomNumber: string, 
+        valetId: string, 
+        personCount: number,
+        checklist?: any
+    ) => {
         setLoading(true);
         try {
             const { error } = await supabase
@@ -19,6 +27,14 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .eq('id', stayId);
 
             if (error) throw error;
+
+            // Log activity with checklist details (SOP 1 & 5)
+            await logActivity({
+                action: 'CHECKOUT_REVIEW',
+                room_number: roomNumber,
+                valet_id: valetId,
+                details: `Revisión de salida completada. Persona count: ${personCount}. Checklist: ${JSON.stringify(checklist)}`
+            });
 
             showFeedback('¡Éxito!', `Hab. ${roomNumber}: Revisión completada.`);
             await onRefresh();

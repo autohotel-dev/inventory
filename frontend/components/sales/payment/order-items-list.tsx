@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tag, Trash2, Percent, MoreHorizontal, AlertTriangle, ArrowRightLeft, Clock, CheckCircle2, X } from "lucide-react";
-import { OrderItem } from "@/hooks/use-granular-payment";
-import { CONCEPT_ICONS, CONCEPT_LABELS, formatCurrency } from "./utils";
+import { CONCEPT_ICONS, CONCEPT_LABELS, OrderItem } from "./payment-constants";
+import { formatCurrency } from "./utils";
 
 interface OrderItemsListProps {
   items: OrderItem[];

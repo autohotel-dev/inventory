@@ -168,6 +168,17 @@ export default function ServicesScreen() {
     const submitConfirmation = async () => {
         if (selectedItems.length === 0 || !employeeId) return;
 
+        const totalAmount = selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0);
+        const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
+        if (totalPaid < totalAmount) {
+            Alert.alert(
+                "Regla de Oro", 
+                "El pago previo es obligatorio. El monto capturado debe cubrir el total para confirmar la entrega."
+            );
+            return;
+        }
+
         const roomNum = selectedItems[0].sales_orders?.room_stays[0]?.rooms?.number || '??';
 
         let success = false;
@@ -387,8 +398,22 @@ export default function ServicesScreen() {
                                 <TouchableOpacity onPress={() => setShowDeliveryModal(false)} className={`flex-1 h-16 rounded-2xl items-center justify-center border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
                                     <Text className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>Cancelar</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={submitConfirmation} className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${isDark ? 'bg-white' : 'bg-zinc-900'}`}>
-                                    <Text className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-zinc-950' : 'text-white'}`}>Confirmar Entrega</Text>
+                                <TouchableOpacity 
+                                    onPress={submitConfirmation} 
+                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${
+                                        (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
+                                        ? (isDark ? 'bg-white' : 'bg-zinc-900')
+                                        : 'bg-zinc-200'
+                                    }`}
+                                    disabled={actionLoading || payments.reduce((sum, p) => sum + p.amount, 0) < selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0)}
+                                >
+                                    <Text className={`font-black uppercase tracking-widest text-xs ${
+                                        (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
+                                        ? (isDark ? 'text-zinc-950' : 'text-white')
+                                        : 'text-zinc-400'
+                                    }`}>
+                                        Confirmar Entrega
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>

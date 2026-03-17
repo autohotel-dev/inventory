@@ -151,6 +151,19 @@ export function RoomCard({
         </>
       )}
 
+      {/* Indicador de BLOQUEO DE SALIDA (Pago Pendiente) - SOP 4 */}
+      {hasPendingPayment && !showDoorAlert && status === "OCUPADA" && !isValetPending && (
+        <>
+          <div className="absolute inset-0 z-10 bg-amber-950/20 backdrop-blur-[0.5px] rounded-lg border-2 border-amber-500/40 flex flex-col items-center justify-center animate-pulse cursor-pointer group-hover:bg-amber-900/30 transition-colors">
+            <div className="bg-amber-600 text-white text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-full shadow-lg border border-amber-400/50 flex items-center gap-1">
+              <AlertCircle size={10} />
+              BLOQUEO DE SALIDA
+            </div>
+            <span className="text-[8px] text-amber-200/80 font-bold mt-1 uppercase tracking-widest">Pago Pendiente</span>
+          </div>
+        </>
+      )}
+
       {/* Indicador de Sensor (Puerta Abierta) - Solo si está ocupada */}
       {showDoorAlert && (
         <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-30 animate-bounce">

@@ -79,6 +79,11 @@ export interface RoomStay {
   sales_orders?: {
     id?: string;
     remaining_amount?: number;
+    payments?: {
+      id: string;
+      status: string;
+      confirmed_at: string | null;
+    }[];
     sales_order_items?: {
       id: string;
       delivery_status: string | null;
