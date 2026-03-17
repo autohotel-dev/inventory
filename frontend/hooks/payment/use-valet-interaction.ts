@@ -6,9 +6,10 @@ import { VALET_CONCEPTS, CONCEPT_LABELS, VALET_TO_SYSTEM_MAP, OrderItem } from "
 interface UseValetInteractionProps {
   salesOrderId: string;
   items?: OrderItem[];
+  employeeId?: string | null;
 }
 
-export function useValetInteraction({ salesOrderId, items = [] }: UseValetInteractionProps) {
+export function useValetInteraction({ salesOrderId, items = [], employeeId }: UseValetInteractionProps) {
   const [valetPayments, setValetPayments] = useState<any[]>([]);
   const [valetReports, setValetReports] = useState<any[]>([]);
   const [corroboratedIds, setCorroboratedIds] = useState<Set<string>>(new Set());
@@ -90,10 +91,10 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
         
         // Filter out stale reports
         const filteredReports = reports.filter(r => {
-           if (r.isCheckIn) {
-             return !items.some(i => i.concept_type === 'ROOM_BASE' && i.is_paid);
-           }
-           return true;
+            if (r.isCheckIn) {
+              return !items.some(i => i.concept_type === 'ROOM_BASE' && i.is_paid);
+            }
+            return true;
         });
 
         setValetReports(filteredReports);
@@ -114,14 +115,36 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
 
   const corroborateValetPayment = async (paymentIds: string[]) => {
     try {
+      const supabase = createClient();
+      
       const realIds = paymentIds.filter(id => id.includes('-') && id.length > 20 && !id.startsWith('check-in'));
+      
+      // Update real payments in payments table
       if (realIds.length > 0) {
-        const supabase = createClient();
         const { error } = await supabase
-          .from("valet_receipt_reports")
-          .update({ is_corroborated: true, corroborated_at: new Date().toISOString() })
+          .from("payments")
+          .update({ 
+            confirmed_at: new Date().toISOString(),
+            confirmed_by: employeeId // From props
+          })
           .in("id", realIds);
         if (error) throw error;
+      }
+
+      // Handle virtual report check-in-fixed
+      if (paymentIds.includes('check-in-fixed')) {
+          // Find if there are any ENTRADA payments recorded by valet for this order
+          const { error } = await supabase
+            .from("payments")
+            .update({ 
+                confirmed_at: new Date().toISOString(),
+                confirmed_by: employeeId
+            })
+            .eq("sales_order_id", salesOrderId)
+            .eq("status", "COBRADO_POR_VALET")
+            .not("collected_by", "is", null);
+          
+          if (error) console.error("Error corroborating virtual report payments:", error);
       }
 
       setCorroboratedIds(prev => {
@@ -136,12 +159,13 @@ export function useValetInteraction({ salesOrderId, items = [] }: UseValetIntera
       }));
 
       toast.success("Pago corroborado");
-      if (realIds.length > 0) fetchValetData();
+      fetchValetData();
     } catch (error) {
       console.error("Error corroborating:", error);
       toast.error("Error al corroborar");
     }
   };
+
 
   return {
     valetPayments,

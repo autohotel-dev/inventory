@@ -19,6 +19,7 @@ import {
 import { formatCurrency } from "./payment/utils";
 import { MultiPaymentInput } from "./multi-payment-input";
 import { usePaymentSession } from "@/hooks/payment/use-payment-session";
+import { useUserRole } from "@/hooks/use-user-role";
 import { logActivity } from "@/lib/activity-logger";
 import { ValetReportsSection } from "./payment/valet-reports-section";
 import { HistoricalValetPaymentsSection } from "./payment/historical-valet-payments-section";
@@ -40,13 +41,15 @@ export function GranularPaymentModal({
   onComplete,
   roomNumber
 }: GranularPaymentModalProps) {
+  const { employeeId } = useUserRole();
   const session = usePaymentSession({ 
     salesOrderId, 
     isOpen, 
     onComplete: () => {
       onComplete?.();
       onClose();
-    } 
+    },
+    employeeId
   });
 
   const {

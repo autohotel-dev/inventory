@@ -10,9 +10,10 @@ interface UsePaymentSessionProps {
   salesOrderId: string;
   isOpen: boolean;
   onComplete?: () => void;
+  employeeId?: string | null;
 }
 
-export function usePaymentSession({ salesOrderId, isOpen, onComplete }: UsePaymentSessionProps) {
+export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId }: UsePaymentSessionProps) {
   const [step, setStep] = useState<'select' | 'pay'>('select');
   const [forcedUnlockedItems, setForcedUnlockedItems] = useState<Set<string>>(new Set());
   
@@ -26,7 +27,7 @@ export function usePaymentSession({ salesOrderId, isOpen, onComplete }: UsePayme
   const itemDomain = usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems });
   
   // 2. Valet Interaction Domain
-  const valetDomain = useValetInteraction({ salesOrderId, items: itemDomain.items });
+  const valetDomain = useValetInteraction({ salesOrderId, items: itemDomain.items, employeeId });
 
   // 3. Payment Processing Domain
   const paymentDomain = usePaymentProcessing({
