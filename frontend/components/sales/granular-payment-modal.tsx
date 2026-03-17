@@ -56,6 +56,9 @@ export function GranularPaymentModal({
     tipAmount,
     selectedTotal,
     pendingTotal,
+    hasPendingCorroboration,
+    allSelectedPayable,
+    waitingReason,
     setPayments,
     setStep,
     setShowDiscountInput,
@@ -118,7 +121,7 @@ export function GranularPaymentModal({
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : isWaitingForValet ? (
-              <WaitingForValetView onClose={onClose} />
+              <WaitingForValetView onClose={onClose} reason={waitingReason} />
             ) : step === "select" ? (
               <div className="p-6 space-y-4">
                 {/* Resumen */}
@@ -183,6 +186,7 @@ export function GranularPaymentModal({
                   isRefundItem={isRefundItem}
                   getPaymentInfo={getPaymentInfo}
                   setAuthDialog={setAuthDialog}
+                  hasPendingCorroboration={hasPendingCorroboration}
                 />
               </div>
             ) : (
@@ -211,11 +215,15 @@ export function GranularPaymentModal({
                 <div className="flex gap-2">
                   <Button variant="ghost" onClick={onClose} disabled={processing}>Cancelar</Button>
                   <Button 
-                    className="font-bold px-8" 
-                    disabled={selectedItems.size === 0 || processing}
+                    className="font-bold px-8 shadow-lg shadow-primary/20" 
+                    disabled={selectedItems.size === 0 || processing || hasPendingCorroboration || !allSelectedPayable}
                     onClick={() => setStep("pay")}
                   >
-                    Proceder al Pago
+                    {hasPendingCorroboration 
+                      ? "Corroboración pendiente" 
+                      : !allSelectedPayable 
+                        ? "Datos pendientes"
+                        : "Proceder al Pago"}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>

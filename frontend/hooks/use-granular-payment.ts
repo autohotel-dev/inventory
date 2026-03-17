@@ -18,6 +18,7 @@ export interface OrderItem {
     name: string;
     sku?: string;
   };
+  delivery_status?: string;
 }
 
 interface UseGranularPaymentProps {
@@ -59,12 +60,13 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     valetReports,
     corroboratedIds,
     isWaitingForValet,
+    waitingReason,
     fetchValetData,
     corroborateValetPayment,
     applyValetPaymentData,
     applyValetReportData,
     setCorroboratedIds
-  } = useValetInteraction({ salesOrderId });
+  } = useValetInteraction({ salesOrderId, items });
 
   // 3. Domain: Payment Processing
   const {
@@ -93,6 +95,29 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     }
   }, [isOpen, fetchValetData]);
 
+  // Relax logic: If we have selected an EXTRA_HOUR, bypass valet corroboration wait
+  const selectedContainsExtraHour = Array.from(selectedItems).some(id => {
+    const item = items.find(i => i.id === id);
+    return item?.concept_type === 'EXTRA_HOUR';
+  });
+
+  const hasPendingCorroboration = !selectedContainsExtraHour && (
+    valetReports.some(r => !corroboratedIds.has(r.id)) ||
+    valetPayments.some(p => p.status === 'COBRADO_POR_VALET' && !p.confirmed_at && !corroboratedIds.has(p.id))
+  );
+
+  const allSelectedPayable = Array.from(selectedItems).every(id => {
+    const item = items.find(i => i.id === id);
+    const payable = !item || isItemPayable(item);
+    return payable;
+  });
+
+  useEffect(() => {
+    if (isOpen && selectedItems.size > 0) {
+      console.log(`[useGranularPayment] Selected: ${selectedItems.size}, allPayable: ${allSelectedPayable}, pendingCorroboration: ${hasPendingCorroboration}`);
+    }
+  }, [isOpen, selectedItems, allSelectedPayable, hasPendingCorroboration]);
+
   // bridge function for unlock
   const forceUnlockItem = (itemId: string) => {
     // Current implementation uses local state in GranularPaymentModal for this
@@ -105,7 +130,10 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     valetPayments,
     valetReports,
     corroboratedIds,
+    hasPendingCorroboration,
+    allSelectedPayable,
     isWaitingForValet,
+    waitingReason,
     processing,
     payments,
     confirmingPaymentId: processing ? "processing" : null,
@@ -124,8 +152,36 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     setTipAmount,
     fetchItems,
     corroborateValetPayment: (ids: string[]) => corroborateValetPayment(ids),
-    applyValetPaymentData,
-    applyValetReportData,
+    applyValetPaymentData: (reports: any[]) => {
+      if (!reports || reports.length === 0) return;
+      const newPayments = reports.map((p: any, i: number) => ({
+        id: Date.now().toString() + i,
+        amount: Number(p.amount),
+        method: p.payment_method || p.method || "EFECTIVO",
+        cardLast4: p.card_last_4 || p.cardLast4 || undefined,
+        cardType: p.card_type || p.cardType || undefined,
+        terminal: p.terminal_code || p.terminal || undefined,
+        reference: p.reference || "VALET-HISTORICO"
+      }));
+      setPayments(newPayments);
+      setStep("pay");
+    },
+    applyValetReportData: (report: any) => {
+      if (!report || !report.payments) return;
+      const newPayments = report.payments.map((p: any, i: number) => ({
+        id: Date.now().toString() + i,
+        amount: Number(p.amount),
+        method: p.method || "EFECTIVO",
+        cardLast4: p.card_last_4 || undefined,
+        cardType: p.card_type || undefined,
+        terminal: p.terminal_code || undefined,
+        reference: p.reference || "VALET-REPORTE"
+      }));
+      setPayments(newPayments);
+      if (report.tip_amount) setTipAmount(Number(report.tip_amount));
+      setStep("pay");
+    },
+
     forceUnlockItem,
     toggleItem,
     selectAllPending,

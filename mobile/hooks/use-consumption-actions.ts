@@ -60,6 +60,18 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
+    const getPaymentConcept = (itemConceptType: string | undefined): string => {
+        switch (itemConceptType) {
+            case 'EXTRA_HOUR': return 'HORA_EXTRA';
+            case 'EXTRA_PERSON': return 'PERSONA_EXTRA';
+            case 'ROOM_BASE': return 'ESTANCIA';
+            case 'DAMAGE_CHARGE': return 'DAMAGE_CHARGE';
+            case 'TOLERANCE_EXPIRED': return 'TOLERANCIA_EXPIRADA';
+            case 'RENEWAL': return 'RENEWAL';
+            default: return 'CONSUMPTION';
+        }
+    };
+
     const handleConfirmDelivery = useCallback(async (
         consumptionId: string,
         roomNumber: string,
@@ -90,13 +102,16 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             const { data: itemData } = await supabase
                 .from('sales_order_items')
-                .select('sales_order_id')
+                .select('sales_order_id, concept_type')
                 .eq('id', consumptionId)
                 .single();
             
             const salesOrderId = itemData?.sales_order_id;
+            const itemConceptType = itemData?.concept_type;
 
             if (!salesOrderId) throw new Error("No se encontró la orden de venta asociada.");
+
+            const paymentConcept = getPaymentConcept(itemConceptType);
 
             for (const p of payments) {
                 // Intentar buscar un pago PENDIENTE de la misma orden y monto
@@ -129,7 +144,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         card_last_4: p.cardLast4,
                         card_type: p.cardType,
                         reference: p.reference || `VALET_ITEM:${consumptionId}`,
-                        concept: 'CONSUMPTION',
+                        concept: paymentConcept,
                         status: 'COBRADO_POR_VALET',
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
@@ -184,6 +199,8 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             const mainOrderId = salesOrderIds[0];
             const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
+            // Use the first item's concept to determine the payment concept. Assuming batch is of the same type.
+            const paymentConcept = getPaymentConcept(items[0]?.concept_type);
 
             for (const p of payments) {
                 // Intentar buscar un pago PENDIENTE de la misma orden y monto
@@ -216,7 +233,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         card_last_4: p.cardLast4,
                         card_type: p.cardType,
                         reference: p.reference || itemsRef,
-                        concept: 'CONSUMPTION',
+                        concept: paymentConcept,
                         status: 'COBRADO_POR_VALET',
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),

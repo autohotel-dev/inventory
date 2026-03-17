@@ -1313,32 +1313,21 @@ function RoomsBoardInternal() {
                     shift_session_id: currentShiftId,
                   });
 
-                  // 3. Actualizar remaining_amount en sales_orders
-                  const { data: orderData } = await supabase
-                    .from("sales_orders")
-                    .select("remaining_amount, subtotal, total")
-                    .eq("id", activeStay.sales_order_id)
-                    .single();
-
-                  if (orderData) {
-                    const newRemaining = (Number(orderData.remaining_amount) || 0) + extraHourPrice;
-                    const newSubtotal = (Number(orderData.subtotal) || 0) + extraHourPrice;
-                    const newTotal = (Number(orderData.total) || 0) + extraHourPrice;
-
-                    await supabase.from("sales_orders").update({
-                      remaining_amount: newRemaining,
-                      subtotal: newSubtotal,
-                      total: newTotal,
-                    }).eq("id", activeStay.sales_order_id);
-                  }
-
-                  // 4. Extender expected_check_out_at en 1 hora
+                  // 3. Extender expected_check_out_at en 1 hora
                   const newExpectedCheckout = new Date(expected);
                   newExpectedCheckout.setHours(newExpectedCheckout.getHours() + 1);
 
                   await supabase.from("room_stays").update({
                     expected_check_out_at: newExpectedCheckout.toISOString(),
                   }).eq("id", activeStay.id);
+
+                  // 4. Bloquear la habitación hasta que se liquide el cobro
+                  await supabase.from("rooms").update({
+                    status: "BLOQUEADA"
+                  }).eq("id", room.id);
+
+                  // 4.1. Forzar refresco local para que el cartel de BLOQUEADA aparezca de inmediato
+                  await fetchRooms(true);
 
                   // 5. Enviar notificación push a cocheros
                   try {
@@ -2369,6 +2358,11 @@ function RoomsBoardInternal() {
                 return diffMins > 15;
               });
 
+              // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
+              // RELAX: Si está BLOQUEADA (hora extra auto), PERMITIR abrir acciones para cobrar y desbloquear
+              const isExtraHourBlock = status === "BLOQUEADA";
+              const valetPending = status === "OCUPADA" && activeStay && !activeStay.checkout_payment_data && !isExtraHourBlock && hasPendingPayment;
+
               return (
                 <RoomCard
                   key={room.id}
@@ -2394,10 +2388,6 @@ function RoomsBoardInternal() {
                     setShowInfoModal(true);
                   }}
                   onActions={() => {
-                    // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
-                    // Se considera pendiente si está OCUPADA (o en Quick Check-in) y NO tiene checkout_payment_data
-                    const valetPending = status === "OCUPADA" && activeStay && !activeStay.checkout_payment_data;
-
                     if (valetPending) {
                       toast.error("Esperando al Cochero", {
                         description: "No se pueden realizar acciones hasta que el cochero envíe el formulario de entrada.",
@@ -2413,7 +2403,7 @@ function RoomsBoardInternal() {
                     setShowTrackingModal(true);
                   }}
                   data-tutorial="room-card"
-                  isValetPending={status === "OCUPADA" && !!activeStay && !activeStay.checkout_payment_data}
+                  isValetPending={!!valetPending}
                   valetId={activeStay ? activeStay.valet_employee_id : null}
                 />
               );

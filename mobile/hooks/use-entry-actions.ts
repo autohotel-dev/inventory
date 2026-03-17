@@ -64,6 +64,9 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         amount: p.amount,
                         method: p.method,
                         reference: p.reference,
+                        terminal: p.terminal,
+                        cardType: p.cardType,
+                        cardLast4: p.cardLast4,
                         concept: 'ENTRADA'
                     }))
                 })

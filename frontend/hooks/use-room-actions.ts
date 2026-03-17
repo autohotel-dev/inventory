@@ -981,20 +981,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       const extraHourPrice = room.room_types.extra_hour_price;
       const totalPrice = isCourtesy ? 0 : extraHourPrice * hours;
 
-      // Actualizar totales de la orden (solo si hay costo)
-      let result = { success: true };
-      if (totalPrice > 0) {
-        result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
+      // Obtener o crear producto de servicio
+      const productResult = await getOrCreateServiceProduct();
+      if (!productResult.success) {
+        logger.error("Failed to get/create service product", productResult.error);
+        toast.error("Error al registrar el cargo");
+        return;
       }
-
-      if (result.success) {
-        // Obtener o crear producto de servicio
-        const productResult = await getOrCreateServiceProduct();
-        if (!productResult.success) {
-          logger.error("Failed to get/create service product", productResult.error);
-          toast.error("Error al registrar el cargo");
-          return;
-        }
 
         // Crear items de servicio para cada hora
         let lastItemId = "";
@@ -1063,10 +1056,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             }
           );
         }
-        await onRefresh();
-      } else {
-        toast.error("No se pudo agregar las horas");
-      }
+      await onRefresh();
     } catch (error) {
       logger.error("Error adding custom hours", error);
       toast.error("Error al agregar horas");
@@ -1099,17 +1089,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     try {
       const basePrice = room.room_types.base_price;
 
-      // Actualizar totales de la orden
-      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
-
-      if (result.success) {
-        // Crear item de renovación
-        const productResult = await getOrCreateServiceProduct();
-        if (!productResult.success) {
-          logger.error("Failed to get/create service product", productResult.error);
-          toast.error("Error al registrar el cargo");
-          return;
-        }
+      // Crear item de renovación
+      const productResult = await getOrCreateServiceProduct();
+      if (!productResult.success) {
+        logger.error("Failed to get/create service product", productResult.error);
+        toast.error("Error al registrar el cargo");
+        return;
+      }
 
         const itemRes = await createServiceItem(
           activeStay.sales_order_id,
@@ -1184,10 +1170,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
 
 
-        await onRefresh();
-      } else {
-        toast.error("No se pudo renovar la habitación");
-      }
+      await onRefresh();
     } catch (error) {
       logger.error("Error renewing room", error);
       toast.error("Error al renovar habitación");
@@ -1240,17 +1223,13 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       const promoPrice = pricingData.price;
 
-      // Actualizar totales de la orden
-      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, promoPrice);
-
-      if (result.success) {
-        // Crear item de promoción
-        const productResult = await getOrCreateServiceProduct();
-        if (!productResult.success) {
-          logger.error("Failed to get/create service product", productResult.error);
-          toast.error("Error al registrar el cargo");
-          return;
-        }
+      // Crear item de promoción
+      const productResult = await getOrCreateServiceProduct();
+      if (!productResult.success) {
+        logger.error("Failed to get/create service product", productResult.error);
+        toast.error("Error al registrar el cargo");
+        return;
+      }
 
         const itemRes = await createServiceItem(
           activeStay.sales_order_id,
@@ -1312,10 +1291,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
 
 
-        await onRefresh();
-      } else {
-        toast.error("No se pudo aplicar la promoción");
-      }
+      await onRefresh();
     } catch (error) {
       logger.error("Error adding 4-hour promo", error);
       toast.error("Error al aplicar promoción");
@@ -1431,14 +1407,9 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
           await supabase.from("payments").insert(pendingPayments);
 
-          // 3. Actualizar el total de la orden de venta (remaining_amount)
-          const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraAmount);
-
-          if (result.success) {
-            toast.success("Horas extra registradas", {
-              description: `${hoursToCharge} hora(s) extra nuevas en Hab. ${room.number}`,
-            });
-          }
+          toast.success("Horas extra registradas", {
+            description: `${hoursToCharge} hora(s) extra nuevas en Hab. ${room.number}`,
+          });
         }
       }
 

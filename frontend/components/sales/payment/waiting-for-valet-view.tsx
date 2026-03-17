@@ -5,9 +5,10 @@ import { Car, Loader2 } from "lucide-react";
 
 interface WaitingForValetViewProps {
   onClose: () => void;
+  reason?: 'check-in' | 'items' | null;
 }
 
-export function WaitingForValetView({ onClose }: WaitingForValetViewProps) {
+export function WaitingForValetView({ onClose, reason }: WaitingForValetViewProps) {
   return (
     <div className="flex flex-col items-center justify-center p-12 text-center h-[400px] space-y-6">
       <div className="relative">
@@ -19,11 +20,20 @@ export function WaitingForValetView({ onClose }: WaitingForValetViewProps) {
       
       <div className="max-w-md space-y-2">
         <h3 className="text-2xl font-black uppercase tracking-tighter text-white">
-          Esperando Información del Cochero
+          {reason === 'items' ? 'Datos Pendientes del Cochero' : 'Esperando Información del Cochero'}
         </h3>
         <p className="text-zinc-400 text-sm leading-relaxed">
-          Esta habitación fue registrada mediante <span className="text-orange-400 font-bold italic">Entrada Rápida</span>. 
-          Recepción no puede realizar cobros ni modificaciones hasta que el cochero complete el registro del vehículo y el pago inicial.
+          {reason === 'items' ? (
+            <>
+              El cochero tiene <span className="text-orange-400 font-bold italic">datos pendientes</span> por registrar (como horas extras, consumos o daños). 
+              Recepción no puede procesar el cobro hasta que el cochero verifique esta información en su aplicación.
+            </>
+          ) : (
+            <>
+              Esta habitación fue registrada mediante <span className="text-orange-400 font-bold italic">Entrada Rápida</span>. 
+              Recepción no puede realizar cobros ni modificaciones hasta que el cochero complete el registro del vehículo y el pago inicial.
+            </>
+          )}
         </p>
       </div>
 

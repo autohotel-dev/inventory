@@ -27,30 +27,24 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
       const supabase = createClient();
 
       const { data: orderItems, error: itemsError } = await supabase
-        .from("order_items")
+        .from("sales_order_items")
         .select(`
           *,
-          products(name)
+          products(name, sku)
         `)
         .eq("sales_order_id", salesOrderId)
         .order("created_at", { ascending: true });
 
-      if (itemsError) throw itemsError;
-
-      const { data: payments, error: paymentsError } = await supabase
-        .from("order_payments")
-        .select("*")
-        .eq("sales_order_id", salesOrderId);
-
-      if (paymentsError) throw paymentsError;
+      if (itemsError) {
+        console.error("Supabase itemsError:", itemsError);
+        throw itemsError;
+      }
 
       const mappedItems: OrderItem[] = (orderItems || []).map((item: any) => {
-        const itemPayment = payments?.find((p: any) => p.order_item_id === item.id);
+        // En sales_order_items ya vienen los datos is_paid, paid_at, etc.
         return {
           ...item,
-          is_paid: !!itemPayment,
-          paid_at: itemPayment?.created_at,
-          payment_method: itemPayment?.payment_method
+          total: Number(item.unit_price) * (Number(item.qty) || 1), // Asegurar cálculo correcto
         };
       });
 
@@ -97,7 +91,11 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
     setSelectedItems(new Set());
   };
 
-  const applyDiscount = (itemId: string, amount: number) => {
+  const applyDiscount = (itemId: string, percentage: number) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const amount = (getItemTotal(item) * (percentage / 100));
     setDiscounts(prev => ({ ...prev, [itemId]: amount }));
   };
 
@@ -115,7 +113,7 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
       const supabase = createClient();
 
       const { error } = await supabase
-        .from("order_items")
+        .from("sales_order_items")
         .delete()
         .eq("id", itemId)
         .eq("is_paid", false);
@@ -142,14 +140,49 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
   };
 
   const getItemDescription = (item: OrderItem) => {
-    return item.products?.name || CONCEPT_LABELS[item.concept_type] || item.concept_type;
+    // Priority: Concept label for specific system charges, then product name
+    const conceptLabel = CONCEPT_LABELS[item.concept_type];
+    if (conceptLabel && item.concept_type !== 'PRODUCT' && item.concept_type !== 'CONSUMPTION') {
+      return conceptLabel;
+    }
+    return item.products?.name || item.concept_type;
   };
 
   const isItemPayable = (item: OrderItem) => {
     if (forcedUnlockedItems.has(item.id)) return true;
-    const serviceConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'DAMAGE_CHARGE', 'TOLERANCE_EXPIRED', 'RENEWAL', 'PROMO_4H'];
-    return !serviceConcepts.includes(item.concept_type);
+    
+    // Si es un concepto de servicio (horas, personas, etc), requiere que cochero registre los datos
+    const serviceConcepts = ['EXTRA_HOUR', 'EXTRA_PERSON', 'EARLY_CHECKIN', 'LATE_CHECKOUT', 'TOLERANCE_EXPIRED', 'RENEWAL', 'PROMO_4H'];
+    
+    if (serviceConcepts.includes(item.concept_type)) {
+      // Consideramos bloqueado si:
+      // 1. delivery_status es explicitly PENDING_VALET
+      // 2. delivery_status es null/undefined (recién generado)
+      const isPending = !item.delivery_status || item.delivery_status === 'PENDING_VALET';
+      return !isPending;
+    }
+
+    // Para productos de consumo
+    if (item.concept_type === 'CONSUMPTION' || item.concept_type === 'PRODUCT') {
+      const isPending = item.delivery_status === 'PENDING_VALET';
+      return !isPending;
+    }
+
+    // El ROOM_BASE siempre es pagable
+    if (item.concept_type === 'ROOM_BASE') return true;
+
+    return true;
   };
+
+  // Log to debug
+  useEffect(() => {
+    if (isOpen && items.length > 0) {
+      console.log('--- Granular Payment Debug ---');
+      items.filter(i => !i.is_paid).forEach(item => {
+        console.log(`Item: ${item.concept_type} (${item.id.slice(0,5)}), delivery: ${item.delivery_status}, isPayable: ${isItemPayable(item)}`);
+      });
+    }
+  }, [isOpen, items]);
 
   return {
     items,

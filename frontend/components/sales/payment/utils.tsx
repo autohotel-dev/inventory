@@ -27,16 +27,17 @@ export const CONCEPT_ICONS: Record<string, React.ReactNode> = {
 };
 
 export const CONCEPT_LABELS: Record<string, string> = {
-  ROOM_BASE: "Habitación",
+  ROOM_BASE: "Habitación, estancia completa",
   EXTRA_HOUR: "Hora Extra",
   EXTRA_PERSON: "Persona Extra",
   CONSUMPTION: "Consumo",
   PRODUCT: "Producto",
-  RENEWAL: "Renovación",
+  RENEWAL: "Renovación de estancia",
   PROMO_4H: "Promo 4 Horas",
   OTHER: "Otro",
   DAMAGE_CHARGE: "Cargo por Daños",
   TOLERANCE_EXPIRED: "Tolerancia Expirada",
+  ROOM_CHANGE_ADJUSTMENT: "Ajuste por Cambio de Habitación",
 };
 
 export const formatCurrency = (amount: number) => {

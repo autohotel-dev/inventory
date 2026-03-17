@@ -25,6 +25,7 @@ export function HistoricalValetPaymentsSection({
   onCorroborate,
   onApplyData,
 }: HistoricalValetPaymentsSectionProps) {
+  console.log("HistoricalValetPaymentsSection render:", { valetPayments, selectedItemsSize: selectedItems.size });
   if (valetPayments.length === 0) return null;
 
   const groupsMap = new Map<string, any>();
@@ -39,7 +40,7 @@ export function HistoricalValetPaymentsSection({
         payments: [],
         totalAmount: 0,
         employeeName: p.employees ? `${p.employees.first_name} ${p.employees.last_name}` : 'Desconocido',
-        collectedAt: p.collected_at
+        collectedAt: p.collected_at || p.created_at || new Date().toISOString()
       });
     }
     const group = groupsMap.get(key);
@@ -62,10 +63,13 @@ export function HistoricalValetPaymentsSection({
     };
     return group.payments.some((p: any) => {
       const mapped = conceptMapping[p.concept] || [p.concept];
-      return mapped.some(m => selectedConcepts.has(m));
+      const hasMatch = mapped.some(m => selectedConcepts.has(m));
+      console.log(`Payment concept ${p.concept} mapped to ${mapped}. Selected concepts:`, Array.from(selectedConcepts), `Match: ${hasMatch}`);
+      return hasMatch;
     });
   });
 
+  console.log("Visible groups:", visibleGroups.length);
   if (visibleGroups.length === 0) return null;
 
   return (
@@ -78,6 +82,8 @@ export function HistoricalValetPaymentsSection({
       <div className="space-y-2">
         {visibleGroups.map((group, groupIdx) => {
           const allCorroborated = group.payments.every((p: any) => p.confirmed_at || corroboratedIds.has(p.id));
+          const reportDate = new Date(group.collectedAt);
+
           return (
             <div
               key={`group-${groupIdx}`}
@@ -114,15 +120,26 @@ export function HistoricalValetPaymentsSection({
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-xs text-zinc-500 italic">{new Date(group.collectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-xs text-zinc-500 italic">
+                  {reportDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                </span>
                 <div className="flex gap-2">
                   {!allCorroborated ? (
-                    <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 px-4" onClick={() => onCorroborate(group.payments.map((p: any) => p.id))} disabled={confirmingPaymentId !== null}>
-                      {confirmingPaymentId === group.payments[0].id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4 mr-2" />Corroborar Recibo</>}
+                    <Button 
+                      size="sm" 
+                      className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-bold h-10 px-4 shadow-lg shadow-[#8b5cf6]/20" 
+                      onClick={() => onCorroborate(group.payments.map((p: any) => p.id))} 
+                      disabled={confirmingPaymentId !== null}
+                    >
+                      {confirmingPaymentId === group.payments[0].id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4 mr-2" />Corroborar Pago</>}
                     </Button>
                   ) : (
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 shadow-lg shadow-emerald-500/20 animate-in zoom-in-95 duration-200" onClick={() => onApplyData(group.payments)}>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />Utilizar datos de cochero
+                    <Button 
+                      size="sm" 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 shadow-lg shadow-emerald-500/20 animate-in zoom-in-95 duration-200" 
+                      onClick={() => onApplyData(group.payments)}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />Utilizar Datos de Pago
                     </Button>
                   )}
                 </div>
