@@ -43,10 +43,17 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
 
       setItems(mappedItems);
 
-      // Auto-select unpaid items only on first load or when switching order
+      // Auto-select unpaid items only on first load, and EXCLUDE paid items from previous selection
       setSelectedItems(prev => {
-        const next = new Set(prev);
-        mappedItems.filter(i => !i.is_paid).forEach(i => next.add(i.id));
+        const next = new Set();
+        const isFirstLoad = prev.size === 0;
+
+        mappedItems.forEach(item => {
+          if (item.is_paid) return; // Never select paid items
+          if (isFirstLoad || prev.has(item.id)) {
+            next.add(item.id);
+          }
+        });
         return next;
       });
 

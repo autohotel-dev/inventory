@@ -63,7 +63,8 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
               ? uniqueConcepts.map(c => CONCEPT_LABELS[c as string] || `Cobro de ${c}`)
               : ['Cobro de Habitación (Entrada)'];
 
-          const isCheckInReport = uniqueConcepts.includes('ENTRADA') || uniqueConcepts.length === 0;
+          const isCheckInReport = uniqueConcepts.some(c => ['ENTRADA', 'ESTANCIA', 'STAY'].includes(c as string)) || 
+                                  uniqueConcepts.length === 0;
 
           reports.push({
             id: 'check-in-fixed',
@@ -72,7 +73,7 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
             amount: totalAmount,
             payment_method: cpdArray[0]?.method || cpdArray[0]?.paymentMethod || "EFECTIVO",
             itemIds: [],
-            note: isCheckInReport ? "Datos registrados por Cochero en Recepción" : "Cobro especial informado por valet",
+            note: isCheckInReport ? "Datos registrados por Cochero en Recepción" : "Cobro especial informado por cochero",
             timestamp: new Date().toISOString(),
             isCheckIn: isCheckInReport, 
             valetName: "Cochero en Turno",
@@ -83,16 +84,36 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
               card_type: p.cardType || "",
               card_last_4: p.cardLast4 || "",
               terminal_code: p.terminal || "",
-              reference: p.reference || ""
+              reference: p.reference || "",
+              concept: p.concept || p.concept_type // Mantener concepto original
             }))
           });
         }
       }
         
-        // Filter out stale reports
+        // Filter out stale reports: If all items related to this report are paid, hide it
         const filteredReports = reports.filter(r => {
+            // For check-in reports, hide if the main ROOM_BASE is paid
             if (r.isCheckIn) {
-              return !items.some(i => i.concept_type === 'ROOM_BASE' && i.is_paid);
+              return !items.some(i => (i.concept_type === 'ROOM_BASE' || i.concept_type === 'STAY') && i.is_paid);
+            }
+
+            // For specific reports, check if the items they mention are paid
+            if (r.payments && r.payments.length > 0) {
+              const reportConcepts = r.payments.map((p: any) => p.concept).filter(Boolean);
+              if (reportConcepts.length > 0) {
+                // Find items on order that match these concepts
+                const relatedUnpaidItems = items.filter(item => {
+                  if (item.is_paid) return false;
+                  // Map valet concept to system concept
+                  return reportConcepts.some((rc: string) => {
+                    const mapped = VALET_TO_SYSTEM_MAP[rc] || [rc];
+                    return mapped.includes(item.concept_type);
+                  });
+                });
+                // If there are NO unpaid items related to this report's concepts, hide the report
+                return relatedUnpaidItems.length > 0;
+              }
             }
             return true;
         });

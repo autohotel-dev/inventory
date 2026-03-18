@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/utils/logger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1321,13 +1322,30 @@ function RoomsBoardInternal() {
                     expected_check_out_at: newExpectedCheckout.toISOString(),
                   }).eq("id", activeStay.id);
 
-                  // 4. Bloquear la habitación hasta que se liquide el cobro
-                  await supabase.from("rooms").update({
-                    status: "BLOQUEADA"
-                  }).eq("id", room.id);
+                  // 4. Bloquear la habitación hasta que se liquide el cobro (SOP: Bloqueo automático)
+                  // FIX: NO bloquear si el cajero ya tiene abierto el modal granular o si hay pagos de valet pendientes
+                  const isModalOpenForThisRoom = showGranularPaymentModal && selectedRoom?.id === room.id;
+                  const activeStayForCheck = getActiveStay(room);
+                  const hasUnconfirmedValet = activeStayForCheck?.sales_orders?.payments?.some(
+                    (p: any) => p.status === 'PAGADO' && !p.confirmed_at
+                  );
 
-                  // 4.1. Forzar refresco local para que el cartel de BLOQUEADA aparezca de inmediato
-                  await fetchRooms(true);
+                  if (!isModalOpenForThisRoom && !hasUnconfirmedValet) {
+                    await supabase.from("rooms").update({
+                      status: "BLOQUEADA"
+                    }).eq("id", room.id);
+
+                    // 4.1. Forzar refresco local para que el cartel de BLOQUEADA aparezca de inmediato
+                    await fetchRooms(true);
+                  } else {
+                    logger.info("Skipping auto-block: Room is being handled", { 
+                      roomNumber: room.number, 
+                      isModalOpenForThisRoom, 
+                      hasUnconfirmedValet 
+                    });
+                    // Aun así refrescamos para ver el nuevo cargo AEH en la lista
+                    await fetchRooms(true);
+                  }
 
                   // 5. Enviar notificación push a cocheros
                   try {
@@ -2401,7 +2419,7 @@ function RoomsBoardInternal() {
                     if (!s) return null;
                     return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
                   })()}
-                  vehicleStatus={activeStay ? vehicleStatus : null}
+                  vehicleStatus={(status === "OCUPADA" || status === "BLOQUEADA") ? (activeStay ? vehicleStatus : null) : null}
                   onInfo={() => {
                     setSelectedRoom(room);
                     setShowInfoModal(true);
@@ -2422,8 +2440,8 @@ function RoomsBoardInternal() {
                     setShowTrackingModal(true);
                   }}
                   data-tutorial="room-card"
-                  isValetPending={!!valetPending}
-                  valetId={activeStay ? activeStay.valet_employee_id : null}
+                  isValetPending={!!valetPending && (status === "OCUPADA" || status === "BLOQUEADA")}
+                  valetId={activeStay && (status === "OCUPADA" || status === "BLOQUEADA") ? activeStay.valet_employee_id : null}
                 />
               );
             })}

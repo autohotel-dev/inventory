@@ -28,7 +28,7 @@ export function usePaymentProcessing({
   const [processing, setProcessing] = useState(false);
 
   const selectedTotal = items
-    .filter(i => selectedItems.has(i.id))
+    .filter(i => selectedItems.has(i.id) && !i.is_paid)
     .reduce((sum, i) => sum + (i.total - (discounts[i.id] || 0)), 0);
 
   const pendingTotal = items
@@ -74,7 +74,7 @@ export function usePaymentProcessing({
         if (itemsError) throw itemsError;
       }
 
-      // 1.5. Confirmar pagos reportados por valet (limpia el indicador rojo)
+      // 1.5. Finalizar pagos reportados por valet (limpia el indicador y el histórico)
       const { error: valetConfirmError } = await supabase
         .from("payments")
         .update({
@@ -83,8 +83,7 @@ export function usePaymentProcessing({
           confirmed_by: employee.id
         })
         .eq("sales_order_id", salesOrderId)
-        .eq("status", "COBRADO_POR_VALET")
-        .is("confirmed_at", null);
+        .eq("status", "COBRADO_POR_VALET");
 
       if (valetConfirmError) {
         console.error("Error confirming valet payments:", valetConfirmError);

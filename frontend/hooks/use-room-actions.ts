@@ -1332,6 +1332,22 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         return;
       }
 
+      // SOP: Si la habitación se libera (LIMPIA o LIBRE), cerrar cualquier estancia activa
+      if (newStatus === "LIBRE") {
+        const { error: stayError } = await supabase
+          .from("room_stays")
+          .update({ status: "FINALIZADA", actual_check_out_at: new Date().toISOString() })
+          .eq("room_id", room.id)
+          .eq("status", "ACTIVA");
+
+        if (stayError) {
+          console.error("Error finalizing stay on room free:", stayError);
+          // No bloqueamos el flujo principal si esto falla, pero lo logueamos
+        } else {
+          logger.info("Stay finalized automatically on room free", { roomNumber: room.number });
+        }
+      }
+
       toast.success(successMessage);
       await onRefresh();
     } catch (error) {

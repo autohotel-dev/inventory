@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import { CONCEPT_LABELS, OrderItem } from "./payment-constants";
+import { CONCEPT_LABELS, VALET_TO_SYSTEM_MAP, OrderItem } from "./payment-constants";
 import { formatCurrency } from "./utils";
 
 interface HistoricalValetPaymentsSectionProps {
@@ -59,34 +59,21 @@ export function HistoricalValetPaymentsSection({
         .filter(Boolean)
     );
 
-    const conceptMapping: Record<string, string[]> = {
-      'PERSONA_EXTRA': ['EXTRA_PERSON'],
-      'EXTRA_PERSON': ['EXTRA_PERSON'],
-      'HORA_EXTRA': ['EXTRA_HOUR'],
-      'EXTRA_HOUR': ['EXTRA_HOUR'],
-      'ESTANCIA': ['ROOM_BASE', 'STAY'],
-      'ENTRADA': ['ROOM_BASE', 'STAY'],
-      'TOLERANCIA_EXPIRADA': ['TOLERANCE_EXPIRED'],
-      'DAMAGE_CHARGE': ['DAMAGE_CHARGE'],
-      'DAÑO': ['DAMAGE_CHARGE'],
-      'VALET_DAMAGE': ['DAMAGE_CHARGE'],
-      'CONSUMO': ['CONSUMPTION', 'PRODUCT'],
-      'RENEWAL': ['RENEWAL', 'STAY', 'EXTRA_HOUR'],
-      'PRODUCT': ['PRODUCT']
-    };
+    // If no selection, implement Smart Pending Filter:
+    // Only show the group if it relates to at least one item that is still UNPAID
+    if (selectedConcepts.size === 0) {
+      return group.payments.some((p: any) => {
+        if (!p.concept) return true; // Safety: show if concept is unknown
+        const mappedSystemConcepts = VALET_TO_SYSTEM_MAP[p.concept] || [p.concept];
+        return items.some(item => !item.is_paid && mappedSystemConcepts.includes(item.concept_type));
+      });
+    }
 
-    // If we have selected items but couldn't identify their concepts, show all (safety)
-    if (selectedConcepts.size === 0) return true;
-
+    // Normal filtering when there IS a selection
     return group.payments.some((p: any) => {
-      // If payment has no concept, show it when something is selected (safety)
       if (!p.concept) return true;
-
-      const mapped = conceptMapping[p.concept] || [p.concept];
-      const hasMatch = mapped.some(m => selectedConcepts.has(m));
-      
-      console.log(`Payment concept ${p.concept} mapped to ${mapped}. Selected concepts:`, Array.from(selectedConcepts), `Match: ${hasMatch}`);
-      return hasMatch;
+      const mapped = VALET_TO_SYSTEM_MAP[p.concept] || [p.concept];
+      return mapped.some(m => selectedConcepts.has(m));
     });
   });
 
@@ -95,9 +82,15 @@ export function HistoricalValetPaymentsSection({
 
   return (
     <div className="space-y-3 mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-      <div className="flex items-center gap-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400 shadow-[0_0_15px_-5px_rgba(99,102,241,0.3)]">
-        <AlertTriangle className="h-5 w-5" />
-        <p className="text-xs font-bold uppercase tracking-wider">Información de cobros informados por Cochero</p>
+      <div className="relative group overflow-hidden flex items-center gap-3 p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl text-indigo-400">
+        <div className="absolute inset-0 bg-indigo-500/5 transition-opacity group-hover:opacity-10 pointer-events-none" />
+        <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 shrink-0">
+          <AlertTriangle className="h-5 w-5 text-indigo-400" />
+        </div>
+        <div className="flex-1">
+          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-0.5">Reportes de Cochero</h4>
+          <p className="text-[11px] font-bold text-indigo-300/70">Información sobre cobros realizados en campo por cocheros pendientes de corroborar.</p>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -108,62 +101,79 @@ export function HistoricalValetPaymentsSection({
           return (
             <div
               key={`group-${groupIdx}`}
-              className="flex items-center justify-between p-4 border rounded-lg bg-zinc-900/50 border-indigo-500/10 hover:border-indigo-500/30 transition-colors"
+              className="group flex flex-col p-4 border rounded-2xl bg-zinc-900/40 backdrop-blur-md border-indigo-500/20 hover:border-indigo-500/40 transition-all duration-300 gap-4"
             >
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-1">
-                    {group.payments.map((p: any) => (
-                      <Badge key={p.id} variant="outline" className="border-indigo-500/50 text-indigo-400 bg-indigo-500/10 px-2 h-5 text-[10px]">
-                        {p.payment_method} {formatCurrency(p.amount)}
-                      </Badge>
-                    ))}
-                  </div>
-                  <span className="font-bold text-2xl text-white">
+              {/* Header Row: Amount & Time */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-indigo-400/60 uppercase tracking-[0.2em] mb-0.5">
+                    Monto Informado
+                  </span>
+                  <span className="font-black text-2xl text-white tracking-tighter drop-shadow-[0_0_15px_rgba(99,102,241,0.2)]">
                     {formatCurrency(group.totalAmount)}
                   </span>
                 </div>
-                <div className="w-px h-10 bg-zinc-800 mx-2" />
-                <div className="flex flex-col gap-1">
-                  <div className="flex flex-wrap gap-1">
-                    {Array.from(new Set(group.payments.map((p: any) => p.concept))).filter(c => !!c).map((concept: any) => {
-                      const conceptStr = String(concept || 'PAGO');
-                      const label = CONCEPT_LABELS[conceptStr] || conceptStr;
-                      const isRenewal = conceptStr === 'RENEWAL' || conceptStr === 'STAY' || conceptStr === 'EXTRA_HOUR';
-                      return (
-                        <Badge key={`concept-${conceptStr}`} variant="secondary" className={cn("text-[10px] uppercase font-bold tracking-tighter py-0", isRenewal ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" : "bg-zinc-800 text-zinc-300")}>
-                          {isRenewal ? "RENOVACIÓN" : label}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                  <span className="text-xs text-zinc-400">Cobrado por <span className="text-indigo-400/80 font-medium">{group.employeeName}</span></span>
+                <div className="flex flex-col items-end">
+                  <span className="text-[9px] uppercase font-black text-zinc-600 tracking-[0.2em] mb-0.5">Captura</span>
+                  <span className="text-sm font-black text-zinc-400 tracking-tight bg-zinc-800/50 px-2 py-0.5 rounded-lg border border-white/5">
+                    {reportDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="text-xs text-zinc-500 italic">
-                  {reportDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-                <div className="flex gap-2">
-                  {!allCorroborated ? (
-                    <Button 
-                      size="sm" 
-                      className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-bold h-10 px-4 shadow-lg shadow-[#8b5cf6]/20" 
-                      onClick={() => onCorroborate(group.payments.map((p: any) => p.id))} 
-                      disabled={confirmingPaymentId !== null}
+
+              {/* Separator */}
+              <div className="h-px w-full bg-gradient-to-r from-white/10 to-transparent" />
+
+              {/* Content Row: Badges & Employee */}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {group.payments.map((p: any) => (
+                    <Badge 
+                      key={p.id} 
+                      variant="secondary" 
+                      className="bg-indigo-500/10 text-indigo-300 border-indigo-500/20 px-2 py-0.5 text-[9px] font-black tracking-tight"
                     >
-                      {confirmingPaymentId === group.payments[0].id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4 mr-2" />Corroborar Pago</>}
-                    </Button>
-                  ) : (
-                    <Button 
-                      size="sm" 
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 shadow-lg shadow-emerald-500/20 animate-in zoom-in-95 duration-200" 
-                      onClick={() => onApplyData(group.payments)}
+                      {p.payment_method}
+                    </Badge>
+                  ))}
+                  {Array.from(new Set(group.payments.map((p: any) => p.concept))).filter(c => !!c).map((concept: any) => (
+                    <Badge 
+                      key={`concept-${concept}`} 
+                      variant="outline" 
+                      className="bg-zinc-800/30 text-zinc-500 border-zinc-700/30 px-2 py-0.5 text-[8px] uppercase font-black tracking-widest"
                     >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />Utilizar Datos de Pago
-                    </Button>
-                  )}
+                      {CONCEPT_LABELS[String(concept)] || String(concept)}
+                    </Badge>
+                  ))}
                 </div>
+                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest">
+                  <span className="text-zinc-600">Por:</span>
+                  <span className="text-zinc-300">
+                    {group.employeeName}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Button: Footer Area */}
+              <div className="pt-2">
+                {!allCorroborated ? (
+                  <Button 
+                    size="sm" 
+                    className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-black h-10 rounded-xl shadow-lg shadow-[#8b5cf6]/20 transform transition-all active:scale-95 flex items-center justify-center gap-2" 
+                    onClick={() => onCorroborate(group.payments.map((p: any) => p.id))} 
+                    disabled={confirmingPaymentId !== null}
+                  >
+                    {confirmingPaymentId === group.payments[0].id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> CORROBORAR MONTO</>}
+                  </Button>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black h-10 rounded-xl shadow-lg shadow-emerald-500/20 animate-in zoom-in-95 duration-200 transform transition-all active:scale-95 flex items-center justify-center gap-2" 
+                    onClick={() => onApplyData(group.payments)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> UTILIZAR DATOS
+                  </Button>
+                )}
               </div>
             </div>
           );
