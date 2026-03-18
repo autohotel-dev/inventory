@@ -64,8 +64,7 @@ export default function ServicesScreen() {
                 `)
                 .eq('concept_type', 'CONSUMPTION')
                 .eq('delivery_accepted_by', employeeId)
-                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT'])
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
+                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT']);
 
             setPendingConsumptions(pending || []);
             setMyConsumptions(mine || []);
@@ -79,12 +78,22 @@ export default function ServicesScreen() {
 
     useEffect(() => {
         fetchData();
+
+        let timeout: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fetchData(), 1000);
+        };
+
         const channel = supabase.channel('valet-services-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
             .subscribe();
-        return () => { supabase.removeChannel(channel); };
+        return () => {
+            supabase.removeChannel(channel);
+            clearTimeout(timeout);
+        };
     }, [fetchData]);
 
     // Auto-expand room from Deep Link
@@ -250,6 +259,14 @@ export default function ServicesScreen() {
                         <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={20} />
                         <Text className={`text-lg font-bold ml-2 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Mis Entregas ({myConsumptions.length})</Text>
                     </View>
+
+                    {myConsumptions.length === 0 && (
+                        <View className={`p-6 rounded-2xl border-2 border-dashed items-center mb-4 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                            <Text className={`font-black uppercase tracking-widest text-[10px] ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                                No tienes entregas activas
+                            </Text>
+                        </View>
+                    )}
 
                     {Object.entries(groupedMy).map(([roomNum, items]: [string, any]) => {
                         const inTransitItems = items.filter((i: any) => i.delivery_status === 'IN_TRANSIT');

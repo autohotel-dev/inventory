@@ -81,6 +81,13 @@ function NotificationToast({
                 useNativeDriver: true,
             }),
         ]).start();
+
+        // Auto-dismiss después de 6 segundos
+        const autoDismissTimer = setTimeout(() => {
+            handleDismiss();
+        }, 6000);
+
+        return () => clearTimeout(autoDismissTimer);
     }, []);
 
     const handleDismiss = () => {

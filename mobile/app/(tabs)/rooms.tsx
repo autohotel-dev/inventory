@@ -516,9 +516,11 @@ export default function RoomsScreen() {
 
         // Debug: Log all items for this room
         const allOrderItems = orders.flatMap(o => o.sales_order_items || []);
-        console.log(`[Room ${room.number}] Total items: ${allOrderItems.length}, concept_types:`,
-            allOrderItems.map(i => i.concept_type)
-        );
+        if (__DEV__) {
+            console.log(`[Room ${room.number}] Total items: ${allOrderItems.length}, concept_types:`,
+                allOrderItems.map(i => i.concept_type)
+            );
+        }
 
         const pendingExtras = allOrderItems.filter(item =>
             (item.concept_type === 'EXTRA_PERSON' || item.concept_type === 'EXTRA_HOUR' || item.concept_type === 'RENEWAL' || item.concept_type === 'PROMO_4H') &&
@@ -530,7 +532,7 @@ export default function RoomsScreen() {
         const roomChangeItems = allItems.filter(item => item.concept_type === 'ROOM_CHANGE_ADJUSTMENT');
 
         // Debug log
-        if (roomChangeItems.length > 0) {
+        if (__DEV__ && roomChangeItems.length > 0) {
             console.log(`[Room ${room.number}] Found ${roomChangeItems.length} ROOM_CHANGE items:`,
                 roomChangeItems.map(i => ({
                     id: i.id,

@@ -119,7 +119,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/employees/schedules", label: "Horarios", icon: "activity", permissionId: "employees.schedules", adminOnly: true },
   { href: "/employees/closings", label: "Cortes de Caja", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
   { divider: true },
-  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
+  { href: "/reports/income", label: "Corte de Caja", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
   { divider: true },
   { href: "/training", label: "Capacitación", icon: "graduation", permissionId: "training", allowedForReceptionist: true },
   { href: "/settings", label: "Configuración", icon: "settings", permissionId: "settings", adminOnly: true },

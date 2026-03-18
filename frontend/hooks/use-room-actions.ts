@@ -1561,10 +1561,25 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       // Preparamos los "Nuevos Pagos" que la RPC debe insertar
       // Solo si sobra dinero después de cubrir los pendientes
+      // Y SOLO si la orden no tiene pagos confirmados previos (evitar duplicados)
       const newPaymentsToInsert: any[] = [];
       const currentShiftId = await getReceptionShiftId(supabase);
 
-      if (remainingAfterPending > 0 && payments && payments.length > 0) {
+      // Verificar si ya existen pagos confirmados (PAGADO) para esta orden
+      // Si los hay, NO crear nuevos — el dinero ya fue registrado al check-in
+      let hasExistingConfirmedPayments = false;
+      if (remainingAfterPending > 0) {
+        const { count } = await supabase
+          .from("payments")
+          .select("id", { count: "exact", head: true })
+          .eq("sales_order_id", checkoutInfo.salesOrderId)
+          .eq("status", "PAGADO")
+          .neq("concept", "CHECKOUT");
+
+        hasExistingConfirmedPayments = (count || 0) > 0;
+      }
+
+      if (remainingAfterPending > 0 && !hasExistingConfirmedPayments && payments && payments.length > 0) {
         const validPayments = payments.filter(p => p.amount > 0);
         const isMultipago = validPayments.length > 1;
 

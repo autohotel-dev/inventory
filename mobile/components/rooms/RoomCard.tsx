@@ -67,6 +67,7 @@ export const RoomCard = memo(({
 
     const isUnassignedEntry = isPendingEntry && !valetEmployeeId;
     const isMyPendingEntry = isPendingEntry && valetEmployeeId === employeeId;
+    const isOtherValetEntry = isPendingEntry && !!valetEmployeeId && valetEmployeeId !== employeeId;
 
     return (
         <View
@@ -100,6 +101,11 @@ export const RoomCard = memo(({
                     {isMyPendingEntry && (
                         <View className="px-2 py-1 rounded-full border bg-black border-black dark:bg-zinc-100 dark:border-zinc-100">
                             <Text className="font-black text-[8px] uppercase text-white dark:text-black">MI ENTRADA</Text>
+                        </View>
+                    )}
+                    {isOtherValetEntry && (
+                        <View className="px-2 py-1 rounded-full border bg-zinc-100 border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700">
+                            <Text className="font-black text-[8px] uppercase text-zinc-500 dark:text-zinc-400">ASIGNADA</Text>
                         </View>
                     )}
                     {isProposed && (
