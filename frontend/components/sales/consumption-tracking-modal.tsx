@@ -32,6 +32,7 @@ import {
     CardFooter
 } from "@/components/ui/card";
 import {
+    LucideIcon,
     Clock,
     Truck,
     Package,
@@ -53,7 +54,15 @@ import {
     Loader2,
     MessageSquare,
     Info,
-    CreditCard
+    CreditCard,
+    Zap,
+    History,
+    ChevronUp,
+    ChevronDown,
+    DollarSign,
+    PackageCheck,
+    TruckIcon,
+    ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils/formatters";
@@ -121,26 +130,27 @@ interface ConsumptionTrackingModalProps {
 const STATUS_CONFIG: Record<DeliveryStatus, {
     label: string;
     color: string;
+    accent: string;
     bg: string;
     border: string;
-    icon: React.ReactNode;
+    icon: LucideIcon;
     step: number;
 }> = {
-    'PENDING_VALET': { label: 'Esperando Cochero', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: <Clock className="h-4 w-4" />, step: 0 },
-    'ACCEPTED': { label: 'Cochero Asignado', color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: <User className="h-4 w-4" />, step: 1 },
-    'IN_TRANSIT': { label: 'En Camino', color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: <Truck className="h-4 w-4" />, step: 2 },
-    'DELIVERED': { label: 'Pendiente de Pago', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: <Package className="h-4 w-4" />, step: 3 },
-    'COMPLETED': { label: 'Completado', color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', icon: <CheckCircle2 className="h-4 w-4" />, step: 4 },
-    'ISSUE': { label: 'Problema', color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', icon: <AlertCircle className="h-4 w-4" />, step: -1 },
-    'CANCELLED': { label: 'Cancelado', color: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20', icon: <XCircle className="h-4 w-4" />, step: -2 },
+    'PENDING_VALET': { label: 'Esperando Cochero', color: 'text-amber-500', accent: 'bg-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Clock, step: 0 },
+    'ACCEPTED': { label: 'Cochero Asignado', color: 'text-blue-500', accent: 'bg-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: User, step: 1 },
+    'IN_TRANSIT': { label: 'En Camino', color: 'text-violet-500', accent: 'bg-violet-500', bg: 'bg-violet-500/10', border: 'border-violet-500/20', icon: Truck, step: 2 },
+    'DELIVERED': { label: 'Pendiente de Pago', color: 'text-pink-500', accent: 'bg-pink-500', bg: 'bg-pink-500/10', border: 'border-pink-500/20', icon: Package, step: 3 },
+    'COMPLETED': { label: 'Completado', color: 'text-emerald-500', accent: 'bg-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: CheckCircle2, step: 4 },
+    'ISSUE': { label: 'Problema', color: 'text-red-500', accent: 'bg-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', icon: AlertCircle, step: -1 },
+    'CANCELLED': { label: 'Cancelado', color: 'text-zinc-500', accent: 'bg-zinc-500', bg: 'bg-zinc-500/10', border: 'border-zinc-500/20', icon: XCircle, step: -2 },
 };
 
-const STEPS = [
-    { label: "Solicitado", status: "PENDING_VALET" },
-    { label: "Asignado", status: "ACCEPTED" },
-    { label: "En Camino", status: "IN_TRANSIT" },
-    { label: "Entregado", status: "DELIVERED" },
-    { label: "Pagado", status: "COMPLETED" }
+const STEPS: { status: DeliveryStatus; label: string; icon: LucideIcon }[] = [
+    { status: 'PENDING_VALET', label: 'Pendiente', icon: Clock },
+    { status: 'ACCEPTED', label: 'Asignado', icon: User },
+    { status: 'IN_TRANSIT', label: 'En Camino', icon: TruckIcon },
+    { status: 'DELIVERED', label: 'Entregado', icon: PackageCheck },
+    { status: 'COMPLETED', label: 'Pagado', icon: Banknote },
 ];
 
 export function ConsumptionTrackingModal({
@@ -186,13 +196,10 @@ export function ConsumptionTrackingModal({
                 .eq('concept_type', 'CONSUMPTION')
                 .order('created_at', { ascending: true });
 
-            if (error) {
-                console.error('Error fetching consumptions:', error.message, error.details, error.hint);
-                throw error;
-            }
+            if (error) throw error;
             setConsumptions(data || []);
         } catch (error) {
-            console.error('Error fetching consumptions catch block:', error);
+            console.error('Error fetching consumptions:', error);
             if (!silent) toast.error('Error al cargar consumos');
         } finally {
             if (!silent) setLoading(false);
@@ -216,8 +223,7 @@ export function ConsumptionTrackingModal({
                     table: 'sales_order_items',
                     filter: `sales_order_id=eq.${salesOrderId}`
                 },
-                (payload: any) => {
-                    console.log("🔄 Realtime update in tracking:", payload);
+                () => {
                     fetchConsumptions(true);
                 }
             )
@@ -388,19 +394,21 @@ export function ConsumptionTrackingModal({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-background/95 backdrop-blur-xl shadow-2xl">
-                    <DialogHeader className="px-8 py-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b">
-                        <div className="flex items-center justify-between">
+                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-[2rem]">
+                    <DialogHeader className="px-8 py-7 bg-zinc-900/50 border-b border-white/5 relative overflow-hidden shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
+                        <div className="relative flex items-center justify-between">
                             <div className="space-y-1">
-                                <DialogTitle className="flex items-center gap-3 text-2xl font-bold">
-                                    <div className="p-2 bg-primary/10 rounded-xl text-primary">
-                                        <ConciergeBell className="h-6 w-6" />
+                                <DialogTitle className="flex items-center gap-4 text-3xl font-black tracking-tighter text-white uppercase italic">
+                                    <div className="p-3 bg-primary/20 rounded-2xl text-primary border border-primary/30 shadow-[0_0_15px_-5px_var(--primary)]">
+                                        <ConciergeBell className="h-7 w-7" />
                                     </div>
                                     Seguimiento de Servicios
                                 </DialogTitle>
-                                <DialogDescription className="text-base flex items-center gap-2">
-                                    Habitación <span className="font-bold text-foreground">{roomNumber}</span> • 
-                                    <span className="flex items-center gap-1 text-emerald-500 font-medium">
+                                <DialogDescription className="text-sm flex items-center gap-2 font-bold text-zinc-500 uppercase tracking-widest pl-1">
+                                    Habitación <span className="text-white font-black italic">{roomNumber}</span>
+                                    <span className="mx-2 opacity-20">|</span>
+                                    <span className="flex items-center gap-1.5 text-emerald-500">
                                         <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                                         En Vivo
                                     </span>
@@ -408,155 +416,137 @@ export function ConsumptionTrackingModal({
                             </div>
 
                             <div className="hidden md:flex gap-4">
-                                <div className="text-right">
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Consumos</p>
-                                    <p className="text-2xl font-black text-primary">{formatCurrency(stats.totalAmount)}</p>
+                                <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 pr-10 relative overflow-hidden min-w-[180px]">
+                                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                                        <ShoppingBag size={24} className="text-primary" />
+                                    </div>
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-black mb-1">Total Consumos</p>
+                                    <p className="text-3xl font-black text-primary italic tracking-tighter">{formatCurrency(stats.totalAmount)}</p>
                                 </div>
                             </div>
                         </div>
                     </DialogHeader>
 
-                    {/* Dashboard de resumen */}
-                    <div className="px-8 py-4 bg-muted/30 flex flex-wrap gap-4 border-b">
-                        <button
-                            onClick={() => setActiveFilter(activeFilter === 'PENDING' ? 'ALL' : 'PENDING')}
-                            className={cn(
-                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
-                                activeFilter === 'PENDING' ? "bg-amber-500 border-amber-600 shadow-md transform scale-105" : "bg-background border-border hover:border-amber-500/50 shadow-sm"
-                            )}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-lg transition-colors",
-                                activeFilter === 'PENDING' ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-600"
-                            )}>
-                                <Clock className="h-4 w-4" />
-                            </div>
-                            <div className="text-left">
-                                <p className={cn(
-                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
-                                    activeFilter === 'PENDING' ? "text-white/80" : "text-muted-foreground"
-                                )}>Pendientes</p>
-                                <p className={cn(
-                                    "text-lg font-bold leading-none",
-                                    activeFilter === 'PENDING' ? "text-white" : "text-foreground"
-                                )}>{stats.pending}</p>
-                            </div>
-                        </button>
+                    {/* Dashboard de resumen - Premium Cards */}
+                    <div className="px-8 py-5 bg-zinc-950/50 flex flex-wrap gap-4 border-b border-white/5 shrink-0">
+                        {[
+                            { id: 'PENDING', label: 'Pendientes', value: stats.pending, icon: Clock, color: 'amber', active: activeFilter === 'PENDING' },
+                            { id: 'TRANSIT', label: 'En Camino', value: stats.accepted + stats.inTransit, icon: Truck, color: 'purple', active: activeFilter === 'TRANSIT' },
+                            { id: 'DELIVERED', label: 'Por Cobrar', value: stats.delivered, icon: Coins, color: 'pink', active: activeFilter === 'DELIVERED' },
+                            { id: 'COMPLETED', label: 'Completados', value: stats.completed, icon: CheckCircle, color: 'emerald', active: activeFilter === 'COMPLETED' },
+                        ].map((card) => {
+                            const activeStyles = {
+                                amber: "bg-amber-500/20 border-amber-500/40 shadow-[0_4px_20px_-8px_rgba(245,158,11,0.4)]",
+                                purple: "bg-purple-500/20 border-purple-500/40 shadow-[0_4px_20px_-8px_rgba(168,85,247,0.4)]",
+                                pink: "bg-pink-500/20 border-pink-500/40 shadow-[0_4px_20px_-8px_rgba(236,72,153,0.4)]",
+                                emerald: "bg-emerald-500/20 border-emerald-500/40 shadow-[0_4px_20px_-8px_rgba(16,185,129,0.4)]",
+                            };
+                            
+                            const iconStyles = {
+                                amber: card.active ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
+                                purple: card.active ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
+                                pink: card.active ? "bg-pink-500 text-white shadow-lg shadow-pink-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
+                                emerald: card.active ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
+                            };
 
-                        <button
-                            onClick={() => setActiveFilter(activeFilter === 'TRANSIT' ? 'ALL' : 'TRANSIT')}
-                            className={cn(
-                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
-                                activeFilter === 'TRANSIT' ? "bg-purple-500 border-purple-600 shadow-md transform scale-105" : "bg-background border-border hover:border-purple-500/50 shadow-sm"
-                            )}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-lg transition-colors",
-                                activeFilter === 'TRANSIT' ? "bg-white/20 text-white" : "bg-purple-500/10 text-purple-600"
-                            )}>
-                                <Truck className="h-4 w-4" />
-                            </div>
-                            <div className="text-left">
-                                <p className={cn(
-                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
-                                    activeFilter === 'TRANSIT' ? "text-white/80" : "text-muted-foreground"
-                                )}>En Camino</p>
-                                <p className={cn(
-                                    "text-lg font-bold leading-none",
-                                    activeFilter === 'TRANSIT' ? "text-white" : "text-foreground"
-                                )}>{stats.accepted + stats.inTransit}</p>
-                            </div>
-                        </button>
+                            const labelStyles = {
+                                amber: card.active ? "text-amber-400" : "text-zinc-500",
+                                purple: card.active ? "text-purple-400" : "text-zinc-500",
+                                pink: card.active ? "text-pink-400" : "text-zinc-500",
+                                emerald: card.active ? "text-emerald-400" : "text-zinc-500",
+                            };
 
-                        <button
-                            onClick={() => setActiveFilter(activeFilter === 'DELIVERED' ? 'ALL' : 'DELIVERED')}
-                            className={cn(
-                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
-                                activeFilter === 'DELIVERED' ? "bg-orange-500 border-orange-600 shadow-md transform scale-105" : "bg-background border-border hover:border-orange-500/50 shadow-sm"
-                            )}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-lg transition-colors",
-                                activeFilter === 'DELIVERED' ? "bg-white/20 text-white" : "bg-orange-500/10 text-orange-600"
-                            )}>
-                                <Coins className="h-4 w-4" />
-                            </div>
-                            <div className="text-left">
-                                <p className={cn(
-                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
-                                    activeFilter === 'DELIVERED' ? "text-white/80" : "text-muted-foreground"
-                                )}>Por Cobrar</p>
-                                <p className={cn(
-                                    "text-lg font-bold leading-none",
-                                    activeFilter === 'DELIVERED' ? "text-white" : "text-foreground"
-                                )}>{stats.delivered}</p>
-                            </div>
-                        </button>
+                            const bgIconStyles = {
+                                amber: "text-amber-500",
+                                purple: "text-purple-500",
+                                pink: "text-pink-500",
+                                emerald: "text-emerald-500",
+                            };
 
-                        <button
-                            onClick={() => setActiveFilter(activeFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
-                            className={cn(
-                                "flex-1 min-w-[140px] p-3 rounded-xl border transition-all flex items-center gap-3",
-                                activeFilter === 'COMPLETED' ? "bg-green-600 border-green-700 shadow-md transform scale-105" : "bg-background border-border hover:border-green-500/50 shadow-sm"
-                            )}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-lg transition-colors",
-                                activeFilter === 'COMPLETED' ? "bg-white/20 text-white" : "bg-green-500/10 text-green-600"
-                            )}>
-                                <CheckCircle className="h-4 w-4" />
-                            </div>
-                            <div className="text-left">
-                                <p className={cn(
-                                    "text-[10px] uppercase font-bold tracking-wider leading-none mb-1",
-                                    activeFilter === 'COMPLETED' ? "text-white/80" : "text-muted-foreground"
-                                )}>Completados</p>
-                                <p className={cn(
-                                    "text-lg font-bold leading-none",
-                                    activeFilter === 'COMPLETED' ? "text-white" : "text-foreground"
-                                )}>{stats.completed}</p>
-                            </div>
-                        </button>
+                            return (
+                                <button
+                                    key={card.id}
+                                    onClick={() => setActiveFilter(activeFilter === card.id ? 'ALL' : card.id)}
+                                    className={cn(
+                                        "flex-1 min-w-[160px] p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4 relative overflow-hidden group",
+                                        card.active 
+                                            ? activeStyles[card.color as keyof typeof activeStyles]
+                                            : "bg-zinc-900/40 border-white/5 hover:border-white/10 shadow-sm"
+                                    )}
+                                >
+                                    <div className={cn(
+                                        "p-2.5 rounded-xl transition-all duration-300",
+                                        iconStyles[card.color as keyof typeof iconStyles]
+                                    )}>
+                                        <card.icon className="h-5 w-5" />
+                                    </div>
+                                    <div className="text-left relative z-10">
+                                        <p className={cn(
+                                            "text-[10px] uppercase font-black tracking-[0.15em] leading-none mb-1.5",
+                                            labelStyles[card.color as keyof typeof labelStyles]
+                                        )}>{card.label}</p>
+                                        <p className={cn(
+                                            "text-2xl font-black italic tracking-tighter leading-none",
+                                            card.active ? "text-white" : "text-zinc-300"
+                                        )}>{card.value}</p>
+                                    </div>
+                                    {card.active && (
+                                        <div className={cn("absolute -right-2 -bottom-2 opacity-10 transition-transform duration-500 scale-150 rotate-12", bgIconStyles[card.color as keyof typeof bgIconStyles])}>
+                                            <card.icon size={48} />
+                                        </div>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    <div className="flex-1 overflow-auto p-8 bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="flex-1 overflow-auto p-8 bg-zinc-900/10">
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                                <p className="text-muted-foreground animate-pulse">Actualizando estados...</p>
+                            <div className="flex flex-col items-center justify-center py-24 gap-6">
+                                <div className="relative h-16 w-16">
+                                    <div className="absolute inset-0 border-4 border-primary/10 rounded-full" />
+                                    <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-[0_0_15px_-3px_var(--primary)]" />
+                                    <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-primary animate-pulse" />
+                                </div>
+                                <div className="space-y-1 text-center">
+                                    <p className="text-white font-black uppercase tracking-[0.2em] italic">Sincronizando</p>
+                                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Obteniendo estados en tiempo real...</p>
+                                </div>
                             </div>
                         ) : filteredConsumptions.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-                                <div className="p-4 bg-muted rounded-full">
-                                    <ConciergeBell className="h-12 w-12 text-muted-foreground/30" />
+                            <div className="flex flex-col items-center justify-center py-24 text-center space-y-6">
+                                <div className="p-8 bg-zinc-950/50 border border-white/5 rounded-[2.5rem] shadow-2xl relative group">
+                                    <div className="absolute inset-0 bg-primary/5 rounded-[2.5rem] blur-2xl group-hover:bg-primary/10 transition-colors" />
+                                    <ConciergeBell className="h-16 w-16 text-zinc-800 relative z-10" />
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold">
-                                        {activeFilter === 'ALL' ? 'Sin servicios activos' : 'No hay consumos con este estatus'}
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">
+                                        {activeFilter === 'ALL' ? 'Sin servicios activos' : 'No hay coincidencias'}
                                     </h3>
-                                    <p className="text-muted-foreground max-w-xs mx-auto">
+                                    <p className="text-zinc-500 text-sm font-medium max-w-xs mx-auto uppercase tracking-wide px-4">
                                         {activeFilter === 'ALL'
-                                            ? 'No hay pedidos de consumo o servicios de cochero registrados para esta habitación.'
-                                            : `No se encontraron consumos ${activeFilter.toLowerCase()} en este momento.`}
+                                            ? 'No hay pedidos de consumo o servicios registrados para esta habitación actualmente.'
+                                            : `No se encontraron consumos con el estatus ${activeFilter.toLowerCase()} en este momento.`}
                                     </p>
                                     {activeFilter !== 'ALL' && (
                                         <Button
                                             variant="link"
                                             onClick={() => setActiveFilter('ALL')}
-                                            className="mt-4"
+                                            className="mt-4 text-primary font-black uppercase tracking-widest italic hover:no-underline"
                                         >
-                                            Ver todos los consumos
+                                            Ver todos los consumos <ChevronRight className="ml-1 h-4 w-4" />
                                         </Button>
                                     )}
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-6">
+                            <div className="grid grid-cols-1 gap-8">
                                 {filteredConsumptions.map((item) => {
                                     const status = item.delivery_status || 'PENDING_VALET';
                                     const config = STATUS_CONFIG[status];
                                     const isActionable = actionLoading === item.id;
                                     const currentStep = config.step;
+                                    const StatusIconComp = config.icon;
 
                                     const minutesElapsed = item.created_at
                                         ? Math.floor((new Date().getTime() - new Date(item.created_at).getTime()) / (1000 * 60))
@@ -564,181 +554,224 @@ export function ConsumptionTrackingModal({
                                     const isDelayed = ['PENDING_VALET', 'ACCEPTED'].includes(status) && minutesElapsed > 15;
 
                                     return (
-                                        <Card key={item.id} className={cn(
-                                            "overflow-hidden border-2 transition-all duration-300",
-                                            status === 'ISSUE' ? "border-red-500/50 shadow-red-500/10" : "border-border/50 hover:border-primary/20 shadow-xl shadow-slate-200/50 dark:shadow-none"
+                                        <div key={item.id} className={cn(
+                                            "relative group transition-all duration-500",
+                                            status === 'ISSUE' ? "opacity-100" : "hover:-translate-y-1"
                                         )}>
-                                            <div className="p-6">
-                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                                    {/* Info del Producto */}
-                                                    <div className="flex items-start gap-4 flex-1">
-                                                        <div className={cn(
-                                                            "p-3 rounded-xl shrink-0",
-                                                            config.bg, config.color
-                                                        )}>
-                                                            {config.icon}
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <h4 className="font-bold text-lg leading-tight uppercase tracking-tight">
-                                                                    {item.products?.name || 'Producto'}
-                                                                </h4>
-                                                                <Badge variant="secondary" className="font-mono font-bold">
-                                                                    x{item.qty}
-                                                                </Badge>
-                                                            </div>
-                                                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                                                <span className="font-bold text-foreground">{formatCurrency(item.total)}</span>
-                                                                <span>•</span>
-                                                                <span className={cn(
-                                                                    "flex items-center gap-1 font-medium",
-                                                                    isDelayed ? "text-red-500 animate-pulse font-bold" : "text-muted-foreground"
-                                                                )}>
-                                                                    <Clock className="h-3 w-3" />
-                                                                    {minutesElapsed} min
-                                                                    {isDelayed && <AlertTriangle className="ml-1 h-3 w-3" />}
-                                                                </span>
-                                                                <span>•</span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <User className="h-3 w-3" />
-                                                                    {item.valet_employee ? `${item.valet_employee.first_name}` : 'Sin cochero'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                            {/* Glow de fondo para items destacados */}
+                                            {isDelayed && (
+                                                <div className="absolute -inset-1 bg-red-500/10 blur-xl rounded-[2rem] animate-pulse" />
+                                            )}
 
-                                                    {/* Stepper Visual */}
-                                                    <div className="flex-1 max-w-md w-full">
-                                                        <div className="relative flex justify-between">
-                                                            {/* Linea de fondo */}
-                                                            <div className="absolute top-4 left-0 w-full h-0.5 bg-muted -z-0" />
-                                                            {/* Linea de progreso */}
-                                                            <div
-                                                                className="absolute top-4 left-0 h-0.5 bg-primary transition-all duration-500 -z-0"
-                                                                style={{ width: `${Math.max(0, currentStep) * 25}%` }}
-                                                            />
-
-                                                            {STEPS.map((step, idx) => {
-                                                                const isCompleted = currentStep >= idx;
-                                                                const isCurrent = currentStep === idx;
-                                                                return (
-                                                                    <div key={step.status} className="flex flex-col items-center gap-2 relative z-10">
-                                                                        <div className={cn(
-                                                                            "h-8 w-8 rounded-full flex items-center justify-center border-2 transition-all duration-300",
-                                                                            isCompleted ? "bg-primary border-primary text-primary-foreground" : "bg-background border-muted text-muted-foreground",
-                                                                            isCurrent && "ring-4 ring-primary/20 scale-110"
-                                                                        )}>
-                                                                            {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-1.5 w-1.5 rounded-full bg-current" />}
-                                                                        </div>
-                                                                        <span className={cn(
-                                                                            "text-[10px] font-bold uppercase tracking-tighter",
-                                                                            isCurrent ? "text-primary" : "text-muted-foreground"
-                                                                        )}>
-                                                                            {step.label}
-                                                                        </span>
+                                            <Card className={cn(
+                                                "relative overflow-hidden border-white/5 bg-zinc-900/40 backdrop-blur-xl rounded-[1.8rem] transition-all duration-500",
+                                                status === 'ISSUE' ? "border-red-500/30 shadow-[0_0_30px_-10px_rgba(239,68,68,0.2)]" : "shadow-2xl shadow-black/40 border-white/5"
+                                            )}>
+                                                <div className="p-7">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                                                        {/* Info del Producto */}
+                                                        <div className="flex items-start gap-5 flex-1 min-w-0">
+                                                            <div className={cn(
+                                                                "p-3.5 rounded-2xl shrink-0 border transition-all duration-300 relative",
+                                                                config.bg, config.color, config.border
+                                                            )}>
+                                                                <StatusIconComp className="h-6 w-6 relative z-10" />
+                                                                <div className={cn("absolute inset-0 rounded-2xl opacity-20", config.accent)} />
+                                                            </div>
+                                                            <div className="space-y-1.5 min-w-0">
+                                                                <div className="flex items-center gap-3">
+                                                                    <h4 className="font-black text-xl leading-none text-white uppercase italic tracking-tighter truncate">
+                                                                        {item.products?.name || 'Producto'}
+                                                                    </h4>
+                                                                    <div className="px-2 py-0.5 rounded-lg bg-zinc-950 text-white font-black text-xs border border-white/10 shrink-0">
+                                                                        x{item.qty}
                                                                     </div>
-                                                                );
-                                                            })}
+                                                                </div>
+                                                                <div className="flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.1em]">
+                                                                    <span className="text-primary italic text-sm">{formatCurrency(item.total)}</span>
+                                                                    <span className="text-zinc-700">|</span>
+                                                                    <span className={cn(
+                                                                        "flex items-center gap-1.5 transition-colors",
+                                                                        isDelayed ? "text-red-500 animate-pulse" : "text-zinc-500"
+                                                                    )}>
+                                                                        <Clock className="h-3 w-3" />
+                                                                        {minutesElapsed}m
+                                                                        {isDelayed && <AlertTriangle className="h-3.5 w-3.5" />}
+                                                                    </span>
+                                                                    <span className="text-zinc-700">|</span>
+                                                                    <span className="flex items-center gap-1.5 text-zinc-500 truncate max-w-[120px]">
+                                                                        <User className="h-3 w-3" />
+                                                                        {item.valet_employee ? item.valet_employee.first_name : 'Sin cochero'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Stepper Visual Premium */}
+                                                        <div className="flex-1 max-w-xl w-full">
+                                                            <div className="relative flex justify-between px-4">
+                                                                {/* Linea de fondo */}
+                                                                <div className="absolute top-5 left-8 right-8 h-[2px] bg-zinc-800 -z-0" />
+                                                                {/* Linea de progreso con gradient */}
+                                                                <div
+                                                                    className={cn(
+                                                                        "absolute top-5 left-8 h-[2px] transition-all duration-1000 ease-out -z-0 rounded-full",
+                                                                        currentStep >= 4 ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-primary"
+                                                                    )}
+                                                                    style={{ width: `calc(${Math.max(0, currentStep) * 25}% - 0px)` }}
+                                                                />
+
+                                                                {STEPS.map((step, idx) => {
+                                                                    const isCompleted = currentStep >= idx;
+                                                                    const isCurrent = currentStep === idx;
+                                                                    const StepIcon = step.icon;
+                                                                    
+                                                                    return (
+                                                                        <div key={step.status} className="flex flex-col items-center gap-3 relative z-10 w-12">
+                                                                            <div className={cn(
+                                                                                "h-10 w-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500",
+                                                                                isCompleted 
+                                                                                    ? "bg-zinc-950 border-primary text-primary shadow-[0_0_15px_-5px_var(--primary)]" 
+                                                                                    : "bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50 grayscale",
+                                                                                isCurrent && "scale-125 border-primary bg-primary text-white shadow-[0_0_20px_-2px_var(--primary)]"
+                                                                            )}>
+                                                                                <StepIcon className={cn("h-4.5 w-4.5", isCurrent && "animate-pulse")} />
+                                                                            </div>
+                                                                            <span className={cn(
+                                                                                "text-[9px] font-black uppercase tracking-widest text-center whitespace-nowrap",
+                                                                                isCurrent ? "text-white" : "text-zinc-600"
+                                                                            )}>
+                                                                                {step.label}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Acciones Premium */}
+                                                        <div className="flex items-center gap-3 pl-4 border-l border-white/5 lg:min-w-[180px] justify-end">
+                                                            {status === 'ACCEPTED' && (
+                                                                <Button
+                                                                    onClick={() => handleConfirmPickup(item)}
+                                                                    disabled={isActionable}
+                                                                    className="bg-primary hover:bg-primary/90 text-zinc-950 font-black uppercase tracking-widest italic rounded-xl px-4 h-11 shadow-lg shadow-primary/20 shrink-0"
+                                                                >
+                                                                    {isActionable ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandPlatter className="h-4 w-4 mr-2" />}
+                                                                    Recoger
+                                                                </Button>
+                                                            )}
+
+                                                            {status === 'DELIVERED' && (
+                                                                <Button
+                                                                    onClick={() => openPaymentConfirmation(item)}
+                                                                    disabled={isActionable}
+                                                                    className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-widest italic rounded-xl px-4 h-11 shadow-lg shadow-emerald-500/20 shrink-0"
+                                                                >
+                                                                    {isActionable ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Banknote className="h-4 w-4 mr-2" />}
+                                                                    Pagar
+                                                                </Button>
+                                                            )}
+
+                                                            {status === 'COMPLETED' && (
+                                                                <div className="flex items-center gap-2 text-emerald-500 font-bold uppercase tracking-tighter italic mr-4">
+                                                                    <CheckCircle2 size={18} />
+                                                                    <span>Pagado</span>
+                                                                </div>
+                                                            )}
+
+                                                            {['ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(status) && (
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl bg-zinc-900/50 text-zinc-500 hover:text-white hover:bg-zinc-800 shrink-0 border border-white/5 transition-all">
+                                                                            <MoreHorizontal className="h-5 w-5" />
+                                                                        </Button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-zinc-800 text-zinc-400 p-2 rounded-2xl shadow-2xl">
+                                                                        <DropdownMenuLabel className="text-[10px] uppercase font-black tracking-widest text-zinc-600 mb-1 px-3">Gestión de Servicio</DropdownMenuLabel>
+                                                                        <DropdownMenuItem onClick={() => handleReportIssue(item)} className="rounded-xl focus:bg-red-500/10 focus:text-red-500 cursor-pointer p-3 transition-colors group">
+                                                                            <AlertCircle className="mr-3 h-4.5 w-4.5 group-hover:animate-shake" />
+                                                                            <span className="font-bold uppercase tracking-tight">Reportar Problema</span>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuSeparator className="bg-zinc-900 mx-2 my-2" />
+                                                                        <DropdownMenuItem className="rounded-xl focus:bg-zinc-900 focus:text-white cursor-pointer p-3 transition-colors group">
+                                                                            <History className="mr-3 h-4.5 w-4.5 group-hover:rotate-180 transition-transform duration-500" />
+                                                                            <span className="font-bold uppercase tracking-tight text-white">Ver Historial</span>
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            )}
                                                         </div>
                                                     </div>
 
-                                                    {/* Acciones */}
-                                                    <div className="flex items-center gap-2">
-                                                        {status === 'ACCEPTED' && (
-                                                            <Button
-                                                                variant="default"
-                                                                onClick={() => handleConfirmPickup(item)}
-                                                                disabled={isActionable}
-                                                                className="shrink-0"
-                                                            >
-                                                                {isActionable ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandPlatter className="h-4 w-4 mr-2" />}
-                                                                Confirmar Recogida
-                                                            </Button>
-                                                        )}
-
-                                                        {status === 'DELIVERED' && (
-                                                            <Button
-                                                                variant="default"
-                                                                onClick={() => openPaymentConfirmation(item)}
-                                                                disabled={isActionable}
-                                                                className="bg-green-600 hover:bg-green-700 text-white shrink-0"
-                                                            >
-                                                                {isActionable ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Banknote className="h-4 w-4 mr-2" />}
-                                                                Validar Pago
-                                                            </Button>
-                                                        )}
-
-                                                        {['ACCEPTED', 'IN_TRANSIT', 'DELIVERED'].includes(status) && (
-                                                            <DropdownMenu>
-                                                                <DropdownMenuTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                                                                        <MoreHorizontal className="h-4 w-4" />
-                                                                    </Button>
-                                                                </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end" className="w-48">
-                                                                    <DropdownMenuLabel>Gestión de Servicio</DropdownMenuLabel>
-                                                                    <DropdownMenuItem onClick={() => handleReportIssue(item)} className="text-destructive">
-                                                                        <AlertCircle className="mr-2 h-4 w-4" />
-                                                                        Reportar Problema
-                                                                    </DropdownMenuItem>
-                                                                </DropdownMenuContent>
-                                                            </DropdownMenu>
-                                                        )}
-                                                    </div>
+                                                    {/* Notas y Problemas Stylized */}
+                                                    {(item.delivery_notes || item.issue_description) && (
+                                                        <div className="mt-5 pt-5 border-t border-white/5 flex flex-wrap gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                                                            {item.delivery_notes && (
+                                                                <div className="flex items-center gap-3 text-[11px] text-zinc-400 bg-zinc-950/50 border border-white/5 pl-2 pr-4 py-2 rounded-xl group transition-colors hover:border-white/10">
+                                                                    <div className="bg-zinc-900 p-1.5 rounded-lg">
+                                                                        <MessageSquare size={12} className="text-zinc-500 group-hover:text-primary transition-colors" />
+                                                                    </div>
+                                                                    <span className="font-black text-zinc-500 uppercase tracking-widest shrink-0">Nota:</span>
+                                                                    <span className="font-medium text-zinc-300 italic">{item.delivery_notes}</span>
+                                                                </div>
+                                                            )}
+                                                            {item.issue_description && (
+                                                                <div className="flex items-center gap-3 text-[11px] text-red-400 bg-red-500/5 border border-red-500/20 pl-2 pr-4 py-2 rounded-xl group animate-pulse">
+                                                                    <div className="bg-red-500/20 p-1.5 rounded-lg">
+                                                                        <AlertCircle size={12} className="text-red-500" />
+                                                                    </div>
+                                                                    <span className="font-black text-red-500 uppercase tracking-widest shrink-0">Incidencia:</span>
+                                                                    <span className="font-bold text-red-200">{item.issue_description}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
-
-                                                {/* Notas y Problemas */}
-                                                {(item.delivery_notes || item.issue_description) && (
-                                                    <div className="mt-4 pt-4 border-t flex flex-wrap gap-4">
-                                                        {item.delivery_notes && (
-                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg">
-                                                                <MessageSquare className="h-3.5 w-3.5" />
-                                                                <span className="font-medium text-foreground">Nota:</span> {item.delivery_notes}
-                                                            </div>
-                                                        )}
-                                                        {item.issue_description && (
-                                                            <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg border border-destructive/20">
-                                                                <AlertCircle className="h-3.5 w-3.5" />
-                                                                <span className="font-bold">Incidencia:</span> {item.issue_description}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </Card>
+                                            </Card>
+                                        </div>
                                     );
                                 })}
                             </div>
                         )}
                     </div>
 
-                    <div className="p-8 border-t flex flex-col md:flex-row justify-between items-center bg-background gap-4">
-                        <div className="flex flex-wrap items-center gap-3">
+                    {/* Footer Premium */}
+                    <div className="p-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center bg-zinc-950 shrink-0 gap-6">
+                        <div className="flex flex-wrap items-center gap-4">
                             <Button
                                 variant="outline"
                                 onClick={handleConfirmAllPickups}
                                 disabled={actionLoading === 'bulk-pickup' || stats.accepted === 0}
-                                className="border-primary/20 hover:bg-muted group transition-all"
+                                className="bg-zinc-900 border-white/5 hover:bg-primary hover:text-zinc-950 hover:border-transparent text-zinc-300 font-black uppercase tracking-widest italic rounded-2xl h-12 px-6 transition-all duration-300 group"
                             >
-                                <HandPlatter className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                                <HandPlatter size={18} className="mr-3 group-hover:scale-125 transition-transform" />
                                 Todo Entregado a Cochero
                             </Button>
                             <Button
                                 variant="default"
                                 onClick={handleConfirmAllPayments}
                                 disabled={actionLoading === 'bulk-payment' || stats.delivered === 0}
-                                className="bg-green-600 hover:bg-green-700 shadow-sm transition-all text-white"
+                                className="bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-transparent text-emerald-500 hover:text-zinc-950 font-black uppercase tracking-widest italic rounded-2xl h-12 px-6 transition-all duration-300 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)] group"
                             >
-                                <Banknote className="h-4 w-4 mr-2" />
+                                {actionLoading === 'bulk-payment' ? <Loader2 className="h-5 w-5 animate-spin mr-3" /> : <Banknote size={18} className="mr-3 group-hover:scale-125 transition-transform" />}
                                 Confirmar Todos los Pagos
                             </Button>
                         </div>
-                        <div className="flex items-center gap-3 w-full md:w-auto">
-                            <Button variant="ghost" onClick={() => fetchConsumptions()} className="text-muted-foreground">
-                                <Clock className="h-4 w-4 mr-2" />
+                        <div className="flex items-center gap-4 w-full md:w-auto">
+                            <Button 
+                                variant="ghost" 
+                                onClick={() => fetchConsumptions()} 
+                                className="text-zinc-500 hover:text-white hover:bg-white/5 font-black uppercase tracking-widest text-[10px] italic py-0 h-12 px-5"
+                            >
+                                <Clock className="h-4 w-4 mr-2.5 opacity-50" />
                                 Actualizar
                             </Button>
-                            <Button variant="outline" onClick={onClose} className="px-8 font-bold">
+                            <Button 
+                                variant="outline" 
+                                onClick={onClose} 
+                                className="bg-zinc-900 border-white/5 hover:bg-white hover:text-black hover:border-transparent text-zinc-300 font-black uppercase tracking-[0.2em] italic rounded-2xl h-12 px-10 transition-all duration-300"
+                            >
                                 Cerrar
                             </Button>
                         </div>
@@ -746,38 +779,44 @@ export function ConsumptionTrackingModal({
                 </DialogContent>
             </Dialog>
 
-            {/* Modal de confirmación de pago */}
+            {/* Modal de confirmación de pago Premium */}
             <AlertDialog open={!!confirmPaymentItem} onOpenChange={(open) => !open && setConfirmPaymentItem(null)}>
-                <AlertDialogContent className="max-w-md border-none shadow-2xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-3 text-xl">
-                            <div className="p-2 bg-green-100 text-green-700 rounded-lg">
-                                <Banknote className="h-6 w-6" />
-                            </div>
-                            Validar Recepción de Dinero
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-base pt-2">
-                            Confirma que has recibido el efectivo/comprobante del cochero por el producto <span className="font-bold text-foreground underline decoration-primary/30">{confirmPaymentItem?.products?.name}</span>.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
+                <AlertDialogContent className="max-w-md border-none shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] bg-zinc-950 backdrop-blur-3xl rounded-[2.5rem] p-0 overflow-hidden">
+                    <div className="px-8 py-8 bg-zinc-900/50 border-b border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent opacity-50"></div>
+                        <AlertDialogHeader className="relative">
+                            <AlertDialogTitle className="flex items-center gap-4 text-2xl font-black tracking-tighter text-white uppercase italic">
+                                <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-500 border border-emerald-500/30">
+                                    <Banknote className="h-7 w-7" />
+                                </div>
+                                Validar Pago
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-zinc-500 text-sm font-bold uppercase tracking-widest pt-2 pl-1 leading-relaxed">
+                                Confirma la recepción del pago por <span className="text-white italic">{confirmPaymentItem?.products?.name}</span>.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                    </div>
 
                     {confirmPaymentItem && (
-                        <div className="space-y-6 py-4">
-                            <div className="bg-slate-50 dark:bg-slate-900 border rounded-2xl p-5 space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-muted-foreground font-medium">Costo del Producto</span>
-                                    <span className="font-bold">{formatCurrency(Number(confirmPaymentItem.total))}</span>
+                        <div className="p-8 space-y-8">
+                            <div className="bg-zinc-900/40 border border-white/5 rounded-[1.8rem] p-6 space-y-4 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <DollarSign size={48} className="text-emerald-500" />
+                                </div>
+                                <div className="flex justify-between items-center relative z-10">
+                                    <span className="text-zinc-500 text-[10px] uppercase font-black tracking-widest">Costo del Producto</span>
+                                    <span className="font-black text-white italic tracking-tighter text-lg">{formatCurrency(Number(confirmPaymentItem.total))}</span>
                                 </div>
                                 {Number(confirmPaymentItem.tip_amount) > 0 && (
                                     <>
-                                        <div className="flex justify-between items-center text-amber-600 font-medium pb-2 border-b border-dashed">
+                                        <div className="flex justify-between items-center text-emerald-500 font-black text-[10px] uppercase tracking-widest pb-3 border-b border-white/5 relative z-10">
                                             <span>Propina ({confirmPaymentItem.tip_method})</span>
-                                            <span>+{formatCurrency(Number(confirmPaymentItem.tip_amount))}</span>
+                                            <span className="italic text-lg">+{formatCurrency(Number(confirmPaymentItem.tip_amount))}</span>
                                         </div>
                                         {confirmPaymentItem.tip_method === 'EFECTIVO' && (
-                                            <div className="flex justify-between items-center pt-1">
-                                                <span className="font-bold text-lg">Total a Recibir</span>
-                                                <span className="text-2xl font-black text-green-600">
+                                            <div className="flex justify-between items-center pt-2 relative z-10">
+                                                <span className="font-black text-zinc-400 uppercase tracking-widest text-[10px]">Total a Recibir</span>
+                                                <span className="text-3xl font-black text-emerald-500 italic tracking-tighter animate-pulse shadow-emerald-500/20 drop-shadow-2xl">
                                                     {formatCurrency(Number(confirmPaymentItem.total) + Number(confirmPaymentItem.tip_amount))}
                                                 </span>
                                             </div>
@@ -786,47 +825,47 @@ export function ConsumptionTrackingModal({
                                 )}
                             </div>
 
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Monto Real Recibido</label>
+                            <div className="space-y-6">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 ml-1">Monto Real Recibido</label>
                                     <div className="relative group">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-muted-foreground group-focus-within:text-green-600 transition-colors">$</div>
+                                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-black text-zinc-700 group-focus-within:text-emerald-500 transition-colors italic">$</div>
                                         <Input
                                             type="number"
                                             value={receivedAmount}
                                             onChange={(e) => setReceivedAmount(Number(e.target.value))}
-                                            className="pl-10 h-14 text-2xl font-black rounded-2xl border-2 focus-visible:ring-green-500/20 focus-visible:border-green-500 transition-all"
+                                            className="pl-12 h-16 text-3xl font-black italic tracking-tighter rounded-2xl border-white/5 bg-zinc-900/50 text-white focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500/50 transition-all text-right pr-6"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Notas de Recepción</label>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 ml-1">Notas de Recepción</label>
                                     <Textarea
                                         placeholder="Detalles sobre el dinero o entrega..."
                                         value={paymentNotes}
                                         onChange={(e) => setPaymentNotes(e.target.value)}
                                         rows={3}
-                                        className="rounded-2xl border-2 focus-visible:ring-primary/20"
+                                        className="rounded-2xl border-white/5 bg-zinc-900/50 text-white focus-visible:ring-primary/20 focus-visible:border-primary/50 transition-all font-medium placeholder:text-zinc-700 p-4"
                                     />
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    <AlertDialogFooter className="gap-2 sm:gap-0">
-                        <AlertDialogCancel className="rounded-xl border-2 hover:bg-slate-100 transition-colors">Cancelar</AlertDialogCancel>
+                    <AlertDialogFooter className="p-8 pt-0 gap-3 sm:gap-4">
+                        <AlertDialogCancel className="flex-1 rounded-2xl bg-zinc-900 border-white/5 text-zinc-400 font-black uppercase tracking-widest h-14 hover:bg-zinc-800 hover:text-white transition-all italic">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleConfirmPayment}
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold h-11 px-6 rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95"
+                            className="flex-[1.5] bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-widest h-14 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 italic"
                             disabled={actionLoading === confirmPaymentItem?.id}
                         >
                             {actionLoading === confirmPaymentItem?.id ? (
-                                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                                <Loader2 className="h-5 w-5 animate-spin mr-3 font-bold" />
                             ) : (
-                                <CheckCircle2 className="h-5 w-5 mr-2" />
+                                <PackageCheck className="h-5 w-5 mr-3 font-bold" />
                             )}
-                            Finalizar Seguimiento
+                            Finalizar Entrega
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

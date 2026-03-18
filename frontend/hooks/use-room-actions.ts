@@ -1024,11 +1024,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           });
         }
 
-// Se removió actualización de paid_amount ya que recepción no cobra directamente 
+        // FIX Auditoría #2: Actualizar subtotal/total/remaining de la orden
+        if (!isCourtesy && totalPrice > 0) {
+          await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
+        }
 
-        // Extender expected_check_out_at según las horas agregadas
-        if (activeStay.expected_check_out_at) {
-          const currentCheckout = new Date(activeStay.expected_check_out_at);
+        // FIX Auditoría #3: Leer expected_check_out_at FRESCO de la DB para evitar race condition
+        const { data: freshStayData } = await supabase
+          .from("room_stays")
+          .select("expected_check_out_at")
+          .eq("id", activeStay.id)
+          .single();
+
+        if (freshStayData?.expected_check_out_at) {
+          const currentCheckout = new Date(freshStayData.expected_check_out_at);
           currentCheckout.setHours(currentCheckout.getHours() + hours);
 
           await supabase
@@ -1119,14 +1128,23 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           shift_session_id: currentShiftId,
         });
 
+        // FIX Auditoría #5: Actualizar subtotal/total/remaining de la orden
+        await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
+
         logger.info("Created PENDIENTE payment for renewal", {
           salesOrderId: activeStay.sales_order_id,
           basePrice,
         });
 
-        // Extender expected_check_out_at según las horas del tipo
-        if (activeStay.expected_check_out_at) {
-          const currentCheckout = new Date(activeStay.expected_check_out_at);
+        // FIX Auditoría #3: Leer expected_check_out_at FRESCO de la DB
+        const { data: freshRenewalStay } = await supabase
+          .from("room_stays")
+          .select("expected_check_out_at")
+          .eq("id", activeStay.id)
+          .single();
+
+        if (freshRenewalStay?.expected_check_out_at) {
+          const currentCheckout = new Date(freshRenewalStay.expected_check_out_at);
           const now = new Date();
 
           // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
@@ -1253,14 +1271,23 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           shift_session_id: currentShiftId,
         });
 
+        // FIX Auditoría #6: Actualizar subtotal/total/remaining de la orden
+        await updateSalesOrderTotals(supabase, activeStay.sales_order_id, promoPrice);
+
         logger.info("Created PENDIENTE payment for 4h promo", {
           salesOrderId: activeStay.sales_order_id,
           promoPrice,
         });
 
-        // Extender expected_check_out_at en 4 horas
-        if (activeStay.expected_check_out_at) {
-          const currentCheckout = new Date(activeStay.expected_check_out_at);
+        // FIX Auditoría #3: Leer expected_check_out_at FRESCO de la DB
+        const { data: freshPromoStay } = await supabase
+          .from("room_stays")
+          .select("expected_check_out_at")
+          .eq("id", activeStay.id)
+          .single();
+
+        if (freshPromoStay?.expected_check_out_at) {
+          const currentCheckout = new Date(freshPromoStay.expected_check_out_at);
           currentCheckout.setHours(currentCheckout.getHours() + 4);
 
           await supabase
@@ -1368,63 +1395,19 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const supabase = createClient();
 
     try {
-      // Calcular horas extra automáticas
-      let extraHours = 0;
-      if (activeStay.expected_check_out_at && room.room_types) {
-        const expected = new Date(activeStay.expected_check_out_at);
-        const now = new Date();
-        const diffMs = now.getTime() - expected.getTime();
+      // FIX Auditoría #1: Usar el RPC atómico en lugar de calcular horas manualmente.
+      // Esto es seguro porque el RPC usa FOR UPDATE (idempotente) y hora del servidor.
+      // Si ya se cobraron las horas, el RPC no hará nada (devuelve hours_added = 0).
+      if (room.room_types?.extra_hour_price && room.room_types.extra_hour_price > 0) {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('process_extra_hours_v2', {
+          p_stay_id: activeStay.id
+        });
 
-        // TOLERANCIA DE SALIDA: Solo cobrar si pasaron más de EXIT_TOLERANCE_MS (30 min)
-        if (diffMs > EXIT_TOLERANCE_MS) {
-          extraHours = Math.ceil(diffMs / (60 * 60 * 1000));
-        }
-      }
-
-      // Agregar horas extra al total si aplica
-      if (extraHours > 0 && room.room_types?.extra_hour_price && room.room_types.extra_hour_price > 0) {
-        // Verificar cuántas horas extra ya se cobraron en sales_order_items
-        const { data: existingExtraItems } = await supabase
-          .from("sales_order_items")
-          .select("id")
-          .eq("sales_order_id", activeStay.sales_order_id)
-          .eq("concept_type", "EXTRA_HOUR");
-
-        const alreadyChargedHours = existingExtraItems?.length || 0;
-        const hoursToCharge = extraHours - alreadyChargedHours;
-
-        if (hoursToCharge > 0) {
-          const extraAmount = hoursToCharge * room.room_types.extra_hour_price;
-
-          // 1. Crear items de servicio para las horas extra
-          for (let i = 0; i < hoursToCharge; i++) {
-            await createServiceItem(
-              activeStay.sales_order_id,
-              room.room_types.extra_hour_price,
-              "EXTRA_HOUR"
-            );
-          }
-
-          // 2. Crear registros de pago PENDIENTES para que aparezcan en Granular Payment
-          const currentShiftId = await getReceptionShiftId(supabase);
-          const pendingPayments = [];
-          for (let i = 0; i < hoursToCharge; i++) {
-            pendingPayments.push({
-              sales_order_id: activeStay.sales_order_id,
-              amount: room.room_types.extra_hour_price,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("EXT"),
-              concept: "EXTRA_HOUR",
-              status: "PENDIENTE",
-              payment_type: "COMPLETO",
-              shift_session_id: currentShiftId,
-            });
-          }
-
-          await supabase.from("payments").insert(pendingPayments);
-
+        if (rpcError) {
+          console.error("[prepareCheckout] Error calling RPC:", rpcError);
+        } else if (rpcResult?.success && rpcResult.hours_added > 0) {
           toast.success("Horas extra registradas", {
-            description: `${hoursToCharge} hora(s) extra nuevas en Hab. ${room.number}`,
+            description: `${rpcResult.hours_added} hora(s) extra en Hab. ${room.number}`,
           });
         }
       }

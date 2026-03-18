@@ -22,6 +22,9 @@ export const EXIT_TOLERANCE_MINUTES = 30;
  * Tiempo de tolerancia de salida en milisegundos
  */
 export const EXIT_TOLERANCE_MS = EXIT_TOLERANCE_MINUTES * 60 * 1000;
+// ⚠️ IMPORTANTE: Este valor DEBE coincidir con el INTERVAL '30 minutes'
+// definido en la función de DB 'process_extra_hours_v2'.
+// Si cambias aquí, actualiza también el RPC en Supabase.
 
 /**
  * Estados posibles de una habitación

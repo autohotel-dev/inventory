@@ -1256,138 +1256,60 @@ function RoomsBoardInternal() {
     return () => clearInterval(interval);
   }, [rooms, reminderNotifiedStayIds20, reminderNotifiedStayIds5]);
 
-  // Verificar tolerancias expiradas, limpiezas de salida y reactivaciones
+  // Verificar tolerancias expiradas, limpiezas de salida y reactivaciones (Versión Blindada - RPC)
   useEffect(() => {
     const processRoomTransitions = async () => {
       const supabase = createClient();
       const now = new Date();
 
       for (const room of rooms) {
-        // Enfoque en habitaciones OCUPADAS con estancia ACTIVA
         if (room.status === "OCUPADA" && !room.room_types?.is_hotel) {
           const activeStay = getActiveStay(room);
-          if (!activeStay) continue;
+          if (!activeStay || !activeStay.expected_check_out_at) continue;
 
-          // A. Verificar tolerancias de personas/vacío (EXISTENTE)
-          if (activeStay.tolerance_started_at && activeStay.tolerance_type) {
-            // ... existente ...
-          }
+          const expected = new Date(activeStay.expected_check_out_at);
+          const diffMs = now.getTime() - expected.getTime();
 
-          // B. Verificar cobro automático si ya pasaron los 30 min de gracia
-          if (activeStay.expected_check_out_at && room.room_types?.extra_hour_price) {
-            const expected = new Date(activeStay.expected_check_out_at);
-            const diffMs = now.getTime() - expected.getTime();
+          // Solo llamamos al RPC si parece que ya pasó la tolerancia (30 min)
+          // Esto ahorra llamadas innecesarias a la base de datos
+          if (diffMs > EXIT_TOLERANCE_MS) {
+            try {
+              const { data, error } = await supabase.rpc('process_extra_hours_v2', {
+                p_stay_id: activeStay.id
+              });
 
-            if (diffMs > EXIT_TOLERANCE_MS) {
-              // Verificar si ya existen cargos o pagos pendientes de EXTRA_HOUR
-              const { data: existingExtraPayments } = await supabase
-                .from("payments")
-                .select("id")
-                .eq("sales_order_id", activeStay.sales_order_id)
-                .eq("concept", "EXTRA_HOUR")
-                .eq("status", "PENDIENTE");
-
-              if (!existingExtraPayments || existingExtraPayments.length === 0) {
-                // AUTO EXTRA HOUR: Crear cobro automático de 1 hora extra
-                const extraHourPrice = room.room_types.extra_hour_price;
-
-                try {
-                  // 1. Crear item de servicio para la hora extra usando el servicio centralizado
-                  const itemResult = await createServiceItem(
-                    activeStay.sales_order_id,
-                    extraHourPrice,
-                    "EXTRA_HOUR",
-                    1
-                  );
-
-                  const consumptionId = itemResult.success ? itemResult.data : undefined;
-
-                  // 2. Crear pago pendiente
-                  const currentShiftId = await getCurrentShiftId(supabase);
-                  await supabase.from("payments").insert({
-                    sales_order_id: activeStay.sales_order_id,
-                    amount: extraHourPrice,
-                    payment_method: "PENDIENTE",
-                    reference: generatePaymentReference("AEH"), // Auto Extra Hour
-                    concept: "EXTRA_HOUR",
-                    status: "PENDIENTE",
-                    payment_type: "COMPLETO",
-                    shift_session_id: currentShiftId,
-                  });
-
-                  // 3. Extender expected_check_out_at en 1 hora
-                  const newExpectedCheckout = new Date(expected);
-                  newExpectedCheckout.setHours(newExpectedCheckout.getHours() + 1);
-
-                  await supabase.from("room_stays").update({
-                    expected_check_out_at: newExpectedCheckout.toISOString(),
-                  }).eq("id", activeStay.id);
-
-                  // 4. Bloquear la habitación hasta que se liquide el cobro (SOP: Bloqueo automático)
-                  // FIX: NO bloquear si el cajero ya tiene abierto el modal granular o si hay pagos de valet pendientes
-                  const isModalOpenForThisRoom = showGranularPaymentModal && selectedRoom?.id === room.id;
-                  const activeStayForCheck = getActiveStay(room);
-                  const hasUnconfirmedValet = activeStayForCheck?.sales_orders?.payments?.some(
-                    (p: any) => p.status === 'PAGADO' && !p.confirmed_at
-                  );
-
-                  if (!isModalOpenForThisRoom && !hasUnconfirmedValet) {
-                    await supabase.from("rooms").update({
-                      status: "BLOQUEADA"
-                    }).eq("id", room.id);
-
-                    // 4.1. Forzar refresco local para que el cartel de BLOQUEADA aparezca de inmediato
-                    await fetchRooms(true);
-                  } else {
-                    logger.info("Skipping auto-block: Room is being handled", { 
-                      roomNumber: room.number, 
-                      isModalOpenForThisRoom, 
-                      hasUnconfirmedValet 
-                    });
-                    // Aun así refrescamos para ver el nuevo cargo AEH en la lista
-                    await fetchRooms(true);
-                  }
-
-                  // 5. Enviar notificación push a cocheros
-                  try {
-                    await fetch('/api/push/send', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        title: '⏰ Hora Extra Automática',
-                        body: `Habitación ${room.number}: Se agregó 1 hora extra automáticamente. Cobrar $${extraHourPrice.toFixed(0)}.`,
-                        roles: ['valet', 'cochero'],
-                        url: '/valet',
-                        tag: `auto-hex-${activeStay.id}-${Date.now()}`,
-                        data: {
-                          type: 'NEW_EXTRA',
-                          consumptionId: consumptionId,
-                          roomNumber: room.number,
-                          stayId: activeStay.id,
-                        }
-                      })
-                    });
-                  } catch (pushErr) {
-                    console.error("Error sending push notification:", pushErr);
-                  }
-
-                  // 6. Mostrar toast solo si estamos en la página
-                  toast.info(`Hora extra automática - Hab. ${room.number}`, {
-                    description: `Se agregó 1 hora extra ($${extraHourPrice.toFixed(0)}) automáticamente.`,
-                  });
-
-                  console.log(`[AUTO EXTRA HOUR] Created charge for room ${room.number}: $${extraHourPrice}`);
-                } catch (err) {
-                  console.error(`[AUTO EXTRA HOUR] Error creating charge for room ${room.number}:`, err);
-                }
+              if (error) {
+                console.error(`[RPC EXTRA HOUR] Error en Hab. ${room.number}:`, error);
+                continue;
               }
+
+              if (data && data.success && data.hours_added > 0) {
+                console.log(`⏰ [AUTO EXTRA HOUR] Hab. ${room.number}: +${data.hours_added}h (vía RPC).`);
+                
+                // Notificar a los valets
+                await notifyActiveValets(
+                  supabase,
+                  '⏰ Horas Extra Agregadas',
+                  `Habitación ${room.number}: Se agregaron ${data.hours_added}h extra. Saldo actualizado.`,
+                  {
+                    type: 'EXTRA_HOUR_ADDED',
+                    roomNumber: room.number,
+                    stayId: activeStay.id
+                  }
+                );
+
+                await fetchRooms(true);
+                toast.info(`Hab. ${room.number}: +${data.hours_added}h extra cobrada(s).`);
+              }
+            } catch (err) {
+              console.error(`[RPC EXTRA HOUR] Exception en Hab. ${room.number}:`, err);
             }
           }
         }
       }
     };
 
-    const interval = setInterval(processRoomTransitions, 60000); // Cada minuto
+    const interval = setInterval(processRoomTransitions, 60000);
     processRoomTransitions();
     return () => clearInterval(interval);
   }, [rooms, fetchRooms]);
@@ -1482,6 +1404,22 @@ function RoomsBoardInternal() {
     const diffMsFromNow = checkout.getTime() - now.getTime();
     const diffMinutes = Math.floor(diffMsFromNow / 60000);
     const absMinutes = Math.abs(diffMinutes);
+    
+    // Si estamos en tiempo extra, calcular cuánto falta para la SIGUIENTE hora
+    if (diffMinutes < 0) {
+      const minutesInOvertime = Math.abs(diffMinutes);
+      const minutesIntoCurrentHour = minutesInOvertime % 60;
+      const minutesToNextHour = 60 - minutesIntoCurrentHour;
+      
+      return {
+        eta: formatDateTime(checkout),
+        remaining: `-${minutesToNextHour}m`, // Indica que faltan X min para el siguiente cargo
+        minutesToCheckout: diffMinutes,
+        isExtra: true
+      };
+    }
+
+    // Tiempo normal (aún no vence)
     const days = Math.floor(absMinutes / (60 * 24));
     const hours = Math.floor((absMinutes % (60 * 24)) / 60);
     const minutes = absMinutes % 60;
@@ -1493,7 +1431,7 @@ function RoomsBoardInternal() {
 
     return {
       eta: formatDateTime(checkout),
-      remaining: diffMinutes < 0 ? `+${labelParts.join(" ")}` : labelParts.join(" "),
+      remaining: labelParts.join(" "),
       minutesToCheckout: diffMinutes,
     };
   };
