@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { loginSchema, type LoginFormData } from "@/lib/validations/auth";
+import { logAudit } from "@/lib/audit-logger";
 
 export function LoginForm({
   className,
@@ -46,11 +47,16 @@ export function LoginForm({
 
       if (error) throw error;
 
+      logAudit("LOGIN", { description: `Login exitoso: ${data.email}` });
       success("¡Bienvenido!", "Has iniciado sesión correctamente");
       // Use window.location.href for a hard redirect to ensure cookies are 
       // properly propagated to both client and server before loading the dashboard.
       window.location.href = "/dashboard";
     } catch (error: unknown) {
+      logAudit("LOGIN_FAILED", {
+        description: `Intento fallido: ${data.email}`,
+        metadata: { error: error instanceof Error ? error.message : "unknown" },
+      });
       showError(
         "Error al iniciar sesión",
         error instanceof Error ? error.message : "Ocurrió un error inesperado"

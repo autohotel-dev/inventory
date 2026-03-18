@@ -24,6 +24,7 @@ import {
     CreditCard,
     LayoutDashboard
 } from "lucide-react";
+import { logAudit } from "@/lib/audit-logger";
 
 export function UserNav() {
     const [user, setUser] = useState<User | null>(null);
@@ -98,6 +99,7 @@ export function UserNav() {
                 }
             }
 
+            logAudit("LOGOUT", { description: `Logout: ${user?.email}` });
             await supabase.auth.signOut();
             router.push("/auth/login");
         } catch (error) {

@@ -2,12 +2,14 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { logAudit } from "@/lib/audit-logger";
 
 export function LogoutButton() {
   const router = useRouter();
 
   const logout = async () => {
     const supabase = createClient();
+    logAudit("LOGOUT", { description: "Logout desde botón lateral" });
     await supabase.auth.signOut();
     router.push("/auth/login");
   };
