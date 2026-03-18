@@ -195,6 +195,8 @@ export function usePaymentProcessing({
       }
 
       toast.success("Pago procesado correctamente");
+      setPayments(createInitialPayment(0));
+      setTipAmount(0);
       onRefreshItems();
       onComplete?.();
     } catch (error) {

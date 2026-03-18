@@ -66,6 +66,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { VALET_CONCEPTS } from "./payment/payment-constants";
 
 type DeliveryStatus =
     | 'PENDING_VALET'
@@ -397,8 +398,12 @@ export function ConsumptionTrackingModal({
                                     </div>
                                     Seguimiento de Servicios
                                 </DialogTitle>
-                                <DialogDescription className="text-base">
-                                    Habitación <span className="font-bold text-foreground">{roomNumber}</span> • Consumos y entregas activas
+                                <DialogDescription className="text-base flex items-center gap-2">
+                                    Habitación <span className="font-bold text-foreground">{roomNumber}</span> • 
+                                    <span className="flex items-center gap-1 text-emerald-500 font-medium">
+                                        <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        En Vivo
+                                    </span>
                                 </DialogDescription>
                             </div>
 
@@ -531,7 +536,7 @@ export function ConsumptionTrackingModal({
                                     </h3>
                                     <p className="text-muted-foreground max-w-xs mx-auto">
                                         {activeFilter === 'ALL'
-                                            ? 'No hay pedidos de consumo o servicios de valet registrados para esta habitación.'
+                                            ? 'No hay pedidos de consumo o servicios de cochero registrados para esta habitación.'
                                             : `No se encontraron consumos ${activeFilter.toLowerCase()} en este momento.`}
                                     </p>
                                     {activeFilter !== 'ALL' && (

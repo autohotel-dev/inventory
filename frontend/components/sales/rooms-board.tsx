@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { GlobalClock } from "@/components/ui/global-clock";
 import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
 import { useTraining } from "@/contexts/training-context";
+import { VALET_CONCEPTS } from "@/components/sales/payment/payment-constants";
 
 // Dynamic imports para modales (reducción de bundle)
 const RoomStartStayModal = dynamic(() => import("@/components/sales/room-start-stay-modal").then(m => ({ default: m.RoomStartStayModal })), { ssr: false });

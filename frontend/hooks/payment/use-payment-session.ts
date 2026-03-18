@@ -35,7 +35,10 @@ export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId
     items: itemDomain.items,
     selectedItems: itemDomain.selectedItems,
     discounts: itemDomain.discounts,
-    onComplete,
+    onComplete: () => {
+      setStep('select');
+      onComplete?.();
+    },
     onRefreshItems: itemDomain.fetchItems
   });
 
