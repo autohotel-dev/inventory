@@ -154,33 +154,24 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     fetchItems,
     corroborateValetPayment: (ids: string[]) => corroborateValetPayment(ids),
     applyValetPaymentData: (reports: any[]) => {
-      if (!reports || reports.length === 0) return;
-      const newPayments = reports.map((p: any, i: number) => ({
-        id: Date.now().toString() + i,
-        amount: Number(p.amount),
-        method: p.payment_method || p.method || "EFECTIVO",
-        cardLast4: p.card_last_4 || p.cardLast4 || undefined,
-        cardType: p.card_type || p.cardType || undefined,
-        terminal: p.terminal_code || p.terminal || undefined,
-        reference: p.reference || "VALET-HISTORICO"
-      }));
-      setPayments(newPayments);
-      setStep("pay");
+      console.log('🔍 GRANULAR PAYMENT DEBUG: applyValetPaymentData llamado');
+      console.log('  - Reports recibidos:', reports?.length || 0);
+      const newPayments = applyValetPaymentData(reports);
+      if (newPayments && newPayments.length > 0) {
+        console.log('🔍 GRANULAR PAYMENT DEBUG: Pagos creados, setPayments llamado');
+        setPayments(newPayments);
+        setStep("pay");
+      } else {
+        console.log('🔍 GRANULAR PAYMENT DEBUG: No se crearon pagos o reports vacío');
+      }
     },
     applyValetReportData: (report: any) => {
-      if (!report || !report.payments) return;
-      const newPayments = report.payments.map((p: any, i: number) => ({
-        id: Date.now().toString() + i,
-        amount: Number(p.amount),
-        method: p.method || "EFECTIVO",
-        cardLast4: p.card_last_4 || undefined,
-        cardType: p.card_type || undefined,
-        terminal: p.terminal_code || undefined,
-        reference: p.reference || "VALET-REPORTE"
-      }));
-      setPayments(newPayments);
-      if (report.tip_amount) setTipAmount(Number(report.tip_amount));
-      setStep("pay");
+      const result = applyValetReportData(report);
+      if (result && result.payments) {
+        setPayments(result.payments);
+        if (result.tip_amount) setTipAmount(Number(result.tip_amount));
+        setStep("pay");
+      }
     },
 
     forceUnlockItem,

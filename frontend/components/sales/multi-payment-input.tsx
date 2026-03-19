@@ -18,6 +18,9 @@ export interface PaymentEntry {
   reference?: string;
   cardLast4?: string;
   cardType?: CardType;
+  // Para preservar collected_by del cochero cuando se usan datos de valet
+  collected_by?: string;
+  original_payment_id?: string;
 }
 
 interface MultiPaymentInputProps {

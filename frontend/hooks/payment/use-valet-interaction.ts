@@ -190,6 +190,59 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
   };
 
 
+  // Función para aplicar datos de pagos de cochero al formulario
+  const applyValetPaymentData = (reports: any[]) => {
+    console.log('🔍 FRONTEND DEBUG: applyValetPaymentData llamado');
+    console.log('  - Reports recibidos:', reports.length);
+    reports.forEach((r, i) => {
+      console.log(`  - Report ${i}: collected_by=${r.collected_by}, id=${r.id}`);
+    });
+    
+    if (!reports || reports.length === 0) return;
+    const newPayments = reports.map((p: any, i: number) => ({
+      id: Date.now().toString() + i,
+      amount: Number(p.amount),
+      method: p.payment_method || p.method || "EFECTIVO",
+      cardLast4: p.card_last_4 || p.cardLast4 || undefined,
+      cardType: p.card_type || p.cardType || undefined,
+      terminal: p.terminal_code || p.terminal || undefined,
+      reference: p.reference || "VALET-HISTORICO",
+      // PRESERVAR collected_by del pago original del cochero
+      collected_by: p.collected_by,
+      original_payment_id: p.id // Guardar referencia al pago original
+    }));
+    
+    console.log('🔍 FRONTEND DEBUG: Nuevos payments creados:');
+    newPayments.forEach((p, i) => {
+      console.log(`  - New Payment ${i}: collected_by=${p.collected_by}, original_id=${p.original_payment_id}`);
+    });
+    
+    // Esta función necesita ser manejada por el componente que usa el hook
+    // Por ahora solo retornamos los datos procesados
+    return newPayments;
+  };
+
+  // Función para aplicar datos de reporte de cochero
+  const applyValetReportData = (report: any) => {
+    if (!report || !report.payments) return;
+    const newPayments = report.payments.map((p: any, i: number) => ({
+      id: Date.now().toString() + i,
+      amount: Number(p.amount),
+      method: p.method || "EFECTIVO",
+      cardLast4: p.card_last_4 || undefined,
+      cardType: p.card_type || undefined,
+      terminal: p.terminal_code || undefined,
+      reference: p.reference || "VALET-REPORTE",
+      // PRESERVAR collected_by del pago original del cochero
+      collected_by: p.collected_by,
+      original_payment_id: p.id // Guardar referencia al pago original
+    }));
+    
+    // Esta función necesita ser manejada por el componente que usa el hook
+    // Por ahora solo retornamos los datos procesados
+    return { payments: newPayments, tip_amount: report.tip_amount };
+  };
+
   return {
     valetPayments,
     valetReports,
@@ -198,6 +251,8 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
     waitingReason,
     fetchValetData,
     corroborateValetPayment,
-    setCorroboratedIds
+    setCorroboratedIds,
+    applyValetPaymentData,
+    applyValetReportData
   };
 }

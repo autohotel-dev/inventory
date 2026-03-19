@@ -98,33 +98,102 @@ export function usePaymentProcessing({
         .eq("status", "PENDIENTE");
 
 
-      // 2. Obtener sesión activa para enlazar el pago a la caja del recepcionista (opcional)
+      // 2. Obtener sesión activa de RECEPCIONISTA para enlazar el pago a la caja correcta
+      console.log('🔍 PAYMENT PROCESSING DEBUG: Buscando sesión activa de RECEPCIONISTA para employee.id:', employee.id);
       const { data: session } = await supabase
         .from('shift_sessions')
-        .select('id')
+        .select(`
+          id,
+          employees!shift_sessions_employee_id_fkey (
+            role
+          )
+        `)
         .eq('employee_id', employee.id)
         .eq('status', 'active')
+        .in('employees.role', ['receptionist', 'admin', 'manager'])
         .maybeSingle();
+      
+      console.log('🔍 PAYMENT PROCESSING DEBUG: Sesión de recepción encontrada:', session?.id || 'NONE');
 
-      // 3. Insertar cada pago desglosado (Efectivo, Tarjeta 1, Tarjeta 2, etc.)
+      // 3. Buscar pagos existentes del cochero para actualizarlos en lugar de duplicar
+      console.log('🔍 FRONTEND DEBUG: Buscando pagos existentes del cochero para actualizar');
+      
+      const { data: existingPayments } = await supabase
+        .from("payments")
+        .select("id, amount, payment_method, status")
+        .eq("sales_order_id", salesOrderId)
+        .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"])
+        .not("collected_by", "is", null);
+      
+      console.log('🔍 FRONTEND DEBUG: Pagos existentes encontrados:', existingPayments?.length || 0);
+      
+      // Crear un mapa de pagos existentes por método y monto
+      const existingPaymentsMap = new Map();
+      existingPayments?.forEach((p: any) => {
+        const key = `${p.payment_method}-${p.amount}`;
+        existingPaymentsMap.set(key, p);
+      });
+      
+      console.log('🔍 FRONTEND DEBUG: Procesando pagos finales');
+      payments.forEach((p, i) => {
+        console.log(`  - Payment ${i}: collected_by=${p.collected_by}, amount=${p.amount}, method=${p.method}`);
+      });
+      
       for (const p of payments) {
         if (p.amount > 0) {
-          const { error: payError } = await supabase.from("payments").insert({
-            sales_order_id: salesOrderId,
-            amount: p.amount,
-            payment_method: p.method,
-            card_last_4: p.cardLast4 || null,
-            card_type: p.cardType || null,
-            terminal_code: p.terminal || null,
-            reference: p.reference || `PAGO-${Date.now().toString(36).toUpperCase()}`,
-            concept: "PAGO_POR_CONCEPTOS",
-            status: "PAGADO",
-            payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO",
-            created_by: employee.id,
-            shift_session_id: session?.id || null,
-            collected_at: new Date().toISOString()
-          });
-          if (payError) throw payError;
+          const paymentKey = `${p.method}-${p.amount}`;
+          const existingPayment = existingPaymentsMap.get(paymentKey);
+          
+          if (existingPayment && p.collected_by) {
+            // ACTUALIZAR pago existente del cochero
+            console.log('🔍 FRONTEND DEBUG: Actualizando pago existente del cochero:', existingPayment.id);
+            
+            const { error: updateError } = await supabase
+              .from("payments")
+              .update({
+                status: "PAGADO",
+                shift_session_id: session?.id || null,
+                collected_at: new Date().toISOString(),
+                terminal_code: p.terminal || existingPayment.terminal_code,
+                reference: p.reference || existingPayment.reference,
+                card_last_4: p.cardLast4 || existingPayment.card_last_4,
+                card_type: p.cardType || existingPayment.card_type,
+                payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO",
+                created_by: employee.id
+              })
+              .eq("id", existingPayment.id);
+              
+            if (updateError) throw updateError;
+            console.log('✅ Pago actualizado correctamente');
+            
+          } else {
+            // INSERTAR nuevo pago (solo si no existe o no tiene collected_by)
+            console.log('🔍 FRONTEND DEBUG: Insertando nuevo pago (no existe o sin collected_by)');
+            
+            const insertData = {
+              sales_order_id: salesOrderId,
+              amount: p.amount,
+              payment_method: p.method,
+              card_last_4: p.cardLast4 || null,
+              card_type: p.cardType || null,
+              terminal_code: p.terminal || null,
+              reference: p.reference || `PAGO-${Date.now().toString(36).toUpperCase()}`,
+              concept: "PAGO_POR_CONCEPTOS",
+              status: "PAGADO",
+              payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO",
+              created_by: employee.id,
+              shift_session_id: session?.id || null,
+              collected_at: new Date().toISOString(),
+              // PRESERVAR collected_by si viene del cochero
+              collected_by: p.collected_by || null
+            };
+            
+            console.log('🔍 FRONTEND DEBUG: Insertando pago con collected_by:', insertData.collected_by, 'y shift_session_id:', insertData.shift_session_id);
+            
+            const { error: payError } = await supabase.from("payments").insert(insertData);
+            if (payError) throw payError;
+            console.log('✅ Nuevo pago insertado correctamente');
+          }
         }
       }
 

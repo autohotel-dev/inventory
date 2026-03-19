@@ -64,8 +64,14 @@ export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId
   }, [itemDomain.items, itemDomain.selectedItems, itemDomain.isItemPayable, valetDomain.valetReports, valetDomain.valetPayments]);
 
   const applyValetData = (reportOrPayments: any) => {
+    console.log('🔍 PAYMENT SESSION DEBUG: applyValetData llamado');
     const pEntries = Array.isArray(reportOrPayments) ? reportOrPayments : reportOrPayments.payments;
     if (!pEntries) return;
+
+    console.log('🔍 PAYMENT SESSION DEBUG: pEntries recibidos:', pEntries.length);
+    pEntries.forEach((p: any, i: number) => {
+      console.log(`  - Entry ${i}: collected_by=${p.collected_by}, amount=${p.amount}`);
+    });
 
     const newPayments = pEntries.map((p: any, i: number) => ({
       id: `valet-${Date.now()}-${i}`,
@@ -74,8 +80,16 @@ export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId
       cardLast4: p.card_last_4 || p.cardLast4,
       cardType: p.card_type || p.cardType,
       terminal: p.terminal_code || p.terminal,
-      reference: p.reference || "VALET-DATA"
+      reference: p.reference || "VALET-DATA",
+      // PRESERVAR collected_by del cochero
+      collected_by: p.collected_by,
+      original_payment_id: p.id
     }));
+
+    console.log('🔍 PAYMENT SESSION DEBUG: newPayments creados:');
+    newPayments.forEach((p: any, i: number) => {
+      console.log(`  - New Payment ${i}: collected_by=${p.collected_by}`);
+    });
 
     paymentDomain.setPayments(newPayments);
     if (reportOrPayments.tip_amount) paymentDomain.setTipAmount(Number(reportOrPayments.tip_amount));

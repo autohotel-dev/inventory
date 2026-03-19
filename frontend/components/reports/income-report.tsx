@@ -79,13 +79,20 @@ export function IncomeReport({
     // Fetch separate info about who is CURRENTLY on duty (for the header/export)
     const fetchCurrentShift = useCallback(async () => {
         const supabase = createClient();
-        const { data: session } = await supabase
+        const { data: sessions } = await supabase
             .from("shift_sessions")
             .select(`
-                employees!shift_sessions_employee_id_fkey(first_name, last_name)
+                id,
+                status,
+                employees!shift_sessions_employee_id_fkey(
+                    first_name,
+                    last_name
+                )
             `)
-            .eq("status", "active")
-            .single();
+            .eq("status", "active");
+
+        // Tomar la primera sesión activa (o null si no hay)
+        const session = sessions && sessions.length > 0 ? sessions[0] : null;
 
         if (session) {
             const emp = (session.employees as any);
@@ -127,7 +134,10 @@ export function IncomeReport({
                 amount,
                 concept,
                 status,
-                reference
+                reference,
+                collected_by,
+                collected_at,
+                shift_session_id
               ),
               sales_order_items (
                 concept_type,
@@ -176,12 +186,12 @@ export function IncomeReport({
                     const { data: session, error: sessionError } = await supabase
                         .from("shift_sessions")
                         .select(`
-    id,
-    clock_in_at,
-        employees!shift_sessions_employee_id_fkey(
-            first_name,
-            last_name
-        )
+                            id,
+                            clock_in_at,
+                            employees!shift_sessions_employee_id_fkey(
+                                first_name,
+                                last_name
+                            )
                         `)
                         .eq("id", shiftId)
                         .single();
@@ -292,6 +302,38 @@ export function IncomeReport({
                 });
 
                 const payments = Array.from(contentUniqueMap.values());
+
+                // Debug logging para ver agrupación por turno (shift_session_id) para reporte de ingresos
+                console.log('=== DEBUG AGRUPACIÓN DE PAGOS POR TURNO ===');
+                console.log('Estancia ID:', stay.id);
+                console.log('Habitación:', stay.rooms?.number);
+                console.log('Pagos encontrados:', payments.length);
+                
+                // Agrupar pagos por shift_session_id (a qué turno pertenecen para el reporte)
+                const paymentsByShift = new Map();
+                payments.forEach(p => {
+                    const shiftId = p.shift_session_id || 'SIN_TURNO';
+                    if (!paymentsByShift.has(shiftId)) {
+                        paymentsByShift.set(shiftId, []);
+                    }
+                    paymentsByShift.get(shiftId).push(p);
+                });
+                
+                console.log('Pagos agrupados por turno (para reporte de ingresos):');
+                paymentsByShift.forEach((pays: any[], shiftId: string) => {
+                    let shiftLabel = shiftId;
+                    if (shiftId === 'SIN_TURNO') {
+                        shiftLabel = 'SIN_TURNO';
+                    } else {
+                        // Mostrar ID corto para identificar
+                        shiftLabel = `${shiftId.slice(0, 8)}...`;
+                    }
+                    console.log(`  - ${shiftLabel}: ${pays.length} pago(s) - Total: $${pays.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)}`);
+                    pays.forEach((p: any) => {
+                        console.log(`    * ID: ${p.id.slice(0, 8)}..., Monto: $${p.amount}, Método: ${p.payment_method}, Status: ${p.status}, Shift: ${p.shift_session_id || 'NONE'}, Collected_by: ${p.collected_by || 'NONE'}`);
+                    });
+                });
+                console.log('================================================');
 
                 let roomPrice = 0;
                 let extra = 0;
