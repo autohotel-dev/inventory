@@ -108,6 +108,8 @@ const adminLinks: readonly NavLink[] = [
   { href: "/analytics", label: "Analytics", icon: "chart", permissionId: "analytics", adminOnly: true },
   { href: "/export", label: "Exportar", icon: "download", permissionId: "export", adminOnly: true },
   { divider: true, adminOnly: true },
+  { href: "/auditoria", label: "Auditoría", icon: "activity", permissionId: "auditoria", adminOnly: true },
+  { divider: true, adminOnly: true },
   { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", permissionId: "purchases-sales", adminOnly: true },
   { href: "/purchases", label: "Compras", icon: "cart", permissionId: "purchases", adminOnly: true },
   { href: "/sales", label: "Ventas", icon: "cart", permissionId: "sales", adminOnly: true },

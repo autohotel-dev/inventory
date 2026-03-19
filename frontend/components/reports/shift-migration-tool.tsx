@@ -58,7 +58,6 @@ export function ShiftMigrationTool() {
             // 3. Obtener TODOS los pagos posteriores al inicio del turno
             // Fetch sales_order_id to link with rooms later
 
-            console.log('🔍 MIGRATION QUERY DEBUG: receptionSession.clock_in_at:', receptionSession.clock_in_at);
             
             const { data: allPayments, error: paymentsError } = await supabase
                 .from("payments")
@@ -80,10 +79,6 @@ export function ShiftMigrationTool() {
 
             if (paymentsError) throw paymentsError;
             
-            console.log('🔍 MIGRATION QUERY DEBUG: Pagos encontrados:', allPayments?.length || 0);
-            allPayments?.forEach((p: any, i: number) => {
-                console.log(`  - Pago ${i}: ID=${p.id?.slice(0, 8)}, Amount=${p.amount}, Created=${p.created_at}, Shift=${p.shift_session_id || 'NONE'}, Collected_by=${p.collected_by || 'NONE'}`);
-            });
 
             // 4. Obtener información de habitaciones via sales_order_id (Manual Join para evitar error de relación)
             // Extraer IDs de ordenes únicas
@@ -158,16 +153,6 @@ export function ShiftMigrationTool() {
                     return;
                 }
 
-                // Debug: Ver cada pago para entender por qué se considera para migración
-                console.log('🔍 MIGRATION DEBUG: Analizando pago', {
-                    id: p.id?.slice(0, 8),
-                    amount: p.amount,
-                    created_at: p.created_at,
-                    shift_session_id: p.shift_session_id || 'NONE',
-                    collected_by: p.collected_by || 'NONE',
-                    reception_session_id: receptionSession.id,
-                    reception_start: receptionSession.clock_in_at
-                });
 
                 // Si no está en el turno correcto, verificar si necesita migración
                 // SOLO considerar para migración si está en un turno de cochero que tiene collected_by
@@ -177,14 +162,6 @@ export function ShiftMigrationTool() {
                     // Importante: Solo migrar si tiene collected_by (es un pago de cochero)
                     p.collected_by;
 
-                console.log(`  - needsMigration: ${needsMigration}`);
-
-                if (needsMigration) {
-                    console.log(`  ✅ Agregando a migración: ${p.id?.slice(0, 8)}`);
-                    idsToMigrate.push(p.id);
-                } else {
-                    console.log(`  ❌ No necesita migración: ${p.id?.slice(0, 8)}`);
-                }
 
                 // Stats del origen - Priorizar collected_by para mostrar quién realmente cobró
                 const shiftId = p.shift_session_id || "sin_turno";

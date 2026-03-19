@@ -303,11 +303,6 @@ export function IncomeReport({
 
                 const payments = Array.from(contentUniqueMap.values());
 
-                // Debug logging para ver agrupación por turno (shift_session_id) para reporte de ingresos
-                console.log('=== DEBUG AGRUPACIÓN DE PAGOS POR TURNO ===');
-                console.log('Estancia ID:', stay.id);
-                console.log('Habitación:', stay.rooms?.number);
-                console.log('Pagos encontrados:', payments.length);
                 
                 // Agrupar pagos por shift_session_id (a qué turno pertenecen para el reporte)
                 const paymentsByShift = new Map();
@@ -319,22 +314,6 @@ export function IncomeReport({
                     paymentsByShift.get(shiftId).push(p);
                 });
                 
-                console.log('Pagos agrupados por turno (para reporte de ingresos):');
-                paymentsByShift.forEach((pays: any[], shiftId: string) => {
-                    let shiftLabel = shiftId;
-                    if (shiftId === 'SIN_TURNO') {
-                        shiftLabel = 'SIN_TURNO';
-                    } else {
-                        // Mostrar ID corto para identificar
-                        shiftLabel = `${shiftId.slice(0, 8)}...`;
-                    }
-                    console.log(`  - ${shiftLabel}: ${pays.length} pago(s) - Total: $${pays.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)}`);
-                    pays.forEach((p: any) => {
-                        console.log(`    * ID: ${p.id.slice(0, 8)}..., Monto: $${p.amount}, Método: ${p.payment_method}, Status: ${p.status}, Shift: ${p.shift_session_id || 'NONE'}, Collected_by: ${p.collected_by || 'NONE'}`);
-                    });
-                });
-                console.log('================================================');
-
                 let roomPrice = 0;
                 let extra = 0;
                 let consumption = 0;
