@@ -142,6 +142,10 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 }
             }
 
+            // NOTA: No sincronizar items aquí. El cochero solo reporta pagos (COBRADO_POR_VALET)
+            // La sincronización de items solo debe ocurrir cuando el recepcionista cambia a PAGADO
+            console.log('Cochero payment processed - items will sync when recepcionista corroborates');
+
             showFeedback('Entrada registrada', `Hab. ${roomNumber}: Lleva el dinero/vouchers a recepción.`);
             await onRefresh();
             return true;

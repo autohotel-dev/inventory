@@ -165,13 +165,25 @@ export function usePaymentProcessing({
         if (orderError) throw orderError;
       }
 
-      // 6. Limpiar datos de cobro del valet (checkout_payment_data) para que no reaparezcan
+      // 6. Sincronizar items de venta con los pagos reales
+      const { data: syncResult, error: syncError } = await supabase.rpc('sync_payment_items', {
+          p_sales_order_id: salesOrderId,
+          p_employee_id: employee.id
+      });
+
+      if (syncError) {
+          console.warn('Error syncing payment items:', syncError);
+      } else if (syncResult?.success) {
+          console.log('Payment items synced:', syncResult);
+      }
+
+      // 7. Limpiar datos de cobro del valet (checkout_payment_data) para que no reaparezcan
       await supabase
         .from("room_stays")
         .update({ checkout_payment_data: null })
         .eq("sales_order_id", salesOrderId);
 
-      // 7. Si la habitación estaba bloqueada (por hora extra o similar), devolver a OCUPADA
+      // 8. Si la habitación estaba bloqueada (por hora extra o similar), devolver a OCUPADA
       // Mejor obtenemos el room_id directamente de la estancia vinculada a la orden
       const { data: stayData } = await supabase
         .from("room_stays")

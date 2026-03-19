@@ -37,7 +37,7 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
           )
         `)
         .eq("sales_order_id", salesOrderId)
-        .eq("status", "COBRADO_POR_VALET")
+        .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"])
         .not("collected_by", "is", null);
 
       if (stayData || (paymentsData && paymentsData.length > 0)) {
@@ -145,6 +145,7 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
         const { error } = await supabase
           .from("payments")
           .update({ 
+            status: 'CORROBORADO_RECEPCION', // Status intermedio: recepcionista corroboró pero no ha procesado pago
             confirmed_at: new Date().toISOString(),
             confirmed_by: employeeId // From props
           })
@@ -158,6 +159,7 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
           const { error } = await supabase
             .from("payments")
             .update({ 
+                status: 'CORROBORADO_RECEPCION', // Status intermedio
                 confirmed_at: new Date().toISOString(),
                 confirmed_by: employeeId
             })

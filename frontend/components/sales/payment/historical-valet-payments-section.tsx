@@ -26,13 +26,16 @@ export function HistoricalValetPaymentsSection({
   onCorroborate,
   onApplyData,
 }: HistoricalValetPaymentsSectionProps) {
-  console.log("HistoricalValetPaymentsSection render:", { valetPayments, selectedItemsSize: selectedItems.size });
-  if (valetPayments.length === 0) return null;
+  if (valetPayments.length === 0) {
+    return null;
+  }
 
   const groupsMap = new Map<string, any>();
   valetPayments.forEach(p => {
-    // Strict guard: only group payments actually collected by a valet
-    if (!p.collected_by || p.status !== 'COBRADO_POR_VALET') return;
+    // Include payments collected by valet (both COBRADO_POR_VALET and CORROBORADO_RECEPCION)
+    if (!p.collected_by || !['COBRADO_POR_VALET', 'CORROBORADO_RECEPCION'].includes(p.status)) {
+      return;
+    }
 
     const empKey = p.collected_by;
     const timeWindow = 1000 * 60 * 10;
@@ -59,14 +62,10 @@ export function HistoricalValetPaymentsSection({
         .filter(Boolean)
     );
 
-    // If no selection, implement Smart Pending Filter:
-    // Only show the group if it relates to at least one item that is still UNPAID
+    // If no selection, show ALL valet payment groups for corroboration
+    // The recepcionist needs to see all valet-collected payments regardless of item status
     if (selectedConcepts.size === 0) {
-      return group.payments.some((p: any) => {
-        if (!p.concept) return true; // Safety: show if concept is unknown
-        const mappedSystemConcepts = VALET_TO_SYSTEM_MAP[p.concept] || [p.concept];
-        return items.some(item => !item.is_paid && mappedSystemConcepts.includes(item.concept_type));
-      });
+      return true; // Show all groups when no specific selection
     }
 
     // Normal filtering when there IS a selection
@@ -95,7 +94,7 @@ export function HistoricalValetPaymentsSection({
 
       <div className="space-y-2">
         {visibleGroups.map((group, groupIdx) => {
-          const allCorroborated = group.payments.every((p: any) => p.confirmed_at || corroboratedIds.has(p.id));
+          const allCorroborated = group.payments.every((p: any) => p.status === 'CORROBORADO_RECEPCION' || p.confirmed_at || corroboratedIds.has(p.id));
           const reportDate = new Date(group.collectedAt);
 
           return (
