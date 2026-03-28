@@ -1,21 +1,35 @@
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest } from "next/server";
-import createMiddleware from 'next-intl/middleware';
-import { locales, defaultLocale } from './i18n-config';
+import createMiddleware from "next-intl/middleware";
+import { locales, defaultLocale } from "./i18n-config";
 
 // Create the internationalization middleware
 const intlMiddleware = createMiddleware({
   locales,
   defaultLocale,
-  localePrefix: 'never' // Never add locale prefix to URLs
+  localePrefix: "never", // Never add locale prefix to URLs
 });
 
 export async function middleware(request: NextRequest) {
-  // First update session to handle auth
+  // First, handle Supabase session for all routes
   const response = await updateSession(request);
 
-  // Then handle i18n
-  return intlMiddleware(request);
+  // If the request was redirected by the Supabase middleware, return it early
+  if (response.headers.get("Location")) {
+    return response;
+  }
+
+  // Then run the internationalization middleware
+  const intlResponse = intlMiddleware(request);
+
+  // Merge Supabase cookies into the final internationalization response
+  // This ensures both intl cookies (like NEXT_LOCALE) and Supabase auth cookies are preserved.
+  const supabaseCookies = response.cookies.getAll();
+  supabaseCookies.forEach(({ name, value, ...options }) => {
+    intlResponse.cookies.set({ name, value, ...options });
+  });
+
+  return intlResponse;
 }
 
 export const config = {
