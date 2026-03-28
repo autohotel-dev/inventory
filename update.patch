@@ -1,0 +1,46 @@
+--- components/movements/inventory-movements-table.tsx
++++ components/movements/inventory-movements-table.tsx
+@@ -31,11 +31,34 @@
+   };
+ }
+
++interface ProductOption {
++  id: string;
++  name: string;
++  sku: string;
++}
++
++interface WarehouseOption {
++  id: string;
++  name: string;
++  code: string;
++}
++
++interface MovementReasonOption {
++  id: number;
++  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
++  name: string;
++  description?: string;
++}
++
++interface MovementFormData {
++  product_id: string;
++  warehouse_id: string;
++  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
++  quantity: number;
++  reason_id: string;
++  reason: string;
++  notes: string;
++}
++
+ export function InventoryMovementsTable() {
+-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
+-  const [products, setProducts] = useState<any[]>([]);
+-  const [warehouses, setWarehouses] = useState<any[]>([]);
+-  const [movementReasons, setMovementReasons] = useState<any[]>([]);
++  const [movements, setMovements] = useState<InventoryMovement[]>([]);
++  const [products, setProducts] = useState<ProductOption[]>([]);
++  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
++  const [movementReasons, setMovementReasons] = useState<MovementReasonOption[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [search, setSearch] = useState("");

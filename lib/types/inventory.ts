@@ -11,6 +11,7 @@ export interface SimpleProduct {
   min_stock: number;
   unit: string;
   barcode?: string;
+  supplier_id?: string;
   is_active: boolean;
   created_at: string;
   category?: {
