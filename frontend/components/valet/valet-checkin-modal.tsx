@@ -61,10 +61,8 @@ export function ValetCheckInModal({
         }
     }, [isOpen, room]);
 
-    if (!room) return null;
-
-    const baseAmount = room.room_types?.base_price ?? 0;
-    const extraPersonPrice = room.room_types?.extra_person_price ?? 0;
+    const baseAmount = room?.room_types?.base_price ?? 0;
+    const extraPersonPrice = room?.room_types?.extra_person_price ?? 0;
     const extraPeopleCount = Math.max(0, personCount - 2);
     const totalAmount = baseAmount + (extraPeopleCount * extraPersonPrice);
 
@@ -73,7 +71,9 @@ export function ValetCheckInModal({
         if (payments.length === 1) {
             setPayments(prev => [{ ...prev[0], amount: totalAmount }]);
         }
-    }, [totalAmount]);
+    }, [payments.length, totalAmount]);
+
+    if (!room) return null;
 
     const handleSubmit = async () => {
         // Validaciones

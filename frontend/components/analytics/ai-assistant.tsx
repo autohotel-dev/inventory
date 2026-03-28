@@ -928,7 +928,7 @@ Basado en los datos actuales del sistema, puedo ofrecerte análisis personalizad
         </Card>
       </div>
 
-// ...
+{/* ... */}
       {/* Acciones Rápidas */}
       <Card className="border-0 bg-gradient-to-br from-muted/30 to-transparent">
         <CardHeader className="flex flex-row items-center justify-between">

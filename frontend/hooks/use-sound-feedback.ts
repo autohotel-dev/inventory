@@ -8,7 +8,7 @@ export function useSoundFeedback() {
 
     const getAudioContext = useCallback(() => {
         if (!audioContextRef.current) {
-            // @ts-ignore - Soporte para prefijo webkit
+            // @ts-expect-error - Soporte para prefijo webkit
             audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         }
         return audioContextRef.current;

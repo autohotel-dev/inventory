@@ -59,7 +59,14 @@ export function useUserRole(): UserRoleData {
       setUserEmail(user.email || null);
 
       // PRIORIDAD 1: Buscar empleado vinculado por auth_user_id (más seguro)
-      let { data: employee, error: employeeError } = await supabase
+      let { data: employee } = await supabase
+        .from("employees")
+        .select("id, first_name, last_name, role, auth_user_id")
+        .eq("auth_user_id", user.id)
+        .eq("is_active", true)
+        .single();
+
+      const { error: employeeError } = await supabase
         .from("employees")
         .select("id, first_name, last_name, role, auth_user_id")
         .eq("auth_user_id", user.id)
