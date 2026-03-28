@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js"; // Usar cliente directo para Service Role
 
-// Cliente Admin para bypass RLS
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // Tipos básicos para el payload de Tuya (simplificado)
 // Tuya envía un JSON firmado. Para este MVP confiamos en recibir un JSON con deviceId y status.
 // En producción, se debe validar la firma (signature).
@@ -14,9 +8,13 @@ const supabase = createClient(
 // Tuya sends a signed JSON.
 
 export async function POST(req: NextRequest) {
-    // const supabase = createClient(); // Ya instanciado arriba con service role
-
     try {
+        // Cliente Admin para bypass RLS
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
         const body = await req.json();
         console.log("Webhook received:", JSON.stringify(body));
 
