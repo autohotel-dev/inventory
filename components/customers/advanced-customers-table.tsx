@@ -42,6 +42,14 @@ interface Customer {
   customer_email?: string;
 }
 
+interface CustomerStatistics {
+  customer_id: string;
+  total_orders: number;
+  total_spent: number | string;
+  last_order_date: string | null;
+  customer_type: string;
+}
+
 export function AdvancedCustomersTable() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +88,7 @@ export function AdvancedCustomersTable() {
 
         // Combinar datos
         const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
-          const stats = statsData?.find((s: any) => s.customer_id === customer.id);
+          const stats = statsData?.find((s: CustomerStatistics) => s.customer_id === customer.id);
 
           return {
             ...customer,
