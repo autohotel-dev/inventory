@@ -491,7 +491,7 @@ function MovementForm({
   onSave: (data: any) => void;
   onCancel: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<MovementFormData>({
     product_id: "",
     warehouse_id: "",
     movement_type: "IN" as 'IN' | 'OUT' | 'ADJUSTMENT',
