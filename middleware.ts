@@ -1,20 +1,35 @@
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest } from "next/server";
-// Temporarily disabled next-intl imports
-// import createMiddleware from 'next-intl/middleware';
-// import { locales } from './i18n-config';
+import createMiddleware from "next-intl/middleware";
+import { locales, defaultLocale } from "./i18n-config";
 
 // Create the internationalization middleware
-// const intlMiddleware = createMiddleware({
-//   locales,
-//   defaultLocale: 'es',
-//   localePrefix: 'never' // Never add locale prefix to URLs
-// });
+const intlMiddleware = createMiddleware({
+  locales,
+  defaultLocale,
+  localePrefix: "never", // Never add locale prefix to URLs
+});
 
 export async function middleware(request: NextRequest) {
-  // For now, just handle Supabase session for all routes
-  // TODO: Re-enable i18n when configuration is fixed
-  return await updateSession(request);
+  // First, handle Supabase session for all routes
+  const response = await updateSession(request);
+
+  // If the request was redirected by the Supabase middleware, return it early
+  if (response.headers.get("Location")) {
+    return response;
+  }
+
+  // Then run the internationalization middleware
+  const intlResponse = intlMiddleware(request);
+
+  // Merge Supabase cookies into the final internationalization response
+  // This ensures both intl cookies (like NEXT_LOCALE) and Supabase auth cookies are preserved.
+  const supabaseCookies = response.cookies.getAll();
+  supabaseCookies.forEach(({ name, value, ...options }) => {
+    intlResponse.cookies.set({ name, value, ...options });
+  });
+
+  return intlResponse;
 }
 
 export const config = {
