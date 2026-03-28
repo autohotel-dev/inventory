@@ -44,10 +44,10 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     }, [progress]);
 
     const startModule = useCallback((moduleId: string, mode: TrainingMode) => {
-        const module = getModuleById(moduleId);
-        if (!module) return;
+        const mod = getModuleById(moduleId);
+        if (!mod) return;
 
-        setActiveModule(module);
+        setActiveModule(mod);
         setCurrentMode(mode);
         setCurrentStepIndex(0);
 

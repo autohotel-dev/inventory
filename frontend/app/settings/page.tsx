@@ -930,7 +930,7 @@ export default function SettingsPage() {
                                                 <li>Turnos abiertos (Shift Sessions)</li>
                                             </ul>
                                             <p className="text-xs font-bold text-red-600 dark:text-red-500 mt-2">
-                                                ESTA ACCIÓN NO SE PUEDE DESHACER. TODAS LAS HABITACIONES VOLVERÁN A ESTADO 'LIBRE'.
+                                                ESTA ACCIÓN NO SE PUEDE DESHACER. TODAS LAS HABITACIONES VOLVERÁN A ESTADO &apos;LIBRE&apos;.
                                             </p>
                                         </div>
 

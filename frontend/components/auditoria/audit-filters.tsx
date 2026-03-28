@@ -244,7 +244,7 @@ export function AuditFilters({ onFiltersChange, initialFilters }: AuditFiltersPr
               )}
               {filters.searchQuery && (
                 <div className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">
-                  "{filters.searchQuery}"
+                  &quot;{filters.searchQuery}&quot;
                 </div>
               )}
             </div>
