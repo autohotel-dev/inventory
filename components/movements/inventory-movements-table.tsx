@@ -31,11 +31,41 @@ interface InventoryMovement {
   };
 }
 
+
+export interface ProductOption {
+  id: string;
+  name: string;
+  sku: string;
+}
+
+export interface WarehouseOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface MovementReasonOption {
+  id: number;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  name: string;
+  description?: string;
+}
+
+export interface MovementFormData {
+  product_id: string;
+  warehouse_id: string;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  reason_id: string;
+  reason: string;
+  notes: string;
+}
+
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [movementReasons, setMovementReasons] = useState<any[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+  const [movementReasons, setMovementReasons] = useState<MovementReasonOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -111,14 +141,14 @@ export function InventoryMovementsTable() {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (movementData: any) => {
+  const handleSave = async (movementData: MovementFormData) => {
     const supabase = createClient();
     try {
       // Preparar datos del movimiento
       const movementToSave = {
         ...movementData,
         reason_id: parseInt(movementData.reason_id),
-        quantity: parseInt(movementData.quantity)
+        quantity: movementData.quantity
       };
 
       // Crear movimiento
@@ -455,13 +485,13 @@ function MovementForm({
   onSave, 
   onCancel 
 }: { 
-  products: any[];
-  warehouses: any[];
-  movementReasons: any[];
-  onSave: (data: any) => void;
+  products: ProductOption[];
+  warehouses: WarehouseOption[];
+  movementReasons: MovementReasonOption[];
+  onSave: (data: MovementFormData) => void;
   onCancel: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<MovementFormData>({
     product_id: "",
     warehouse_id: "",
     movement_type: "IN" as 'IN' | 'OUT' | 'ADJUSTMENT',
