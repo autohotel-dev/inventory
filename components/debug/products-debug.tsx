@@ -5,8 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
+
+interface Product {
+  name?: string;
+  sku?: string;
+  is_active?: boolean;
+  [key: string]: unknown;
+}
+
 export function ProductsDebug() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,9 +46,9 @@ export function ProductsDebug() {
       
       console.log('Active products:', activeProducts);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err) ? String(err.message) : String(err));
     } finally {
       setLoading(false);
     }
