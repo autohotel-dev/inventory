@@ -1,31 +1,33 @@
 const fs = require('fs');
-
-const file = 'components/products/simple-products-table.tsx';
+const file = 'components/customers/advanced-customers-table.tsx';
 let content = fs.readFileSync(file, 'utf8');
 
-const targetStr = `      // Combinar datos y calcular información
-      const enrichedProducts = (productsData || []).map(product => {
-        // Calcular stock por almacén
-        const productStock = stockData?.filter(s => s.product_id === product.id) || [];
-        const totalStock = productStock.reduce((sum, s) => sum + (s.qty || 0), 0);`;
+const interfaceDef = `interface Customer {
+  id: string;
+  name: string;
+  tax_id?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  is_active: boolean;
+  created_at: string;
+  // Estadísticas calculadas
+  total_orders?: number;
+  total_spent?: number;
+  last_order?: string | null;
+  customer_type?: 'new' | 'regular' | 'vip';
+  // Campos adicionales de la vista
+  customer_name?: string;
+  customer_email?: string;
+}
 
-const replacementStr = `      // Pre-calcular stock por producto para evitar O(N^2)
-      const stockByProductId = new Map<string, any[]>();
-      if (stockData) {
-        for (const stock of stockData) {
-          if (!stockByProductId.has(stock.product_id)) {
-            stockByProductId.set(stock.product_id, []);
-          }
-          stockByProductId.get(stock.product_id)!.push(stock);
-        }
-      }
+interface CustomerStatistics {
+  customer_id: string;
+  total_orders: number;
+  total_spent: number | string;
+  last_order_date: string | null;
+  customer_type: string;
+}`;
 
-      // Combinar datos y calcular información
-      const enrichedProducts = (productsData || []).map(product => {
-        // Calcular stock por almacén usando el mapa O(1)
-        const productStock = stockByProductId.get(product.id) || [];
-        const totalStock = productStock.reduce((sum, s) => sum + (s.qty || 0), 0);`;
-
-content = content.replace(targetStr, replacementStr);
+content = content.replace(/interface Customer \{[\s\S]*?customer_email\?: string;\n\}/, interfaceDef);
 fs.writeFileSync(file, content);
-console.log('Patched', file);
