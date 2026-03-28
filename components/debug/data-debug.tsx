@@ -4,14 +4,28 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
+
+interface TableResult {
+  data: unknown[] | null;
+  error: unknown | null;
+  count: number;
+}
+
+interface DebugInfo {
+  products?: TableResult;
+  categories?: TableResult;
+  suppliers?: TableResult;
+  error?: unknown;
+}
+
 export function DataDebug() {
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const checkTables = async () => {
     setIsLoading(true);
     const supabase = createClient();
-    const results: any = {};
+    const results: DebugInfo = {};
 
     try {
       // Verificar tabla products
