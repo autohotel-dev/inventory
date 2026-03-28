@@ -79,8 +79,9 @@ export function AdvancedCustomersTable() {
         if (statsError) throw statsError;
 
         // Combinar datos
+        const statsMap = new Map<string, any>((statsData || []).map((s: any) => [s.customer_id, s]));
         const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
-          const stats = statsData?.find((s: any) => s.customer_id === customer.id);
+          const stats = statsMap.get(customer.id);
 
           return {
             ...customer,
