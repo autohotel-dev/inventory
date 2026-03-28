@@ -14,23 +14,31 @@ import { AuthListener } from "@/components/auth/auth-listener";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
-  // Vercel automáticamente provee VERCEL_URL en producción
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
+  try {
+    if (process.env.VERCEL_URL && process.env.VERCEL_URL !== 'undefined') {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    if (process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL !== 'undefined') {
+      const url = process.env.NEXT_PUBLIC_SITE_URL;
+      return url.startsWith('http') ? url : `https://${url}`;
+    }
+  } catch (e) {
+    console.error("Error parsing base URL", e);
   }
-  // Variable de entorno personalizada
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    const url = process.env.NEXT_PUBLIC_SITE_URL;
-    return url.startsWith('http') ? url : `https://${url}`;
-  }
-  // Fallback para desarrollo local
   return 'http://localhost:3000';
 };
-
 const defaultUrl = getBaseUrl();
 
+let metadataBaseUrl: URL | undefined;
+try {
+  metadataBaseUrl = new URL(defaultUrl);
+} catch (e) {
+  console.warn("Could not create metadataBase URL, falling back to localhost", e);
+  metadataBaseUrl = new URL('http://localhost:3000');
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(defaultUrl),
+  metadataBase: metadataBaseUrl,
   title: "AHLM",
   description: "Sistema completo de gestión para Auto Hotel Luxor - Inventario, Ventas y Turnos",
   keywords: ["hotel", "autohotel", "luxor", "gestión", "pms", "inventario", "turnos"],
