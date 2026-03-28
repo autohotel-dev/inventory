@@ -23,7 +23,18 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+
+export type CustomerFormData = {
+  name: string;
+  tax_id?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  is_active: boolean;
+};
+
 interface Customer {
+
   id: string;
   name: string;
   tax_id?: string;
