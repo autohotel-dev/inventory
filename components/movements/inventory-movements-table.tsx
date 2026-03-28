@@ -8,6 +8,26 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, X, Calendar } from "lucide-react";
 
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  unit?: string;
+}
+
+export interface Warehouse {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface MovementReason {
+  id: number;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  name: string;
+  description: string;
+}
+
 interface InventoryMovement {
   id: string;
   product_id: string;
@@ -43,9 +63,9 @@ export interface MovementFormData {
 
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [movementReasons, setMovementReasons] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [movementReasons, setMovementReasons] = useState<MovementReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -465,10 +485,10 @@ function MovementForm({
   onSave, 
   onCancel 
 }: { 
-  products: any[];
-  warehouses: any[];
-  movementReasons: any[];
-  onSave: (data: MovementFormData) => void;
+  products: Product[];
+  warehouses: Warehouse[];
+  movementReasons: MovementReason[];
+  onSave: (data: any) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
