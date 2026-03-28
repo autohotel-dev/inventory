@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Package, DollarSign, AlertTriangle, X, Scan } from "lucide-react";
-import type { SimpleProduct } from "@/lib/types/inventory";
+import type { SimpleProduct, Category, Supplier } from "@/lib/types/inventory";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 
 interface ProductFormData {
@@ -26,8 +26,8 @@ interface ProductFormData {
 
 export function SimpleProductsTable() {
   const [products, setProducts] = useState<SimpleProduct[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -72,7 +72,7 @@ export function SimpleProductsTable() {
         .order("name");
 
       if (!categoriesError && categoriesData) {
-        setCategories(categoriesData);
+        setCategories(categoriesData as Category[]);
       }
 
       // Obtener proveedores para el formulario
@@ -83,7 +83,7 @@ export function SimpleProductsTable() {
         .order("name");
 
       if (!suppliersError && suppliersData) {
-        setSuppliers(suppliersData);
+        setSuppliers(suppliersData as Supplier[]);
       }
 
       // Combinar datos y calcular información
@@ -624,7 +624,7 @@ function ProductForm({
     unit: product?.unit || "EA",
     barcode: product?.barcode || "",
     category_id: product?.category?.id || "",
-    supplier_id: (product as any)?.supplier_id || "",
+    supplier_id: product?.supplier_id || "",
     is_active: product?.is_active ?? true,
   });
 
