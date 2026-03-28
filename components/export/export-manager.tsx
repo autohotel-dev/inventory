@@ -47,7 +47,7 @@ export function ExportManager() {
     setLoading(options.dataType);
     
     try {
-      let data: any[] = [];
+      let data: Record<string, string | number>[] = [];
       let filename = '';
       
       switch (options.dataType) {
@@ -220,7 +220,7 @@ export function ExportManager() {
     }
   };
 
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: Record<string, string | number>[], filename: string) => {
     if (data.length === 0) return;
     
     const headers = Object.keys(data[0]);
@@ -245,7 +245,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadExcel = (data: any[], filename: string) => {
+  const downloadExcel = (data: Record<string, string | number>[], filename: string) => {
     // Simulación de Excel usando CSV con formato mejorado
     if (data.length === 0) return;
     
@@ -264,7 +264,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadPDF = (data: any[], filename: string, dataType: string) => {
+  const downloadPDF = (data: Record<string, string | number>[], filename: string, dataType: string) => {
     // Crear contenido HTML para PDF
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
     const title = {
