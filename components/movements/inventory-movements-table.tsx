@@ -31,6 +31,16 @@ interface InventoryMovement {
   };
 }
 
+export interface MovementFormData {
+  product_id: string;
+  warehouse_id: string;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  reason_id: string;
+  reason: string;
+  notes: string;
+}
+
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -111,14 +121,14 @@ export function InventoryMovementsTable() {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (movementData: any) => {
+  const handleSave = async (movementData: MovementFormData) => {
     const supabase = createClient();
     try {
       // Preparar datos del movimiento
       const movementToSave = {
         ...movementData,
         reason_id: parseInt(movementData.reason_id),
-        quantity: parseInt(movementData.quantity)
+        quantity: Number(movementData.quantity)
       };
 
       // Crear movimiento
@@ -458,7 +468,7 @@ function MovementForm({
   products: any[];
   warehouses: any[];
   movementReasons: any[];
-  onSave: (data: any) => void;
+  onSave: (data: MovementFormData) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
