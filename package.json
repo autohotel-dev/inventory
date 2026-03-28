@@ -7,7 +7,8 @@
     "lint": "next lint",
     "pre-build": "node scripts/pre-build-check.js",
     "build:production": "npm run pre-build && npm run build",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -45,8 +46,8 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.2",
-    "@vitest/ui": "^4.1.2",
     "autoprefixer": "^10.4.20",
+    "baseline-browser-mapping": "^2.10.11",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
     "jsdom": "^29.0.1",
