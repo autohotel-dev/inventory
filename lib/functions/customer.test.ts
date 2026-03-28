@@ -1,84 +1,66 @@
-import { getCustomerSales } from "./customer";
-import { createClient } from "@/lib/supabase/client";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { getCustomers } from './customer';
+import { createClient } from '@/lib/supabase/client';
 
-// Mock the createClient module
-jest.mock("@/lib/supabase/client", () => ({
-  createClient: jest.fn(),
+// Mock the Supabase client
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: vi.fn(),
 }));
 
-describe("getCustomerSales", () => {
+describe('getCustomers', () => {
   let mockSupabase: any;
 
   beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
-    // Create a chainable mock object to simulate Supabase API
     mockSupabase = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn(),
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn(),
     };
 
-    // Make createClient return our mock object
-    (createClient as jest.Mock).mockReturnValue(mockSupabase);
+    (createClient as any).mockReturnValue(mockSupabase);
   });
 
-  it("should return customer sales data when successful", async () => {
-    // Arrange
-    const customerId = "cust-123";
-    const mockSalesData = [
-      { id: "sale-1", customer_id: customerId, total_amount: 100 },
-      { id: "sale-2", customer_id: customerId, total_amount: 200 },
+  it('should return an array of customers when the fetch is successful', async () => {
+    const mockCustomers = [
+      { id: '1', name: 'Customer A' },
+      { id: '2', name: 'Customer B' },
     ];
 
-    // Setup the mock chain to return successful data
-    mockSupabase.eq.mockResolvedValueOnce({
-      data: mockSalesData,
+    mockSupabase.select.mockResolvedValueOnce({
+      data: mockCustomers,
       error: null,
     });
 
-    // Act
-    const result = await getCustomerSales(customerId);
+    const result = await getCustomers();
 
-    // Assert
     expect(createClient).toHaveBeenCalledTimes(1);
-    expect(mockSupabase.from).toHaveBeenCalledWith("sales_orders");
-    expect(mockSupabase.select).toHaveBeenCalledWith("*");
-    expect(mockSupabase.eq).toHaveBeenCalledWith("customer_id", customerId);
-    expect(result).toEqual(mockSalesData);
+    expect(mockSupabase.from).toHaveBeenCalledWith('customers');
+    expect(mockSupabase.select).toHaveBeenCalledWith('*');
+    expect(result).toEqual(mockCustomers);
   });
 
-  it("should return an empty array and log error when supabase returns an error", async () => {
-    // Arrange
-    const customerId = "cust-error-456";
-    const mockError = new Error("Database error");
+  it('should return an empty array and log an error when the fetch fails', async () => {
+    const mockError = new Error('Database error');
 
-    // Spy on console.error and console.log to prevent test output clutter and verify they are called
-    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-    const consoleLogSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    // Mock console.error and console.log to keep test output clean
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    // Setup the mock chain to return an error
-    mockSupabase.eq.mockResolvedValueOnce({
+    mockSupabase.select.mockResolvedValueOnce({
       data: null,
       error: mockError,
     });
 
-    // Act
-    const result = await getCustomerSales(customerId);
+    const result = await getCustomers();
 
-    // Assert
     expect(createClient).toHaveBeenCalledTimes(1);
-    expect(mockSupabase.from).toHaveBeenCalledWith("sales_orders");
-    expect(mockSupabase.select).toHaveBeenCalledWith("*");
-    expect(mockSupabase.eq).toHaveBeenCalledWith("customer_id", customerId);
-
-    // Verify error handling
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error fetching customer sales:", mockError);
-    expect(consoleLogSpy).toHaveBeenCalledWith(mockError);
+    expect(mockSupabase.from).toHaveBeenCalledWith('customers');
+    expect(mockSupabase.select).toHaveBeenCalledWith('*');
     expect(result).toEqual([]);
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching customers:', mockError);
+    expect(consoleLogSpy).toHaveBeenCalledWith(mockError);
 
-    // Cleanup
     consoleErrorSpy.mockRestore();
     consoleLogSpy.mockRestore();
   });
