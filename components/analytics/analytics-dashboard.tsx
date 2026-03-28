@@ -237,19 +237,35 @@ export function AnalyticsDashboard() {
 
     // Tendencias de movimientos (últimos 7 días)
     const movementTrends = [];
+    const statsByDate = new Map();
+    const orderedDates = [];
+
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
       const dateStr = date.toISOString().split('T')[0];
+      orderedDates.push(dateStr);
+      statsByDate.set(dateStr, { in_movements: 0, out_movements: 0, adjustments: 0 });
+    }
+
+    for (let i = 0; i < movements.length; i++) {
+      const m = movements[i];
+      if (!m.created_at) continue;
       
-      const dayMovements = movements.filter(m => 
-        m.created_at.startsWith(dateStr)
-      );
+      const dateStr = m.created_at.substring(0, 10);
+      const stats = statsByDate.get(dateStr);
       
+      if (stats) {
+        if (m.movement_type === 'IN') stats.in_movements++;
+        else if (m.movement_type === 'OUT') stats.out_movements++;
+        else if (m.movement_type === 'ADJUSTMENT') stats.adjustments++;
+      }
+    }
+
+    for (let i = 0; i < orderedDates.length; i++) {
+      const dateStr = orderedDates[i];
       movementTrends.push({
         date: dateStr,
-        in_movements: dayMovements.filter(m => m.movement_type === 'IN').length,
-        out_movements: dayMovements.filter(m => m.movement_type === 'OUT').length,
-        adjustments: dayMovements.filter(m => m.movement_type === 'ADJUSTMENT').length
+        ...statsByDate.get(dateStr)
       });
     }
 
