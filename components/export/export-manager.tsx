@@ -47,7 +47,7 @@ export function ExportManager() {
     setLoading(options.dataType);
     
     try {
-      let data: any[] = [];
+      let data: Record<string, unknown>[] = [];
       let filename = '';
       
       switch (options.dataType) {
@@ -220,7 +220,7 @@ export function ExportManager() {
     }
   };
 
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: Record<string, unknown>[], filename: string) => {
     if (data.length === 0) return;
     
     const headers = Object.keys(data[0]);
@@ -245,7 +245,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadExcel = (data: any[], filename: string) => {
+  const downloadExcel = (data: Record<string, unknown>[], filename: string) => {
     // Simulación de Excel usando CSV con formato mejorado
     if (data.length === 0) return;
     
@@ -253,7 +253,7 @@ export function ExportManager() {
     const csvContent = [
       headers.join('\t'), // Usar tabs para mejor compatibilidad con Excel
       ...data.map(row => 
-        headers.map(header => row[header]).join('\t')
+        headers.map(header => String(row[header] ?? '')).join('\t')
       )
     ].join('\n');
     
@@ -264,7 +264,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadPDF = (data: any[], filename: string, dataType: string) => {
+  const downloadPDF = (data: Record<string, unknown>[], filename: string, dataType: string) => {
     // Crear contenido HTML para PDF
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
     const title = {
@@ -306,7 +306,7 @@ export function ExportManager() {
           <tbody>
             ${data.map(row => `
               <tr>
-                ${headers.map(header => `<td>${row[header] || ''}</td>`).join('')}
+                ${headers.map(header => `<td>${String(row[header] ?? '')}</td>`).join('')}
               </tr>
             `).join('')}
           </tbody>
