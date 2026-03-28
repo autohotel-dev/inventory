@@ -34,6 +34,8 @@ interface ExportOptions {
   };
 }
 
+type ExportDataRow = Record<string, string | number | boolean | null | undefined>;
+
 export function ExportManager() {
   const [loading, setLoading] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<ExportOptions>({
@@ -47,7 +49,7 @@ export function ExportManager() {
     setLoading(options.dataType);
     
     try {
-      let data: Record<string, string | number>[] = [];
+      let data: ExportDataRow[] = [];
       let filename = '';
       
       switch (options.dataType) {
@@ -61,8 +63,8 @@ export function ExportManager() {
             `);
           
           data = (productsData || []).map(product => {
-            const totalStock = product.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const stockByWarehouse = product.stock?.map((s: any) => 
+            const totalStock = product.stock?.reduce((sum: number, s: { qty?: number }) => sum + (s.qty || 0), 0) || 0;
+            const stockByWarehouse = product.stock?.map((s: { qty?: number, warehouse?: { name?: string } }) =>
               `${s.warehouse?.name || 'N/A'}: ${s.qty || 0}`
             ).join('; ') || 'Sin stock';
             
@@ -123,8 +125,8 @@ export function ExportManager() {
           
           data = (warehousesData || []).map(warehouse => {
             const totalProducts = warehouse.stock?.length || 0;
-            const totalStock = warehouse.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const totalValue = warehouse.stock?.reduce((sum: number, s: any) => 
+            const totalStock = warehouse.stock?.reduce((sum: number, s: { qty?: number }) => sum + (s.qty || 0), 0) || 0;
+            const totalValue = warehouse.stock?.reduce((sum: number, s: { qty?: number, product?: { price?: number } }) =>
               sum + ((s.qty || 0) * (s.product?.price || 0)), 0
             ) || 0;
             
@@ -176,7 +178,7 @@ export function ExportManager() {
           
           const totalProducts = analyticsProducts?.length || 0;
           const totalValue = analyticsProducts?.reduce((sum, p) => {
-            const stock = p.stock?.reduce((s: number, st: any) => s + (st.qty || 0), 0) || 0;
+            const stock = p.stock?.reduce((s: number, st: { qty?: number }) => s + (st.qty || 0), 0) || 0;
             return sum + (stock * p.price);
           }, 0) || 0;
           
@@ -220,7 +222,7 @@ export function ExportManager() {
     }
   };
 
-  const downloadCSV = (data: Record<string, string | number>[], filename: string) => {
+  const downloadCSV = (data: ExportDataRow[], filename: string) => {
     if (data.length === 0) return;
     
     const headers = Object.keys(data[0]);
@@ -245,7 +247,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadExcel = (data: Record<string, string | number>[], filename: string) => {
+  const downloadExcel = (data: ExportDataRow[], filename: string) => {
     // Simulación de Excel usando CSV con formato mejorado
     if (data.length === 0) return;
     
@@ -253,7 +255,7 @@ export function ExportManager() {
     const csvContent = [
       headers.join('\t'), // Usar tabs para mejor compatibilidad con Excel
       ...data.map(row => 
-        headers.map(header => row[header]).join('\t')
+        headers.map(header => String(row[header] ?? '')).join('\t')
       )
     ].join('\n');
     
@@ -264,7 +266,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadPDF = (data: Record<string, string | number>[], filename: string, dataType: string) => {
+  const downloadPDF = (data: ExportDataRow[], filename: string, dataType: string) => {
     // Crear contenido HTML para PDF
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
     const title = {
@@ -306,7 +308,7 @@ export function ExportManager() {
           <tbody>
             ${data.map(row => `
               <tr>
-                ${headers.map(header => `<td>${row[header] || ''}</td>`).join('')}
+                ${headers.map(header => `<td>${String(row[header] ?? '')}</td>`).join('')}
               </tr>
             `).join('')}
           </tbody>
