@@ -255,7 +255,7 @@ export function ExportManager() {
     const csvContent = [
       headers.join('\t'), // Usar tabs para mejor compatibilidad con Excel
       ...data.map(row => 
-        headers.map(header => row[header]).join('\t')
+        headers.map(header => String(row[header] ?? '')).join('\t')
       )
     ].join('\n');
     
@@ -308,7 +308,7 @@ export function ExportManager() {
           <tbody>
             ${data.map(row => `
               <tr>
-                ${headers.map(header => `<td>${row[header] || ''}</td>`).join('')}
+                ${headers.map(header => `<td>${String(row[header] ?? '')}</td>`).join('')}
               </tr>
             `).join('')}
           </tbody>
