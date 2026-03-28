@@ -47,7 +47,7 @@ export function ExportManager() {
     setLoading(options.dataType);
     
     try {
-      let data: any[] = [];
+      let data: Record<string, unknown>[] = [];
       let filename = '';
       
       switch (options.dataType) {
@@ -61,8 +61,8 @@ export function ExportManager() {
             `);
           
           data = (productsData || []).map(product => {
-            const totalStock = product.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const stockByWarehouse = product.stock?.map((s: any) => 
+            const totalStock = product.stock?.reduce((sum: number, s: { qty: number }) => sum + (s.qty || 0), 0) || 0;
+            const stockByWarehouse = product.stock?.map((s: { qty: number; warehouse?: { name: string } }) =>
               `${s.warehouse?.name || 'N/A'}: ${s.qty || 0}`
             ).join('; ') || 'Sin stock';
             
@@ -123,8 +123,8 @@ export function ExportManager() {
           
           data = (warehousesData || []).map(warehouse => {
             const totalProducts = warehouse.stock?.length || 0;
-            const totalStock = warehouse.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const totalValue = warehouse.stock?.reduce((sum: number, s: any) => 
+            const totalStock = warehouse.stock?.reduce((sum: number, s: { qty: number }) => sum + (s.qty || 0), 0) || 0;
+            const totalValue = warehouse.stock?.reduce((sum: number, s: { qty: number; product?: { price: number } }) =>
               sum + ((s.qty || 0) * (s.product?.price || 0)), 0
             ) || 0;
             
@@ -176,7 +176,7 @@ export function ExportManager() {
           
           const totalProducts = analyticsProducts?.length || 0;
           const totalValue = analyticsProducts?.reduce((sum, p) => {
-            const stock = p.stock?.reduce((s: number, st: any) => s + (st.qty || 0), 0) || 0;
+            const stock = p.stock?.reduce((s: number, st: { qty: number }) => s + (st.qty || 0), 0) || 0;
             return sum + (stock * p.price);
           }, 0) || 0;
           
@@ -220,7 +220,7 @@ export function ExportManager() {
     }
   };
 
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: Record<string, unknown>[], filename: string) => {
     if (data.length === 0) return;
     
     const headers = Object.keys(data[0]);
@@ -245,7 +245,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadExcel = (data: any[], filename: string) => {
+  const downloadExcel = (data: Record<string, unknown>[], filename: string) => {
     // Simulación de Excel usando CSV con formato mejorado
     if (data.length === 0) return;
     
@@ -264,7 +264,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadPDF = (data: any[], filename: string, dataType: string) => {
+  const downloadPDF = (data: Record<string, unknown>[], filename: string, dataType: string) => {
     // Crear contenido HTML para PDF
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
     const title = {
