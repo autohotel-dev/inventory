@@ -7,13 +7,27 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Package, DollarSign, AlertTriangle, X, Scan } from "lucide-react";
-import type { SimpleProduct } from "@/lib/types/inventory";
+import type { SimpleProduct, Category, Supplier } from "@/lib/types/inventory";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+
+interface ProductFormData {
+  name: string;
+  description: string;
+  sku: string;
+  price: number;
+  cost: number;
+  min_stock: number;
+  unit: string;
+  barcode: string;
+  category_id: string;
+  supplier_id: string;
+  is_active: boolean;
+}
 
 export function SimpleProductsTable() {
   const [products, setProducts] = useState<SimpleProduct[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -58,7 +72,7 @@ export function SimpleProductsTable() {
         .order("name");
 
       if (!categoriesError && categoriesData) {
-        setCategories(categoriesData);
+        setCategories(categoriesData as Category[]);
       }
 
       // Obtener proveedores para el formulario
@@ -69,13 +83,24 @@ export function SimpleProductsTable() {
         .order("name");
 
       if (!suppliersError && suppliersData) {
-        setSuppliers(suppliersData);
+        setSuppliers(suppliersData as Supplier[]);
+      }
+
+      // Pre-calcular stock por producto para evitar O(N^2)
+      const stockByProductId = new Map<string, any[]>();
+      if (stockData) {
+        for (const stock of stockData) {
+          if (!stockByProductId.has(stock.product_id)) {
+            stockByProductId.set(stock.product_id, []);
+          }
+          stockByProductId.get(stock.product_id)!.push(stock);
+        }
       }
 
       // Combinar datos y calcular información
       const enrichedProducts = (productsData || []).map(product => {
-        // Calcular stock por almacén
-        const productStock = stockData?.filter(s => s.product_id === product.id) || [];
+        // Calcular stock por almacén usando el mapa O(1)
+        const productStock = stockByProductId.get(product.id) || [];
         const totalStock = productStock.reduce((sum, s) => sum + (s.qty || 0), 0);
         
         // Calcular información financiera
@@ -136,7 +161,7 @@ export function SimpleProductsTable() {
     }
   };
 
-  const handleSave = async (productData: any) => {
+  const handleSave = async (productData: ProductFormData) => {
     const supabase = createClient();
     try {
       if (editingProduct) {
@@ -354,7 +379,7 @@ export function SimpleProductsTable() {
             <span className="text-sm text-muted-foreground">Filtros activos:</span>
             {search && (
               <Badge variant="secondary" className="text-xs">
-                Búsqueda: "{search}"
+                Búsqueda: &quot;{search}&quot;
                 <button 
                   onClick={() => setSearch("")}
                   className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
@@ -597,10 +622,10 @@ function ProductForm({
   product: SimpleProduct | null;
   categories: any[];
   suppliers: any[];
-  onSave: (data: any) => void;
+  onSave: (data: ProductFormData) => void;
   onCancel: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductFormData>({
     name: product?.name || "",
     description: product?.description || "",
     sku: product?.sku || product?.barcode || "",
@@ -610,7 +635,7 @@ function ProductForm({
     unit: product?.unit || "EA",
     barcode: product?.barcode || "",
     category_id: product?.category?.id || "",
-    supplier_id: (product as any)?.supplier_id || "",
+    supplier_id: product?.supplier_id || "",
     is_active: product?.is_active ?? true,
   });
 
