@@ -72,10 +72,21 @@ export function SimpleProductsTable() {
         setSuppliers(suppliersData);
       }
 
+      // Pre-calcular stock por producto para evitar O(N^2)
+      const stockByProductId = new Map<string, any[]>();
+      if (stockData) {
+        for (const stock of stockData) {
+          if (!stockByProductId.has(stock.product_id)) {
+            stockByProductId.set(stock.product_id, []);
+          }
+          stockByProductId.get(stock.product_id)!.push(stock);
+        }
+      }
+
       // Combinar datos y calcular información
       const enrichedProducts = (productsData || []).map(product => {
-        // Calcular stock por almacén
-        const productStock = stockData?.filter(s => s.product_id === product.id) || [];
+        // Calcular stock por almacén usando el mapa O(1)
+        const productStock = stockByProductId.get(product.id) || [];
         const totalStock = productStock.reduce((sum, s) => sum + (s.qty || 0), 0);
         
         // Calcular información financiera
@@ -354,7 +365,7 @@ export function SimpleProductsTable() {
             <span className="text-sm text-muted-foreground">Filtros activos:</span>
             {search && (
               <Badge variant="secondary" className="text-xs">
-                Búsqueda: "{search}"
+                Búsqueda: &quot;{search}&quot;
                 <button 
                   onClick={() => setSearch("")}
                   className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
