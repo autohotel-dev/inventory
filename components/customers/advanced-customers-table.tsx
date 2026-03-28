@@ -23,7 +23,18 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+
+export type CustomerFormData = {
+  name: string;
+  tax_id?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  is_active: boolean;
+};
+
 interface Customer {
+
   id: string;
   name: string;
   tax_id?: string;
@@ -42,12 +53,13 @@ interface Customer {
   customer_email?: string;
 }
 
-interface CustomerStatistics {
-  customer_id: string;
-  total_orders: number;
-  total_spent: number | string;
-  last_order_date: string | null;
-  customer_type: string;
+export interface CustomerFormData {
+  name: string;
+  tax_id?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  is_active: boolean;
 }
 
 export function AdvancedCustomersTable() {
@@ -87,8 +99,9 @@ export function AdvancedCustomersTable() {
         if (statsError) throw statsError;
 
         // Combinar datos
+        const statsMap = new Map<string, any>((statsData || []).map((s: any) => [s.customer_id, s]));
         const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
-          const stats = statsData?.find((s: CustomerStatistics) => s.customer_id === customer.id);
+          const stats = statsMap.get(customer.id);
 
           return {
             ...customer,
@@ -161,7 +174,7 @@ export function AdvancedCustomersTable() {
     }
   };
 
-  const handleSave = async (customerData: any) => {
+  const handleSave = async (customerData: CustomerFormData) => {
     const supabase = createClient();
     try {
       if (editingCustomer) {
@@ -546,7 +559,7 @@ function CustomerForm({
   onCancel 
 }: { 
   customer: Customer | null;
-  onSave: (data: any) => void;
+  onSave: (data: CustomerFormData) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
