@@ -1,10 +1,16 @@
-// Temporarily disabled i18n configuration
-// This file is disabled until we properly configure next-intl
+import { getRequestConfig } from 'next-intl/server';
+import { notFound } from 'next/navigation';
+import { locales, defaultLocale, type Locale } from './i18n-config';
 
-// import { getRequestConfig } from 'next-intl/server';
+export default getRequestConfig(async ({ requestLocale }) => {
+  let locale = await requestLocale;
 
-// export default getRequestConfig(async ({ locale }) => {
-//   return {
-//     messages: (await import(`./messages/${locale}.json`)).default
-//   };
-// });
+  if (!locale || !locales.includes(locale as any)) {
+    locale = defaultLocale;
+  }
+
+  return {
+    locale,
+    messages: (await import(`./messages/${locale}.json`)).default
+  };
+});
