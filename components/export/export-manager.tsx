@@ -19,6 +19,8 @@ import {
   Filter
 } from "lucide-react";
 
+export type ExportRow = Record<string, string | number>;
+
 interface ExportOptions {
   format: 'excel' | 'csv' | 'pdf';
   dataType: 'products' | 'movements' | 'warehouses' | 'suppliers' | 'analytics';
