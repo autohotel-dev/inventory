@@ -8,6 +8,26 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, X, Calendar } from "lucide-react";
 
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  unit?: string;
+}
+
+export interface Warehouse {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface MovementReason {
+  id: number;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  name: string;
+  description: string;
+}
+
 interface InventoryMovement {
   id: string;
   product_id: string;
@@ -31,11 +51,21 @@ interface InventoryMovement {
   };
 }
 
+export interface MovementFormData {
+  product_id: string;
+  warehouse_id: string;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  reason_id: string;
+  reason: string;
+  notes: string;
+}
+
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [movementReasons, setMovementReasons] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [movementReasons, setMovementReasons] = useState<MovementReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -111,14 +141,14 @@ export function InventoryMovementsTable() {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (movementData: any) => {
+  const handleSave = async (movementData: MovementFormData) => {
     const supabase = createClient();
     try {
       // Preparar datos del movimiento
       const movementToSave = {
         ...movementData,
         reason_id: parseInt(movementData.reason_id),
-        quantity: parseInt(movementData.quantity)
+        quantity: Number(movementData.quantity)
       };
 
       // Crear movimiento
@@ -455,9 +485,9 @@ function MovementForm({
   onSave, 
   onCancel 
 }: { 
-  products: any[];
-  warehouses: any[];
-  movementReasons: any[];
+  products: Product[];
+  warehouses: Warehouse[];
+  movementReasons: MovementReason[];
   onSave: (data: any) => void;
   onCancel: () => void;
 }) {

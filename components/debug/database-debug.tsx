@@ -5,14 +5,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
+interface TableCheckResult {
+  data?: unknown[] | null;
+  error?: { message: string } | null;
+  count?: number | null;
+  sample?: unknown;
+}
+
+type DatabaseResults = Record<string, TableCheckResult | unknown>;
+
 export function DatabaseDebug() {
-  const [results, setResults] = useState<any>({});
+  const [results, setResults] = useState<DatabaseResults>({});
   const [loading, setLoading] = useState(false);
 
   const checkDatabase = async () => {
     setLoading(true);
     const supabase = createClient();
-    const results: any = {};
+    const results: DatabaseResults = {};
     
     try {
       // Check products table
@@ -85,7 +94,7 @@ export function DatabaseDebug() {
       
     } catch (error) {
       console.error('Database check error:', error);
-      results.error = error;
+      results.error = error as unknown;
       setResults(results);
     } finally {
       setLoading(false);
@@ -104,23 +113,25 @@ export function DatabaseDebug() {
         
         {Object.keys(results).length > 0 && (
           <div className="space-y-2 text-xs">
-            {Object.entries(results).map(([table, info]: [string, any]) => (
+            {Object.entries(results).map(([table, info]) => {
+              const tableInfo = info as TableCheckResult;
+              return (
               <div key={table} className="border-b pb-2">
                 <div className="font-semibold">{table}:</div>
-                {info.error ? (
-                  <div className="text-red-500">Error: {info.error.message}</div>
+                {tableInfo && 'error' in tableInfo && tableInfo.error ? (
+                  <div className="text-red-500">Error: {(tableInfo.error as { message: string }).message}</div>
                 ) : (
                   <div>
-                    <div>Count: {info.count}</div>
-                    {info.sample && (
+                    <div>Count: {tableInfo?.count !== undefined && tableInfo?.count !== null ? Number(tableInfo.count) : "N/A"}</div>
+                    {!!(tableInfo as TableCheckResult)?.sample && (
                       <div className="text-gray-600">
-                        Sample: {JSON.stringify(info.sample, null, 2).substring(0, 100)}...
+                        Sample: {JSON.stringify(tableInfo.sample, null, 2).substring(0, 100)}...
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         )}
       </CardContent>

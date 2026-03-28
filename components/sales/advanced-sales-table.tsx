@@ -48,8 +48,8 @@ interface SupabaseSalesOrder {
   subtotal: number;
   tax: number;
   total: number;
-  customers: { name: string } | null;
-  warehouses: { code: string; name: string } | null;
+  customers: { name: string } | { name: string }[] | null;
+  warehouses: { code: string; name: string } | { code: string; name: string }[] | null;
   notes?: string;
 }
 
@@ -131,10 +131,10 @@ export function AdvancedSalesTable() {
       if (error) throw error;
       
       // Transformar datos de Supabase al formato esperado
-      const transformedData: SalesOrder[] = (data as any || []).map((item: any) => ({
+      const transformedData: SalesOrder[] = ((data as unknown as SupabaseSalesOrder[]) || []).map((item: SupabaseSalesOrder) => ({
         ...item,
-        customers: item.customers || null,
-        warehouses: item.warehouses || null
+        customers: Array.isArray(item.customers) ? item.customers[0] : item.customers || null,
+        warehouses: Array.isArray(item.warehouses) ? item.warehouses[0] : item.warehouses || null
       }));
       
       let filteredData = transformedData;
