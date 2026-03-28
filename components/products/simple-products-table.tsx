@@ -10,6 +10,20 @@ import { Plus, Search, Package, DollarSign, AlertTriangle, X, Scan } from "lucid
 import type { SimpleProduct } from "@/lib/types/inventory";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 
+interface ProductFormData {
+  name: string;
+  description: string;
+  sku: string;
+  price: number;
+  cost: number;
+  min_stock: number;
+  unit: string;
+  barcode: string;
+  category_id: string;
+  supplier_id: string;
+  is_active: boolean;
+}
+
 export function SimpleProductsTable() {
   const [products, setProducts] = useState<SimpleProduct[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -136,7 +150,7 @@ export function SimpleProductsTable() {
     }
   };
 
-  const handleSave = async (productData: any) => {
+  const handleSave = async (productData: ProductFormData) => {
     const supabase = createClient();
     try {
       if (editingProduct) {
@@ -354,7 +368,7 @@ export function SimpleProductsTable() {
             <span className="text-sm text-muted-foreground">Filtros activos:</span>
             {search && (
               <Badge variant="secondary" className="text-xs">
-                Búsqueda: "{search}"
+                Búsqueda: &quot;{search}&quot;
                 <button 
                   onClick={() => setSearch("")}
                   className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
@@ -597,10 +611,10 @@ function ProductForm({
   product: SimpleProduct | null;
   categories: any[];
   suppliers: any[];
-  onSave: (data: any) => void;
+  onSave: (data: ProductFormData) => void;
   onCancel: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductFormData>({
     name: product?.name || "",
     description: product?.description || "",
     sku: product?.sku || product?.barcode || "",

@@ -42,6 +42,15 @@ interface Customer {
   customer_email?: string;
 }
 
+export interface CustomerFormData {
+  name: string;
+  tax_id?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  is_active: boolean;
+}
+
 export function AdvancedCustomersTable() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,8 +88,9 @@ export function AdvancedCustomersTable() {
         if (statsError) throw statsError;
 
         // Combinar datos
+        const statsMap = new Map<string, any>((statsData || []).map((s: any) => [s.customer_id, s]));
         const enrichedCustomers: Customer[] = (customersData || []).map(customer => {
-          const stats = statsData?.find((s: any) => s.customer_id === customer.id);
+          const stats = statsMap.get(customer.id);
 
           return {
             ...customer,
@@ -153,7 +163,7 @@ export function AdvancedCustomersTable() {
     }
   };
 
-  const handleSave = async (customerData: any) => {
+  const handleSave = async (customerData: CustomerFormData) => {
     const supabase = createClient();
     try {
       if (editingCustomer) {
@@ -538,7 +548,7 @@ function CustomerForm({
   onCancel 
 }: { 
   customer: Customer | null;
-  onSave: (data: any) => void;
+  onSave: (data: CustomerFormData) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
