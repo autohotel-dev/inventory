@@ -294,13 +294,14 @@ async function updatePendingPaymentsHelper(
 
     if (currentOrder) {
       const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - paidAmountApplied);
-      const newPaid = (Number(currentOrder.paid_amount) || 0) + paidAmountApplied;
+      // Se removió actualización de paid_amount ya que recepción no cobra directamente
+      // const newPaid = (Number(currentOrder.paid_amount) || 0) + paidAmountApplied;
 
       await supabase
         .from("sales_orders")
         .update({
           remaining_amount: newRemaining,
-          paid_amount: newPaid,
+          // paid_amount: newPaid,
         })
         .eq("id", salesOrderId);
 
@@ -308,7 +309,7 @@ async function updatePendingPaymentsHelper(
         salesOrderId,
         paidAmountApplied,
         newRemaining,
-        newPaid,
+        // newPaid,
       });
     }
   }
@@ -325,9 +326,9 @@ export interface UseRoomActionsReturn {
   handlePersonLeftReturning: (room: Room) => Promise<void>; // Persona salió pero regresa (tolerancia 1h)
   handleAddDamageCharge: (room: Room, amount: number, description: string) => Promise<void>; // Agregar cargo por daño
 
-  handleAddCustomHours: (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => Promise<void>; // Agregar horas personalizadas
-  handleRenewRoom: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Renovar habitación con precio base
-  handleAdd4HourPromo: (room: Room, payments: PaymentEntry[]) => Promise<void>; // Promoción de 4 horas
+  handleAddCustomHours: (room: Room, hours: number, isCourtesy?: boolean, courtesyReason?: string) => Promise<void>; // Agregar horas personalizadas
+  handleRenewRoom: (room: Room) => Promise<void>; // Renovar habitación con precio base
+  handleAdd4HourPromo: (room: Room) => Promise<void>; // Promoción de 4 horas
   updateRoomStatus: (
     room: Room,
     newStatus: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA",
@@ -953,7 +954,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   /**
    * Agregar horas personalizadas con pago
    */
-  const handleAddCustomHours = async (room: Room, hours: number, payments: PaymentEntry[], isCourtesy?: boolean, courtesyReason?: string) => {
+  const handleAddCustomHours = async (room: Room, hours: number, isCourtesy?: boolean, courtesyReason?: string) => {
     if (!checkAuthorization("Agregar Horas")) return;
     if (room.status !== "OCUPADA") return;
 
@@ -979,22 +980,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     try {
       const extraHourPrice = room.room_types.extra_hour_price;
       const totalPrice = isCourtesy ? 0 : extraHourPrice * hours;
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
-      // Actualizar totales de la orden (solo si hay costo)
-      let result = { success: true };
-      if (totalPrice > 0) {
-        result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
+      // Obtener o crear producto de servicio
+      const productResult = await getOrCreateServiceProduct();
+      if (!productResult.success) {
+        logger.error("Failed to get/create service product", productResult.error);
+        toast.error("Error al registrar el cargo");
+        return;
       }
-
-      if (result.success) {
-        // Obtener o crear producto de servicio
-        const productResult = await getOrCreateServiceProduct();
-        if (!productResult.success) {
-          logger.error("Failed to get/create service product", productResult.error);
-          toast.error("Error al registrar el cargo");
-          return;
-        }
 
         // Crear items de servicio para cada hora
         let lastItemId = "";
@@ -1010,80 +1003,41 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           if (itemRes.success) lastItemId = itemRes.data;
         }
 
-        // Procesar el pago (solo si no es cortesía)
-        let remainingAfterPending = 0;
-        if (!isCourtesy) {
-          remainingAfterPending = await updatePendingPaymentsHelper(
-            supabase,
-            activeStay.sales_order_id,
-            payments,
-            totalPaid,
-            "HEX"
-          );
-        }
-
-        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
-        if (remainingAfterPending > 0 && !isCourtesy) {
+        // Si no es cortesía, siempre crear un pago PENDIENTE para que el cochero lo cobre
+        if (!isCourtesy && totalPrice > 0) {
           const currentShiftId = await getReceptionShiftId(supabase);
-          const validPayments = payments.filter(p => p.amount > 0);
+          
+          await supabase.from("payments").insert({
+            sales_order_id: activeStay.sales_order_id,
+            amount: totalPrice,
+            payment_method: "PENDIENTE",
+            reference: generatePaymentReference("HEX"),
+            concept: "EXTRA_HOUR",
+            status: "PENDIENTE",
+            payment_type: "COMPLETO",
+            shift_session_id: currentShiftId,
+          });
 
-          for (const p of validPayments) {
-            await supabase.from("payments").insert({
-              sales_order_id: activeStay.sales_order_id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("HEX"),
-              concept: "EXTRA_HOUR",
-              status: "PAGADO",
-              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
-              shift_session_id: currentShiftId,
-              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-            });
-          }
-
-          logger.info("Created new payment records for custom hours", {
+          logger.info("Created PENDIENTE payment for custom hours", {
             salesOrderId: activeStay.sales_order_id,
-            remainingAfterPending,
-            paymentsCreated: validPayments.length,
+            totalPrice,
           });
         }
 
-        // Actualizar paid_amount en sales_orders si hubo pago
-        if (totalPaid > 0) {
-          // Ya se actualizó en updatePendingPaymentsHelper o en el insert de arriba?
-          // Revisamos: updatePendingPaymentsHelper actualiza los totales de la orden.
-          // Si no hay pagos pendientes, el remainingAfterPending > 0 y creamos pagos nuevos.
-          // PERO updatePendingPaymentsHelper solo toca la orden si HAY pagos pendientes.
-          // Debemos asegurar que los totales de la orden reflejen el pago independientemente de si era pendiente o no.
-          
-          if (remainingAfterPending === totalPaid) {
-            // No se aplicó nada a pagos pendientes, actualizamos totales ahora
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("remaining_amount, paid_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
-
-            if (currentOrder) {
-              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
-              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
-
-              await supabase
-                .from("sales_orders")
-                .update({
-                  remaining_amount: newRemaining,
-                  paid_amount: newPaid,
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
-          }
+        // FIX Auditoría #2: Actualizar subtotal/total/remaining de la orden
+        if (!isCourtesy && totalPrice > 0) {
+          await updateSalesOrderTotals(supabase, activeStay.sales_order_id, totalPrice);
         }
 
-        // Extender expected_check_out_at según las horas agregadas
-        if (activeStay.expected_check_out_at) {
-          const currentCheckout = new Date(activeStay.expected_check_out_at);
+        // FIX Auditoría #3: Leer expected_check_out_at FRESCO de la DB para evitar race condition
+        const { data: freshStayData } = await supabase
+          .from("room_stays")
+          .select("expected_check_out_at")
+          .eq("id", activeStay.id)
+          .single();
+
+        if (freshStayData?.expected_check_out_at) {
+          const currentCheckout = new Date(freshStayData.expected_check_out_at);
           currentCheckout.setHours(currentCheckout.getHours() + hours);
 
           await supabase
@@ -1101,19 +1055,17 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
           // Notificar a cocheros activos estandarizado
           await notifyActiveValets(
             supabase,
-            '⏰ Hora Extra Registrada',
-            `Habitación ${room.number}: Se agregaron ${hours} hora(s) extra. Saldo pendiente: $${(result as any).newRemaining?.toFixed(2) || totalPrice.toFixed(2)} MXN.`,
+            '⏰ Cobro de Horas Extra',
+            `Habitación ${room.number}: Cobrar ${hours} hora(s) extra ($${totalPrice.toFixed(2)} MXN).`,
             {
               type: 'NEW_EXTRA',
               consumptionId: lastItemId,
-              roomNumber: room.number
+              roomNumber: room.number,
+              stayId: activeStay.id
             }
           );
         }
-        await onRefresh();
-      } else {
-        toast.error("No se pudo agregar las horas");
-      }
+      await onRefresh();
     } catch (error) {
       logger.error("Error adding custom hours", error);
       toast.error("Error al agregar horas");
@@ -1125,7 +1077,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   /**
    * Renovar habitación con precio base
    */
-  const handleRenewRoom = async (room: Room, payments: PaymentEntry[]) => {
+  const handleRenewRoom = async (room: Room) => {
     if (!checkAuthorization("Renovar Habitación")) return;
     if (room.status !== "OCUPADA") return;
 
@@ -1145,19 +1097,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
     try {
       const basePrice = room.room_types.base_price;
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
-      // Actualizar totales de la orden
-      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
-
-      if (result.success) {
-        // Crear item de renovación
-        const productResult = await getOrCreateServiceProduct();
-        if (!productResult.success) {
-          logger.error("Failed to get/create service product", productResult.error);
-          toast.error("Error al registrar el cargo");
-          return;
-        }
+      // Crear item de renovación
+      const productResult = await getOrCreateServiceProduct();
+      if (!productResult.success) {
+        logger.error("Failed to get/create service product", productResult.error);
+        toast.error("Error al registrar el cargo");
+        return;
+      }
 
         const itemRes = await createServiceItem(
           activeStay.sales_order_id,
@@ -1167,71 +1114,37 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
         const consumptionId = itemRes.success ? itemRes.data : undefined;
 
-        // Procesar el pago
-        const remainingAfterPending = await updatePendingPaymentsHelper(
-          supabase,
-          activeStay.sales_order_id,
-          payments,
-          totalPaid,
-          "REN"
-        );
+        // Siempre crear un pago PENDIENTE para renovación
+        const currentShiftId = await getReceptionShiftId(supabase);
+        
+        await supabase.from("payments").insert({
+          sales_order_id: activeStay.sales_order_id,
+          amount: basePrice,
+          payment_method: "PENDIENTE",
+          reference: generatePaymentReference("REN"),
+          concept: "RENEWAL",
+          status: "PENDIENTE",
+          payment_type: "COMPLETO",
+          shift_session_id: currentShiftId,
+        });
 
-        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
-        // Esto sucede cuando la estancia original ya estaba pagada y la renovación es un cargo nuevo
-        if (remainingAfterPending > 0) {
-          const currentShiftId = await getReceptionShiftId(supabase);
-          const validPayments = payments.filter(p => p.amount > 0);
+        // FIX Auditoría #5: Actualizar subtotal/total/remaining de la orden
+        await updateSalesOrderTotals(supabase, activeStay.sales_order_id, basePrice);
 
-          for (const p of validPayments) {
-            await supabase.from("payments").insert({
-              sales_order_id: activeStay.sales_order_id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("REN"),
-              concept: "RENEWAL",
-              status: "PAGADO",
-              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
-              shift_session_id: currentShiftId,
-              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-            });
-          }
+        logger.info("Created PENDIENTE payment for renewal", {
+          salesOrderId: activeStay.sales_order_id,
+          basePrice,
+        });
 
-          logger.info("Created new payment records for renewal", {
-            salesOrderId: activeStay.sales_order_id,
-            remainingAfterPending,
-            paymentsCreated: validPayments.length,
-          });
-        }
+        // FIX Auditoría #3: Leer expected_check_out_at FRESCO de la DB
+        const { data: freshRenewalStay } = await supabase
+          .from("room_stays")
+          .select("expected_check_out_at")
+          .eq("id", activeStay.id)
+          .single();
 
-        // Actualizar paid_amount en sales_orders si hubo pago
-        if (totalPaid > 0) {
-          if (remainingAfterPending === totalPaid) {
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("remaining_amount, paid_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
-
-            if (currentOrder) {
-              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
-              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
-
-              await supabase
-                .from("sales_orders")
-                .update({
-                  remaining_amount: newRemaining,
-                  paid_amount: newPaid,
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
-          }
-        }
-
-        // Extender expected_check_out_at según las horas del tipo
-        if (activeStay.expected_check_out_at) {
-          const currentCheckout = new Date(activeStay.expected_check_out_at);
+        if (freshRenewalStay?.expected_check_out_at) {
+          const currentCheckout = new Date(freshRenewalStay.expected_check_out_at);
           const now = new Date();
 
           // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
@@ -1264,8 +1177,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         // Notificación estandarizada a valets activos
         await notifyActiveValets(
           supabase,
-          '🔄 Habitación Renovada',
-          `Habitación ${room.number}: Renovación registada ($${basePrice.toFixed(2)}).`,
+          '🔄 Cobro de Renovación',
+          `Habitación ${room.number}: Cobrar renovación ($${basePrice.toFixed(2)} MXN).`,
           {
             type: 'NEW_EXTRA',
             consumptionId: consumptionId,
@@ -1275,10 +1188,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
 
 
-        await onRefresh();
-      } else {
-        toast.error("No se pudo renovar la habitación");
-      }
+      await onRefresh();
     } catch (error) {
       logger.error("Error renewing room", error);
       toast.error("Error al renovar habitación");
@@ -1290,7 +1200,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
   /**
    * Agregar promoción de 4 horas
    */
-  const handleAdd4HourPromo = async (room: Room, payments: PaymentEntry[]) => {
+  const handleAdd4HourPromo = async (room: Room) => {
     if (!checkAuthorization("Aplicar Promoción")) return;
     if (room.status !== "OCUPADA") return;
 
@@ -1330,19 +1240,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       }
 
       const promoPrice = pricingData.price;
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
-      // Actualizar totales de la orden
-      const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, promoPrice);
-
-      if (result.success) {
-        // Crear item de promoción
-        const productResult = await getOrCreateServiceProduct();
-        if (!productResult.success) {
-          logger.error("Failed to get/create service product", productResult.error);
-          toast.error("Error al registrar el cargo");
-          return;
-        }
+      // Crear item de promoción
+      const productResult = await getOrCreateServiceProduct();
+      if (!productResult.success) {
+        logger.error("Failed to get/create service product", productResult.error);
+        toast.error("Error al registrar el cargo");
+        return;
+      }
 
         const itemRes = await createServiceItem(
           activeStay.sales_order_id,
@@ -1352,70 +1257,37 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
         const consumptionId = itemRes.success ? itemRes.data : undefined;
 
-        // Procesar el pago
-        const remainingAfterPending = await updatePendingPaymentsHelper(
-          supabase,
-          activeStay.sales_order_id,
-          payments,
-          totalPaid,
-          "P4H"
-        );
+        // Siempre crear un pago PENDIENTE para la promoción
+        const currentShiftId = await getReceptionShiftId(supabase);
+        
+        await supabase.from("payments").insert({
+          sales_order_id: activeStay.sales_order_id,
+          amount: promoPrice,
+          payment_method: "PENDIENTE",
+          reference: generatePaymentReference("P4H"),
+          concept: "PROMO_4H",
+          status: "PENDIENTE",
+          payment_type: "COMPLETO",
+          shift_session_id: currentShiftId,
+        });
 
-        // Si no había pagos PENDIENTES que actualizar, crear nuevos registros de pago
-        if (remainingAfterPending > 0) {
-          const currentShiftId = await getReceptionShiftId(supabase);
-          const validPayments = payments.filter(p => p.amount > 0);
+        // FIX Auditoría #6: Actualizar subtotal/total/remaining de la orden
+        await updateSalesOrderTotals(supabase, activeStay.sales_order_id, promoPrice);
 
-          for (const p of validPayments) {
-            await supabase.from("payments").insert({
-              sales_order_id: activeStay.sales_order_id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("P4H"),
-              concept: "PROMO_4H",
-              status: "PAGADO",
-              payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
-              shift_session_id: currentShiftId,
-              ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
-              ...(p.method === "TARJETA" && p.cardLast4 ? { card_last_4: p.cardLast4 } : {}),
-              ...(p.method === "TARJETA" && p.cardType ? { card_type: p.cardType } : {}),
-            });
-          }
+        logger.info("Created PENDIENTE payment for 4h promo", {
+          salesOrderId: activeStay.sales_order_id,
+          promoPrice,
+        });
 
-          logger.info("Created new payment records for 4h promo", {
-            salesOrderId: activeStay.sales_order_id,
-            remainingAfterPending,
-            paymentsCreated: validPayments.length,
-          });
-        }
+        // FIX Auditoría #3: Leer expected_check_out_at FRESCO de la DB
+        const { data: freshPromoStay } = await supabase
+          .from("room_stays")
+          .select("expected_check_out_at")
+          .eq("id", activeStay.id)
+          .single();
 
-        // Actualizar paid_amount en sales_orders si hubo pago
-        if (totalPaid > 0) {
-          if (remainingAfterPending === totalPaid) {
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("remaining_amount, paid_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
-
-            if (currentOrder) {
-              const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - totalPaid);
-              const newPaid = (Number(currentOrder.paid_amount) || 0) + totalPaid;
-
-              await supabase
-                .from("sales_orders")
-                .update({
-                  remaining_amount: newRemaining,
-                  paid_amount: newPaid,
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
-          }
-        }
-
-        // Extender expected_check_out_at en 4 horas
-        if (activeStay.expected_check_out_at) {
-          const currentCheckout = new Date(activeStay.expected_check_out_at);
+        if (freshPromoStay?.expected_check_out_at) {
+          const currentCheckout = new Date(freshPromoStay.expected_check_out_at);
           currentCheckout.setHours(currentCheckout.getHours() + 4);
 
           await supabase
@@ -1435,8 +1307,8 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         // Notificación estandarizada a valets activos
         await notifyActiveValets(
           supabase,
-          '🏷️ Promoción 4H Aplicada',
-          `Habitación ${room.number}: Se aplicó promoción de 4 horas ($${promoPrice.toFixed(2)}).`,
+          '🏷️ Cobro de Promoción 4H',
+          `Habitación ${room.number}: Cobrar promoción de 4 horas ($${promoPrice.toFixed(2)} MXN).`,
           {
             type: 'NEW_EXTRA',
             consumptionId: consumptionId,
@@ -1446,10 +1318,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         );
 
 
-        await onRefresh();
-      } else {
-        toast.error("No se pudo aplicar la promoción");
-      }
+      await onRefresh();
     } catch (error) {
       logger.error("Error adding 4-hour promo", error);
       toast.error("Error al aplicar promoción");
@@ -1490,6 +1359,22 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         return;
       }
 
+      // SOP: Si la habitación se libera (LIMPIA o LIBRE), cerrar cualquier estancia activa
+      if (newStatus === "LIBRE") {
+        const { error: stayError } = await supabase
+          .from("room_stays")
+          .update({ status: "FINALIZADA", actual_check_out_at: new Date().toISOString() })
+          .eq("room_id", room.id)
+          .eq("status", "ACTIVA");
+
+        if (stayError) {
+          console.error("Error finalizing stay on room free:", stayError);
+          // No bloqueamos el flujo principal si esto falla, pero lo logueamos
+        } else {
+          logger.info("Stay finalized automatically on room free", { roomNumber: room.number });
+        }
+      }
+
       toast.success(successMessage);
       await onRefresh();
     } catch (error) {
@@ -1510,69 +1395,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const supabase = createClient();
 
     try {
-      // Calcular horas extra automáticas
-      let extraHours = 0;
-      if (activeStay.expected_check_out_at && room.room_types) {
-        const expected = new Date(activeStay.expected_check_out_at);
-        const now = new Date();
-        const diffMs = now.getTime() - expected.getTime();
+      // FIX Auditoría #1: Usar el RPC atómico en lugar de calcular horas manualmente.
+      // Esto es seguro porque el RPC usa FOR UPDATE (idempotente) y hora del servidor.
+      // Si ya se cobraron las horas, el RPC no hará nada (devuelve hours_added = 0).
+      if (room.room_types?.extra_hour_price && room.room_types.extra_hour_price > 0) {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('process_extra_hours_v2', {
+          p_stay_id: activeStay.id
+        });
 
-        // TOLERANCIA DE SALIDA: Solo cobrar si pasaron más de EXIT_TOLERANCE_MS (30 min)
-        if (diffMs > EXIT_TOLERANCE_MS) {
-          extraHours = Math.ceil(diffMs / (60 * 60 * 1000));
-        }
-      }
-
-      // Agregar horas extra al total si aplica
-      if (extraHours > 0 && room.room_types?.extra_hour_price && room.room_types.extra_hour_price > 0) {
-        // Verificar cuántas horas extra ya se cobraron en sales_order_items
-        const { data: existingExtraItems } = await supabase
-          .from("sales_order_items")
-          .select("id")
-          .eq("sales_order_id", activeStay.sales_order_id)
-          .eq("concept_type", "EXTRA_HOUR");
-
-        const alreadyChargedHours = existingExtraItems?.length || 0;
-        const hoursToCharge = extraHours - alreadyChargedHours;
-
-        if (hoursToCharge > 0) {
-          const extraAmount = hoursToCharge * room.room_types.extra_hour_price;
-
-          // 1. Crear items de servicio para las horas extra
-          for (let i = 0; i < hoursToCharge; i++) {
-            await createServiceItem(
-              activeStay.sales_order_id,
-              room.room_types.extra_hour_price,
-              "EXTRA_HOUR"
-            );
-          }
-
-          // 2. Crear registros de pago PENDIENTES para que aparezcan en Granular Payment
-          const currentShiftId = await getReceptionShiftId(supabase);
-          const pendingPayments = [];
-          for (let i = 0; i < hoursToCharge; i++) {
-            pendingPayments.push({
-              sales_order_id: activeStay.sales_order_id,
-              amount: room.room_types.extra_hour_price,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("EXT"),
-              concept: "EXTRA_HOUR",
-              status: "PENDIENTE",
-              payment_type: "COMPLETO",
-              shift_session_id: currentShiftId,
-            });
-          }
-
-          await supabase.from("payments").insert(pendingPayments);
-
-          // 3. Actualizar el total de la orden de venta (remaining_amount)
-          const result = await updateSalesOrderTotals(supabase, activeStay.sales_order_id, extraAmount);
-
-          if (result.success) {
-            toast.success("Horas extra registradas", {
-              description: `${hoursToCharge} hora(s) extra nuevas en Hab. ${room.number}`,
-            });
-          }
+        if (rpcError) {
+          console.error("[prepareCheckout] Error calling RPC:", rpcError);
+        } else if (rpcResult?.success && rpcResult.hours_added > 0) {
+          toast.success("Horas extra registradas", {
+            description: `${rpcResult.hours_added} hora(s) extra en Hab. ${room.number}`,
+          });
         }
       }
 
@@ -1725,10 +1561,25 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       // Preparamos los "Nuevos Pagos" que la RPC debe insertar
       // Solo si sobra dinero después de cubrir los pendientes
+      // Y SOLO si la orden no tiene pagos confirmados previos (evitar duplicados)
       const newPaymentsToInsert: any[] = [];
       const currentShiftId = await getReceptionShiftId(supabase);
 
-      if (remainingAfterPending > 0 && payments && payments.length > 0) {
+      // Verificar si ya existen pagos confirmados (PAGADO) para esta orden
+      // Si los hay, NO crear nuevos — el dinero ya fue registrado al check-in
+      let hasExistingConfirmedPayments = false;
+      if (remainingAfterPending > 0) {
+        const { count } = await supabase
+          .from("payments")
+          .select("id", { count: "exact", head: true })
+          .eq("sales_order_id", checkoutInfo.salesOrderId)
+          .eq("status", "PAGADO")
+          .neq("concept", "CHECKOUT");
+
+        hasExistingConfirmedPayments = (count || 0) > 0;
+      }
+
+      if (remainingAfterPending > 0 && !hasExistingConfirmedPayments && payments && payments.length > 0) {
         const validPayments = payments.filter(p => p.amount > 0);
         const isMultipago = validPayments.length > 1;
 

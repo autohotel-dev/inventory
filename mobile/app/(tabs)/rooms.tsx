@@ -68,6 +68,11 @@ export default function RoomsScreen() {
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutPersonCount, setCheckoutPersonCount] = useState(2);
     const [checkoutPayments, setCheckoutPayments] = useState<PaymentEntry[]>([]);
+    const [checkoutChecklist, setCheckoutChecklist] = useState({
+        roomState: false,
+        linens: false,
+        glassware: false
+    });
 
     // Verify Extra Modal State
     const [showVerifyExtraModal, setShowVerifyExtraModal] = useState(false);
@@ -252,6 +257,12 @@ export default function RoomsScreen() {
             amount: remainingAmount > 0 ? remainingAmount : 0,
             method: 'EFECTIVO'
         }]);
+
+        setCheckoutChecklist({
+            roomState: false,
+            linens: false,
+            glassware: false
+        });
 
         setShowCheckoutModal(true);
         setShowDamageForm(false);
@@ -490,7 +501,8 @@ export default function RoomsScreen() {
             selectedRoom.stay.id,
             selectedRoom.number,
             employeeId,
-            checkoutPersonCount
+            checkoutPersonCount,
+            checkoutChecklist
         );
         if (success) setShowCheckoutModal(false);
     };
@@ -504,9 +516,11 @@ export default function RoomsScreen() {
 
         // Debug: Log all items for this room
         const allOrderItems = orders.flatMap(o => o.sales_order_items || []);
-        console.log(`[Room ${room.number}] Total items: ${allOrderItems.length}, concept_types:`,
-            allOrderItems.map(i => i.concept_type)
-        );
+        if (__DEV__) {
+            console.log(`[Room ${room.number}] Total items: ${allOrderItems.length}, concept_types:`,
+                allOrderItems.map(i => i.concept_type)
+            );
+        }
 
         const pendingExtras = allOrderItems.filter(item =>
             (item.concept_type === 'EXTRA_PERSON' || item.concept_type === 'EXTRA_HOUR' || item.concept_type === 'RENEWAL' || item.concept_type === 'PROMO_4H') &&
@@ -518,7 +532,7 @@ export default function RoomsScreen() {
         const roomChangeItems = allItems.filter(item => item.concept_type === 'ROOM_CHANGE_ADJUSTMENT');
 
         // Debug log
-        if (roomChangeItems.length > 0) {
+        if (__DEV__ && roomChangeItems.length > 0) {
             console.log(`[Room ${room.number}] Found ${roomChangeItems.length} ROOM_CHANGE items:`,
                 roomChangeItems.map(i => ({
                     id: i.id,
@@ -685,6 +699,8 @@ export default function RoomsScreen() {
                 handleExtraPersonSubmit={handleExtraPersonSubmit}
                 payments={checkoutPayments}
                 setPayments={setCheckoutPayments}
+                checklist={checkoutChecklist}
+                setChecklist={setCheckoutChecklist}
             />
 
             <VerifyExtraModal

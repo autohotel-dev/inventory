@@ -199,9 +199,9 @@ function IncomeReportContent() {
     return (
         <div className="container mx-auto py-6 space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">Reportes de Ingresos</h1>
+                <h1 className="text-3xl font-bold">Corte de Caja</h1>
                 <p className="text-muted-foreground">
-                    Consulta y genera reportes de ingresos por hospedaje y consumo
+                    Reporte de ingresos por turno — se imprime al cierre de cada turno para corroboración
                 </p>
             </div>
             {/* Filtros estilo Productos */}
@@ -462,7 +462,7 @@ function IncomeReportContent() {
                 </div>
             </CollapsibleSection>
 
-            {/* Herramienta temporal de migración */}
+            {/* Herramienta de reasignación de pagos por turno */}
             <ShiftMigrationTool />
 
             {/* Componente de reporte */}

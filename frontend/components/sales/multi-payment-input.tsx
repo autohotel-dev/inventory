@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { PaymentMethod, PAYMENT_METHODS, PaymentTerminal, PAYMENT_TERMINALS, CardType, CARD_TYPES } from "@/components/sales/room-types";
+import { formatCurrency } from "./payment/utils";
 
 export interface PaymentEntry {
   id: string;
@@ -17,6 +18,9 @@ export interface PaymentEntry {
   reference?: string;
   cardLast4?: string;
   cardType?: CardType;
+  // Para preservar collected_by del cochero cuando se usan datos de valet
+  collected_by?: string;
+  original_payment_id?: string;
 }
 
 interface MultiPaymentInputProps {
@@ -90,103 +94,102 @@ export function MultiPaymentInput({
   };
 
   return (
-    <div className="space-y-2">
-      {/* Resumen compacto */}
-      <div className={`flex items-center justify-between px-3 py-2 rounded-md border ${isComplete ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500/30' :
-        remaining > 0 ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-400/30' :
-          'bg-muted/50 border-border'
-        }`}>
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider">Total</span>
-          <span className="text-sm font-bold">${totalAmount.toFixed(2)}</span>
+    <div className="space-y-4">
+      {/* Resumen Premium */}
+      <div className={cn(
+        "grid grid-cols-3 gap-3 p-3 rounded-2xl border backdrop-blur-sm transition-all duration-500",
+        isComplete 
+          ? "bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_20px_-10px_rgba(16,185,129,0.2)]" 
+          : remaining > 0 
+            ? "bg-amber-500/5 border-amber-500/20 shadow-[0_0_20px_-10px_rgba(245,158,11,0.2)]"
+            : "bg-zinc-900/40 border-zinc-800"
+      )}>
+        <div className="flex flex-col items-center justify-center border-r border-white/5 last:border-0 px-2">
+          <span className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mb-1 opacity-60">Total</span>
+          <span className="text-sm font-black text-foreground">{formatCurrency(totalAmount)}</span>
         </div>
 
-        {remaining !== 0 && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-xs text-muted-foreground uppercase tracking-wider">{remaining > 0 ? 'Falta' : 'Cambio'}</span>
-            <span className={`text-sm font-bold ${remaining > 0 ? 'text-amber-600' : 'text-blue-600'}`}>
-              ${Math.abs(remaining).toFixed(2)}
-            </span>
-          </div>
-        )}
+        <div className="flex flex-col items-center justify-center border-r border-white/5 last:border-0 px-2">
+          <span className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mb-1 opacity-60">
+            {remaining > 0 ? 'Falta' : 'Cambio'}
+          </span>
+          <span className={cn(
+            "text-sm font-black",
+            remaining > 0 ? "text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]" : "text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+          )}>
+            {formatCurrency(Math.abs(remaining))}
+          </span>
+        </div>
 
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider">Pagado</span>
-          <span className={`text-sm font-bold ${isComplete ? 'text-emerald-600' : ''}`}>
-            ${totalPaid.toFixed(2)}
+        <div className="flex flex-col items-center justify-center last:border-0 px-2">
+          <span className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mb-1 opacity-60">Pagado</span>
+          <span className={cn(
+            "text-sm font-black",
+            isComplete ? "text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "text-foreground"
+          )}>
+            {formatCurrency(totalPaid)}
           </span>
         </div>
       </div>
 
       {/* Grid de pagos */}
-      <div className="grid grid-cols-4 gap-2 max-h-[450px] overflow-y-auto">
+      <div className="grid grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-1 custom-scrollbar">
         {payments.map((payment, index) => {
           const isExpanded = expandedPayments.has(payment.id);
           return (
             <div
               key={payment.id}
               className={cn(
-                "border rounded-md bg-card shadow-sm hover:border-primary/20 transition-all",
-                isExpanded ? "col-span-4" : "col-span-1"
+                "group border rounded-2xl bg-zinc-900/40 backdrop-blur-sm transition-all duration-300",
+                isExpanded ? "col-span-2 border-primary/30 shadow-[0_0_15px_-5px_rgba(var(--primary),0.2)]" : "col-span-1 border-white/5 hover:border-white/10"
               )}
             >
-              {/* Header: Si está colapsado es Grid Cell, si expandido es Header de Form */}
+              {/* Header */}
               <div
                 className={cn(
-                  "cursor-pointer group relative",
-                  isExpanded ? "flex items-center p-2 gap-2" : "flex flex-col items-center justify-center p-2 gap-1 h-full min-h-[80px]"
+                  "cursor-pointer flex items-center p-3 gap-3",
+                  !isExpanded && "justify-between"
                 )}
                 onClick={() => toggleExpanded(payment.id)}
               >
-                {/* Index Badge */}
-                <div className={cn(
-                  "flex items-center justify-center rounded-full bg-muted font-medium text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary",
-                  isExpanded ? "w-6 h-6 text-xs" : "absolute top-1 left-1 w-5 h-5 text-[10px]"
-                )}>
-                  {index + 1}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/5 font-black text-[10px] text-muted-foreground group-hover:text-primary transition-colors">
+                    {index + 1}
+                  </div>
+                  {!isExpanded && (
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase font-black text-muted-foreground tracking-widest leading-none mb-1">
+                        {payment.method}
+                      </span>
+                      <span className="text-sm font-black text-foreground">
+                        {formatCurrency(payment.amount)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Contenido Principal */}
-                {isExpanded ? (
-                  // Header Expandido
-                  <div className="flex-1 grid grid-cols-[1fr,auto] gap-2 items-center">
-                    <span className="text-xs font-semibold text-primary pl-1">
-                      {payment.method} - ${payment.amount.toFixed(2)}
-                    </span>
-                  </div>
-                ) : (
-                  // Celda Colapsada (Mini Card)
-                  <>
-                    <div className="mb-1">
-                      {payment.method === 'EFECTIVO' ? (
-                        <span className="text-xl">💵</span>
-                      ) : (
-                        <span className="text-xl">💳</span>
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground leading-none mb-0.5">{payment.method}</p>
-                      <p className="text-xs font-bold text-foreground">
-                        ${payment.amount.toFixed(2)}
-                      </p>
-                    </div>
-                  </>
+                {isExpanded && (
+                  <span className="text-xs font-black text-primary uppercase tracking-widest">
+                    Editando Pago {index + 1}
+                  </span>
                 )}
 
-                {/* Actions (Solo si expandido o hover en celda?) -> Mejor solo en expandido o esquina */}
-                {payments.length > 1 && isExpanded && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-red-500 ml-auto"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removePayment(payment.id);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
+                <div className="ml-auto flex items-center gap-2">
+                  {payments.length > 1 && isExpanded && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-xl"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removePayment(payment.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground opacity-50" />}
+                </div>
               </div>
 
               {/* Formulario expandido */}

@@ -60,6 +60,18 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
+    const getPaymentConcept = (itemConceptType: string | undefined): string => {
+        switch (itemConceptType) {
+            case 'EXTRA_HOUR': return 'HORA_EXTRA';
+            case 'EXTRA_PERSON': return 'PERSONA_EXTRA';
+            case 'ROOM_BASE': return 'ESTANCIA';
+            case 'DAMAGE_CHARGE': return 'DAMAGE_CHARGE';
+            case 'TOLERANCE_EXPIRED': return 'TOLERANCIA_EXPIRADA';
+            case 'RENEWAL': return 'RENEWAL';
+            default: return 'CONSUMPTION';
+        }
+    };
+
     const handleConfirmDelivery = useCallback(async (
         consumptionId: string,
         roomNumber: string,
@@ -88,21 +100,57 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             if (updateError) throw updateError;
 
+            const { data: itemData } = await supabase
+                .from('sales_order_items')
+                .select('sales_order_id, concept_type')
+                .eq('id', consumptionId)
+                .single();
+            
+            const salesOrderId = itemData?.sales_order_id;
+            const itemConceptType = itemData?.concept_type;
+
+            if (!salesOrderId) throw new Error("No se encontró la orden de venta asociada.");
+
+            const paymentConcept = getPaymentConcept(itemConceptType);
+
             for (const p of payments) {
-                await supabase.from('payments').insert({
-                    sales_order_id: (await supabase.from('sales_order_items').select('sales_order_id').eq('id', consumptionId).single()).data?.sales_order_id,
-                    amount: p.amount,
-                    payment_method: p.method,
-                    terminal_code: p.terminal,
-                    card_last_4: p.cardLast4,
-                    card_type: p.cardType,
-                    reference: p.reference || `VALET_ITEM:${consumptionId}`,
-                    concept: 'CONSUMPTION',
-                    status: 'COBRADO_POR_VALET',
-                    collected_by: valetId,
-                    collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null,
-                });
+                // Intentar buscar un pago PENDIENTE de la misma orden y monto
+                const { data: existingPending } = await supabase
+                    .from('payments')
+                    .select('id')
+                    .eq('sales_order_id', salesOrderId)
+                    .eq('status', 'PENDIENTE')
+                    .eq('amount', p.amount)
+                    .maybeSingle();
+
+                if (existingPending) {
+                    await supabase.from('payments').update({
+                        payment_method: p.method,
+                        terminal_code: p.terminal,
+                        card_last_4: p.cardLast4,
+                        card_type: p.cardType,
+                        reference: p.reference || `VALET_ITEM:${consumptionId}`,
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    }).eq('id', existingPending.id);
+                } else {
+                    await supabase.from('payments').insert({
+                        sales_order_id: salesOrderId,
+                        amount: p.amount,
+                        payment_method: p.method,
+                        terminal_code: p.terminal,
+                        card_last_4: p.cardLast4,
+                        card_type: p.cardType,
+                        reference: p.reference || `VALET_ITEM:${consumptionId}`,
+                        concept: paymentConcept,
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    });
+                }
             }
 
             showFeedback('✅ Entrega Informada', `Hab. ${roomNumber}: Lleva el cobro a recepción para corroborar.`);
@@ -151,22 +199,47 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             const mainOrderId = salesOrderIds[0];
             const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
+            // Use the first item's concept to determine the payment concept. Assuming batch is of the same type.
+            const paymentConcept = getPaymentConcept(items[0]?.concept_type);
 
             for (const p of payments) {
-                await supabase.from('payments').insert({
-                    sales_order_id: mainOrderId,
-                    amount: p.amount,
-                    payment_method: p.method,
-                    terminal_code: p.terminal,
-                    card_last_4: p.cardLast4,
-                    card_type: p.cardType,
-                    reference: p.reference || itemsRef,
-                    concept: 'CONSUMPTION',
-                    status: 'COBRADO_POR_VALET',
-                    collected_by: valetId,
-                    collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null,
-                });
+                // Intentar buscar un pago PENDIENTE de la misma orden y monto
+                const { data: existingPending } = await supabase
+                    .from('payments')
+                    .select('id')
+                    .eq('sales_order_id', mainOrderId)
+                    .eq('status', 'PENDIENTE')
+                    .eq('amount', p.amount)
+                    .maybeSingle();
+
+                if (existingPending) {
+                    await supabase.from('payments').update({
+                        payment_method: p.method,
+                        terminal_code: p.terminal,
+                        card_last_4: p.cardLast4,
+                        card_type: p.cardType,
+                        reference: p.reference || itemsRef,
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    }).eq('id', existingPending.id);
+                } else {
+                    await supabase.from('payments').insert({
+                        sales_order_id: mainOrderId,
+                        amount: p.amount,
+                        payment_method: p.method,
+                        terminal_code: p.terminal,
+                        card_last_4: p.cardLast4,
+                        card_type: p.cardType,
+                        reference: p.reference || itemsRef,
+                        concept: paymentConcept,
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    });
+                }
             }
 
             showFeedback('✅ Entregas Informadas', `Hab. ${roomNumber}: ${items.length} servicios informados. Corrobora los cobros en recepción.`);

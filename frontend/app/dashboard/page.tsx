@@ -46,7 +46,7 @@ async function getDashboardData() {
   // Last movements
   const { data: lastMoves } = await supabase
     .from("inventory_movements")
-    .select("created_at, qty, products:product_id(sku, name), warehouses:warehouse_id(code, name)")
+    .select("created_at, quantity, products:product_id(sku, name), warehouses:warehouse_id(code, name)")
     .order("created_at", { ascending: false })
     .limit(5);
 
@@ -194,10 +194,10 @@ export default async function Home() {
                         </div>
                       </div>
                       <Badge
-                        variant={Number(m.qty) > 0 ? "default" : "destructive"}
+                        variant={Number(m.quantity) > 0 ? "default" : "destructive"}
                         className="ml-2"
                       >
-                        {Number(m.qty) > 0 ? '📈' : '📉'} {Math.abs(Number(m.qty)).toFixed(2)}
+                        {Number(m.quantity) > 0 ? '📈' : '📉'} {Math.abs(Number(m.quantity)).toFixed(2)}
                       </Badge>
                     </div>
                   ))}

@@ -91,41 +91,60 @@ function useMenuPermissions(role: UserRole | null): { allowedMenuIds: Set<string
   return { allowedMenuIds, isLoading: isLoading };
 }
 
-// Links para administradores/managers
+// Links para administradores/managers - ORGANIZADOS POR MÓDULOS
 const adminLinks: readonly NavLink[] = [
+  // 🏠 OPERACIONES PRINCIPALES - Lo que se usa todos los días
   { href: "/dashboard", label: "Dashboard", icon: "home", permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
+  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
+  { divider: true },
+  
+  // 🏨 GESTIÓN HOTELERA - Todo relacionado con habitaciones y estancias
+  { href: "/room-types", label: "Tipos de Habitación", icon: "settings", permissionId: "room-types", adminOnly: true },
+  { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", permissionId: "sensors", adminOnly: true },
+  { divider: true, adminOnly: true },
+  
+  // 📦 INVENTARIO Y COMPRAS - Catálogos, productos, compras
   { href: "/products", label: "Productos", icon: "box", permissionId: "products", adminOnly: true },
   { href: "/categories", label: "Categorías", icon: "arrows", permissionId: "categories", adminOnly: true },
   { href: "/warehouses", label: "Almacenes", icon: "building", permissionId: "warehouses", adminOnly: true },
   { href: "/suppliers", label: "Proveedores", icon: "truck", permissionId: "suppliers", adminOnly: true },
   { href: "/customers", label: "Clientes", icon: "users", permissionId: "customers", adminOnly: true },
-  { href: "/notifications-admin", label: "Notificaciones", icon: "bell", permissionId: "notifications-admin", adminOnly: true },
   { divider: true, adminOnly: true },
+  
+  // Compras y Ventas
+  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", permissionId: "purchases-sales", adminOnly: true },
+  { href: "/purchases", label: "Compras", icon: "cart", permissionId: "purchases", adminOnly: true },
+  { href: "/sales", label: "Ventas", icon: "cart", permissionId: "sales", adminOnly: true },
+  { divider: true, adminOnly: true },
+  
+  // Control de Inventario
   { href: "/movements", label: "Movimientos", icon: "activity", permissionId: "movements", adminOnly: true },
   { href: "/stock", label: "Stock", icon: "box", permissionId: "stock", adminOnly: true },
   { href: "/kardex", label: "Kardex", icon: "activity", permissionId: "kardex", adminOnly: true },
   { divider: true, adminOnly: true },
+  
+  // 💰 FINANZAS Y REPORTES - Pre-cortes, analytics, auditoría
+  { href: "/reports/income", label: "Pre-Cortes de Caja", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
+  { href: "/employees/closings", label: "Cortes de Caja (Cierre)", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
+  { divider: true },
+  
   { href: "/analytics", label: "Analytics", icon: "chart", permissionId: "analytics", adminOnly: true },
   { href: "/export", label: "Exportar", icon: "download", permissionId: "export", adminOnly: true },
+  { href: "/auditoria", label: "Auditoría", icon: "activity", permissionId: "auditoria", adminOnly: true },
   { divider: true, adminOnly: true },
-  { href: "/purchases-sales", label: "Dashboard Compras/Ventas", icon: "chart", permissionId: "purchases-sales", adminOnly: true },
-  { href: "/purchases", label: "Compras", icon: "cart", permissionId: "purchases", adminOnly: true },
-  { href: "/sales", label: "Ventas", icon: "cart", permissionId: "sales", adminOnly: true },
-  { href: "/room-types", label: "Tipos de Habitación", icon: "settings", permissionId: "room-types", adminOnly: true },
-  { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", permissionId: "sensors", adminOnly: true },
-  { divider: true, adminOnly: true },
+  
+  // 👥 RECURSOS HUMANOS - Empleados, horarios, capacitación
   { href: "/employees", label: "Empleados", icon: "users", permissionId: "employees", adminOnly: true },
   { href: "/employees/schedules", label: "Horarios", icon: "activity", permissionId: "employees.schedules", adminOnly: true },
-  { href: "/employees/closings", label: "Cortes de Caja", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
-  { divider: true },
-  { href: "/reports/income", label: "Reporte de Ingresos", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
-  { divider: true },
   { href: "/training", label: "Capacitación", icon: "graduation", permissionId: "training", allowedForReceptionist: true },
+  { divider: true, adminOnly: true },
+  
+  // ⚙️ CONFIGURACIÓN Y SISTEMA - Settings, permisos, herramientas admin
   { href: "/settings", label: "Configuración", icon: "settings", permissionId: "settings", adminOnly: true },
   { href: "/settings/roles", label: "Gestión de Roles", icon: "users", permissionId: "settings.roles", adminOnly: true },
-  { href: "/settings/media", label: "Biblioteca de Medios", icon: "image", permissionId: "settings.media", adminOnly: true },
   { href: "/settings/permissions", label: "Permisos de Roles", icon: "settings", permissionId: "settings.permissions", adminOnly: true },
+  { href: "/settings/media", label: "Biblioteca de Medios", icon: "image", permissionId: "settings.media", adminOnly: true },
+  { href: "/notifications-admin", label: "Notificaciones", icon: "bell", permissionId: "notifications-admin", adminOnly: true },
 ] as const;
 
 // Reusable components

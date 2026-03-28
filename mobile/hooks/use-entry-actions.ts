@@ -46,6 +46,11 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         totalPeople?: number
     ) => {
         setLoading(true);
+        
+        console.log('🔍 MOBILE DEBUG: Iniciando handleRegisterVehicleAndPayment');
+        console.log('  - valetId recibido:', valetId);
+        console.log('  - roomNumber:', roomNumber);
+        console.log('  - payments:', payments);
 
         try {
             const { error: stayError, count } = await supabase
@@ -64,6 +69,9 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         amount: p.amount,
                         method: p.method,
                         reference: p.reference,
+                        terminal: p.terminal,
+                        cardType: p.cardType,
+                        cardLast4: p.cardLast4,
                         concept: 'ENTRADA'
                     }))
                 })
@@ -104,10 +112,17 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 return false;
             }
 
+            console.log('🔍 MOBILE DEBUG: Guardando pagos del cochero');
+            console.log('  - valetId:', valetId);
+            console.log('  - sessionId:', session?.id);
+            console.log('  - payments count:', payments.length);
+            
             for (let i = 0; i < payments.length; i++) {
                 const p = payments[i];
+                console.log(`  - Payment ${i}: $${p.amount} - ${p.method}`);
+                
                 if (i === 0) {
-                    await supabase.from('payments').update({
+                    const updateData = {
                         amount: p.amount,
                         payment_method: p.method,
                         terminal_code: p.terminal,
@@ -118,9 +133,12 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    }).eq('id', pendingMain.id);
+                    };
+                    console.log('  - Update data:', updateData);
+                    
+                    await supabase.from('payments').update(updateData).eq('id', pendingMain.id);
                 } else {
-                    await supabase.from('payments').insert({
+                    const insertData = {
                         sales_order_id: salesOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -135,9 +153,16 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    });
+                    };
+                    console.log('  - Insert data:', insertData);
+                    
+                    await supabase.from('payments').insert(insertData);
                 }
             }
+
+            // NOTA: No sincronizar items aquí. El cochero solo reporta pagos (COBRADO_POR_VALET)
+            // La sincronización de items solo debe ocurrir cuando el recepcionista cambia a PAGADO
+            console.log('Cochero payment processed - items will sync when recepcionista corroborates');
 
             showFeedback('Entrada registrada', `Hab. ${roomNumber}: Lleva el dinero/vouchers a recepción.`);
             await onRefresh();

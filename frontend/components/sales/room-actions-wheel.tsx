@@ -17,11 +17,9 @@ export interface RoomActionsWheelProps {
   onClose: () => void;
   onStartStay: () => void;
   onCheckout: () => void;
-  onPayExtra: () => void; // Pagar solo extras sin checkout
   onViewSale: () => void;
   onViewDetails: () => void; // Ver detalles de pagos y consumos
   onGranularPayment: () => void; //Cobrar por concepto individual
-  onAddProduct: () => void; // Agregar consumo/producto
   onAddPerson: () => void; // Entra persona nueva (siempre cobra extra si >2)
   onRemovePerson: () => void; // Sale persona (sin tolerancia, se fue definitivamente)
   onPersonLeftReturning: () => void; // Salió pero va a regresar (inicia tolerancia 1h, solo motel)
@@ -40,7 +38,6 @@ export interface RoomActionsWheelProps {
   onRequestVehicle: () => void; // Solicitar vehículo al valet
   onAddDamageCharge: () => void; // Agregar cargo por daño
   onNotifyCheckout: () => void; // Valet notifica salida
-  onViewServices: () => void; // Ver tracking de servicios/consumos
   onAuthorizeValetCheckout?: () => void; // Recepción autoriza salida del valet
   hasValetAssigned?: boolean; // Si ya tiene cochero asignado
   hasVehicleRegistered?: boolean; // Si ya tiene vehículo registrado
@@ -48,11 +45,10 @@ export interface RoomActionsWheelProps {
   hasPendingValetPayment?: boolean; // Si hay pagos cobrados por valet sin confirmar
   hasValetCheckoutRequest?: boolean; // Si el valet propuso salida
   onCancelValetCheckout?: () => void; // Cancelar/Rechazar solicitud de salida
-  hasPendingServices?: boolean; // Indica si hay consumos pendientes de entrega
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onPayExtra' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddProduct' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onViewServices' | 'onCancelValetCheckout';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onCancelValetCheckout';
 
 interface ActionConfig {
   id: string;
@@ -66,7 +62,6 @@ interface ActionConfig {
   showOnlyWithVehicle?: boolean; // Solo mostrar si tiene vehículo registrado
   showOnlyValet?: boolean; // Solo mostrar si es valet
   showOnlyWithCheckoutRequest?: boolean; // Solo mostrar si hay solicitud de salida del valet
-  showOnlyWithPendingServices?: boolean; // Solo mostrar si hay consumos pendientes de entrega
   showOnlyWithActiveCheckout?: boolean; // Solo mostrar si el checkout ya fue autorizado o iniciado
 }
 
@@ -81,10 +76,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   OCUPADA: [
     { id: "checkout", label: "Salida", icon: <DoorOpen className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onCheckout" },
     { id: "granular", label: "Cobrar", icon: <ListChecks className="h-5 w-5" />, color: "text-lime-400", hoverBg: "hover:bg-lime-500/30", action: "onGranularPayment" },
-    { id: "consumption", label: "Consumo", icon: <ShoppingBag className="h-5 w-5" />, color: "text-green-400", hoverBg: "hover:bg-green-500/30", action: "onAddProduct" },
-    { id: "services", label: "Servicios", icon: <ConciergeBell className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onViewServices", showOnlyWithPendingServices: true },
     { id: "guestportal", label: "Portal", icon: <QrCode className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onShowGuestPortal" },
-    { id: "payextra", label: "Pagar Todo", icon: <CreditCard className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onPayExtra", showOnlyWithExtra: true },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
     // { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
     { id: "req_vehicle", label: "Solicitar Auto", icon: <BellRing className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onRequestVehicle" },
@@ -173,11 +165,9 @@ export function RoomActionsWheel({
   onClose,
   onStartStay,
   onCheckout,
-  onPayExtra,
   onViewSale,
   onViewDetails,
   onGranularPayment,
-  onAddProduct, // Changed from onAddConsumption
   onAddPerson,
   onRemovePerson,
   onPersonLeftReturning,
@@ -196,12 +186,10 @@ export function RoomActionsWheel({
   onRequestVehicle,
   onAddDamageCharge,
   onNotifyCheckout,
-  onViewServices,
   hasValetAssigned = false,
   hasVehicleRegistered = false,
   hasPendingValetPayment = false,
   hasValetCheckoutRequest = false,
-  hasPendingServices = false,
   onAuthorizeValetCheckout,
   onCancelValetCheckout,
 }: RoomActionsWheelProps) {
@@ -257,11 +245,9 @@ export function RoomActionsWheel({
   const callbacks: Record<string, () => void> = {
     onStartStay,
     onCheckout,
-    onPayExtra,
     onViewSale,
     onViewDetails,
     onGranularPayment,
-    onAddProduct,
     onAddPerson,
     onRemovePerson,
     onPersonLeftReturning,
@@ -280,7 +266,6 @@ export function RoomActionsWheel({
     onRequestVehicle,
     onAddDamageCharge,
     onNotifyCheckout,
-    onViewServices,
     onAuthorizeValetCheckout: onAuthorizeValetCheckout || (() => { }),
     onCancelValetCheckout: onCancelValetCheckout || (() => { }),
   };
@@ -410,11 +395,6 @@ export function RoomActionsWheel({
                     {/* Indicador de pago pendiente de valet */}
                     {action.action === 'onGranularPayment' && hasPendingValetPayment && (
                       <circle cx="12" cy="-24" r="5" fill="#ef4444" className="animate-pulse" />
-                    )}
-
-                    {/* Indicador de servicios de consumo pendientes (Charola) */}
-                    {action.action === 'onViewServices' && hasPendingServices && (
-                      <circle cx="12" cy="-24" r="5" fill="#f59e0b" className="animate-pulse shadow-lg" />
                     )}
                   </g>
                 </g>

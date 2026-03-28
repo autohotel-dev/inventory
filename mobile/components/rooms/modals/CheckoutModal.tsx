@@ -38,6 +38,13 @@ export interface CheckoutModalProps {
     // Main checkout payment pre-fill
     payments: PaymentEntry[];
     setPayments: (v: PaymentEntry[]) => void;
+    // Digital Checklist (SOP 5)
+    checklist: {
+        roomState: boolean;
+        linens: boolean;
+        glassware: boolean;
+    };
+    setChecklist: (v: any) => void;
 }
 
 export const CheckoutModal = memo(({
@@ -48,8 +55,12 @@ export const CheckoutModal = memo(({
     extraHourPayments, setExtraHourPayments, handleExtraHourSubmit,
     showExtraPersonForm, setShowExtraPersonForm, extraPersonAmount, setExtraPersonAmount,
     extraPersonPayments, setExtraPersonPayments, handleExtraPersonSubmit,
-    payments, setPayments
+    payments, setPayments,
+    checklist, setChecklist
 }: CheckoutModalProps) => {
+    const toggleChecklist = (field: keyof typeof checklist) => {
+        setChecklist((prev: any) => ({ ...prev, [field]: !prev[field] }));
+    };
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
@@ -145,6 +156,43 @@ export const CheckoutModal = memo(({
                                 </View>
                             )}
 
+                            {/* Digital Checklist (SOP 5) */}
+                            {!showExtraHourForm && !showExtraPersonForm && !showDamageForm && (
+                                <View className="mb-6 p-5 rounded-2xl border-2 border-zinc-100 bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800">
+                                    <Text className="text-[10px] font-black uppercase tracking-widest mb-4 text-zinc-400 dark:text-zinc-500">Checklist de Revisión (SOP 5)</Text>
+                                    
+                                    <TouchableOpacity 
+                                        onPress={() => toggleChecklist('roomState')}
+                                        className="flex-row items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800"
+                                    >
+                                        <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Estado de Habitación OK</Text>
+                                        <View className={`w-6 h-6 rounded-md border-2 items-center justify-center ${checklist.roomState ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                                            {checklist.roomState && <X color="white" size={14} />}
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity 
+                                        onPress={() => toggleChecklist('linens')}
+                                        className="flex-row items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800"
+                                    >
+                                        <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Blancos (Toallas/Sábanas) OK</Text>
+                                        <View className={`w-6 h-6 rounded-md border-2 items-center justify-center ${checklist.linens ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                                            {checklist.linens && <X color="white" size={14} />}
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity 
+                                        onPress={() => toggleChecklist('glassware')}
+                                        className="flex-row items-center justify-between py-3"
+                                    >
+                                        <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Cristalería OK</Text>
+                                        <View className={`w-6 h-6 rounded-md border-2 items-center justify-center ${checklist.glassware ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                                            {checklist.glassware && <X color="white" size={14} />}
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
                             {/* Main Payment Pre-fill Section */}
                             {!showExtraHourForm && !showExtraPersonForm && !showDamageForm && (
                                 <View className="mb-6">
@@ -190,8 +238,22 @@ export const CheckoutModal = memo(({
                                 <TouchableOpacity onPress={onClose} className="flex-1 h-16 border-2 rounded-2xl items-center justify-center border-zinc-100 dark:border-zinc-800">
                                     <Text className="font-black text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Cancelar</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={onSubmit} className="flex-1 h-16 rounded-2xl items-center justify-center shadow-lg bg-zinc-900 dark:bg-white">
-                                    <Text className="font-black text-xs uppercase tracking-widest text-white dark:text-black">Confirmar OK</Text>
+                                <TouchableOpacity 
+                                    onPress={onSubmit} 
+                                    disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware}
+                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${
+                                        (checklist.roomState && checklist.linens && checklist.glassware) 
+                                        ? 'bg-zinc-900 dark:bg-white' 
+                                        : 'bg-zinc-200'
+                                    }`}
+                                >
+                                    <Text className={`font-black text-xs uppercase tracking-widest ${
+                                        (checklist.roomState && checklist.linens && checklist.glassware) 
+                                        ? 'text-white dark:text-black' 
+                                        : 'text-zinc-400'
+                                    }`}>
+                                        Confirmar OK
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>

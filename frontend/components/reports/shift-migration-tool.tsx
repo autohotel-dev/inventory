@@ -58,6 +58,7 @@ export function ShiftMigrationTool() {
             // 3. Obtener TODOS los pagos posteriores al inicio del turno
             // Fetch sales_order_id to link with rooms later
 
+            
             const { data: allPayments, error: paymentsError } = await supabase
                 .from("payments")
                 .select(`
@@ -66,6 +67,7 @@ export function ShiftMigrationTool() {
             created_at,
             shift_session_id,
             sales_order_id,
+            collected_by,
             shift_sessions (
                 employees (
                     first_name, 
@@ -76,6 +78,7 @@ export function ShiftMigrationTool() {
                 .gte("created_at", receptionSession.clock_in_at);
 
             if (paymentsError) throw paymentsError;
+            
 
             // 4. Obtener información de habitaciones via sales_order_id (Manual Join para evitar error de relación)
             // Extraer IDs de ordenes únicas
@@ -150,15 +153,30 @@ export function ShiftMigrationTool() {
                     return;
                 }
 
-                // Si no, es candidato a migración
-                idsToMigrate.push(p.id);
 
-                // Stats del origen
+                // Si no está en el turno correcto, verificar si necesita migración
+                // SOLO considerar para migración si está en un turno de cochero que tiene collected_by
+                const needsMigration = p.shift_session_id && 
+                    p.shift_session_id !== receptionSession.id &&
+                    p.shift_session_id !== "sin_turno" &&
+                    // Importante: Solo migrar si tiene collected_by (es un pago de cochero)
+                    p.collected_by;
+
+
+                // Stats del origen - Priorizar collected_by para mostrar quién realmente cobró
                 const shiftId = p.shift_session_id || "sin_turno";
                 let empName = "Sin Turno";
+                
+                // Prioridad 1: Si está asignado a un turno, mostrar info del turno
                 if (p.shift_sessions?.employees) {
                     empName = `${p.shift_sessions.employees.first_name} (${p.shift_sessions.employees.role})`;
-                } else if (p.shift_session_id) {
+                }
+                // Prioridad 2: Si tiene collected_by, mostrar indicador
+                else if (p.collected_by) {
+                    empName = `Cochero (ID: ${p.collected_by.slice(0, 8)}...)`;
+                }
+                // Prioridad 3: Si tiene shift_session_id pero no hay info
+                else if (p.shift_session_id) {
                     empName = "Turno Desconocido/Cerrado";
                 }
 
@@ -268,7 +286,7 @@ export function ShiftMigrationTool() {
                             <div className="mt-2 p-2 bg-white dark:bg-black/20 rounded border border-amber-200">
                                 <div className="flex items-center gap-2 text-amber-600 mb-2 font-semibold">
                                     <AlertTriangle className="h-4 w-4" />
-                                    Se reasignarán estos pagos:
+                                    Pagos del cochero para asignar a recepción:
                                 </div>
                                 <ul className="list-disc pl-5 max-h-32 overflow-y-auto text-xs">
                                     {migrationStats.valetShifts.map(v => (
@@ -304,7 +322,7 @@ export function ShiftMigrationTool() {
                                 disabled={loading || analyzing}
                                 className="bg-amber-600 hover:bg-amber-700 text-white w-full"
                             >
-                                {loading ? "Forzando..." : `Forzar Migración (${migrationStats.totalToMigrate})`}
+                                {loading ? "Asignando..." : `Asignar a Recepción (${migrationStats.totalToMigrate})`}
                             </Button>
                         )}
                     </div>

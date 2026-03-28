@@ -41,9 +41,13 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { BottlePackageRules } from "@/components/settings/bottle-package-rules";
 import { ProductPromotions } from "@/components/settings/product-promotions";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit-logger";
+import { AuditLogsViewer } from "@/components/settings/audit-logs-viewer";
 
 // --- Section definitions ---
-type SectionId = "general" | "rooms" | "reports" | "printing" | "scanner" | "sounds" | "packages" | "promotions" | "history";
+type SectionId = "general" | "rooms" | "reports" | "printing" | "scanner" | "sounds" | "packages" | "promotions" | "history" | "maintenance";
 
 interface SectionDef {
     id: SectionId;
@@ -64,6 +68,7 @@ const SECTIONS: SectionDef[] = [
     { id: "packages", label: "Paquetes", icon: <Package className="h-4 w-4" />, color: "text-amber-500", scope: "shared" },
     { id: "promotions", label: "Promociones", icon: <Tag className="h-4 w-4" />, color: "text-rose-500", scope: "shared" },
     { id: "history", label: "Historial", icon: <History className="h-4 w-4" />, color: "text-gray-500", scope: "info", adminOnly: true },
+    { id: "maintenance", label: "Mantenimiento", icon: <Zap className="h-4 w-4" />, color: "text-red-500", scope: "shared", adminOnly: true },
 ];
 
 function ScopeBadge({ scope }: { scope: "shared" | "local" | "info" }) {
@@ -92,6 +97,98 @@ function ReadOnlyNotice() {
                 Solo los administradores pueden modificar esta sección. Los cambios se aplican a todos los dispositivos.
             </p>
         </div>
+    );
+}
+
+// --- Componente de Botón de Reinicio ---
+function NuclearResetButton() {
+    const [isConfirming, setIsConfirming] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [confirmText, setConfirmText] = useState("");
+    const supabase = createClient();
+
+    const handleNuclearReset = async () => {
+        if (confirmText !== "REINICIAR") {
+            toast.error("Debes escribir REINICIAR exactamente para proceder");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const { error } = await supabase.rpc("purgesystem", { confirm: confirmText });
+
+            if (error) {
+                console.error("Error in nuclear reset:", JSON.stringify(error, null, 2));
+                toast.error("Error al reiniciar el sistema", {
+                    description: error.message || error.code || JSON.stringify(error)
+                });
+            } else {
+                logAudit("PURGE_SYSTEM", {
+                    description: "Reinicio nuclear ejecutado desde panel de mantenimiento",
+                });
+                toast.success("Sistema reiniciado con éxito", {
+                    description: "Todos los datos de prueba han sido purgados."
+                });
+                // Recargar para limpiar estados de React
+                setTimeout(() => window.location.reload(), 1500);
+            }
+        } catch (err) {
+            console.error("Unexpected error in nuclear reset:", err);
+            toast.error("Error inesperado");
+        } finally {
+            setIsLoading(false);
+            setIsConfirming(false);
+            setConfirmText("");
+        }
+    };
+
+    return (
+        <>
+            <Button
+                variant="destructive"
+                className="w-full sm:w-auto shadow-lg shadow-red-500/20"
+                onClick={() => setIsConfirming(true)}
+                disabled={isLoading}
+            >
+                {isLoading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Reiniciando...
+                    </>
+                ) : (
+                    <>
+                        <Zap className="mr-2 h-4 w-4" />
+                        Ejecutar Reinicio Nuclear
+                    </>
+                )}
+            </Button>
+
+            <ConfirmDialog
+                isOpen={isConfirming}
+                onClose={() => {
+                    setIsConfirming(false);
+                    setConfirmText("");
+                }}
+                onConfirm={handleNuclearReset}
+                title="¿ESTÁS TOTALMENTE SEGURO?"
+                description="Esta acción eliminará todas las estancias, pagos, órdenes y logs de forma permanente. Para continuar, escribe REINICIAR abajo y haz clic en confirmar."
+                confirmText="SÍ, BORRAR TODO"
+                variant="destructive"
+            >
+                <div className="space-y-3">
+                    <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">
+                       ⚠️ Confirma con la palabra clave:
+                    </p>
+                    <Input
+                        placeholder="Escribe REINICIAR"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+                        className="font-black text-center text-lg border-2 border-red-500/30 focus-visible:ring-red-500 h-12"
+                        autoFocus
+                    />
+                </div>
+            </ConfirmDialog>
+        </>
     );
 }
 
@@ -798,6 +895,62 @@ export default function SettingsPage() {
                                 </CardContent>
                             </Card>
                         )}
+
+                        {/* ==================== MANTENIMIENTO ==================== */}
+                        {activeSection === "maintenance" && canEditShared && (<>
+                            <Card className="border-0 shadow-md border-t-4 border-t-red-500">
+                                <CardHeader className="pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="p-2 rounded-lg bg-red-500/10">
+                                                <Zap className="h-5 w-5 text-red-500" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg">Mantenimiento y Purga de Datos</CardTitle>
+                                                <CardDescription>Herramientas de limpieza para entorno de pruebas</CardDescription>
+                                            </div>
+                                        </div>
+                                        <Badge variant="destructive" className="gap-1 animate-pulse">
+                                            Acción Destructiva
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20 space-y-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Reinicio Nuclear del Sistema</h4>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                Esta acción borrará permanentemente:
+                                            </p>
+                                            <ul className="text-xs text-muted-foreground list-disc list-inside ml-2 mt-1 space-y-0.5">
+                                                <li>Todas las estancias y habitaciones ocupadas</li>
+                                                <li>Órdenes de venta y consumos</li>
+                                                <li>Pagos, recibos y cortes de caja</li>
+                                                <li>Logs de auditoría y notificaciones</li>
+                                                <li>Turnos abiertos (Shift Sessions)</li>
+                                            </ul>
+                                            <p className="text-xs font-bold text-red-600 dark:text-red-500 mt-2">
+                                                ESTA ACCIÓN NO SE PUEDE DESHACER. TODAS LAS HABITACIONES VOLVERÁN A ESTADO 'LIBRE'.
+                                            </p>
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <NuclearResetButton />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-2 p-3 bg-blue-500/10 rounded-lg">
+                                        <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                                            <strong>Nota:</strong> Esta herramienta está diseñada exclusivamente para limpiar el ruido generado durante pruebas intensivas.
+                                            Los datos maestros (productos, empleados, tipos de habitación) NO serán borrados.
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <AuditLogsViewer />
+                        </>)}
                     </div>
                 </div>
             </div>

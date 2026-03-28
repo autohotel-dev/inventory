@@ -24,7 +24,6 @@ import { MockEditValetModal } from '@/components/training/modals/mock-edit-valet
 import { MockRoomDetailsModal } from '@/components/training/modals/mock-room-details-modal';
 import { ChangeRoomModal } from '@/components/sales/change-room-modal';
 import { ManagePeopleModal } from '@/components/sales/manage-people-modal';
-import { RoomPayExtraModal } from '@/components/sales/room-pay-extra-modal';
 import { PracticeIntro } from '@/components/training/practice-intro';
 import { MockGranularPaymentModal, MockOrderItem } from '@/components/training/modals/mock-granular-payment-modal';
 import { MockExpenseModal } from '@/components/training/modals/mock-expense-modal';
@@ -186,7 +185,6 @@ export default function PracticePage() {
     const [isManagePeopleOpen, setIsManagePeopleOpen] = useState(false);
     const [isEditValetOpen, setIsEditValetOpen] = useState(false);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-    const [isPayExtraOpen, setIsPayExtraOpen] = useState(false);
     const [isGranularPaymentOpen, setIsGranularPaymentOpen] = useState(false);
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [isBlockRoomOpen, setIsBlockRoomOpen] = useState(false);
@@ -547,7 +545,7 @@ export default function PracticePage() {
         setIsConsumptionOpen(false);
     };
 
-    const confirmAddHours = async (hours: number, payments: any[], isCourtesy?: boolean, courtesyReason?: string) => {
+    const confirmAddHours = async (hours: number, isCourtesy?: boolean, courtesyReason?: string) => {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 1000));
 
@@ -560,7 +558,7 @@ export default function PracticePage() {
             }
         } else {
             toast.success(result.message);
-            checkPaymentExercises(payments);
+            // checkPaymentExercises(payments); // Removed payments from here as modal handles core logic
             if (!completedExercises.includes('add-hours')) {
                 setCompletedExercises(prev => [...prev, 'add-hours']);
             }
@@ -605,12 +603,12 @@ export default function PracticePage() {
         setIsHourManagementOpen(false);
     };
 
-    const confirmRenewShift = async (payments: any[]) => {
+    const confirmRenewShift = async () => {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 1000));
 
         toast.success("Turno renovado exitosamente");
-        checkPaymentExercises(payments);
+        // checkPaymentExercises(payments);
 
         if (!completedExercises.includes('renew-shift')) {
             setCompletedExercises(prev => [...prev, 'renew-shift']);
@@ -620,12 +618,12 @@ export default function PracticePage() {
         setIsHourManagementOpen(false);
     };
 
-    const confirmPromo4H = async (payments: any[]) => {
+    const confirmPromo4H = async () => {
         setActionLoading(true);
         await new Promise(r => setTimeout(r, 1000));
 
         toast.success("Promoción 4 Horas aplicada");
-        checkPaymentExercises(payments);
+        // checkPaymentExercises(payments);
 
         if (!completedExercises.includes('promos')) {
             setCompletedExercises(prev => [...prev, 'promos']);
@@ -935,57 +933,7 @@ export default function PracticePage() {
         closeWheel();
     };
 
-    const handlePayExtra = () => {
-        if (!selectedRoom) return;
-        setIsPayExtraOpen(true);
-        closeWheel();
-    };
-
-    const confirmPayExtra = async (payments: any[]) => {
-        setActionLoading(true);
-        await new Promise(r => setTimeout(r, 1000));
-
-        checkPaymentExercises(payments);
-
-        const amount = payments.reduce((acc: number, p: any) => acc + p.amount, 0);
-
-        setPracticeRooms(rooms => rooms.map(r => {
-            if (r.id === selectedRoom.id && r.room_stays?.[0]) {
-                const currentDebt = r.room_stays[0].sales_orders?.remaining_amount || 0;
-                return {
-                    ...r, room_stays: [{
-                        ...r.room_stays[0],
-                        sales_orders: { remaining_amount: Math.max(0, currentDebt - amount) }
-                    }]
-                };
-            }
-            return r;
-        }));
-
-        toast.success(`Pago extra registrado: $${amount.toFixed(2)}`);
-
-        if (!completedExercises.includes('pay-extras')) setCompletedExercises(prev => [...prev, 'pay-extras']);
-
-        // Objetivo: Abono Parcial (Si queda deuda)
-        // El estado se actualizó arriba, pero podemos checar payments vs remaining anterior o recalcular
-        // update simple: si no cubrió todo el saldo, es parcial.
-        // Pero el handlePayExtra no tiene acceso fácil al saldo nuevo aquí. 
-        // Asumiremos que si se paga extras y no es 0, es parcial?
-        // Mejor chequeamos si la deuda remanente > 0 logicamente.
-        // Para simplificar: si el usuario hace "Pagar Extras" suele ser abono.
-        // Pero para ser estrictos, deberíamos ver si liquida. 
-        // En este mock, confirmPayExtra actualiza el estado. 
-        // Vamos a marcarlo siempre como partial-payment si no liquida (complicado de saber aquí sin leer state).
-        // Simplificación: Marcar partial-payment si se usa este modal, ya que suele ser para eso.
-        if (!completedExercises.includes('partial-payment')) {
-            setCompletedExercises(prev => [...prev, 'partial-payment']);
-            toast.success("✓ Objetivo: Abono Parcial completado");
-        }
-
-        setActionLoading(false);
-        setIsPayExtraOpen(false);
-    };
-
+    // Pagar extra removido
     const handleNoOp = () => {
         closeWheel();
     };
@@ -1182,7 +1130,6 @@ export default function PracticePage() {
                     onStartStay={handleStartStay}
                     onQuickCheckin={handleQuickCheckin}
                     onCheckout={handlePracticeCheckout}
-                    onAddProduct={handleAddConsumption}
                     onAddHour={handleAddHours}
                     onAddPerson={handleManagePeople}
                     onMarkClean={handleMarkClean}
@@ -1193,7 +1140,6 @@ export default function PracticePage() {
                     onEditValet={handleEditValet}
                     onChangeRoom={handleChangeRoom}
                     onCancelStay={handleCancelStay}
-                    onPayExtra={handlePayExtra}
                     onViewDetails={handleViewDetails}
                     onViewSale={handleNoOp}
                     onGranularPayment={handleGranularPayment}
@@ -1204,7 +1150,6 @@ export default function PracticePage() {
                     onRequestVehicle={handleNoOp}
                     onAddDamageCharge={handleNoOp}
                     onNotifyCheckout={handleNoOp}
-                    onViewServices={handleNoOp}
                 />
 
                 {/* MODALES DE PRÁCTICA */}
@@ -1326,18 +1271,6 @@ export default function PracticePage() {
                             paidAmount={0}
                             remainingAmount={selectedRoom.room_stays?.[0]?.sales_orders?.remaining_amount || 0}
                             onClose={() => setIsDetailsOpen(false)}
-                        />
-
-                        <RoomPayExtraModal
-                            isOpen={isPayExtraOpen}
-                            roomNumber={selectedRoom.number}
-                            roomTypeName={selectedRoom.room_types.name}
-                            extraAmount={selectedRoom.room_stays?.[0]?.sales_orders?.remaining_amount || 0}
-                            payAmount={selectedRoom.room_stays?.[0]?.sales_orders?.remaining_amount || 0}
-                            actionLoading={actionLoading}
-                            onAmountChange={() => { }}
-                            onClose={() => setIsPayExtraOpen(false)}
-                            onConfirm={confirmPayExtra}
                         />
 
                         <MockGranularPaymentModal

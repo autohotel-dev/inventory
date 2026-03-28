@@ -79,13 +79,20 @@ export function IncomeReport({
     // Fetch separate info about who is CURRENTLY on duty (for the header/export)
     const fetchCurrentShift = useCallback(async () => {
         const supabase = createClient();
-        const { data: session } = await supabase
+        const { data: sessions } = await supabase
             .from("shift_sessions")
             .select(`
-                employees!shift_sessions_employee_id_fkey(first_name, last_name)
+                id,
+                status,
+                employees!shift_sessions_employee_id_fkey(
+                    first_name,
+                    last_name
+                )
             `)
-            .eq("status", "active")
-            .single();
+            .eq("status", "active");
+
+        // Tomar la primera sesión activa (o null si no hay)
+        const session = sessions && sessions.length > 0 ? sessions[0] : null;
 
         if (session) {
             const emp = (session.employees as any);
@@ -119,12 +126,18 @@ export function IncomeReport({
             paid_amount,
             status,
               payments (
+                id,
                 payment_method,
                 card_type,
                 card_last_4,
                 terminal_code,
                 amount,
-                concept
+                concept,
+                status,
+                reference,
+                collected_by,
+                collected_at,
+                shift_session_id
               ),
               sales_order_items (
                 concept_type,
@@ -173,12 +186,12 @@ export function IncomeReport({
                     const { data: session, error: sessionError } = await supabase
                         .from("shift_sessions")
                         .select(`
-    id,
-    clock_in_at,
-        employees!shift_sessions_employee_id_fkey(
-            first_name,
-            last_name
-        )
+                            id,
+                            clock_in_at,
+                            employees!shift_sessions_employee_id_fkey(
+                                first_name,
+                                last_name
+                            )
                         `)
                         .eq("id", shiftId)
                         .single();
@@ -250,15 +263,63 @@ export function IncomeReport({
 
             let processedEntries: IncomeEntry[] = filteredData.map((stay: any, index: number) => {
                 const order = stay.sales_orders;
-                const items = order?.sales_order_items || [];
-                const payments = order?.payments || [];
+                const items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
 
+                // Extraer pagos de forma robusta y de-duplicar por ID (evita problemas de join)
+                const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
+                const allObservedPayments: any[] = [];
+                
+                rawOrderData.forEach((o: any) => {
+                    if (o?.payments) {
+                        const pList = Array.isArray(o.payments) ? o.payments : [o.payments];
+                        allObservedPayments.push(...pList);
+                    }
+                });
+
+                // De-duplicar por ID único PRIMERO
+                const idUniquePaymentsMap = new Map();
+                allObservedPayments.forEach((p: any) => {
+                    if (p.id) idUniquePaymentsMap.set(p.id, p);
+                });
+
+                // Aplicar filtros básicos
+                const filteredList = Array.from(idUniquePaymentsMap.values()).filter(
+                    (p: any) => 
+                        p.status !== 'PENDIENTE' && 
+                        p.concept?.toUpperCase() !== 'CHECKOUT' &&
+                        p.payment_method !== 'PENDIENTE'
+                );
+
+                // DE-DUPLICAR POR CONTENIDO (Nuclear Fix for physical duplicates in DB)
+                // Si tenemos dos pagos con el mismo monto, método y tarjeta, los colapsamos.
+                const contentUniqueMap = new Map();
+                filteredList.forEach((p: any) => {
+                    const key = `${p.amount}-${p.payment_method}-${p.card_last_4 || 'none'}`;
+                    // Preferimos el que tenga un concepto diferente de null si hay colisión
+                    if (!contentUniqueMap.has(key) || p.concept) {
+                        contentUniqueMap.set(key, p);
+                    }
+                });
+
+                const payments = Array.from(contentUniqueMap.values());
+
+                
+                // Agrupar pagos por shift_session_id (a qué turno pertenecen para el reporte)
+                const paymentsByShift = new Map();
+                payments.forEach(p => {
+                    const shiftId = p.shift_session_id || 'SIN_TURNO';
+                    if (!paymentsByShift.has(shiftId)) {
+                        paymentsByShift.set(shiftId, []);
+                    }
+                    paymentsByShift.get(shiftId).push(p);
+                });
+                
                 let roomPrice = 0;
                 let extra = 0;
                 let consumption = 0;
 
                 if (stay.status === "CANCELADA") {
-                    roomPrice = order?.total || 0;
+                    roomPrice = Array.isArray(order) ? (order[0]?.total || 0) : (order?.total || 0);
                     // consumption y extra en 0 para canceladas (solo mostramos lo retenido en precio)
                 } else {
                     roomPrice = items
@@ -271,21 +332,21 @@ export function IncomeReport({
                         )
                         .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
 
-                    consumption = Math.max(0, (order?.subtotal || 0) - roomPrice - extra);
+                    consumption = Math.max(0, (Array.isArray(order) ? (order[0]?.subtotal || 0) : (order?.subtotal || 0)) - roomPrice - extra);
                 }
-                const cardPayment = payments.find((p: any) => p.payment_method === "TARJETA");
 
-                // Determinar método de pago
-                let paymentMethod = "";
+                // Determinar método de pago para el badge principal
+                let paymentMethodLabel = "";
                 if (payments.length === 0) {
-                    paymentMethod = "PENDIENTE";
+                    paymentMethodLabel = "PENDIENTE";
                 } else if (payments.length > 1) {
-                    // Verificar si son métodos distintos
                     const uniqueMethods = new Set(payments.map((p: any) => p.payment_method));
-                    paymentMethod = uniqueMethods.size > 1 ? "MIXTO" : payments[0].payment_method;
+                    paymentMethodLabel = uniqueMethods.size > 1 ? "MIXTO" : payments[0].payment_method;
                 } else {
-                    paymentMethod = payments[0].payment_method;
+                    paymentMethodLabel = payments[0].payment_method;
                 }
+
+                const cardPayment = payments.find((p: any) => p.payment_method === "TARJETA");
 
                 return {
                     no: index + 1,
@@ -299,8 +360,8 @@ export function IncomeReport({
                     room_price: roomPrice,
                     extra: extra,
                     consumption: consumption,
-                    total: order?.total || order?.subtotal || 0,
-                    payment_method: paymentMethod,
+                    total: (Array.isArray(order) ? (order[0]?.total || 0) : (order?.total || 0)) || (roomPrice + extra + consumption),
+                    payment_method: paymentMethodLabel,
                     card_type: cardPayment?.card_type,
                     card_last_4: cardPayment?.card_last_4,
                     terminal_code: cardPayment?.terminal_code,
@@ -386,7 +447,7 @@ export function IncomeReport({
 
         // Fila de metadatos (combinada visualmente en el primer renglón)
         const metaRow = [
-            `REPORTE DE INGRESOS - Exportado: ${exportDate} - ${shiftLabel} - Recepcionista: ${receptionistName}`
+            `CORTE DE CAJA - Exportado: ${exportDate} - ${shiftLabel} - Recepcionista: ${receptionistName}`
         ];
 
         const headers = [
@@ -436,7 +497,7 @@ export function IncomeReport({
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `reporte_ingresos_${new Date().toISOString().split("T")[0]}.csv`);
+        link.setAttribute("download", `corte_de_caja_${new Date().toISOString().split("T")[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -459,7 +520,7 @@ export function IncomeReport({
             {/* Header */}
             <div className="flex justify-between items-center no-print">
                 <div>
-                    <h2 className="text-2xl font-bold">Reporte de Ingresos</h2>
+                    <h2 className="text-2xl font-bold">Corte de Caja</h2>
                     <p className="text-sm text-muted-foreground">
                         {reportType === "shift" && shiftInfo ? (
                             <>Turno de {shiftInfo.employee_name || "N/A"} - {new Date(shiftInfo.shift_start).toLocaleDateString()}</>

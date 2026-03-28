@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Result, success, failure } from "@/lib/types/api";
 import { ROOM_STATUS, STAY_STATUS, RoomStatus, StayStatus } from "@/lib/constants/room-constants";
 import { logger } from "@/lib/utils/logger";
+import { logAudit } from "@/lib/audit-logger";
 
 /**
  * Tipo para estancia de habitación
@@ -46,6 +47,7 @@ export async function updateRoomStatus(
             return failure("No se pudo actualizar el estado de la habitación", "ROOM_UPDATE_ERROR");
         }
 
+        logAudit("UPDATE", { tableName: "rooms", recordId: roomId, description: `Estado de habitación cambiado a ${status}` });
         return success(true);
     } catch (error) {
         logger.error("Unexpected error updating room status", error);
@@ -143,6 +145,8 @@ export async function finalizeStay(
             logger.error("Error finalizing stay", { stayId, error: stayError });
             return failure("Error al finalizar estancia", "STAY_FINALIZE_ERROR");
         }
+
+        logAudit("UPDATE", { tableName: "room_stays", recordId: stayId, description: "Checkout: estancia finalizada" });
 
         // Actualizar habitación a SUCIA
         const { error: roomError } = await supabase

@@ -436,14 +436,15 @@ export async function sendPushNotificationToAllValets(
     data?: NotificationData
 ) {
     try {
-        // Obtener todos los empleados con rol de valet que tengan turno activo
+        // Obtener todos los empleados con rol de valet/cochero que tengan turno activo
         const { data: activeValets, error } = await supabase
             .from('shift_sessions')
             .select(`
                 employee_id,
-                employees!inner(push_token)
+                employees!inner(push_token, role)
             `)
-            .eq('status', 'active');
+            .eq('status', 'active')
+            .in('employees.role', ['valet', 'cochero', 'Cochero']);
 
         if (error || !activeValets) {
             console.error('Error getting active valets:', error);

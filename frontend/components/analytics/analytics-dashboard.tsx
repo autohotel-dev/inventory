@@ -6,13 +6,24 @@ import {
   ShoppingCart,
   Percent,
   AlertTriangle,
-  Hotel
+  Hotel,
+  Users,
+  TrendingUp,
+  Brain,
+  Bell,
+  Target,
+  Bot
 } from "lucide-react";
 import { SalesReport } from "./sales-report";
 import { ProfitabilityReport } from "./profitability-report";
 import { StockAlertsReport } from "./stock-alerts-report";
 import { AnalyticsDashboardOverview } from "./analytics-dashboard-overview";
 import { RoomStaysReport } from "./room-stays-report";
+import { KpisDashboard } from "./kpis-dashboard";
+import { EmployeePerformance } from "./employee-performance";
+import { PredictionEngine } from "./prediction-engine";
+import { SmartAlerts } from "./smart-alerts";
+import { AIAssistant } from "./ai-assistant";
 
 export function AnalyticsDashboard() {
   return (
@@ -53,6 +64,41 @@ export function AnalyticsDashboard() {
           <AlertTriangle className="h-4 w-4" />
           <span className="hidden sm:inline font-medium">Stock</span>
         </TabsTrigger>
+        <TabsTrigger
+          value="kpis"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-rose-600 data-[state=active]:to-rose-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+        >
+          <TrendingUp className="h-4 w-4" />
+          <span className="hidden sm:inline font-medium">KPIs</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="performance"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+        >
+          <Users className="h-4 w-4" />
+          <span className="hidden sm:inline font-medium">Desempeño</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="predictions"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-violet-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+        >
+          <Brain className="h-4 w-4" />
+          <span className="hidden sm:inline font-medium">Predicciones</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="alerts"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-600 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+        >
+          <Bell className="h-4 w-4" />
+          <span className="hidden sm:inline font-medium">Alertas</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="assistant"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+        >
+          <Bot className="h-4 w-4" />
+          <span className="hidden sm:inline font-medium">Asistente IA</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab: Overview (Dashboard original) */}
@@ -78,6 +124,31 @@ export function AnalyticsDashboard() {
       {/* Tab: Stock Alerts */}
       <TabsContent value="stock" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
         <StockAlertsReport />
+      </TabsContent>
+
+      {/* Tab: KPIs */}
+      <TabsContent value="kpis" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
+        <KpisDashboard />
+      </TabsContent>
+
+      {/* Tab: Performance */}
+      <TabsContent value="performance" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
+        <EmployeePerformance />
+      </TabsContent>
+
+      {/* Tab: Predictions */}
+      <TabsContent value="predictions" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
+        <PredictionEngine />
+      </TabsContent>
+
+      {/* Tab: Alerts */}
+      <TabsContent value="alerts" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
+        <SmartAlerts />
+      </TabsContent>
+
+      {/* Tab: AI Assistant */}
+      <TabsContent value="assistant" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
+        <AIAssistant />
       </TabsContent>
     </Tabs>
   );

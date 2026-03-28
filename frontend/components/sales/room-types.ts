@@ -28,10 +28,10 @@ export const STATUS_CONFIG: Record<string, { label: string; shortLabel?: string;
 
 // Fondo de las cards por estado
 export const ROOM_STATUS_BG: Record<string, string> = {
-  LIBRE: "bg-blue-900/80",
-  OCUPADA: "bg-red-900/80",
-  SUCIA: "bg-purple-900/80",
-  BLOQUEADA: "bg-emerald-900/80",
+  LIBRE: "bg-gradient-to-br from-blue-950/60 to-slate-900/40",
+  OCUPADA: "bg-gradient-to-br from-red-950/60 to-rose-900/40",
+  SUCIA: "bg-gradient-to-br from-purple-950/60 to-fuchsia-900/40",
+  BLOQUEADA: "bg-gradient-to-br from-emerald-950/60 to-teal-900/40",
 };
 
 // Anillo suave por estado para las cards
@@ -79,6 +79,11 @@ export interface RoomStay {
   sales_orders?: {
     id?: string;
     remaining_amount?: number;
+    payments?: {
+      id: string;
+      status: string;
+      confirmed_at: string | null;
+    }[];
     sales_order_items?: {
       id: string;
       delivery_status: string | null;

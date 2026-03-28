@@ -20,11 +20,12 @@ import { useUserRole } from "@/hooks/use-user-role";
 interface SupervisorAuthDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onAuthorized: (supervisorName: string) => void;
+    onAuthorized: (supervisorName: string, reason: string) => void;
     title?: string;
     description?: string;
     actionLabel?: string;
     variant?: "warning" | "danger";
+    requireReason?: boolean;
 }
 
 /**
@@ -43,8 +44,10 @@ export function SupervisorAuthDialog({
     description = "Esta acción requiere el PIN de un administrador, gerente, o un código temporal.",
     actionLabel = "Autorizar",
     variant = "warning",
+    requireReason = true,
 }: SupervisorAuthDialogProps) {
     const [pin, setPin] = useState("");
+    const [reason, setReason] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -57,6 +60,7 @@ export function SupervisorAuthDialog({
     useEffect(() => {
         if (isOpen) {
             setPin("");
+            setReason("");
             setError(null);
 
             // Si es supervisor, no necesita PIN → auto-focus no es necesario
@@ -68,13 +72,22 @@ export function SupervisorAuthDialog({
 
     // Bypass: si el usuario logueado es supervisor, autorizar directamente
     const handleSupervisorBypass = () => {
-        onAuthorized(employeeName || "Supervisor");
+        if (requireReason && !reason.trim()) {
+            setError("Debes ingresar el motivo de la autorización");
+            return;
+        }
+        onAuthorized(employeeName || "Supervisor", reason.trim());
         onClose();
     };
 
     const handleAuthorize = async () => {
         if (!pin.trim()) {
             setError("Ingresa el PIN o código temporal");
+            return;
+        }
+
+        if (requireReason && !reason.trim()) {
+            setError("Debes ingresar el motivo de la autorización");
             return;
         }
 
@@ -102,7 +115,7 @@ export function SupervisorAuthDialog({
 
             if (supervisor) {
                 const supervisorName = `${supervisor.first_name} ${supervisor.last_name}`;
-                onAuthorized(supervisorName);
+                onAuthorized(supervisorName, reason.trim());
                 onClose();
                 return;
             }
@@ -120,7 +133,7 @@ export function SupervisorAuthDialog({
 
                 if (configData.emergency_code === trimmedPin && expiresAt > now) {
                     // Código temporal válido
-                    onAuthorized("Código Temporal");
+                    onAuthorized("Código Temporal", reason.trim());
                     onClose();
                     return;
                 }
@@ -204,8 +217,25 @@ export function SupervisorAuthDialog({
                         </Badge>
 
                         <div className="space-y-2">
+                            <Label htmlFor="supervisor-reason" className="text-sm font-medium">
+                                Motivo de la Autorización <span className="text-red-500 font-black">*</span>
+                            </Label>
+                            <Input
+                                id="supervisor-reason"
+                                placeholder="Ej: Error en captura, Solicitud cliente..."
+                                value={reason}
+                                onChange={(e) => {
+                                    setReason(e.target.value);
+                                    setError(null);
+                                }}
+                                className={`text-sm ${error && !reason.trim() ? "border-red-500" : ""}`}
+                                disabled={loading}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
                             <Label htmlFor="supervisor-pin" className="text-sm font-medium">
-                                PIN / Código Temporal
+                                PIN / Código Temporal <span className="text-red-500 font-black">*</span>
                             </Label>
                             <div className="relative">
                                 <Input
@@ -226,7 +256,7 @@ export function SupervisorAuthDialog({
                                             handleAuthorize();
                                         }
                                     }}
-                                    className={`text-center text-2xl tracking-[0.5em] font-mono h-12 ${error ? "border-red-500 focus-visible:ring-red-500" : ""
+                                    className={`text-center text-2xl tracking-[0.5em] font-mono h-12 ${error && !pin.trim() ? "border-red-500 focus-visible:ring-red-500" : ""
                                         }`}
                                     disabled={loading}
                                     autoComplete="off"

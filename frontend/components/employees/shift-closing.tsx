@@ -91,6 +91,9 @@ interface PaymentSummary {
   total_expenses?: number;
   total_accrual_sales: number;
   accrual_items: any[];
+  // Nuevos campos para debug de pagos mal asignados
+  unassigned_card_payments: EnrichedPayment[];
+  unhandled_payment_methods: Array<{payment: EnrichedPayment, method: string}>;
 }
 
 export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosingProps) {
@@ -123,7 +126,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         .select(`
           *,
           payment_terminals(code, name),
-          sales_orders(id, total, status)
+          sales_orders(id, total, status),
+          collected_by
         `)
         .or(`shift_session_id.eq.${session.id},and(shift_session_id.is.null,created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd})`)
         .in("status", ["PAGADO", "PENDIENTE"]) // Solo pagos válidos
@@ -165,6 +169,10 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       let total_card_bbva = 0;
       let total_card_getnet = 0;
 
+      // Arrays para tracking de pagos problemáticos
+      const unassigned_card_payments: EnrichedPayment[] = [];
+      const unhandled_payment_methods: Array<{payment: EnrichedPayment, method: string}> = [];
+
       (payments || []).forEach((payment: any) => {
         // Skip parent payments (multipago) to avoid double-counting
         if (payment.parent_payment_id) return;
@@ -195,13 +203,32 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           } else if (terminalCode === "GETNET") {
             total_card_getnet += payment.amount;
           } else {
-            // Fallback: Si no tiene terminal, asignar a BBVA y registrar advertencia
-            console.warn(`Payment ${payment.id} has TARJETA but no terminal_code, defaulting to BBVA`);
-            total_card_bbva += payment.amount;
+            // Debug: Verificar si tiene collected_by
+            console.log('🔍 SHIFT CLOSING DEBUG: Pago tarjeta sin terminal', {
+              id: payment.id?.slice(0, 8),
+              amount: payment.amount,
+              terminal_code: payment.terminal_code,
+              collected_by: payment.collected_by,
+              payment_method: payment.payment_method
+            });
+            
+            // Si tiene collected_by, no es "mal asignado", solo falta terminal
+            if (payment.collected_by) {
+              console.log('  ✅ Tiene collected_by, asignando a BBVA sin advertencia');
+              total_card_bbva += payment.amount;
+            } else {
+              // Fallback: Si no tiene terminal NI collected_by, registrar advertencia
+              console.log('  ❌ Sin collected_by, marcando como mal asignado');
+              unassigned_card_payments.push(payment as EnrichedPayment);
+              total_card_bbva += payment.amount;
+            }
           }
         } else {
           // Log unhandled payment methods
-          console.warn(`Unhandled payment method: ${payment.payment_method} for payment ${payment.id}`);
+          unhandled_payment_methods.push({
+            payment: payment as EnrichedPayment,
+            method: payment.payment_method
+          });
         }
       });
 
@@ -329,6 +356,27 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       const accrual_items = accrualItemsData || [];
       const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
 
+      // Debug logging para pagos mal asignados
+      console.log('=== DEBUG PAGOS MAL ASIGNADOS ===');
+      console.log('Turno:', session.id);
+      console.log('Total pagos procesados:', payments?.length || 0);
+      
+      if (unassigned_card_payments.length > 0) {
+        console.log(`❌ PAGOS CON TARJETA SIN TERMINAL (${unassigned_card_payments.length}):`);
+        unassigned_card_payments.forEach(p => {
+          console.log(`  - ID: ${p.id}, Monto: $${p.amount}, Método: ${p.payment_method}, Terminal: ${p.terminal_code || 'NONE'}`);
+        });
+      }
+      
+      if (unhandled_payment_methods.length > 0) {
+        console.log(`❌ MÉTODOS DE PAGO NO MANEJADOS (${unhandled_payment_methods.length}):`);
+        unhandled_payment_methods.forEach(({payment, method}) => {
+          console.log(`  - ID: ${payment.id}, Monto: $${payment.amount}, Método: ${method}`);
+        });
+      }
+      
+      console.log('=====================================');
+
       setSummary({
         total_cash,
         total_card_bbva,
@@ -340,7 +388,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
         expenses: expenses || [],
         total_expenses: totalExpenses,
         total_accrual_sales,
-        accrual_items
+        accrual_items,
+        unassigned_card_payments,
+        unhandled_payment_methods
       });
     } catch (err) {
       console.error("Error loading payment summary:", err);
@@ -691,6 +741,62 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
                 </div>
               </div>
+
+              {/* PAYMENT ISSUES WARNING */}
+              {summary && (summary.unassigned_card_payments.length > 0 || summary.unhandled_payment_methods.length > 0) && (
+                <div className="col-span-full">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 dark:bg-amber-500/10 dark:border-amber-500/30">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-2">
+                        <h4 className="font-semibold text-amber-800 dark:text-amber-400">Pagos con Problemas de Asignación</h4>
+                        
+                        {summary.unassigned_card_payments.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-sm text-amber-700 dark:text-amber-300">
+                              <strong>Tarjetas sin terminal asignado:</strong> {summary.unassigned_card_payments.length} pago(s)
+                            </p>
+                            <details className="text-xs text-amber-600 dark:text-amber-400">
+                              <summary className="cursor-pointer hover:underline">Ver detalles</summary>
+                              <div className="mt-2 space-y-1 pl-4 border-l-2 border-amber-300 dark:border-amber-600">
+                                {summary.unassigned_card_payments.map(p => (
+                                  <div key={p.id} className="flex justify-between">
+                                    <span>ID: {p.id.slice(0, 8)}...</span>
+                                    <span>${p.amount.toFixed(2)} - {p.payment_method}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                        
+                        {summary.unhandled_payment_methods.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-sm text-amber-700 dark:text-amber-300">
+                              <strong>Métodos de pago no reconocidos:</strong> {summary.unhandled_payment_methods.length} pago(s)
+                            </p>
+                            <details className="text-xs text-amber-600 dark:text-amber-400">
+                              <summary className="cursor-pointer hover:underline">Ver detalles</summary>
+                              <div className="mt-2 space-y-1 pl-4 border-l-2 border-amber-300 dark:border-amber-600">
+                                {summary.unhandled_payment_methods.map(({payment, method}, idx) => (
+                                  <div key={idx} className="flex justify-between">
+                                    <span>ID: {payment.id.slice(0, 8)}...</span>
+                                    <span>${payment.amount.toFixed(2)} - {method}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                        
+                        <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                          Estos pagos fueron asignados por defecto. Revisa la consola para más detalles.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* RIGHT PANEL: COUNTING AREA (65%) */}
               <div className="col-span-1 md:col-span-8 lg:col-span-9 overflow-y-auto bg-background p-6">

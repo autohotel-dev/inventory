@@ -12,6 +12,7 @@ import {
     PaymentConcept,
 } from "@/lib/constants/payment-constants";
 import { logger } from "@/lib/utils/logger";
+import { logAudit } from "@/lib/audit-logger";
 
 /**
  * Entrada de pago para multipagos
@@ -83,6 +84,7 @@ export async function createPayment(
             return failure("No se pudo crear el pago", "PAYMENT_CREATE_ERROR");
         }
 
+        logAudit("INSERT", { tableName: "payments", recordId: payment.id, description: `Pago creado: $${data.amount} (${data.paymentMethod})` });
         return success(payment.id);
     } catch (error) {
         logger.error("Unexpected error creating payment", error);
@@ -152,6 +154,7 @@ export async function createMultiPayment(
             return failure("No se pudieron crear los subpagos", "SUBPAYMENT_ERROR");
         }
 
+        logAudit("INSERT", { tableName: "payments", recordId: mainPayment.id, description: `Multipago creado: $${totalAmount} (${validPayments.length} pagos)` });
         return success(mainPayment.id);
     } catch (error) {
         logger.error("Unexpected error creating multi payment", error);

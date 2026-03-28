@@ -26,6 +26,7 @@ export interface QuickCheckinModalProps {
   onConfirm: (data: {
     initialPeople: number;
     actualEntryTime: Date;
+    durationNights: number;
   }) => void;
 }
 
@@ -51,14 +52,24 @@ export function QuickCheckinModal({
   const [customHour, setCustomHour] = useState("");
   const [customMinute, setCustomMinute] = useState("");
 
+  const [durationNights, setDurationNights] = useState(1);
+
   const maxPeople = roomType?.max_people ?? 4;
   const extraPersonPrice = roomType?.extra_person_price ?? 0;
   const extraPeopleCount = Math.max(0, initialPeople - 2);
   const extraPeopleCost = extraPeopleCount * extraPersonPrice;
-  const totalPrice = (roomType?.base_price ?? 0) + extraPeopleCost;
+  const basePricePerNight = (roomType?.base_price ?? 0) + extraPeopleCost;
+  const totalPrice = roomType?.is_hotel ? (basePricePerNight * durationNights) : basePricePerNight;
 
   // Calcular hora de salida estimada
   const getExpectedCheckout = (entryTime: Date) => {
+    if (roomType?.is_hotel) {
+      const checkout = new Date(entryTime);
+      checkout.setDate(checkout.getDate() + durationNights);
+      checkout.setHours(12, 0, 0, 0); // Check-out estándar de hotel a las 12 PM
+      return checkout;
+    }
+
     // Determinar si estamos en período de fin de semana (Viernes 6am - Domingo 6am)
     const day = entryTime.getDay();
     const hour = entryTime.getHours();
@@ -111,6 +122,7 @@ export function QuickCheckinModal({
   useEffect(() => {
     if (isOpen) {
       setInitialPeople(1);
+      setDurationNights(1);
       setUseCustomTime(false);
       const now = new Date();
       setCustomHour(now.getHours().toString().padStart(2, "0"));
@@ -124,6 +136,7 @@ export function QuickCheckinModal({
     onConfirm({
       initialPeople,
       actualEntryTime,
+      durationNights,
     });
   };
 
@@ -164,6 +177,37 @@ export function QuickCheckinModal({
               Hab. {roomNumber} – {roomType.name}
             </p>
           </div>
+
+          {/* Selector de Noches (Solo para Hotel) */}
+          {roomType.is_hotel && (
+            <div className="space-y-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-blue-500" />
+                Duración de la estancia
+              </p>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setDurationNights(Math.max(1, durationNights - 1))}
+                  disabled={actionLoading || durationNights <= 1}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <span className="text-xl font-bold w-20 text-center">{durationNights} {durationNights === 1 ? 'Noche' : 'Noches'}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setDurationNights(Math.min(30, durationNights + 1))}
+                  disabled={actionLoading}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Hora de entrada */}
           <div className="space-y-3">
@@ -215,6 +259,7 @@ export function QuickCheckinModal({
               </p>
             )}
           </div>
+
 
           {/* Selector de personas */}
           <div className="space-y-2">

@@ -1,9 +1,43 @@
+import { useEffect, useState, useCallback } from 'react';
 import { Tabs } from 'expo-router';
 import { Home, LayoutDashboard, UserCircle, ShoppingBag } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
+import { supabase } from '../../lib/supabase';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
+    const [pendingServiceCount, setPendingServiceCount] = useState(0);
+
+    // Conteo liviano de servicios pendientes para el badge del tab
+    const fetchPendingCount = useCallback(async () => {
+        const { count } = await supabase
+            .from('sales_order_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('concept_type', 'CONSUMPTION')
+            .is('delivery_accepted_by', null)
+            .eq('is_paid', false)
+            .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
+        setPendingServiceCount(count || 0);
+    }, []);
+
+    useEffect(() => {
+        fetchPendingCount();
+
+        let timeout: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(fetchPendingCount, 1500);
+        };
+
+        const channel = supabase.channel('tab-badge-services')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            clearTimeout(timeout);
+        };
+    }, [fetchPendingCount]);
 
     return (
         <Tabs screenOptions={{
@@ -48,6 +82,15 @@ export default function TabLayout() {
                     title: 'Servicios',
                     tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
                     headerTitle: 'Servicios de Tienda',
+                    tabBarBadge: pendingServiceCount > 0 ? pendingServiceCount : undefined,
+                    tabBarBadgeStyle: {
+                        backgroundColor: '#ef4444',
+                        fontSize: 10,
+                        fontWeight: '800',
+                        minWidth: 18,
+                        height: 18,
+                        lineHeight: 18,
+                    },
                 }}
             />
             <Tabs.Screen
