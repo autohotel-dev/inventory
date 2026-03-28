@@ -34,6 +34,8 @@ interface ExportOptions {
   };
 }
 
+type ExportDataRow = Record<string, string | number | boolean | null | undefined>;
+
 export function ExportManager() {
   const [loading, setLoading] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<ExportOptions>({
@@ -47,7 +49,7 @@ export function ExportManager() {
     setLoading(options.dataType);
     
     try {
-      let data: any[] = [];
+      let data: ExportDataRow[] = [];
       let filename = '';
       
       switch (options.dataType) {
@@ -220,7 +222,7 @@ export function ExportManager() {
     }
   };
 
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: ExportDataRow[], filename: string) => {
     if (data.length === 0) return;
     
     const headers = Object.keys(data[0]);
@@ -245,7 +247,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadExcel = (data: any[], filename: string) => {
+  const downloadExcel = (data: ExportDataRow[], filename: string) => {
     // Simulación de Excel usando CSV con formato mejorado
     if (data.length === 0) return;
     
@@ -264,7 +266,7 @@ export function ExportManager() {
     link.click();
   };
 
-  const downloadPDF = (data: any[], filename: string, dataType: string) => {
+  const downloadPDF = (data: ExportDataRow[], filename: string, dataType: string) => {
     // Crear contenido HTML para PDF
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
     const title = {
