@@ -8,6 +8,26 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, X, Calendar } from "lucide-react";
 
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  unit?: string;
+}
+
+export interface Warehouse {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface MovementReason {
+  id: number;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  name: string;
+  description: string;
+}
+
 interface InventoryMovement {
   id: string;
   product_id: string;
@@ -31,26 +51,6 @@ interface InventoryMovement {
   };
 }
 
-
-export interface ProductOption {
-  id: string;
-  name: string;
-  sku: string;
-}
-
-export interface WarehouseOption {
-  id: string;
-  name: string;
-  code: string;
-}
-
-export interface MovementReasonOption {
-  id: number;
-  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
-  name: string;
-  description?: string;
-}
-
 export interface MovementFormData {
   product_id: string;
   warehouse_id: string;
@@ -63,9 +63,9 @@ export interface MovementFormData {
 
 export function InventoryMovementsTable() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [products, setProducts] = useState<ProductOption[]>([]);
-  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-  const [movementReasons, setMovementReasons] = useState<MovementReasonOption[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [movementReasons, setMovementReasons] = useState<MovementReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -148,7 +148,7 @@ export function InventoryMovementsTable() {
       const movementToSave = {
         ...movementData,
         reason_id: parseInt(movementData.reason_id),
-        quantity: movementData.quantity
+        quantity: Number(movementData.quantity)
       };
 
       // Crear movimiento
@@ -485,10 +485,10 @@ function MovementForm({
   onSave, 
   onCancel 
 }: { 
-  products: ProductOption[];
-  warehouses: WarehouseOption[];
-  movementReasons: MovementReasonOption[];
-  onSave: (data: MovementFormData) => void;
+  products: Product[];
+  warehouses: Warehouse[];
+  movementReasons: MovementReason[];
+  onSave: (data: any) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState<MovementFormData>({
