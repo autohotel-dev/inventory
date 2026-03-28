@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -15,8 +16,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = await createClient();
+
+    // Check if user is authenticated and is admin/manager
+    const { data: { user }, error: authUserError } = await supabase.auth.getUser();
+    if (authUserError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user is admin or manager
+    const { data: employee } = await supabase
+        .from('employees')
+        .select('role')
+        .eq('auth_user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+    if (!employee || !['admin', 'manager'].includes(employee.role)) {
+        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+    }
+
     // Cliente admin de Supabase (usa service_role key)
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createSupabaseAdminClient(
       supabaseUrl!,
       serviceRoleKey,
       {
