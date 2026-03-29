@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,33 +110,37 @@ export function EmployeesTable() {
   }, [loadEmployees]);
 
   // Filtrar empleados
-  const filteredEmployees = employees.filter((emp) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      emp.first_name.toLowerCase().includes(searchLower) ||
-      emp.last_name.toLowerCase().includes(searchLower) ||
-      emp.email.toLowerCase().includes(searchLower) ||
-      emp.role.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((emp) => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        emp.first_name.toLowerCase().includes(searchLower) ||
+        emp.last_name.toLowerCase().includes(searchLower) ||
+        emp.email.toLowerCase().includes(searchLower) ||
+        emp.role.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [employees, searchTerm]);
 
   // Ordenar empleados
-  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
-    const { key, direction } = sortConfig;
-    let comparison = 0;
+  const sortedEmployees = useMemo(() => {
+    return [...filteredEmployees].sort((a, b) => {
+      const { key, direction } = sortConfig;
+      let comparison = 0;
 
-    if (key === 'name') {
-      const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
-      const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
-      comparison = nameA.localeCompare(nameB);
-    } else if (typeof a[key] === 'string') {
-      comparison = (a[key] as string).localeCompare(b[key] as string);
-    } else if (typeof a[key] === 'boolean') {
-      comparison = (a[key] === b[key]) ? 0 : a[key] ? -1 : 1;
-    }
+      if (key === 'name') {
+        const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+        const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+        comparison = nameA.localeCompare(nameB);
+      } else if (typeof a[key] === 'string') {
+        comparison = (a[key] as string).localeCompare(b[key] as string);
+      } else if (typeof a[key] === 'boolean') {
+        comparison = (a[key] === b[key]) ? 0 : a[key] ? -1 : 1;
+      }
 
-    return direction === 'asc' ? comparison : -comparison;
-  });
+      return direction === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredEmployees, sortConfig]);
 
   const handleSort = (key: keyof Employee | 'name') => {
     setSortConfig(current => ({

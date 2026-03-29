@@ -20,7 +20,7 @@ import {
   Filter,
   Download
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -341,27 +341,31 @@ export function EmployeePerformance() {
     return () => clearInterval(interval);
   }, []);
 
-  const filteredEmployees = employees.filter(employee => {
-    const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.role.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "all" || employee.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(employee => {
+      const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employee.role.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === "all" || employee.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [employees, searchTerm, roleFilter]);
 
-  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
-    switch (sortBy) {
-      case "efficiency":
-        return b.efficiency - a.efficiency;
-      case "revenue":
-        return b.revenue - a.revenue;
-      case "rating":
-        return b.rating - a.rating;
-      case "checkIns":
-        return b.checkIns - a.checkIns;
-      default:
-        return 0;
-    }
-  });
+  const sortedEmployees = useMemo(() => {
+    return [...filteredEmployees].sort((a, b) => {
+      switch (sortBy) {
+        case "efficiency":
+          return b.efficiency - a.efficiency;
+        case "revenue":
+          return b.revenue - a.revenue;
+        case "rating":
+          return b.rating - a.rating;
+        case "checkIns":
+          return b.checkIns - a.checkIns;
+        default:
+          return 0;
+      }
+    });
+  }, [filteredEmployees, sortBy]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
