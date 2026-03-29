@@ -1,0 +1,7 @@
+tunnel: 139bb0e3-86ff-4a60-b56d-1daf81bc4f6d
+credentials-file: C:\Users\autoh\.cloudflared\139bb0e3-86ff-4a60-b56d-1daf81bc4f6d.json
+
+ingress:
+  - hostname: print.autohoteluxor.com
+    service: http://localhost:3001
+  - service: http_status:404

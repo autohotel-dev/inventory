@@ -1,0 +1,14 @@
+{
+  "framework": "nextjs",
+  "functions": {
+    "app/**": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/guest/check-reminders",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

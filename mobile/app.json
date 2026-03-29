@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Auto Hotel Luxor",
+    "slug": "valet-luxor",
+    "scheme": "valet-luxor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "jsEngine": "hermes",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.autohotel.valet"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.autohotel.valet",
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/adaptive-icon.png",
+          "color": "#3b82f6",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Auto Hotel Luxor"
+        }
+      ],
+      "sentry-expo"
+    ],
+    "notification": {
+      "icon": "./assets/adaptive-icon.png",
+      "color": "#3b82f6",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Auto Hotel Luxor"
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "7f5cbadd-5d02-4955-b1ad-509ce6dffe20"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7f5cbadd-5d02-4955-b1ad-509ce6dffe20",
+      "fallbackToCacheTimeout": 5000,
+      "checkAutomatically": "ON_LOAD",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
+    "runtimeVersion": "1.0.0",
+    "owner": "epigibson"
+  }
+}

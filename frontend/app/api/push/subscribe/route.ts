@@ -1,0 +1,58 @@
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+    try {
+        const { subscription, employeeId } = await req.json();
+
+        if (!subscription || !subscription.endpoint) {
+            return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 });
+        }
+
+        // 1. Verify user is authenticated using standard client
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // 2. Save subscription using admin client to bypass RLS
+        const adminSupabase = createAdminClient();
+        const targetEmployeeId = employeeId || user.id;
+
+        const { error } = await adminSupabase
+            .from('push_subscriptions')
+            .upsert({
+                employee_id: targetEmployeeId,
+                endpoint: subscription.endpoint, // Extract endpoint for unique constraint
+                subscription: subscription, // Store full object including keys
+                user_agent: req.headers.get('user-agent') || 'unknown',
+                updated_at: new Date().toISOString()
+            }, { 
+                onConflict: 'endpoint'
+            });
+
+        if (error) {
+            console.error('Database Error in Push Subscribe:', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+            });
+            return NextResponse.json({ 
+                error: 'Database error', 
+                message: error.message,
+                code: error.code 
+            }, { status: 500 });
+        }
+
+        console.log('Push Subscribe Success');
+
+        return NextResponse.json({ success: true });
+    } catch (e) {
+        console.error('Error in push subscribe route:', e);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}

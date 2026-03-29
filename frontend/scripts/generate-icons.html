@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generador de Íconos PWA</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #2563eb; }
+    .icons { display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0; }
+    .icon-box { text-align: center; }
+    canvas { border: 1px solid #333; border-radius: 8px; }
+    button { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin: 5px; }
+    button:hover { background: #1d4ed8; }
+    .instructions { background: #262626; padding: 20px; border-radius: 8px; margin-top: 20px; }
+    code { background: #333; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Generador de Íconos PWA</h1>
+    <p>Haz clic en cada botón para descargar el ícono correspondiente.</p>
+    
+    <div class="icons">
+      <div class="icon-box">
+        <canvas id="icon192" width="192" height="192"></canvas>
+        <br>
+        <button onclick="download('icon192', 'icon-192.png')">Descargar 192x192</button>
+      </div>
+      <div class="icon-box">
+        <canvas id="icon512" width="512" height="512"></canvas>
+        <br>
+        <button onclick="download('icon512', 'icon-512.png')">Descargar 512x512</button>
+      </div>
+      <div class="icon-box">
+        <canvas id="iconMaskable" width="512" height="512"></canvas>
+        <br>
+        <button onclick="download('iconMaskable', 'icon-maskable-512.png')">Descargar Maskable</button>
+      </div>
+    </div>
+
+    <button onclick="downloadAll()">📦 Descargar Todos</button>
+
+    <div class="instructions">
+      <h3>📁 Instrucciones:</h3>
+      <ol>
+        <li>Descarga los 3 íconos</li>
+        <li>Colócalos en <code>public/icons/</code></li>
+        <li>Reinicia el servidor de desarrollo</li>
+        <li>Limpia el cache del navegador</li>
+        <li>¡El ícono de instalación debería aparecer!</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    function drawIcon(canvas, size, isMaskable = false) {
+      const ctx = canvas.getContext('2d');
+      const padding = isMaskable ? size * 0.1 : 0;
+      const innerSize = size - (padding * 2);
+      
+      // Fondo azul
+      ctx.fillStyle = '#2563eb';
+      if (isMaskable) {
+        ctx.fillRect(0, 0, size, size);
+      } else {
+        ctx.beginPath();
+        ctx.roundRect(0, 0, size, size, size * 0.15);
+        ctx.fill();
+      }
+      
+      // Cuadro blanco interior
+      const boxSize = innerSize * 0.625;
+      const boxX = padding + (innerSize - boxSize) / 2;
+      const boxY = padding + (innerSize - boxSize) / 2;
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxSize, boxSize, boxSize * 0.1);
+      ctx.fill();
+      
+      // Barras azules
+      const barWidth = boxSize * 0.7;
+      const barHeight = boxSize * 0.12;
+      const barX = boxX + (boxSize - barWidth) / 2;
+      const gap = boxSize * 0.08;
+      
+      ctx.fillStyle = '#2563eb';
+      for (let i = 0; i < 3; i++) {
+        const barY = boxY + boxSize * 0.2 + (barHeight + gap) * i;
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barWidth, barHeight, barHeight * 0.2);
+        ctx.fill();
+      }
+    }
+
+    // Dibujar íconos
+    drawIcon(document.getElementById('icon192'), 192);
+    drawIcon(document.getElementById('icon512'), 512);
+    drawIcon(document.getElementById('iconMaskable'), 512, true);
+
+    function download(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadAll() {
+      download('icon192', 'icon-192.png');
+      setTimeout(() => download('icon512', 'icon-512.png'), 100);
+      setTimeout(() => download('iconMaskable', 'icon-maskable-512.png'), 200);
+    }
+  </script>
+</body>
+</html>

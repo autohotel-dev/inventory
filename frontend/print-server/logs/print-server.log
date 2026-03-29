@@ -1,0 +1,25 @@
+
+🖨️  ================================
+   THERMAL PRINT SERVER v2.0
+   ================================
+
+   🌐 URL: http://localhost:3001
+   🖨️  Impresora: 192.168.0.104:9100
+
+   📡 Orígenes permitidos:
+      - http://localhost:3000
+      - https://manager.autohoteluxor.com
+
+   Endpoints:
+      GET  /health      - Estado del servidor
+      POST /print       - Imprimir ticket
+      POST /print/test  - Prueba de impresión
+
+📄 Recibiendo trabajo de impresión: reception
+[PRINTER] Conectado a 192.168.0.104:9100
+✅ Ticket reception impreso correctamente
+[PRINTER] Conexión cerrada
+📄 Recibiendo trabajo de impresión: client
+[PRINTER] Conectado a 192.168.0.104:9100
+✅ Ticket client impreso correctamente
+[PRINTER] Conexión cerrada
