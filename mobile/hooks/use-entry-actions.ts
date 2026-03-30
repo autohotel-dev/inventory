@@ -152,7 +152,8 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                     };
                     console.log('  - Update data:', updateData);
                     
-                    await supabase.from('payments').update(updateData).eq('id', pendingMain.id);
+                    const { error: updErr } = await supabase.from('payments').update(updateData).eq('id', pendingMain.id);
+                    if (updErr) throw updErr;
                 } else {
                     const insertData = {
                         sales_order_id: salesOrderId,
@@ -172,7 +173,8 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                     };
                     console.log('  - Insert data:', insertData);
                     
-                    await supabase.from('payments').insert(insertData);
+                    const { error: insErr } = await supabase.from('payments').insert(insertData);
+                    if (insErr) throw insErr;
                 }
             }
 

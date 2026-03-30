@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 
@@ -32,6 +32,14 @@ interface RoomStay {
     plate: string;
     total: number;
     method: string;
+    items?: AdditionalItem[];
+}
+
+interface AdditionalItem {
+    description: string;
+    quantity: number;
+    total: number;
+    type: string;
 }
 
 function ThermalReceiptContent() {
@@ -66,13 +74,19 @@ function ThermalReceiptContent() {
           check_in_at,
           vehicle_plate,
           rooms(number),
-          sales_orders(total, payments(payment_method, amount))
+          sales_orders(
+            total, 
+            payments(payment_method, amount),
+            sales_order_items(concept_type, qty, unit_price, total, products(name))
+          )
         `)
                 .gte("check_in_at", closingData.period_start)
                 .lte("check_in_at", closingData.period_end)
                 .order("check_in_at", { ascending: true });
 
             if (staysData) {
+                const itemsMap = new Map<string, AdditionalItem>();
+
                 const processed = staysData.map((stay: any) => {
                     const payments = stay.sales_orders?.payments || [];
                     let method = "PEND";
@@ -85,12 +99,39 @@ function ThermalReceiptContent() {
                             method = m === "EFECTIVO" ? "EF" : m === "TARJETA" || m === "TARJETA_BBVA" || m === "TARJETA_GETNET" ? "TJ" : m?.substring(0, 3) || "?";
                         }
                     }
+
+                    const items = stay.sales_orders?.sales_order_items || [];
+                    const stayItems: AdditionalItem[] = [];
+
+                    items.forEach((item: any) => {
+                        if (item.concept_type !== 'ROOM_BASE' && item.concept_type !== 'VEHICLE_REQUEST') {
+                            let itemName = item.products?.name;
+                            if (!itemName) {
+                                switch (item.concept_type) {
+                                    case 'EXTRA_PERSON': itemName = 'Persona Extra'; break;
+                                    case 'EXTRA_HOUR': itemName = 'Hora Extra'; break;
+                                    case 'DAMAGE_CHARGE': itemName = 'Cobro Daños'; break;
+                                    case 'LATE_CHECKOUT': itemName = 'Salida Tarde'; break;
+                                    default: itemName = item.concept_type || 'Extra';
+                                }
+                            }
+                            
+                            stayItems.push({
+                                description: itemName,
+                                quantity: item.qty || 1, 
+                                total: item.total || (item.qty * item.unit_price) || 0,
+                                type: item.concept_type 
+                            });
+                        }
+                    });
+
                     return {
                         time: new Date(stay.check_in_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
                         room: stay.rooms?.number || "?",
                         plate: stay.vehicle_plate?.substring(0, 8) || "-",
                         total: stay.sales_orders?.total || 0,
                         method,
+                        items: stayItems
                     };
                 });
                 setStays(processed);
@@ -216,7 +257,8 @@ function ThermalReceiptContent() {
         .stays-table {
           width: 100%;
           font-size: 9px;
-          border-collapse: collapse;
+          border-collapse: separate;
+          border-spacing: 0;
         }
         
         .stays-table th {
@@ -229,6 +271,24 @@ function ThermalReceiptContent() {
         .stays-table td {
           padding: 0.5mm 0;
           border-bottom: 1px dotted #ccc;
+          vertical-align: top;
+        }
+
+        .stays-table tr.stay-row td {
+            font-weight: bold;
+        }
+        
+        .stays-table tr.item-row td {
+            border-bottom: none;
+            padding-top: 0;
+            padding-bottom: 0.5mm;
+            color: #333;
+            font-size: 8px;
+        }
+
+        .item-bullet {
+            padding-left: 2mm;
+            color: #666;
         }
         
         .stays-table td:last-child {
@@ -357,12 +417,33 @@ function ThermalReceiptContent() {
                             </thead>
                             <tbody>
                                 {stays.map((stay, idx) => (
-                                    <tr key={idx}>
-                                        <td>{stay.time}</td>
-                                        <td>{stay.room}</td>
-                                        <td>{stay.plate}</td>
-                                        <td>{formatMoney(stay.total)}</td>
-                                    </tr>
+                                    <React.Fragment key={idx}>
+                                        <tr className="stay-row" style={stay.items && stay.items.length > 0 ? { borderBottom: 'none' } : {}}>
+                                            <td style={stay.items && stay.items.length > 0 ? { borderBottom: 'none' } : {}}>{stay.time}</td>
+                                            <td style={stay.items && stay.items.length > 0 ? { borderBottom: 'none' } : {}}>{stay.room}</td>
+                                            <td style={stay.items && stay.items.length > 0 ? { borderBottom: 'none', fontSize: '8px' } : { fontSize: '8px' }}>{stay.plate}</td>
+                                            <td style={stay.items && stay.items.length > 0 ? { borderBottom: 'none' } : {}}>{formatMoney(stay.total)}</td>
+                                        </tr>
+                                        {stay.items && stay.items.length > 0 && (
+                                            <>
+                                                <tr className="item-row">
+                                                    <td></td>
+                                                    <td colSpan={2} style={{ paddingLeft: '2mm', fontSize: '8px', color: '#666' }}>• Renta de Habitación</td>
+                                                    <td style={{ fontSize: '8px', color: '#666' }}>{formatMoney(stay.total - stay.items.reduce((sum, i) => sum + i.total, 0))}</td>
+                                                </tr>
+                                                {stay.items.map((item, idxi) => (
+                                                    <tr key={`item-${idx}-${idxi}`} className="item-row">
+                                                        <td></td>
+                                                        <td colSpan={2} style={{ paddingLeft: '2mm', fontSize: '8px', color: '#666' }}>
+                                                            • {item.quantity > 1 ? `${item.quantity}x ` : ''}{item.description}
+                                                        </td>
+                                                        <td style={{ fontSize: '8px', color: '#666' }}>{formatMoney(item.total)}</td>
+                                                    </tr>
+                                                ))}
+                                                <tr><td colSpan={4} style={{ borderBottom: '1px dotted #ccc', height: '1mm', padding: 0 }}></td></tr>
+                                            </>
+                                        )}
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>

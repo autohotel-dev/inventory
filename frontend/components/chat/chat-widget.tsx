@@ -240,7 +240,7 @@ export function ChatWidget() {
         <div className="fixed bottom-24 md:bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
             {/* Main Chat Window */}
             <div className={cn(
-                "transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] origin-bottom-right pointer-events-auto",
+                "transition-all duration-500 ease-in-out origin-bottom-right pointer-events-auto",
                 isOpen 
                     ? "scale-100 opacity-100 translate-y-0" 
                     : "scale-95 opacity-0 translate-y-8 pointer-events-none"

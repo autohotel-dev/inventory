@@ -124,7 +124,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                     .maybeSingle();
 
                 if (existingPending) {
-                    await supabase.from('payments').update({
+                    const { error: updErr } = await supabase.from('payments').update({
                         payment_method: p.method,
                         terminal_code: p.terminal,
                         card_last_4: p.cardLast4,
@@ -135,8 +135,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
                     }).eq('id', existingPending.id);
+                    if (updErr) throw updErr;
                 } else {
-                    await supabase.from('payments').insert({
+                    const { error: insErr } = await supabase.from('payments').insert({
                         sales_order_id: salesOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -150,6 +151,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
                     });
+                    if (insErr) throw insErr;
                 }
             }
 
@@ -213,7 +215,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                     .maybeSingle();
 
                 if (existingPending) {
-                    await supabase.from('payments').update({
+                    const { error: updErr } = await supabase.from('payments').update({
                         payment_method: p.method,
                         terminal_code: p.terminal,
                         card_last_4: p.cardLast4,
@@ -224,8 +226,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
                     }).eq('id', existingPending.id);
+                    if (updErr) throw updErr;
                 } else {
-                    await supabase.from('payments').insert({
+                    const { error: insErr } = await supabase.from('payments').insert({
                         sales_order_id: mainOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -239,6 +242,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
                     });
+                    if (insErr) throw insErr;
                 }
             }
 

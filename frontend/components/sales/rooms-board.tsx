@@ -9,9 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-import { RoomInfoPopover } from "@/components/sales/room-info-popover";
-import { RoomActionsWheel } from "@/components/sales/room-actions-wheel";
-import { RoomReminderAlert } from "@/components/sales/room-reminder-alert";
+
 import { Room, STATUS_CONFIG } from "@/components/sales/room-types";
 import { RoomMetricsBanner } from "@/components/sales/rooms/room-metrics-banner";
 import { RoomCardGrid } from "@/components/sales/rooms/room-card-grid";
@@ -52,6 +50,9 @@ const RoomHourManagementModal = dynamic(() => import("@/components/sales/room-ho
 const AddDamageChargeModal = dynamic(() => import("@/components/sales/add-damage-charge-modal").then(m => ({ default: m.AddDamageChargeModal })), { ssr: false });
 const GuestPortalQRModal = dynamic(() => import("@/components/sales/guest-portal-qr-modal").then(m => ({ default: m.GuestPortalQRModal })), { ssr: false });
 const ValetDashboard = dynamic(() => import("@/components/valet/valet-dashboard").then(m => ({ default: m.ValetDashboard })), { ssr: false });
+const RoomInfoPopover = dynamic(() => import("@/components/sales/room-info-popover").then(m => ({ default: m.RoomInfoPopover })), { ssr: false });
+const RoomActionsWheel = dynamic(() => import("@/components/sales/room-actions-wheel").then(m => ({ default: m.RoomActionsWheel })), { ssr: false });
+const RoomReminderAlert = dynamic(() => import("@/components/sales/room-reminder-alert").then(m => ({ default: m.RoomReminderAlert })), { ssr: false });
 import { AdminBoardControls } from "@/components/sales/admin-board-controls";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 
@@ -274,13 +275,19 @@ function RoomsBoardInternal() {
   }, [fetchRooms]);
 
 
+  const roomsRef = useRef(rooms);
+  useEffect(() => {
+    roomsRef.current = rooms;
+  }, [rooms]);
+
   // Verificar tolerancias expiradas, limpiezas de salida y reactivaciones (Versión Blindada - RPC)
   useEffect(() => {
     const processRoomTransitions = async () => {
       const supabase = createClient();
       const now = new Date();
+      const currentRooms = roomsRef.current;
 
-      for (const room of rooms) {
+      for (const room of currentRooms) {
         if (room.status === "OCUPADA" && !room.room_types?.is_hotel) {
           const activeStay = getActiveStay(room);
           if (!activeStay || !activeStay.expected_check_out_at) continue;
@@ -328,9 +335,11 @@ function RoomsBoardInternal() {
     };
 
     const interval = setInterval(processRoomTransitions, 60000);
-    processRoomTransitions();
+    // Ejecutar una vez al inicio, pero diferido para evitar bloqueos en el render
+    setTimeout(processRoomTransitions, 5000); 
+    
     return () => clearInterval(interval);
-  }, [rooms, fetchRooms]);
+  }, [fetchRooms]);
 
 
 
@@ -350,7 +359,7 @@ function RoomsBoardInternal() {
     }, 0);
   };
 
-  const getRemainingTimeLabel = (room: Room) => {
+  const getRemainingTimeLabel = useCallback((room: Room) => {
     const activeStay = getActiveStay(room);
 
     if (!activeStay || !activeStay.expected_check_out_at) return null;
@@ -404,9 +413,9 @@ function RoomsBoardInternal() {
       remaining: labelParts.join(" "),
       minutesToCheckout: diffMinutes,
     };
-  };
+  }, []);
 
-  const getExtraHoursLabel = (room: Room) => {
+  const getExtraHoursLabel = useCallback((room: Room) => {
     const activeStay = getActiveStay(room);
     if (!activeStay || !activeStay.expected_check_out_at) return 0;
 
@@ -416,26 +425,23 @@ function RoomsBoardInternal() {
 
     if (diffMs <= 0) return 0;
     return Math.ceil(diffMs / (60 * 60 * 1000));
-  };
+  }, []);
 
+  const openConsumptionModalCb = useCallback((room: Room) => {
+    const stay = getActiveStay(room);
+    if (stay?.sales_order_id) modals.openConsumptionModal(room, stay.sales_order_id);
+    else toast.error("No se encontró una orden activa");
+  }, [modals]);
 
+  const setShowInfoModalCb = useCallback((show: boolean) => {
+    show ? modals.openModal("info") : modals.closeModal("info");
+  }, [modals]);
 
-  const handleCloseModal = () => {
-    if (actionLoading) return;
-    modals.closeModal("startStay");
-    modals.setSelectedRoom(null);
-  };
+  const setShowTrackingModalCb = useCallback((show: boolean) => {
+    show ? modals.openModal("tracking") : modals.closeModal("tracking");
+  }, [modals]);
 
-  // Confirmar cambio de estado es manejado de manera aislada por ConnectedStatusNoteModal.
-
-  // Confirmar cambio de estado es manejado de manera aislada por ConnectedStatusNoteModal.
-
-
-
-
-  // Entrada rápida manejada de manera aislada por ConnectedQuickCheckinModal.
-
-  const renderStatusBadge = (status: string, isSaliendo: boolean = false) => {
+  const renderStatusBadge = useCallback((status: string, isSaliendo: boolean = false) => {
     let config = STATUS_CONFIG[status] || {
       label: status,
       color: "bg-muted text-muted-foreground border-border",
@@ -464,7 +470,7 @@ function RoomsBoardInternal() {
         )}
       </Badge>
     );
-  };
+  }, []);
 
   useRoomsTraining({
     activeModule, currentStepIndex, currentMode,
@@ -559,14 +565,10 @@ function RoomsBoardInternal() {
             getRemainingTimeLabel={getRemainingTimeLabel}
             renderStatusBadge={renderStatusBadge}
             openActionsDock={modals.openActionsDock}
-            openConsumptionModal={(room: Room) => {
-              const stay = getActiveStay(room);
-              if (stay?.sales_order_id) modals.openConsumptionModal(room, stay.sales_order_id);
-              else toast.error("No se encontró una orden activa");
-            }}
+            openConsumptionModal={openConsumptionModalCb}
             setSelectedRoom={modals.setSelectedRoom}
-            setShowInfoModal={(show) => show ? modals.openModal("info") : modals.closeModal("info")}
-            setShowTrackingModal={(show) => show ? modals.openModal("tracking") : modals.closeModal("tracking")}
+            setShowInfoModal={setShowInfoModalCb}
+            setShowTrackingModal={setShowTrackingModalCb}
           />
         </CardContent>
       </Card>
@@ -599,7 +601,7 @@ function RoomsBoardInternal() {
         statusBadge={modals.selectedRoom ? renderStatusBadge(modals.selectedRoom.status) : null}
         hasExtraCharges={modals.selectedRoom ? hasExtraCharges(modals.selectedRoom) : false}
         isHotelRoom={modals.selectedRoom?.room_types?.is_hotel === true}
-        onClose={modals.closeActionsDock}
+        onClose={() => modals.closeActionsDock()}
         onStartStay={() => {
           modals.closeModal("actions");
           modals.openModal("startStay");
@@ -756,6 +758,7 @@ function RoomsBoardInternal() {
         receptionistId={employeeId || ''}
         defaultFilter={trackingFilter}
         onClose={() => modals.closeModal("tracking")}
+        onRefresh={() => fetchRooms(true)}
       />
       <GranularPaymentModal
         isOpen={modals.isOpen("granularPayment") && !!modals.granularPaymentOrderId}

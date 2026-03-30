@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { RoomCard } from "@/components/sales/room-card";
 import { Room } from "@/components/sales/room-types";
 import { getActiveStay } from "@/hooks/use-room-actions";
@@ -18,7 +19,7 @@ interface RoomCardGridProps {
   setShowTrackingModal: (show: boolean) => void;
 }
 
-export function RoomCardGrid({
+export const RoomCardGrid = memo(function RoomCardGrid({
   rooms,
   sensors,
   getRemainingTimeLabel,
@@ -137,4 +138,4 @@ export function RoomCardGrid({
       })}
     </div>
   );
-}
+});

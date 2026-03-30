@@ -113,7 +113,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
             if (itemError) throw itemError;
 
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                const { error: insErr } = await supabase.from('payments').insert({
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -127,6 +127,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
                 });
+                if (insErr) throw insErr;
             }
 
             showFeedback('✅ Daño Informado', `Hab. ${roomNumber}: Cargo por $${amount.toFixed(2)} generado. Corrobora el cobro en recepción.`);
@@ -174,7 +175,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
             if (itemError) throw itemError;
 
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                const { error: insErr } = await supabase.from('payments').insert({
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -188,6 +189,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
                 });
+                if (insErr) throw insErr;
             }
 
             showFeedback('✅ Hora Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
@@ -235,7 +237,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
             if (itemError) throw itemError;
 
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                const { error: insErr } = await supabase.from('payments').insert({
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -249,6 +251,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
                 });
+                if (insErr) throw insErr;
             }
 
             showFeedback('✅ Persona Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);

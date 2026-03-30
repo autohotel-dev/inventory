@@ -121,6 +121,7 @@ interface ConsumptionItem {
 interface ConsumptionTrackingModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onRefresh?: () => void;
     salesOrderId: string | null;
     roomNumber: string;
     receptionistId: string;
@@ -156,6 +157,7 @@ const STEPS: { status: DeliveryStatus; label: string; icon: LucideIcon }[] = [
 export function ConsumptionTrackingModal({
     isOpen,
     onClose,
+    onRefresh,
     salesOrderId,
     roomNumber,
     receptionistId,
@@ -309,6 +311,7 @@ export function ConsumptionTrackingModal({
 
             toast.success('Entrega completada');
             setConfirmPaymentItem(null);
+            onRefresh?.();
         } catch (error) {
             console.error('Error:', error);
             toast.error('Error al confirmar');
@@ -384,6 +387,7 @@ export function ConsumptionTrackingModal({
                 })
                 .in('id', deliveredItems.map(i => i.id));
             toast.success('Pagos confirmados');
+            onRefresh?.();
         } catch (error) {
             console.error('Error:', error);
         } finally {
@@ -441,7 +445,7 @@ export function ConsumptionTrackingModal({
                                 pink: "bg-pink-500/20 border-pink-500/40 shadow-[0_4px_20px_-8px_rgba(236,72,153,0.4)]",
                                 emerald: "bg-emerald-500/20 border-emerald-500/40 shadow-[0_4px_20px_-8px_rgba(16,185,129,0.4)]",
                             };
-                            
+
                             const iconStyles = {
                                 amber: card.active ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
                                 purple: card.active ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
@@ -469,7 +473,7 @@ export function ConsumptionTrackingModal({
                                     onClick={() => setActiveFilter(activeFilter === card.id ? 'ALL' : card.id)}
                                     className={cn(
                                         "flex-1 min-w-[160px] p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4 relative overflow-hidden group",
-                                        card.active 
+                                        card.active
                                             ? activeStyles[card.color as keyof typeof activeStyles]
                                             : "bg-zinc-900/40 border-white/5 hover:border-white/10 shadow-sm"
                                     )}
@@ -625,13 +629,13 @@ export function ConsumptionTrackingModal({
                                                                     const isCompleted = currentStep >= idx;
                                                                     const isCurrent = currentStep === idx;
                                                                     const StepIcon = step.icon;
-                                                                    
+
                                                                     return (
                                                                         <div key={step.status} className="flex flex-col items-center gap-3 relative z-10 w-12">
                                                                             <div className={cn(
                                                                                 "h-10 w-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500",
-                                                                                isCompleted 
-                                                                                    ? "bg-zinc-950 border-primary text-primary shadow-[0_0_15px_-5px_var(--primary)]" 
+                                                                                isCompleted
+                                                                                    ? "bg-zinc-950 border-primary text-primary shadow-[0_0_15px_-5px_var(--primary)]"
                                                                                     : "bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50 grayscale",
                                                                                 isCurrent && "scale-125 border-primary bg-primary text-white shadow-[0_0_20px_-2px_var(--primary)]"
                                                                             )}>
@@ -759,17 +763,17 @@ export function ConsumptionTrackingModal({
                             </Button>
                         </div>
                         <div className="flex items-center gap-4 w-full md:w-auto">
-                            <Button 
-                                variant="ghost" 
-                                onClick={() => fetchConsumptions()} 
+                            <Button
+                                variant="ghost"
+                                onClick={() => fetchConsumptions()}
                                 className="text-zinc-500 hover:text-white hover:bg-white/5 font-black uppercase tracking-widest text-[10px] italic py-0 h-12 px-5"
                             >
                                 <Clock className="h-4 w-4 mr-2.5 opacity-50" />
                                 Actualizar
                             </Button>
-                            <Button 
-                                variant="outline" 
-                                onClick={onClose} 
+                            <Button
+                                variant="outline"
+                                onClick={onClose}
                                 className="bg-zinc-900 border-white/5 hover:bg-white hover:text-black hover:border-transparent text-zinc-300 font-black uppercase tracking-[0.2em] italic rounded-2xl h-12 px-10 transition-all duration-300"
                             >
                                 Cerrar

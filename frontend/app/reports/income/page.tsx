@@ -97,23 +97,22 @@ function IncomeReportContent() {
             .from("shift_closings")
             .select(`
                 *,
-                employees!shift_closings_employee_id_fkey (
+                employees (
                     first_name,
                     last_name,
                     role
-                )
                 )
             `)
             .order("created_at", { ascending: false })
             .limit(50);
 
         if (error) {
-            console.error("Error fetching shifts:", error);
-            return;
+            console.error("Error fetching closed shifts:", error);
+            // Mostrar una alerta si es necesario, o solo loguear
         }
 
         // Combinar: Turno actual (si existe) + Históricos
-        let allShifts = [];
+        let allShifts: any[] = [];
 
         if (activeSession) {
             allShifts.push({
@@ -139,9 +138,8 @@ function IncomeReportContent() {
             })];
         }
 
-
         // Mejor aproximación: Filtrar por los roles permitidos si tenemos la data
-        const allowedRoles = ['admin', 'manager', 'receptionist'];
+        const allowedRoles = ['receptionist'];
 
         const filteredShifts = allShifts.filter(s => {
             // SIEMPRE mostrar el turno actual (active) para que el usuario pueda seleccionarlo
@@ -152,7 +150,7 @@ function IncomeReportContent() {
             if (empRole) {
                 return allowedRoles.includes(empRole);
             }
-            return true; // Si no hay info de rol, lo mostramos por si acaso
+            return false; // Si no hay info de rol o no coincide, lo ocultamos para asegurar que solo se vean recepcionistas
         });
 
         console.log("📊 Filtered shifts:", filteredShifts);

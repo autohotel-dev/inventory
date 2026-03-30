@@ -59,7 +59,6 @@ BEGIN
       product_id,
       qty,
       unit_price,
-      total,
       concept_type,
       is_paid,
       delivery_status
@@ -67,7 +66,6 @@ BEGIN
       v_sales_order_id,
       v_service_product_id,
       1,
-      v_extra_hour_price,
       v_extra_hour_price,
       'EXTRA_HOUR',
       false,
@@ -103,7 +101,7 @@ BEGIN
     IF v_hours_added >= 24 THEN EXIT; END IF;
   END LOOP;
 
-  -- 5. Actualizar totales y estado de la habitación si hubo cambios
+  -- 5. Actualizar totales de la estancia si hubo cambios
   IF v_hours_added > 0 THEN
     -- Actualizar horario de salida en la estancia
     UPDATE room_stays 
@@ -114,14 +112,8 @@ BEGIN
     UPDATE sales_orders
     SET 
       subtotal = subtotal + (v_extra_hour_price * v_hours_added),
-      total = total + (v_extra_hour_price * v_hours_added),
       remaining_amount = remaining_amount + (v_extra_hour_price * v_hours_added)
     WHERE id = v_sales_order_id;
-    
-    -- Bloquear la habitación automáticamente
-    UPDATE rooms 
-    SET status = 'BLOQUEADA' 
-    WHERE id = (SELECT room_id FROM room_stays WHERE id = p_stay_id AND status = 'ACTIVA');
   END IF;
 
   RETURN jsonb_build_object('success', true, 'hours_added', v_hours_added);

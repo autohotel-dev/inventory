@@ -266,6 +266,7 @@ async function updatePendingPaymentsHelper(
 
         // Obtener turno para los subpagos nuevos (Recepción)
         const currentShiftId = await getReceptionShiftId(supabase);
+        const currentEmployeeId = await getReceptionEmployeeId(supabase);
         
         const subpayments = validPayments.map(p => ({
         sales_order_id: salesOrderId,
@@ -277,6 +278,7 @@ async function updatePendingPaymentsHelper(
         payment_type: "PARCIAL",
         parent_payment_id: pending.id,
         shift_session_id: currentShiftId, // Vincular subpagos al turno actual
+        collected_by: currentEmployeeId, // IMPORTANTE: vincular al empleado
         // Agregar terminal si es pago con tarjeta
         ...(p.method === "TARJETA" && p.terminal ? { terminal_code: p.terminal } : {}),
         // Agregar detalles de tarjeta
@@ -297,6 +299,7 @@ async function updatePendingPaymentsHelper(
 
       // Obtener turno actual para actualizar el pago (Recepción)
       const currentShiftId = await getReceptionShiftId(supabase);
+      const currentEmployeeId = await getReceptionEmployeeId(supabase);
 
       const updateData: any = {
         status: "PAGADO",
@@ -311,6 +314,9 @@ async function updatePendingPaymentsHelper(
 
       if (currentShiftId) {
         updateData.shift_session_id = currentShiftId; // Vincular al turno actual al momento de pagar
+      }
+      if (currentEmployeeId) {
+        updateData.collected_by = currentEmployeeId;
       }
 
       await supabase
@@ -1618,6 +1624,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
       // Y SOLO si la orden no tiene pagos confirmados previos (evitar duplicados)
       const newPaymentsToInsert: any[] = [];
       const currentShiftId = await getReceptionShiftId(supabase);
+      const currentEmployeeId = await getReceptionEmployeeId(supabase);
 
       // Verificar si ya existen pagos confirmados (PAGADO) para esta orden
       // Si los hay, NO crear nuevos — el dinero ya fue registrado al check-in
@@ -1659,6 +1666,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               status: "PAGADO",
               payment_type: "PARCIAL", // Marcamos como parciales para indicar desglose
               shift_session_id: currentShiftId,
+              collected_by: currentEmployeeId,
               terminal_code: p.terminal,
               card_last_4: p.cardLast4,
               card_type: p.cardType
@@ -1677,6 +1685,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             status: "PAGADO",
             payment_type: "COMPLETO",
             shift_session_id: currentShiftId,
+            collected_by: currentEmployeeId,
             terminal_code: p.terminal,
             card_last_4: p.cardLast4,
             card_type: p.cardType

@@ -44,13 +44,19 @@ export function ShiftMigrationTool() {
             if (error) throw error;
 
             // 2. Identificar sesión de recepción (Target)
-            const receptionSession = activeSessions?.find((s: any) =>
+            let receptionSession = activeSessions?.find((s: any) =>
                 ['receptionist', 'admin', 'manager'].includes(s.employees?.role)
             );
 
+            // Si no hay ninguno de esos, usar el primero que haya (fallback igual que en IncomeReport)
+            if (!receptionSession && activeSessions && activeSessions.length > 0) {
+                receptionSession = activeSessions[0];
+            }
+
             if (!receptionSession) {
                 console.warn("No active reception shift found for migration target.");
-                toast.error("No se encontró un turno de recepción activo.");
+                // Ocultamos la alerta para no ser molestos cuando solo quieren ver el historial
+                // toast.error("No se encontró un turno de recepción activo.");
                 setMigrationStats(null);
                 return;
             }
