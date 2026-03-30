@@ -169,8 +169,7 @@ export function usePaymentProcessing({
               reference: p.reference || existingPayment.reference,
               card_last_4: p.cardLast4 || existingPayment.card_last_4,
               card_type: p.cardType || existingPayment.card_type,
-              payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO",
-              created_by: employee.id
+              payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO"
             };
             
             const { error: updateError } = await supabase
@@ -214,7 +213,7 @@ export function usePaymentProcessing({
               concept: "PAGO_POR_CONCEPTOS",
               status: "PAGADO",
               payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO",
-              created_by: employee.id,
+              created_by: user.id,
               shift_session_id: session?.id || null,
               collected_at: new Date().toISOString(),
               // PRESERVAR collected_by si viene del cochero
@@ -237,7 +236,7 @@ export function usePaymentProcessing({
             payment_method: payments[0]?.method || "EFECTIVO", // Asumir el método principal
             concept: "PROPINA",
             status: "PAGADO",
-            created_by: employee.id,
+            created_by: user.id,
             shift_session_id: session?.id || null,
             collected_at: new Date().toISOString()
          });
