@@ -66,7 +66,7 @@ export const RoomCard = memo(({
     const showVerifyButton = acceptedExtras.length > 0 && !showAcceptButton; // Only show verify if everything waiting is accepted
 
     const isUnassignedEntry = isPendingEntry && !valetEmployeeId;
-    const isMyPendingEntry = isPendingEntry && valetEmployeeId === employeeId;
+    const isMyPendingEntry = isPendingEntry && !!valetEmployeeId; // Any valet can register the vehicle once assigned
     const isOtherValetEntry = isPendingEntry && !!valetEmployeeId && valetEmployeeId !== employeeId;
 
     return (

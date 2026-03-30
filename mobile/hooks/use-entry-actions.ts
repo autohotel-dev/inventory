@@ -91,8 +91,7 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         concept: 'ENTRADA'
                     }))
                 })
-                .eq('id', stayId)
-                .or(`valet_employee_id.is.null,valet_employee_id.eq.${valetId}`);
+                .eq('id', stayId);
 
             if (stayError) {
                 console.error('Error updating room stay:', stayError);

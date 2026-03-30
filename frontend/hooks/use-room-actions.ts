@@ -1755,23 +1755,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         return true; // No es error, solo ya está solicitado
       }
 
-      if (!stay.valet_employee_id) {
-        toast.error("No hay cochero asignado aún");
-        return false;
-      }
-
-      // 2. Verificar usuario del valet para notificar
-      const { data: valetUser } = await supabase
-        .from('employees')
-        .select('auth_user_id')
-        .eq('id', stay.valet_employee_id)
-        .single();
-
-      if (!valetUser?.auth_user_id) {
-        toast.error("No se pudo notificar al cochero (usuario no encontrado)");
-        return false;
-      }
-
       // 3. Registrar solicitud en DB (timestamp)
       const { error } = await supabase
         .from('room_stays')
@@ -1780,7 +1763,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       if (error) throw error;
 
-      // 4. Crear notificación contextual para el cochero
+      // 4. Crear notificación contextual para todos los cocheros activos
       const roomNumber = (stay.room as any)?.number || "Desconocida";
       const hasPlate = !!stay.vehicle_plate;
 
@@ -1789,20 +1772,12 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         ? `Recepción solicita el vehículo de la Habitación ${roomNumber} (Placas: ${stay.vehicle_plate})`
         : `Recepción te recuerda registrar el vehículo de la Habitación ${roomNumber}`;
 
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: valetUser.auth_user_id,
-          type: 'system_alert',
-          title: title,
-          message: message,
-          data: { stay_id: stayId, room_number: roomNumber },
-          is_read: false
-        });
-
-      if (notifError) {
-        console.error("Error sending notification:", notifError);
-      }
+      await notifyActiveValets(
+        supabase,
+        title,
+        message,
+        { type: hasPlate ? 'VEHICLE_REQUEST' : 'system_alert', stay_id: stayId, room_number: roomNumber }
+      );
 
 
 
