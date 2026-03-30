@@ -59,17 +59,21 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         payments: PaymentEntry[],
         valetId: string,
         personCount: number,
-        totalPeople?: number
+        totalPeople?: number,
+        extraPersonPrice?: number
     ) => {
         setLoading(true);
         
         console.log('🔍 MOBILE DEBUG: Iniciando handleRegisterVehicleAndPayment');
         console.log('  - valetId recibido:', valetId);
         console.log('  - roomNumber:', roomNumber);
+        console.log('  - personCount:', personCount);
+        console.log('  - extraPersonPrice:', extraPersonPrice);
         console.log('  - payments:', payments);
 
         try {
-            const { error: stayError, count } = await supabase
+            // --- 1. Actualizar room_stay con datos del vehículo ---
+            const { error: stayError } = await supabase
                 .from('room_stays')
                 .update({
                     vehicle_plate: vehicleData.plate.trim().toUpperCase(),
@@ -80,7 +84,6 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                     total_people: Math.max(personCount, totalPeople || 0),
                     vehicle_requested_at: null,
                     valet_checkout_requested_at: null,
-                    // Guardar datos de pago para el checkout (Fix para recepción)
                     checkout_payment_data: payments.map(p => ({
                         amount: p.amount,
                         method: p.method,
@@ -98,11 +101,7 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 throw stayError;
             }
 
-            if (count === 0) {
-                showFeedback('Entrada ya asignada', 'Otro cochero ya aceptó esta entrada.', 'warning');
-                return false;
-            }
-
+            // --- 2. Obtener sesión activa ---
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
@@ -110,6 +109,7 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'active')
                 .maybeSingle();
 
+            // --- 3. Buscar pago pendiente de ESTANCIA ---
             const { data: pendingMain, error: pendingMainError } = await supabase
                 .from('payments')
                 .select('id, amount')
@@ -127,17 +127,15 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 return false;
             }
 
+            // --- 4. Procesar pagos del cochero (ESTANCIA) ---
             console.log('🔍 MOBILE DEBUG: Guardando pagos del cochero');
-            console.log('  - valetId:', valetId);
-            console.log('  - sessionId:', session?.id);
-            console.log('  - payments count:', payments.length);
             
             for (let i = 0; i < payments.length; i++) {
                 const p = payments[i];
                 console.log(`  - Payment ${i}: $${p.amount} - ${p.method}`);
                 
                 if (i === 0) {
-                    const updateData = {
+                    const { error: updErr } = await supabase.from('payments').update({
                         amount: p.amount,
                         payment_method: p.method,
                         terminal_code: p.terminal,
@@ -148,13 +146,10 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    };
-                    console.log('  - Update data:', updateData);
-                    
-                    const { error: updErr } = await supabase.from('payments').update(updateData).eq('id', pendingMain.id);
+                    }).eq('id', pendingMain.id);
                     if (updErr) throw updErr;
                 } else {
-                    const insertData = {
+                    const { error: insErr } = await supabase.from('payments').insert({
                         sales_order_id: salesOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -169,17 +164,77 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    };
-                    console.log('  - Insert data:', insertData);
-                    
-                    const { error: insErr } = await supabase.from('payments').insert(insertData);
+                    });
                     if (insErr) throw insErr;
                 }
             }
 
-            // NOTA: No sincronizar items aquí. El cochero solo reporta pagos (COBRADO_POR_VALET)
-            // La sincronización de items solo debe ocurrir cuando el recepcionista cambia a PAGADO
-            console.log('Cochero payment processed - items will sync when recepcionista corroborates');
+            // --- 5. REQ-02: Generar conceptos EXTRA_PERSON si hay más de 2 personas ---
+            const extraCount = Math.max(0, personCount - 2);
+            if (extraCount > 0 && extraPersonPrice && extraPersonPrice > 0) {
+                console.log(`📦 Generando ${extraCount} conceptos EXTRA_PERSON a $${extraPersonPrice} c/u`);
+
+                // Obtener product_id de servicio (el mismo que usa ROOM_BASE)
+                const { data: existingItem } = await supabase
+                    .from('sales_order_items')
+                    .select('product_id')
+                    .eq('sales_order_id', salesOrderId)
+                    .eq('concept_type', 'ROOM_BASE')
+                    .limit(1)
+                    .maybeSingle();
+
+                const serviceProductId = existingItem?.product_id;
+                if (!serviceProductId) {
+                    console.warn('No se encontró product_id de ROOM_BASE, omitiendo items de persona extra');
+                } else {
+                    for (let i = 0; i < extraCount; i++) {
+                        // Crear sales_order_item
+                        const { error: itemErr } = await supabase.from('sales_order_items').insert({
+                            sales_order_id: salesOrderId,
+                            product_id: serviceProductId,
+                            qty: 1,
+                            unit_price: extraPersonPrice,
+                            concept_type: 'EXTRA_PERSON',
+                            is_paid: false,
+                            delivery_status: 'DELIVERED', // Ya está en la habitación
+                        });
+                        if (itemErr) {
+                            console.error(`Error creating EXTRA_PERSON item ${i + 1}:`, itemErr);
+                        }
+
+                        // Crear pago PENDIENTE por persona extra
+                        const { error: payErr } = await supabase.from('payments').insert({
+                            sales_order_id: salesOrderId,
+                            amount: extraPersonPrice,
+                            payment_method: 'PENDIENTE',
+                            concept: 'PERSONA_EXTRA',
+                            status: 'PENDIENTE',
+                            payment_type: 'COMPLETO',
+                            shift_session_id: session?.id || null,
+                        });
+                        if (payErr) {
+                            console.error(`Error creating PERSONA_EXTRA payment ${i + 1}:`, payErr);
+                        }
+                    }
+
+                    // Actualizar totales de la sales_order
+                    const extraTotal = extraCount * extraPersonPrice;
+                    const { data: currentOrder } = await supabase
+                        .from('sales_orders')
+                        .select('total, remaining_amount')
+                        .eq('id', salesOrderId)
+                        .single();
+
+                    if (currentOrder) {
+                        await supabase.from('sales_orders').update({
+                            total: (currentOrder.total || 0) + extraTotal,
+                            remaining_amount: (currentOrder.remaining_amount || 0) + extraTotal,
+                        }).eq('id', salesOrderId);
+                    }
+
+                    console.log(`✅ ${extraCount} conceptos EXTRA_PERSON creados exitosamente`);
+                }
+            }
 
             showFeedback('Entrada registrada', `Hab. ${roomNumber}: Lleva el dinero/vouchers a recepción.`);
             await onRefresh();

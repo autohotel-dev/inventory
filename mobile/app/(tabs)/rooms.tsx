@@ -212,6 +212,26 @@ export default function RoomsScreen() {
         setShowEntryModal(true);
     }, [rooms]);
 
+    // REQ-01: Recalcular pago automáticamente cuando cambia la cantidad de personas
+    useEffect(() => {
+        if (!showEntryModal || !selectedRoom) return;
+        const basePrice = selectedRoom.room_types?.base_price ?? 0;
+        const extraPrice = selectedRoom.room_types?.extra_person_price ?? 0;
+        const extraCount = Math.max(0, personCount - 2);
+        const newAmount = basePrice + (extraCount * extraPrice);
+        
+        setPayments(prev => {
+            // Si solo hay un pago, actualizar su monto directamente
+            if (prev.length === 1) {
+                return [{ ...prev[0], amount: newAmount }];
+            }
+            // Si hay múltiples pagos (split), ajustar el primero para compensar
+            const otherTotal = prev.slice(1).reduce((sum, p) => sum + p.amount, 0);
+            const firstAmount = Math.max(0, newAmount - otherTotal);
+            return [{ ...prev[0], amount: firstAmount }, ...prev.slice(1)];
+        });
+    }, [personCount, showEntryModal]);
+
     const handleVehicleSearch = (text: string) => {
         setVehicleSearch(text);
         if (text.length >= 2) {
@@ -282,7 +302,8 @@ export default function RoomsScreen() {
             payments,
             employeeId,
             personCount,
-            selectedRoom.stay.total_people
+            selectedRoom.stay.total_people,
+            selectedRoom.room_types?.extra_person_price ?? 0
         );
         if (success) setShowEntryModal(false);
     };

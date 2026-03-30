@@ -157,7 +157,7 @@ export const EntryModal = memo(({
                                 </View>
                             </View>
                             <View className="border-t pt-8 mb-6 border-zinc-100 dark:border-zinc-800">
-                                <View className="flex-row gap-4 mb-6">
+                                <View className="flex-row gap-4 mb-4">
                                     <View className="flex-1">
                                         <Text className="text-[10px] uppercase font-black tracking-widest mb-2 text-zinc-400 dark:text-zinc-500">Personas</Text>
                                         <View className="flex-row items-center gap-2">
@@ -177,6 +177,30 @@ export const EntryModal = memo(({
                                         <Text className="text-3xl font-black text-emerald-500">${amount.toFixed(2)}</Text>
                                     </View>
                                 </View>
+
+                                {/* Desglose de conceptos */}
+                                <View className="mb-6 rounded-xl border overflow-hidden border-zinc-100 dark:border-zinc-800">
+                                    <View className="flex-row justify-between items-center px-4 py-3 bg-zinc-50 dark:bg-zinc-900/50">
+                                        <Text className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Estancia Habitación</Text>
+                                        <Text className="text-sm font-black text-zinc-800 dark:text-white">${basePrice.toFixed(2)}</Text>
+                                    </View>
+                                    {Array.from({ length: extraCount }).map((_, i) => (
+                                        <View key={`extra-${i}`} className="flex-row justify-between items-center px-4 py-3 border-t border-zinc-100 dark:border-zinc-800">
+                                            <View className="flex-row items-center gap-2">
+                                                <View className="w-5 h-5 rounded-full items-center justify-center bg-amber-100 dark:bg-amber-500/20">
+                                                    <Text className="text-[10px] font-black text-amber-600 dark:text-amber-400">{i + 1}</Text>
+                                                </View>
+                                                <Text className="text-xs font-bold text-amber-600 dark:text-amber-400">Persona Extra</Text>
+                                            </View>
+                                            <Text className="text-sm font-black text-amber-600 dark:text-amber-400">+${extraPrice.toFixed(2)}</Text>
+                                        </View>
+                                    ))}
+                                    <View className="flex-row justify-between items-center px-4 py-3 border-t-2 border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900">
+                                        <Text className="text-xs font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Total</Text>
+                                        <Text className="text-base font-black text-emerald-600 dark:text-emerald-400">${amount.toFixed(2)}</Text>
+                                    </View>
+                                </View>
+
                                 <MultiPaymentInput totalAmount={amount} payments={payments} onPaymentsChange={setPayments} disabled={actionLoading} />
                             </View>
                             <View className="flex-row gap-4 pb-12">
