@@ -51,10 +51,29 @@ export function AdminQuickActions({ quickLinks }: AdminQuickActionsProps) {
 
             if (sessions && sessions.length > 0) {
                 setActiveSession(sessions[0]);
+            } else {
+                setActiveSession(null);
             }
         };
 
         fetchSession();
+
+        // Suscripción realtime para cambios en turnos
+        const supabase = createClient();
+        const channel = supabase
+            .channel('admin-quick-actions-shifts')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'shift_sessions' },
+                () => {
+                    fetchSession();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [isAdmin, isManager]);
 
     const { totalExpenses, refetch } = useShiftExpenses(activeSession?.id || null);

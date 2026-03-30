@@ -631,6 +631,36 @@ export function ReceptionistDashboard() {
     }
   }, [userId, activeSession, fetchActiveValetCount, fetchShiftSummary]);
 
+  // Suscripción realtime para cambios en shift_sessions
+  useEffect(() => {
+    const supabase = createClient();
+    let debounceTimeout: NodeJS.Timeout;
+
+    const channel = supabase
+      .channel('receptionist-dashboard-shifts')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shift_sessions' },
+        () => {
+          clearTimeout(debounceTimeout);
+          debounceTimeout = setTimeout(() => {
+            console.log('[RECEPTIONIST DASHBOARD] Shift change detected, refreshing...');
+            fetchActiveSession();
+            fetchActiveValetCount();
+            if (canAdjustCash && !activeSession) {
+              fetchSystemActiveSession();
+            }
+          }, 500);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchActiveSession, fetchActiveValetCount, fetchSystemActiveSession, canAdjustCash, activeSession]);
+
   if (roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">

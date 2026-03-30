@@ -79,6 +79,41 @@ const getCurrentEmployeeId = async (supabase: any) => {
   }
 };
 
+/**
+ * Obtener el employee_id de la recepcionista en turno activo.
+ * Se usa para asignar pagos/órdenes al empleado de recepción,
+ * independientemente de quién esté operando el tablero (admin, manager, etc).
+ * Si no hay recepcionista activa, hace fallback al empleado actual.
+ */
+const getReceptionEmployeeId = async (supabase: any): Promise<string | null> => {
+  try {
+    // Buscar sesión activa de recepción y obtener el employee_id
+    const { data: receptionSessions } = await supabase
+      .from("shift_sessions")
+      .select(`
+        id,
+        employee_id,
+        employees!inner (
+          role
+        )
+      `)
+      .in("status", ["active", "open"])
+      .or("role.eq.receptionist,role.eq.admin,role.eq.manager", { foreignTable: "employees" })
+      .order("clock_in_at", { ascending: false })
+      .limit(1);
+
+    if (receptionSessions && receptionSessions.length > 0) {
+      return receptionSessions[0].employee_id;
+    }
+
+    // Fallback: si no hay recepcionista, usar el empleado actual
+    return await getCurrentEmployeeId(supabase);
+  } catch (err) {
+    console.error("Error getting reception employee id:", err);
+    return await getCurrentEmployeeId(supabase);
+  }
+};
+
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 
 // FIX #4: Helper para notificar a valets después de un check-in
@@ -1558,7 +1593,7 @@ function RoomsBoardInternal() {
       // Obtener turno actual y employee_id
       // FIX: Usar turno de recepción para asignar ingresos, no el del usuario actual (si es valet)
       const currentShiftId = await getReceptionShiftId(supabase);
-      const currentEmployeeId = await getCurrentEmployeeId(supabase);
+      const currentEmployeeId = await getReceptionEmployeeId(supabase);
 
       // FIX #1: Verificar que la habitación siga disponible antes de proceder
       const { data: currentRoomStatus, error: statusCheckError } = await supabase
@@ -1937,7 +1972,7 @@ function RoomsBoardInternal() {
       // Obtener turno actual y employee_id
       // FIX: Usar turno de recepción para asignar ingresos
       const currentShiftId = await getReceptionShiftId(supabase);
-      const currentEmployeeId = await getCurrentEmployeeId(supabase);
+      const currentEmployeeId = await getReceptionEmployeeId(supabase);
 
       // Crear orden de venta con pago PENDIENTE
       const { data: salesOrder, error: orderError } = await supabase

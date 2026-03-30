@@ -197,9 +197,26 @@ export function CurrentShiftIndicator({
 
   useEffect(() => {
     loadData();
-    // Actualizar cada minuto
+    // Actualizar cada minuto como fallback
     const interval = setInterval(loadData, 60000);
-    return () => clearInterval(interval);
+
+    // Suscripción realtime para cambios en shift_sessions
+    const channel = supabase
+      .channel('shift-indicator-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shift_sessions' },
+        () => {
+          console.log('[SHIFT INDICATOR] Shift session change detected, refreshing...');
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [loadData]);
 
   // Clock In

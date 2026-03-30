@@ -174,6 +174,33 @@ export function useUserRole(): UserRoleData {
     return () => subscription.unsubscribe();
   }, [fetchUserRole]);
 
+  // Suscripción realtime para cambios en shift_sessions del empleado
+  useEffect(() => {
+    if (!employeeId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`web-shift-sync-${employeeId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shift_sessions',
+          filter: `employee_id=eq.${employeeId}`,
+        },
+        () => {
+          console.log('[WEB SHIFT SYNC] Shift change detected for employee:', employeeId);
+          fetchUserRole();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [employeeId, fetchUserRole]);
+
   const isAdmin = role === "admin";
   const isManager = role === "manager";
   const isSupervisor = role === "supervisor";
