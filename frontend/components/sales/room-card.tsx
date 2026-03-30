@@ -75,7 +75,9 @@ export interface RoomCardProps {
   onViewServices?: () => void;
 }
 
-export function RoomCard({
+import { memo } from "react";
+
+export function RoomCardComponent({
   number,
   status,
   bgClass,
@@ -341,3 +343,46 @@ export function RoomCard({
     </div>
   );
 }
+
+// Comparación profunda y selectiva para evitar renders innecesarios.
+function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
+  // Ignorar statusBadge porque está garantizado que cambia cuando bgClass cambia.
+  // Ignorar callbacks porque la grilla los vuelve a inyectar por closure, pero su rol no afecta lo visual hasta ser invocados.
+  if (oldProps.id !== newProps.id) return false;
+  if (oldProps.status !== newProps.status) return false;
+  if (oldProps.bgClass !== newProps.bgClass) return false;
+  if (oldProps.accentClass !== newProps.accentClass) return false;
+  if (oldProps.hasPendingPayment !== newProps.hasPendingPayment) return false;
+  if (oldProps.isValetPending !== newProps.isValetPending) return false;
+  if (oldProps.hasPendingService !== newProps.hasPendingService) return false;
+  if (oldProps.isCriticalService !== newProps.isCriticalService) return false;
+  if (oldProps.valetId !== newProps.valetId) return false;
+  if (oldProps.notes !== newProps.notes) return false;
+  if (oldProps.roomTypeName !== newProps.roomTypeName) return false;
+
+  // Shallow Compare for objects
+  const oldSensor = oldProps.sensorStatus;
+  const newSensor = newProps.sensorStatus;
+  if (!!oldSensor !== !!newSensor) return false;
+  if (oldSensor && newSensor) {
+    if (oldSensor.isOpen !== newSensor.isOpen) return false;
+    if (oldSensor.batteryLevel !== newSensor.batteryLevel) return false;
+    if (oldSensor.isOnline !== newSensor.isOnline) return false;
+  }
+
+  const oldVehicle = oldProps.vehicleStatus;
+  const newVehicle = newProps.vehicleStatus;
+  if (!!oldVehicle !== !!newVehicle) return false;
+  if (oldVehicle && newVehicle) {
+    if (oldVehicle.hasVehicle !== newVehicle.hasVehicle) return false;
+    if (oldVehicle.isReady !== newVehicle.isReady) return false;
+    if (oldVehicle.plate !== newVehicle.plate) return false;
+    if (oldVehicle.brand !== newVehicle.brand) return false;
+    if (oldVehicle.model !== newVehicle.model) return false;
+    if (oldVehicle.isWaitingAuthorization !== newVehicle.isWaitingAuthorization) return false;
+  }
+
+  return true;
+}
+
+export const RoomCard = memo(RoomCardComponent, arePropsEqual);

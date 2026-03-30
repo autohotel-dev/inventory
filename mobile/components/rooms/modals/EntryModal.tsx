@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
-import { X, Car, Minus, Plus } from 'lucide-react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { X, Car, Camera, Minus, Plus } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../MultiPaymentInput';
+import { PlateScanner } from '../../ui/PlateScanner';
 import { VehicleSearchResult } from '../../../lib/vehicle-catalog';
 import { PaymentEntry } from '../../../lib/payment-types';
 import { Room } from '../../../lib/types';
@@ -46,6 +47,22 @@ export const EntryModal = memo(({
     const extraCount = Math.max(0, personCount - 2);
     const amount = basePrice + (extraCount * extraPrice);
 
+    const [showScanner, setShowScanner] = React.useState(false);
+
+    if (showScanner) {
+        return (
+            <Modal visible={visible} animationType="slide">
+                <PlateScanner 
+                    onClose={() => setShowScanner(false)} 
+                    onPlateScanned={(scannedPlate: string) => {
+                        setPlate(scannedPlate);
+                        setShowScanner(false);
+                    }} 
+                />
+            </Modal>
+        );
+    }
+
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
@@ -68,18 +85,23 @@ export const EntryModal = memo(({
                                 </View>
                                 <View className="mb-3">
                                     <View className="mb-4 relative">
-                                        <TextInput
-                                            value={plate}
-                                            onChangeText={setPlate}
-                                            placeholder="Placa (Obligatorio) *"
-                                            placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-                                            autoCapitalize="characters"
-                                            className={cn(
-                                                "border rounded-xl px-4 py-3 text-lg font-bold uppercase",
-                                                !plate.trim() ? "bg-red-50 border-red-100" : "bg-zinc-50 border-zinc-200",
-                                                "text-zinc-800 dark:bg-zinc-700 dark:border-zinc-600 dark:text-white"
-                                            )}
-                                        />
+                                        <View className={cn(
+                                            "flex-row items-center border rounded-xl px-4",
+                                            !plate.trim() ? "bg-red-50 border-red-100" : "bg-zinc-50 border-zinc-200",
+                                            "dark:bg-zinc-700 dark:border-zinc-600"
+                                        )}>
+                                            <TextInput
+                                                value={plate}
+                                                onChangeText={setPlate}
+                                                placeholder="Placa (Obligatorio) *"
+                                                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                                                autoCapitalize="characters"
+                                                className="flex-1 py-3 text-lg font-bold uppercase text-zinc-800 dark:text-white"
+                                            />
+                                            <TouchableOpacity onPress={() => setShowScanner(true)} className="p-2 ml-2 bg-blue-500 rounded-lg">
+                                                <Camera color="#ffffff" size={24} />
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                     
                                     <View className="mb-4 relative">

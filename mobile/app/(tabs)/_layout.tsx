@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { Home, LayoutDashboard, UserCircle, ShoppingBag } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
 import { supabase } from '../../lib/supabase';
+import { SyncQueue } from '../../lib/sync-queue';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
@@ -33,9 +34,17 @@ export default function TabLayout() {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
             .subscribe();
 
+        // Limpiar la cola offline cada que vuelva la conexión
+        const unsubscribeNetwork = SyncQueue.setupNetworkListener((count) => {
+            console.log(`[Offline Sync] Auto-procesadas ${count} tareas al recuperar red`);
+            // Si procesó éxito, podemos refrescar métricas
+            fetchPendingCount();
+        });
+
         return () => {
             supabase.removeChannel(channel);
             clearTimeout(timeout);
+            unsubscribeNetwork();
         };
     }, [fetchPendingCount]);
 

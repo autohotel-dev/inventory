@@ -41,7 +41,8 @@
           "androidCollapsedTitle": "Auto Hotel Luxor"
         }
       ],
-      "sentry-expo"
+      "sentry-expo",
+      "expo-secure-store"
     ],
     "notification": {
       "icon": "./assets/adaptive-icon.png",

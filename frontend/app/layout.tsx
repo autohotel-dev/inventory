@@ -97,6 +97,8 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+import QueryProvider from "@/providers/query-provider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -105,27 +107,29 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TrainingProvider>
-            <ChatProvider>
-              <ConditionalLayout>
-                {children}
-              </ConditionalLayout>
-              <InteractiveOverlay />
-              <ChatWidget />
-              <ToastProvider />
-              <AuthListener />
-              <PWAInstaller />
-              <PWAStatus />
-              <DataDebug />
-            </ChatProvider>
-          </TrainingProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TrainingProvider>
+              <ChatProvider>
+                <ConditionalLayout>
+                  {children}
+                </ConditionalLayout>
+                <InteractiveOverlay />
+                <ChatWidget />
+                <ToastProvider />
+                <AuthListener />
+                <PWAInstaller />
+                <PWAStatus />
+                <DataDebug />
+              </ChatProvider>
+            </TrainingProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

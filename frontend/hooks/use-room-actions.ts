@@ -80,6 +80,60 @@ export async function getReceptionShiftId(supabase: any): Promise<string | null>
   }
 }
 
+// Helper para obtener employee_id del usuario actual
+export async function getCurrentEmployeeId(supabase: any): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    return employee?.id || null;
+  } catch (err) {
+    console.error("Error getting current employee id:", err);
+    return null;
+  }
+}
+
+/**
+ * Obtener el employee_id de la recepcionista en turno activo.
+ * Se usa para asignar pagos/órdenes al empleado de recepción,
+ * independientemente de quién esté operando el tablero (admin, manager, etc).
+ * Si no hay recepcionista activa, hace fallback al empleado actual.
+ */
+export async function getReceptionEmployeeId(supabase: any): Promise<string | null> {
+  try {
+    // Buscar sesión activa de recepción y obtener el employee_id
+    const { data: receptionSessions } = await supabase
+      .from("shift_sessions")
+      .select(`
+        id,
+        employee_id,
+        employees!inner (
+          role
+        )
+      `)
+      .in("status", ["active", "open"])
+      .or("role.eq.receptionist,role.eq.admin,role.eq.manager", { foreignTable: "employees" })
+      .order("clock_in_at", { ascending: false })
+      .limit(1);
+
+    if (receptionSessions && receptionSessions.length > 0) {
+      return receptionSessions[0].employee_id;
+    }
+
+    // Fallback: si no hay recepcionista, usar el empleado actual
+    return await getCurrentEmployeeId(supabase);
+  } catch (err) {
+    console.error("Error getting reception employee id:", err);
+    return await getCurrentEmployeeId(supabase);
+  }
+}
+
 // Helper para obtener la estancia activa
 export function getActiveStay(room: Room): RoomStay | null {
   return (room.room_stays || []).find((stay) => stay.status === "ACTIVA") || null;

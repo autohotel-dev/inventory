@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useFeedback } from '../contexts/feedback-context';
 import { PaymentEntry } from '../lib/payment-types';
+import { SyncQueue } from '../lib/sync-queue';
 
 interface VehicleData {
     plate: string;
@@ -16,6 +17,21 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
     const handleAcceptEntry = useCallback(async (stayId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         try {
+            // Intento 1: ¿Estamos Offline? Encolarlo.
+            const isEnqueued = await SyncQueue.enqueue({
+                type: 'UPDATE',
+                table: 'room_stays',
+                payload: { valet_employee_id: valetId },
+                matchCriteria: { id: stayId }
+            });
+
+            if (isEnqueued) {
+                showFeedback('Offline', `Asignación guardada. Se subirá al recuperar conexión.`, 'info');
+                await onRefresh();
+                return true;
+            }
+
+            // Intento 2: Normal
             const { error } = await supabase
                 .from('room_stays')
                 .update({ valet_employee_id: valetId })

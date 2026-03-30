@@ -5,6 +5,8 @@ import { ShieldCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useFeedback } from '../contexts/feedback-context';
 import * as Updates from 'expo-updates';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -13,6 +15,9 @@ export default function LoginScreen() {
     const router = useRouter();
     const isDark = useColorScheme() === 'dark';
     const { showFeedback } = useFeedback();
+
+    const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+    const [hasCredentials, setHasCredentials] = useState(false);
 
     useEffect(() => {
         async function checkUpdates() {
@@ -31,11 +36,41 @@ export default function LoginScreen() {
                 console.log("Error checking updates:", error);
             }
         }
+        
+        async function checkBiometrics() {
+            const compatible = await LocalAuthentication.hasHardwareAsync();
+            const enrolled = await LocalAuthentication.isEnrolledAsync();
+            if (compatible && enrolled) {
+                setIsBiometricSupported(true);
+            }
+            
+            const savedEmail = await SecureStore.getItemAsync('luxor_valet_email');
+            const savedPwd = await SecureStore.getItemAsync('luxor_valet_password');
+            if (savedEmail && savedPwd) {
+                setHasCredentials(true);
+            }
+        }
+        
         checkUpdates();
+        checkBiometrics();
     }, []);
 
-    const handleLogin = async () => {
-        if (!email || !password) {
+    const handleLogin = async (useSaved = false) => {
+        let authEmail = email;
+        let authPwd = password;
+
+        if (useSaved) {
+            const savedEmail = await SecureStore.getItemAsync('luxor_valet_email');
+            const savedPwd = await SecureStore.getItemAsync('luxor_valet_password');
+            if (!savedEmail || !savedPwd) {
+                showFeedback('Error', 'Credenciales no encontradas', 'error');
+                return;
+            }
+            authEmail = savedEmail;
+            authPwd = savedPwd;
+        }
+
+        if (!authEmail || !authPwd) {
             showFeedback('Datos incompletos', 'Por favor ingresa correo y contraseña', 'warning');
             return;
         }
@@ -43,19 +78,36 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
+                email: authEmail,
+                password: authPwd,
             });
 
             if (error) {
                 showFeedback('Error de acceso', error.message, 'error');
             } else {
+                if (!useSaved) {
+                    await SecureStore.setItemAsync('luxor_valet_email', authEmail);
+                    await SecureStore.setItemAsync('luxor_valet_password', authPwd);
+                    setHasCredentials(true);
+                }
                 router.replace('/(tabs)');
             }
         } catch (err: any) {
             showFeedback('Error', 'Ocurrió un error inesperado al intentar entrar.', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleBiometricLogin = async () => {
+        const result = await LocalAuthentication.authenticateAsync({
+            promptMessage: 'Entrar a Luxor Valet',
+            cancelLabel: 'Cancelar',
+            disableDeviceFallback: false,
+        });
+
+        if (result.success) {
+            await handleLogin(true);
         }
     };
 
@@ -100,7 +152,7 @@ export default function LoginScreen() {
                     </View>
 
                     <TouchableOpacity
-                        onPress={handleLogin}
+                        onPress={() => handleLogin(false)}
                         disabled={loading}
                         className={`rounded-2xl h-16 items-center justify-center mt-6 shadow-xl ${isDark ? 'bg-white' : 'bg-zinc-900'}`}
                     >
@@ -110,6 +162,16 @@ export default function LoginScreen() {
                             <Text className={`font-black uppercase tracking-widest ${isDark ? 'text-zinc-900' : 'text-white'}`}>Entrar al Turno</Text>
                         )}
                     </TouchableOpacity>
+
+                    {isBiometricSupported && hasCredentials && (
+                        <TouchableOpacity
+                            onPress={handleBiometricLogin}
+                            disabled={loading}
+                            className={`rounded-2xl h-16 items-center justify-center mt-2 border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200'} bg-transparent`}
+                        >
+                            <Text className={`font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-zinc-900'}`}>Usar Biometría</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 <View className="absolute bottom-12 left-0 right-0 items-center">

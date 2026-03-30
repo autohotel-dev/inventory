@@ -7,6 +7,7 @@ import { Breadcrumbs } from "./breadcrumbs";
 import { BottomNav } from "./bottom-nav";
 import { UserNav } from "./user-nav";
 import { NotificationCenter } from "@/components/notifications/notification-center";
+import { ConnectionIndicator } from "./connection-indicator";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -83,6 +84,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
         <div className="flex items-center justify-between gap-4">
           <Breadcrumbs />
           <div className="flex items-center gap-2">
+            <ConnectionIndicator />
             <NotificationCenter />
             <UserNav />
           </div>
