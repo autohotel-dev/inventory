@@ -22,7 +22,9 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .from('room_stays')
                 .update({
                     checkout_valet_employee_id: valetId,
-                    current_people: personCount
+                    current_people: personCount,
+                    // Señalizar a recepción que el cochero ya completó la revisión de salida
+                    valet_checkout_requested_at: new Date().toISOString()
                 })
                 .eq('id', stayId);
 
@@ -35,6 +37,45 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 valet_id: valetId,
                 details: `Revisión de salida completada. Persona count: ${personCount}. Checklist: ${JSON.stringify(checklist)}`
             });
+
+            // Obtener nombre del cochero
+            let valetName = 'Cochero';
+            try {
+                const { data: emp } = await supabase
+                    .from('employees')
+                    .select('first_name')
+                    .eq('id', valetId)
+                    .single();
+                if (emp?.first_name) valetName = emp.first_name;
+            } catch { /* fallback */ }
+
+            // Notificar a recepcionistas activos
+            const { data: receptionSessions } = await supabase
+                .from('shift_sessions')
+                .select('employees!inner(auth_user_id, role)')
+                .eq('status', 'active')
+                .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+
+            if (receptionSessions && receptionSessions.length > 0) {
+                const uniqueUserIds = new Set<string>();
+                receptionSessions.forEach((session: any) => {
+                    if (session.employees?.auth_user_id) {
+                        uniqueUserIds.add(session.employees.auth_user_id);
+                    }
+                });
+
+                if (uniqueUserIds.size > 0) {
+                    const notifications = Array.from(uniqueUserIds).map(userId => ({
+                        user_id: userId,
+                        type: 'system_alert',
+                        title: '🚗 Salida Lista',
+                        message: `${valetName} ha revisado la Hab. ${roomNumber}, puedes darle salida.`,
+                        data: { type: 'CHECKOUT_READY', roomNumber, stayId },
+                        is_read: false,
+                    }));
+                    await supabase.from('notifications').insert(notifications);
+                }
+            }
 
             showFeedback('¡Éxito!', `Hab. ${roomNumber}: Revisión completada.`);
             await onRefresh();
@@ -66,6 +107,46 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .eq('id', stayId);
 
             if (error) throw error;
+
+            // Obtener nombre del cochero
+            let valetName = 'Cochero';
+            try {
+                const { data: emp } = await supabase
+                    .from('employees')
+                    .select('first_name')
+                    .eq('id', valetId)
+                    .single();
+                if (emp?.first_name) valetName = emp.first_name;
+            } catch { /* fallback */ }
+
+            // Notificar a recepcionistas activos
+            const { data: receptionSessions } = await supabase
+                .from('shift_sessions')
+                .select('employees!inner(auth_user_id, role)')
+                .eq('status', 'active')
+                .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+
+            if (receptionSessions && receptionSessions.length > 0) {
+                const uniqueUserIds = new Set<string>();
+                receptionSessions.forEach((session: any) => {
+                    if (session.employees?.auth_user_id) {
+                        uniqueUserIds.add(session.employees.auth_user_id);
+                    }
+                });
+
+                if (uniqueUserIds.size > 0) {
+                    const notifications = Array.from(uniqueUserIds).map(userId => ({
+                        user_id: userId,
+                        type: 'system_alert',
+                        title: '🚗 Solicitud de Salida',
+                        message: `${valetName} solicita salida de Hab. ${roomNumber}, puedes darle salida.`,
+                        data: { type: 'CHECKOUT_REQUESTED', roomNumber, stayId },
+                        is_read: false,
+                    }));
+                    await supabase.from('notifications').insert(notifications);
+                }
+            }
+
             showFeedback('¡Éxito!', `Hab. ${roomNumber}: Salida notificada correctamente.`);
             await onRefresh();
             return true;

@@ -275,12 +275,37 @@ export function useSoundNotifications(
 
                     if (role === 'receptionist') {
                         if (!oldData.checkout_valet_employee_id && newData.checkout_valet_employee_id) {
+                            // Buscar el nombre del cochero
+                            let valetName = 'Cochero';
+                            try {
+                                const { data: emp } = await supabase
+                                    .from('employees')
+                                    .select('first_name')
+                                    .eq('id', newData.checkout_valet_employee_id)
+                                    .single();
+                                if (emp?.first_name) valetName = emp.first_name;
+                            } catch { /* fallback a 'Cochero' */ }
+
                             soundEngine.playSound('car_ready');
-                            toast.success(`🚗 Auto listo para entrega: Habitación ${roomNumber}`);
+                            toast.success(`🚗 ${valetName} ha revisado la Hab. ${roomNumber}, puedes darle salida`, { duration: 12000 });
                         }
                         if (!oldData.valet_checkout_requested_at && newData.valet_checkout_requested_at) {
+                            // Buscar el nombre del cochero
+                            let valetName = 'Cochero';
+                            try {
+                                const valetId = newData.checkout_valet_employee_id;
+                                if (valetId) {
+                                    const { data: emp } = await supabase
+                                        .from('employees')
+                                        .select('first_name')
+                                        .eq('id', valetId)
+                                        .single();
+                                    if (emp?.first_name) valetName = emp.first_name;
+                                }
+                            } catch { /* fallback a 'Cochero' */ }
+
                             soundEngine.playSound('checkout_request');
-                            toast.warning(`🔔 SOLICITUD DE SALIDA: Habitación ${roomNumber}`, { duration: 10000 });
+                            toast.warning(`🔔 ${valetName} solicita salida: Hab. ${roomNumber}`, { duration: 10000 });
                         }
                         if (!oldData.vehicle_plate && newData.vehicle_plate) {
                             soundEngine.playSound('vehicle_registered');
