@@ -18,19 +18,16 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const [sidebarCompact, setSidebarCompact] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Sincronizar con el estado del sidebar desde localStorage
   useEffect(() => {
     setMounted(true);
     const stored = localStorage.getItem("sidebar-compact");
     setSidebarCompact(stored === "1");
 
-    // Escuchar cambios en localStorage (cuando el sidebar cambia)
     const handleStorageChange = () => {
       const stored = localStorage.getItem("sidebar-compact");
       setSidebarCompact(stored === "1");
     };
 
-    // Custom event para detectar cambios del sidebar
     const handleSidebarChange = () => {
       const stored = localStorage.getItem("sidebar-compact");
       setSidebarCompact(stored === "1");
@@ -39,7 +36,6 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("sidebar-compact-change", handleSidebarChange);
 
-    // Polling como fallback (cada 100ms solo si hay cambio)
     let lastValue = stored;
     const interval = setInterval(() => {
       const current = localStorage.getItem("sidebar-compact");
@@ -57,39 +53,37 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   }, []);
 
 
-  // Rutas que no deben mostrar el sidebar
   const noSidebarRoutes = ['/auth', '/reports/income/print', '/guest-portal'];
   const isNoSidebarRoute = noSidebarRoutes.some(route => pathname.startsWith(route));
   const isLandingPage = pathname === '/';
 
   if (isNoSidebarRoute || isLandingPage) {
-    // Layout simple para rutas de autenticación y landing page
     return <>{children}</>;
   }
 
-  // Ancho del sidebar según estado
-  const sidebarWidth = sidebarCompact ? "72px" : "256px";
-
-  // Layout completo con sidebar para rutas principales
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-muted/10">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background">
       <Sidebar />
       <main
-        className="flex-1 px-3 py-4 md:px-6 md:py-6 w-full space-y-4 md:space-y-6 transition-all duration-200 pb-24 md:pb-6"
-        style={{
-          marginLeft: mounted ? undefined : undefined,
-          maxWidth: "100%"
-        }}
+        className="flex-1 w-full transition-all duration-200 pb-24 md:pb-0"
+        style={{ maxWidth: "100%" }}
       >
-        <div className="flex items-center justify-between gap-4">
-          <Breadcrumbs />
-          <div className="flex items-center gap-2">
-            <ConnectionIndicator />
-            <NotificationCenter />
-            <UserNav />
+        {/* Top bar */}
+        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-white/[0.04]">
+          <div className="flex items-center justify-between gap-4 px-4 md:px-7 py-3">
+            <Breadcrumbs />
+            <div className="flex items-center gap-2">
+              <ConnectionIndicator />
+              <NotificationCenter />
+              <UserNav />
+            </div>
           </div>
         </div>
-        {children}
+
+        {/* Page content */}
+        <div className="px-4 md:px-7 py-5 space-y-5">
+          {children}
+        </div>
       </main>
       <BottomNav />
     </div>

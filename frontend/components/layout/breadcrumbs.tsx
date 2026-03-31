@@ -1,6 +1,8 @@
 "use client";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function toTitle(segment: string) {
   if (!segment) return "";
@@ -23,25 +25,31 @@ export function Breadcrumbs() {
   const title = items[items.length - 1]?.label ?? "";
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <nav className="text-xs text-muted-foreground overflow-x-auto">
-          <div className="flex items-center whitespace-nowrap">
-            {items.map((it, idx) => (
-              <span key={it.href} className="flex items-center">
-                {idx > 0 && <span className="mx-1 text-muted-foreground/50">/</span>}
-                {idx < items.length - 1 ? (
-                  <Link href={it.href} className="hover:underline hover:text-foreground transition-colors">{it.label}</Link>
-                ) : (
-                  <span className="text-foreground font-medium">{it.label}</span>
-                )}
-              </span>
-            ))}
-          </div>
-        </nav>
-      </div>
-      <h1 className="text-lg md:text-xl font-semibold">{title}</h1>
+    <div className="space-y-1">
+      <nav className="text-xs text-muted-foreground/50 overflow-x-auto">
+        <div className="flex items-center whitespace-nowrap">
+          {items.map((it, idx) => (
+            <span key={it.href} className="flex items-center">
+              {idx > 0 && (
+                <ChevronRight className="mx-1 h-3 w-3 text-muted-foreground/30" />
+              )}
+              {idx < items.length - 1 ? (
+                <Link
+                  href={it.href}
+                  className="hover:text-foreground/70 transition-colors duration-200"
+                >
+                  {it.label}
+                </Link>
+              ) : (
+                <span className="text-foreground/60 font-medium">{it.label}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      </nav>
+      <h1 className="text-lg md:text-xl font-semibold tracking-tight text-foreground/90">
+        {title}
+      </h1>
     </div>
   );
 }
-

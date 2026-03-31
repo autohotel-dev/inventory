@@ -4,14 +4,13 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { getMenuPermissions, type UserRole } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 // Constants
 const SIDEBAR_WIDTHS = { COMPACT: 72, EXPANDED: 256 } as const;
-const BREAKPOINTS = { sm: "640px", md: "768px", lg: "1024px" } as const;
 
 // Optimized Icon component with memoization
 const Icon = React.memo(({ name, className }: { name: string; className?: string }) => {
@@ -48,15 +47,6 @@ const Icon = React.memo(({ name, className }: { name: string; className?: string
 });
 Icon.displayName = "Icon";
 
-// Responsive utility hook
-function useResponsiveClasses(compact: boolean) {
-  return React.useMemo(() => ({
-    container: compact ? "justify-center" : "flex-col items-center justify-center",
-    button: compact ? 'p-2 flex items-center justify-center' : 'px-2 py-2 flex w-full items-center justify-center gap-1',
-    navItem: compact ? "" : "whitespace-nowrap"
-  }), [compact]);
-}
-
 // Navigation link type
 type NavLink = { href: string; label: string; icon: string; permissionId: string; adminOnly?: boolean; allowedForNonAdmin?: boolean; allowedForReceptionist?: boolean } | { divider: true; adminOnly?: boolean };
 
@@ -75,9 +65,7 @@ function useMenuPermissions(role: UserRole | null): { allowedMenuIds: Set<string
     async function fetchPerms() {
       try {
         const perms = await getMenuPermissions(role as UserRole);
-        if (!cancelled) {
-          setAllowedMenuIds(new Set(perms));
-        }
+        if (!cancelled) setAllowedMenuIds(new Set(perms));
       } catch (err) {
         console.error('Error fetching menu permissions:', err);
       } finally {
@@ -88,22 +76,22 @@ function useMenuPermissions(role: UserRole | null): { allowedMenuIds: Set<string
     return () => { cancelled = true; };
   }, [role]);
 
-  return { allowedMenuIds, isLoading: isLoading };
+  return { allowedMenuIds, isLoading };
 }
 
 // Links para administradores/managers - ORGANIZADOS POR MÓDULOS
 const adminLinks: readonly NavLink[] = [
-  // 🏠 OPERACIONES PRINCIPALES - Lo que se usa todos los días
+  // 🏠 OPERACIONES PRINCIPALES
   { href: "/dashboard", label: "Dashboard", icon: "home", permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
   { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
   { divider: true },
   
-  // 🏨 GESTIÓN HOTELERA - Todo relacionado con habitaciones y estancias
+  // 🏨 GESTIÓN HOTELERA
   { href: "/room-types", label: "Tipos de Habitación", icon: "settings", permissionId: "room-types", adminOnly: true },
   { href: "/sensors", label: "Sensores (Tuya)", icon: "activity", permissionId: "sensors", adminOnly: true },
   { divider: true, adminOnly: true },
   
-  // 📦 INVENTARIO Y COMPRAS - Catálogos, productos, compras
+  // 📦 INVENTARIO Y COMPRAS
   { href: "/products", label: "Productos", icon: "box", permissionId: "products", adminOnly: true },
   { href: "/categories", label: "Categorías", icon: "arrows", permissionId: "categories", adminOnly: true },
   { href: "/warehouses", label: "Almacenes", icon: "building", permissionId: "warehouses", adminOnly: true },
@@ -123,7 +111,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/kardex", label: "Kardex", icon: "activity", permissionId: "kardex", adminOnly: true },
   { divider: true, adminOnly: true },
   
-  // 💰 FINANZAS Y REPORTES - Pre-cortes, analytics, auditoría
+  // 💰 FINANZAS Y REPORTES
   { href: "/reports/income", label: "Pre-Cortes de Caja", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
   { href: "/employees/closings", label: "Cortes de Caja (Cierre)", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
   { divider: true },
@@ -133,13 +121,13 @@ const adminLinks: readonly NavLink[] = [
   { href: "/auditoria", label: "Auditoría", icon: "activity", permissionId: "auditoria", adminOnly: true },
   { divider: true, adminOnly: true },
   
-  // 👥 RECURSOS HUMANOS - Empleados, horarios, capacitación
+  // 👥 RECURSOS HUMANOS
   { href: "/employees", label: "Empleados", icon: "users", permissionId: "employees", adminOnly: true },
   { href: "/employees/schedules", label: "Horarios", icon: "activity", permissionId: "employees.schedules", adminOnly: true },
   { href: "/training", label: "Capacitación", icon: "graduation", permissionId: "training", allowedForReceptionist: true },
   { divider: true, adminOnly: true },
   
-  // ⚙️ CONFIGURACIÓN Y SISTEMA - Settings, permisos, herramientas admin
+  // ⚙️ CONFIGURACIÓN Y SISTEMA
   { href: "/settings", label: "Configuración", icon: "settings", permissionId: "settings", adminOnly: true },
   { href: "/settings/roles", label: "Gestión de Roles", icon: "users", permissionId: "settings.roles", adminOnly: true },
   { href: "/settings/permissions", label: "Permisos de Roles", icon: "settings", permissionId: "settings.permissions", adminOnly: true },
@@ -147,120 +135,22 @@ const adminLinks: readonly NavLink[] = [
   { href: "/notifications-admin", label: "Notificaciones", icon: "bell", permissionId: "notifications-admin", adminOnly: true },
 ] as const;
 
-// Reusable components
-const SidebarButton = React.memo(({
-  compact,
-  icon,
-  children,
-  onClick,
-  className = "",
-  title
-}: {
-  compact: boolean;
-  icon?: string;
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  title?: string;
-}) => {
-  const classes = useResponsiveClasses(compact);
-  return (
-    <button
-      type="button"
-      className={`border rounded ${classes.button} text-xs w-full ${className}`}
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-    >
-      {icon && <Icon name={icon} className="w-3 h-3" />}
-      {!compact && <span>{children}</span>}
-    </button>
-  );
-});
-SidebarButton.displayName = "SidebarButton";
-
-const ThemeToggle = React.memo(({
-  theme,
-  setTheme,
-  mounted,
-  compact
-}: {
-  theme?: string | null;
-  setTheme: (theme: string) => void;
-  mounted: boolean;
-  compact: boolean;
-}) => {
-  const classes = useResponsiveClasses(compact);
-  return (
-    <SidebarButton
-      compact={compact}
-      icon={mounted ? (theme === "dark" ? "sun" : "moon") : "sun"}
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      title="Toggle theme"
-      className="hover:bg-accent hover:border-accent"
-    >
-      {mounted && !compact ? (theme === "dark" ? "Cambiar a claro" : "Cambiar a oscuro") : "Tema"}
-    </SidebarButton>
-  );
-});
-ThemeToggle.displayName = "ThemeToggle";
-
-const LogoutSection = React.memo(({
-  compact,
-  handleLogout
-}: {
-  compact: boolean;
-  handleLogout: () => void;
-}) => {
-  const classes = useResponsiveClasses(compact);
-  return (
-    <div className={classes.container}>
-      <SidebarButton
-        compact={compact}
-        icon="logout"
-        onClick={handleLogout}
-        title="Cerrar sesión"
-        className="hover:bg-destructive/10 hover:border-destructive"
-      >
-        {!compact && "Cerrar Sesión"}
-      </SidebarButton>
-    </div>
-  );
-});
-LogoutSection.displayName = "LogoutSection";
-
-const CompactToggle = React.memo(({
-  compact,
-  toggleCompact
-}: {
-  compact: boolean;
-  toggleCompact: () => void;
-}) => {
-  const classes = useResponsiveClasses(compact);
-  return (
-    <SidebarButton
-      compact={compact}
-      icon={compact ? "expand" : "compress"}
-      onClick={toggleCompact}
-      title="Toggle compact"
-    >
-      {!compact && "Compacto"}
-    </SidebarButton>
-  );
-});
-CompactToggle.displayName = "CompactToggle";
-
 const MobileHeader = React.memo(({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) => (
-  <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
+  <div className="md:hidden sticky top-0 z-30 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">
     <div className="flex items-center justify-between px-4 py-3">
-      <Link href="/dashboard" className="font-semibold text-lg">🏨 Luxor Manager</Link>
+      <Link href="/dashboard" className="font-semibold text-lg flex items-center gap-2.5">
+        <div className="relative w-7 h-7">
+          <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
+        </div>
+        <span className="text-foreground/90">Luxor</span>
+      </Link>
       <button
         type="button"
         aria-label="Toggle sidebar"
         onClick={() => setOpen(!open)}
-        className="border rounded px-3 py-2 text-sm hover:bg-muted transition-colors"
+        className="p-2 rounded-lg text-sm hover:bg-white/[0.06] transition-colors text-muted-foreground"
       >
-        ☰ Menu
+        ☰
       </button>
     </div>
   </div>
@@ -274,26 +164,16 @@ export function Sidebar() {
   const [compact, setCompact] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
-  const classes = useResponsiveClasses(compact);
   const { canAccessAdmin, isLoading: roleLoading, isReceptionist, hasActiveShift, role } = useUserRole();
   const { allowedMenuIds, isLoading: permsLoading } = useMenuPermissions(role);
 
-  // Filtrar links según el rol del usuario y permisos de la DB
   const visibleLinks = React.useMemo(() => {
     if (roleLoading || permsLoading) return [];
+    if (canAccessAdmin) return adminLinks;
 
-    // Si es admin o manager, mostrar todos los links
-    if (canAccessAdmin) {
-      return adminLinks;
-    }
-
-    // Para TODOS los roles no-admin: usar permisos de la DB (role_permissions)
-    // El helper isLinkAllowed verifica si un link tiene permiso en la DB
     const isLinkAllowed = (link: NavLink): boolean => {
       if ("divider" in link) return false;
-      // Si el permissionId está en la DB, permitir
       if (allowedMenuIds.has(link.permissionId)) return true;
-      // Fallback: allowedForReceptionist/allowedForNonAdmin como defaults si no hay permisos en DB
       if (allowedMenuIds.size === 0) {
         if (isReceptionist && "allowedForReceptionist" in link && link.allowedForReceptionist) return true;
         if ("allowedForNonAdmin" in link && link.allowedForNonAdmin) return true;
@@ -302,40 +182,26 @@ export function Sidebar() {
     };
 
     return adminLinks.filter((link, index, array) => {
-      // Links normales
       if (!("divider" in link)) {
         if (!isLinkAllowed(link)) return false;
-
-        // Bloquear acceso a Habitaciones/Ventas si no hay turno activo (solo recepcionistas)
         if (isReceptionist && !hasActiveShift && (
-          link.href === "/sales/pos" ||
-          link.href === "/sales" ||
-          link.href === "/sales/new"
-        )) {
-          return false;
-        }
+          link.href === "/sales/pos" || link.href === "/sales" || link.href === "/sales/new"
+        )) return false;
         return true;
       }
-
-      // Divisores: solo mostrar si el siguiente link visible existe
       if ("divider" in link) {
-        // Buscar el siguiente link no-divisor
         for (let i = index + 1; i < array.length; i++) {
           const next = array[i];
-          if ("divider" in next) break; // otro divisor = parar
+          if ("divider" in next) break;
           if (isLinkAllowed(next)) {
-            // Verificar también bloqueo por turno
             if (isReceptionist && !hasActiveShift && "href" in next && (
               next.href === "/sales/pos" || next.href === "/sales" || next.href === "/sales/new"
-            )) {
-              continue;
-            }
+            )) continue;
             return true;
           }
         }
         return false;
       }
-
       return false;
     });
   }, [canAccessAdmin, roleLoading, permsLoading, isReceptionist, hasActiveShift, allowedMenuIds]);
@@ -346,15 +212,12 @@ export function Sidebar() {
     if (stored) setCompact(stored === "1");
   }, []);
 
-  React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  React.useEffect(() => { setOpen(false); }, [pathname]);
 
   const toggleCompact = React.useCallback(() => {
     setCompact(prev => {
       const newValue = !prev;
       localStorage.setItem("sidebar-compact", newValue ? "1" : "0");
-      // Disparar evento después del render para evitar warning de React
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent("sidebar-compact-change"));
       }, 0);
@@ -368,31 +231,19 @@ export function Sidebar() {
     router.push("/auth/login");
   }, [router]);
 
-  // Evitar hydration mismatch - no renderizar hasta que esté montado
   if (!mounted) {
     return (
       <>
         <div className="md:hidden sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
           <div className="flex items-center justify-between px-4 py-3">
             <Link href="/dashboard" className="font-semibold text-lg">🏨 Luxor Manager</Link>
-            <button
-              type="button"
-              aria-label="Toggle sidebar"
-              className="border rounded px-3 py-2 text-sm hover:bg-muted transition-colors"
-            >
-              ☰ Menu
-            </button>
           </div>
         </div>
         <aside
-          className="fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none -translate-x-full md:translate-x-0"
+          className="fixed md:static inset-y-0 left-0 z-40 md:w-auto transform md:transform-none bg-background border-r -translate-x-full md:translate-x-0"
           style={{ width: SIDEBAR_WIDTHS.EXPANDED }}
         >
-          <div className="h-full p-3 md:p-4 space-y-4 overflow-auto scrollbar-hide">
-            <div className="px-1 hidden md:block">
-              <Link href="/dashboard" className="font-semibold text-lg block">🏨 Luxor Manager</Link>
-            </div>
-          </div>
+          <div className="h-full p-4 space-y-4 overflow-auto scrollbar-hide" />
         </aside>
       </>
     );
@@ -404,80 +255,124 @@ export function Sidebar() {
 
       {/* Backdrop for mobile */}
       {open && (
-        <div className="fixed inset-0 bg-black/50 md:hidden z-40" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden z-40" onClick={() => setOpen(false)} />
       )}
 
       <aside
         id="tour-sidebar"
-        className={`fixed md:static inset-y-0 left-0 z-50 md:w-auto transform md:transform-none bg-background md:bg-muted/20 border-r shadow-lg md:shadow-none transition-all duration-200 ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+        className={cn(
+          "fixed md:static inset-y-0 left-0 z-50 md:w-auto transform md:transform-none transition-all duration-300 ease-out",
+          "bg-background/95 md:bg-background/60 backdrop-blur-xl border-r border-white/[0.06]",
+          "shadow-2xl md:shadow-none",
+          open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
         style={{ width: compact ? SIDEBAR_WIDTHS.COMPACT : SIDEBAR_WIDTHS.EXPANDED }}
       >
-        <div className="h-full p-3 md:p-4 space-y-4 overflow-auto scrollbar-hide">
-          {/* Mobile header inside sidebar */}
-          <div className="md:hidden px-1 pb-4 border-b">
-            <Link href="/dashboard" className="font-semibold text-lg flex items-center gap-2">
-              <div className="relative w-8 h-8">
-                <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
+        <div className="h-full flex flex-col overflow-hidden">
+          {/* Logo */}
+          <div className={cn(
+            "shrink-0 border-b border-white/[0.06]",
+            compact ? "px-3 py-4" : "px-5 py-5"
+          )}>
+            <Link href="/dashboard" className="block">
+              <div className={cn(
+                "flex items-center",
+                compact ? "justify-center" : "gap-3"
+              )}>
+                <div className="relative w-8 h-8 shrink-0">
+                  <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
+                </div>
+                {!compact && (
+                  <span className="font-bold text-lg tracking-tight text-foreground/90">
+                    Luxor
+                  </span>
+                )}
               </div>
-              Luxor Manager
             </Link>
           </div>
 
-          {/* Logo section */}
-          <div className="px-1 hidden md:block">
-            <Link href="/dashboard" className="block text-center py-2">
-              <div className="relative w-full h-12 mx-auto flex justify-center items-center">
-                <Image src="/luxor-logo.png" alt="Luxor Logo" width={100} height={48} className="object-contain" />
-              </div>
-            </Link>
-          </div>
-
-          <nav className="grid gap-1 text-sm" role="navigation" aria-label="Main navigation">
-            {visibleLinks.map((link: NavLink, idx: number) =>
-              ("divider" in link) ? (
-                <div key={`divider-${idx}`} className="h-px bg-border my-2" role="separator" />
-              ) : (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`flex items-center gap-2 px-3 py-2 rounded hover:bg-muted transition-colors ${pathname === link.href ? "bg-muted font-medium border border-border" : ""}`}
-                  aria-current={pathname === link.href ? "page" : undefined}
-                >
-                  <Icon name={link.icon} />
-                  {!compact && <span className={classes.navItem}>{link.label}</span>}
-                </Link>
-              )
-            )}
+          {/* Nav */}
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-3 py-3" role="navigation" aria-label="Main navigation">
+            <div className="space-y-0.5">
+              {visibleLinks.map((link: NavLink, idx: number) =>
+                ("divider" in link) ? (
+                  <div key={`divider-${idx}`} className="my-3 h-px bg-white/[0.05] mx-2" role="separator" />
+                ) : (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    title={compact ? link.label : undefined}
+                    className={cn(
+                      "group flex items-center gap-2.5 rounded-lg text-[13px] font-medium transition-all duration-200 relative",
+                      compact ? "p-2.5 justify-center" : "px-3 py-2",
+                      pathname === link.href
+                        ? "bg-white/[0.08] text-foreground"
+                        : "text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.04]"
+                    )}
+                    aria-current={pathname === link.href ? "page" : undefined}
+                  >
+                    {/* Active indicator bar */}
+                    {pathname === link.href && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-foreground/60" />
+                    )}
+                    <Icon
+                      name={link.icon}
+                      className={cn(
+                        "w-4 h-4 shrink-0 transition-colors duration-200",
+                        pathname === link.href
+                          ? "text-foreground"
+                          : "text-muted-foreground/50 group-hover:text-foreground/70"
+                      )}
+                    />
+                    {!compact && <span className="truncate">{link.label}</span>}
+                  </Link>
+                )
+              )}
+            </div>
           </nav>
 
-          {/* Desktop controls */}
-          <div className="hidden md:flex flex-col gap-2 pt-4 border-t">
-            <div className={classes.container}>
-              <CompactToggle compact={compact} toggleCompact={toggleCompact} />
-            </div>
+          {/* Footer controls */}
+          <div className="shrink-0 border-t border-white/[0.06] p-3 space-y-1">
+            <button
+              type="button"
+              onClick={toggleCompact}
+              className={cn(
+                "w-full flex items-center gap-2.5 rounded-lg text-xs font-medium text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04] transition-all duration-200",
+                compact ? "p-2.5 justify-center" : "px-3 py-2"
+              )}
+              title="Toggle sidebar"
+            >
+              <Icon name={compact ? "expand" : "compress"} className="w-3.5 h-3.5" />
+              {!compact && <span>Compacto</span>}
+            </button>
 
-            <div className={`${classes.container} border-t pb-1`}>
-              <ThemeToggle theme={theme} setTheme={setTheme} mounted={mounted} compact={compact} />
-            </div>
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={cn(
+                "w-full flex items-center gap-2.5 rounded-lg text-xs font-medium text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04] transition-all duration-200",
+                compact ? "p-2.5 justify-center" : "px-3 py-2"
+              )}
+              title="Toggle theme"
+            >
+              <Icon name={mounted ? (theme === "dark" ? "sun" : "moon") : "sun"} className="w-3.5 h-3.5" />
+              {!compact && <span>{mounted && theme === "dark" ? "Cambiar a claro" : "Cambiar a oscuro"}</span>}
+            </button>
 
-            <div className={`${classes.container} mt-auto border-t pt-3`}>
-              <LogoutSection compact={compact} handleLogout={handleLogout} />
-            </div>
-          </div>
+            <div className="h-px bg-white/[0.04] my-1" />
 
-          {/* Mobile controls */}
-          <div className="md:hidden flex flex-col gap-2 pt-4 border-t">
-            <div className={classes.container}>
-              <CompactToggle compact={compact} toggleCompact={toggleCompact} />
-            </div>
-
-            <div className={`${classes.container} border-t pb-1`}>
-              <ThemeToggle theme={theme} setTheme={setTheme} mounted={mounted} compact={compact} />
-            </div>
-
-            <div className={`${classes.container} mt-auto border-t pt-3`}>
-              <LogoutSection compact={compact} handleLogout={handleLogout} />
-            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={cn(
+                "w-full flex items-center gap-2.5 rounded-lg text-xs font-medium text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/[0.06] transition-all duration-200",
+                compact ? "p-2.5 justify-center" : "px-3 py-2"
+              )}
+              title="Cerrar sesión"
+            >
+              <Icon name="logout" className="w-3.5 h-3.5" />
+              {!compact && <span>Cerrar Sesión</span>}
+            </button>
           </div>
         </div>
       </aside>
