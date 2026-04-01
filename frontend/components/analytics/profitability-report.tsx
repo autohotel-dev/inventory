@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -161,22 +161,47 @@ export function ProfitabilityReport() {
         fetchProfitabilityReport();
     }, []);
 
-    const getSortedProducts = () => {
-        if (!data) return [];
+    const { sortedProducts, highPerformanceCount, mediumPerformanceCount, lowPerformanceCount } = useMemo(() => {
+        if (!data) return { sortedProducts: [], highPerformanceCount: 0, mediumPerformanceCount: 0, lowPerformanceCount: 0 };
 
         const sorted = [...data.productProfitability];
 
+        let sortedArray = [];
         switch (sortBy) {
             case 'profit':
-                return sorted.sort((a, b) => b.profit - a.profit);
+                sortedArray = sorted.sort((a, b) => b.profit - a.profit);
+                break;
             case 'margin':
-                return sorted.sort((a, b) => b.margin_percentage - a.margin_percentage);
+                sortedArray = sorted.sort((a, b) => b.margin_percentage - a.margin_percentage);
+                break;
             case 'roi':
-                return sorted.sort((a, b) => b.roi - a.roi);
+                sortedArray = sorted.sort((a, b) => b.roi - a.roi);
+                break;
             default:
-                return sorted;
+                sortedArray = sorted;
         }
-    };
+
+        let high = 0;
+        let medium = 0;
+        let low = 0;
+
+        for (const p of sortedArray) {
+            if (p.margin_percentage >= 30) {
+                high++;
+            } else if (p.margin_percentage >= 15 && p.margin_percentage < 30) {
+                medium++;
+            } else if (p.margin_percentage < 15) {
+                low++;
+            }
+        }
+
+        return {
+            sortedProducts: sortedArray,
+            highPerformanceCount: high,
+            mediumPerformanceCount: medium,
+            lowPerformanceCount: low
+        };
+    }, [data, sortBy]);
 
     const handleExportExcel = () => {
         if (!data) return;
@@ -194,7 +219,7 @@ export function ProfitabilityReport() {
                 { header: 'Margen %', key: 'margin_percentage', width: 12 },
                 { header: 'ROI %', key: 'roi', width: 12 }
             ],
-            data: getSortedProducts()
+            data: sortedProducts
         });
     };
 
@@ -216,8 +241,6 @@ export function ProfitabilityReport() {
             </div>
         );
     }
-
-    const sortedProducts = getSortedProducts();
 
     return (
         <div className="space-y-6">
@@ -391,7 +414,7 @@ export function ProfitabilityReport() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold">
-                            {sortedProducts.filter(p => p.margin_percentage >= 30).length}
+                            {highPerformanceCount}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Productos con margen ≥ 30%
@@ -407,7 +430,7 @@ export function ProfitabilityReport() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold">
-                            {sortedProducts.filter(p => p.margin_percentage >= 15 && p.margin_percentage < 30).length}
+                            {mediumPerformanceCount}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Productos con margen 15-30%
@@ -423,7 +446,7 @@ export function ProfitabilityReport() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold text-red-600">
-                            {sortedProducts.filter(p => p.margin_percentage < 15).length}
+                            {lowPerformanceCount}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Productos con margen &lt; 15%
