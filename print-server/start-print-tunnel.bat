@@ -24,18 +24,30 @@ echo [1/2] Iniciando Print Server...
 cd /d "%~dp0"
 start /B cmd /c "node index.js > logs\print-server.log 2>&1"
 
-REM Esperar a que el servidor inicie
-timeout /t 3 /nobreak >nul
+REM Esperar a que el servidor inicie (con reintentos para soportar inicio lento al arrancar la PC)
+echo [*] Esperando que inicie el servidor...
+set "RETRIES=0"
 
-REM Verificar que el servidor este corriendo
+:CHECK_HEALTH
 curl -s http://localhost:3001/health >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
+if %ERRORLEVEL% EQU 0 (
+    goto SERVER_OK
+)
+
+set /a RETRIES+=1
+if %RETRIES% GEQ 15 (
     color 0C
-    echo [ERROR] El print-server no inicio correctamente
+    echo [ERROR] El print-server no inicio correctamente despues de 30 segundos.
     echo Revisa el archivo logs\print-server.log
     pause
     exit /b 1
 )
+
+REM Esperar 2 segundos antes de volver a intentar
+timeout /t 2 /nobreak >nul
+goto CHECK_HEALTH
+
+:SERVER_OK
 echo [OK] Print Server corriendo en puerto 3001
 
 REM Iniciar Cloudflare Named Tunnel
