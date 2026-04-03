@@ -145,16 +145,20 @@ export function AdvancedPurchasesTable() {
 
       setPurchases(filteredData);
 
-      // Calcular estadísticas
-      const totalAmount = filteredData.reduce((sum, p) => sum + (p.total || 0), 0);
-      const pending = filteredData.filter(p => p.status === 'OPEN').length;
-      const received = filteredData.filter(p => p.status === 'RECEIVED').length;
+      // Calcular estadísticas optimizadas en una sola pasada
+      const statsAccumulator = filteredData.reduce(
+        (acc, p) => {
+          acc.totalAmount += p.total || 0;
+          if (p.status === 'OPEN') acc.pending++;
+          else if (p.status === 'RECEIVED') acc.received++;
+          return acc;
+        },
+        { totalAmount: 0, pending: 0, received: 0 }
+      );
 
       setStats({
         total: filteredData.length,
-        totalAmount,
-        pending,
-        received
+        ...statsAccumulator
       });
 
     } catch (error) {
