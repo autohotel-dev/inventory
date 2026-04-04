@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,10 @@ export function InventoryMovementsTable() {
 
 
 
-  const filteredMovements = movements.filter(movement => {
+  // ⚡ Bolt Performance Optimization:
+  // Memoizing the filtered movements array prevents expensive O(N) string matching and
+  // filtering operations on every component re-render (e.g., when other state changes).
+  const filteredMovements = useMemo(() => movements.filter(movement => {
     const matchesSearch = search === "" ||
       movement.product?.name.toLowerCase().includes(search.toLowerCase()) ||
       movement.product?.sku.toLowerCase().includes(search.toLowerCase()) ||
@@ -129,7 +132,27 @@ export function InventoryMovementsTable() {
     const matchesProduct = productFilter === "" || movement.product_id === productFilter;
 
     return matchesSearch && matchesType && matchesDate && matchesProduct;
-  });
+  }), [movements, search, typeFilter, dateFilter, productFilter]);
+
+  const {
+    inMovements,
+    outMovements,
+    adjustments
+  } = useMemo(() => {
+    // ⚡ Bolt Performance Optimization:
+    // Consolidating multiple .filter().length operations into a single O(N) pass over the array
+    // reduces redundant array iterations and improves rendering performance for large lists.
+    return movements.reduce((acc, m) => {
+      if (m.movement_type === 'IN') acc.inMovements++;
+      if (m.movement_type === 'OUT') acc.outMovements++;
+      if (m.movement_type === 'ADJUSTMENT') acc.adjustments++;
+      return acc;
+    }, {
+      inMovements: 0,
+      outMovements: 0,
+      adjustments: 0
+    });
+  }, [movements]);
 
   if (loading) {
     return (
@@ -140,9 +163,6 @@ export function InventoryMovementsTable() {
   }
 
   const totalMovements = movements.length;
-  const inMovements = movements.filter(m => m.movement_type === 'IN').length;
-  const outMovements = movements.filter(m => m.movement_type === 'OUT').length;
-  const adjustments = movements.filter(m => m.movement_type === 'ADJUSTMENT').length;
 
   return (
     <div className="space-y-6">
