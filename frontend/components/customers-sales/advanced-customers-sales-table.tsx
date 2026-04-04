@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,7 +201,10 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         }
     };
 
-    const filteredCustomerSales = customerSales.filter(customerSale => {
+    // ⚡ Bolt Performance Optimization:
+    // Memoizing the filtered customer sales array prevents expensive O(N) string matching and
+    // filtering operations on every component re-render (e.g., when other state changes).
+    const filteredCustomerSales = useMemo(() => customerSales.filter(customerSale => {
         // Usar nombre real del cliente (de la vista o del campo name)
         const customerSaleOrderNumber = customerSale.order_number || "";
         const customerSaleStatus = customerSale.status || "";
@@ -220,7 +223,36 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
 
         return matchesSearch && matchesStatus && matchesWarehouse;
-    });
+    }), [customerSales, search, statusFilter, warehouseFilter]);
+
+    const {
+        completedCustomerSales,
+        endedCustomerSales,
+        pendingCustomerSales,
+        totalRevenue,
+        totalPending,
+        totalEstimated
+    } = useMemo(() => {
+        // ⚡ Bolt Performance Optimization:
+        // Consolidating multiple .filter().length and .reduce() operations into a single iteration
+        // over customerSales significantly reduces the number of loops from 6 to 1.
+        return customerSales.reduce((acc, c) => {
+            if (c.status === 'COMPLETED') acc.completedCustomerSales++;
+            if (c.status === 'ENDED') acc.endedCustomerSales++;
+            if (c.status === 'PARTIAL') acc.pendingCustomerSales++;
+            acc.totalRevenue += (c.paid_amount || 0);
+            acc.totalPending += (c.remaining_amount || 0);
+            acc.totalEstimated += (c.total || 0);
+            return acc;
+        }, {
+            completedCustomerSales: 0,
+            endedCustomerSales: 0,
+            pendingCustomerSales: 0,
+            totalRevenue: 0,
+            totalPending: 0,
+            totalEstimated: 0
+        });
+    }, [customerSales]);
 
     if (loading) {
         return (
@@ -231,12 +263,6 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
     }
 
     const totalCustomerSales = customerSales.length;
-    const completedCustomerSales = customerSales.filter(c => c.status === 'COMPLETED').length;
-    const endedCustomerSales = customerSales.filter(c => c.status === 'ENDED').length;
-    const pendingCustomerSales = customerSales.filter(c => c.status === 'PARTIAL').length;
-    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.paid_amount || 0), 0);
-    const totalPending = customerSales.reduce((sum, c) => sum + (c.remaining_amount || 0), 0);
-    const totalEstimated = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
 
     return (
         <div className="space-y-6">
