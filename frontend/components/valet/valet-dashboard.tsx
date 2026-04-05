@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
@@ -280,14 +280,17 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         return () => clearInterval(interval);
     }, [employeeId, showCheckInModal, showCheckoutModal, showDeliveryModal, fetchPendingConsumptions, fetchMyConsumptions]);
 
+    // ⚡ Bolt: Memoize filtered arrays to avoid re-calculating on every render,
+    // which prevents blocking the main thread during frequent realtime updates.
     // Filtrar habitaciones sin vehículo (entradas pendientes)
-    const roomsWithoutVehicle = rooms.filter(r => {
+    const roomsWithoutVehicle = useMemo(() => rooms.filter(r => {
         const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
         return stay && !stay.vehicle_plate;
-    });
+    }), [rooms]);
 
+    // ⚡ Bolt: Memoize filtered and sorted array of rooms pending checkout
     // Filtrar habitaciones con vehículo pero sin checkout confirmado (salidas pendientes)
-    const roomsPendingCheckout = rooms.filter(r => {
+    const roomsPendingCheckout = useMemo(() => rooms.filter(r => {
         const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
         // Aquí deberías tener una forma de saber si está en proceso de checkout
         // Por ahora, mostrar habitaciones con checkout_valet_employee_id null
@@ -301,19 +304,21 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         if (reqA !== reqB) return reqB - reqA; // Solicitados primero
         return 0;
 
-    });
+    }), [rooms]);
 
+    // ⚡ Bolt: Memoize derived entries to accept list
     // 1. Entradas SIN valet asignado (Cualquiera puede aceptar)
-    const entriesToAccept = roomsWithoutVehicle.filter(r => {
+    const entriesToAccept = useMemo(() => roomsWithoutVehicle.filter(r => {
         const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
         return !stay?.valet_employee_id;
-    });
+    }), [roomsWithoutVehicle]);
 
+    // ⚡ Bolt: Memoize derived my pending entries list
     // 2. Mis entradas pendientes (Valet asignado = Yo, pero sin vehículo)
-    const myPendingEntries = roomsWithoutVehicle.filter(r => {
+    const myPendingEntries = useMemo(() => roomsWithoutVehicle.filter(r => {
         const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
         return stay?.valet_employee_id === employeeId;
-    });
+    }), [roomsWithoutVehicle, employeeId]);
 
     const handleOpenCheckIn = (room: Room) => {
         setSelectedRoom(room);
@@ -353,6 +358,34 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         await fetchRooms(true);
     };
 
+    // ⚡ Bolt: Memoize derived urgent checkouts
+    const urgentCheckouts = useMemo(() => roomsPendingCheckout.filter(r => {
+        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
+        return stay?.vehicle_requested_at || stay?.valet_checkout_requested_at;
+    }), [roomsPendingCheckout]);
+
+    const parkedVehicles = roomsPendingCheckout; // Todos, incluyendo urgentes, pero en la otra tab se ven todos.
+
+    // ⚡ Bolt: Memoize complex grouping reduce operation to avoid unnecessary work on re-render
+    const groupedMyConsumptions = useMemo(() => {
+        return myConsumptions.reduce((acc: Record<string, any[]>, item) => {
+            const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
+            if (!acc[roomNumber]) acc[roomNumber] = [];
+            acc[roomNumber].push(item);
+            return acc;
+        }, {});
+    }, [myConsumptions]);
+
+    // ⚡ Bolt: Memoize complex grouping reduce operation to avoid unnecessary work on re-render
+    const groupedPendingConsumptions = useMemo(() => {
+        return pendingConsumptions.reduce((acc: Record<string, any[]>, item) => {
+            const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
+            if (!acc[roomNumber]) acc[roomNumber] = [];
+            acc[roomNumber].push(item);
+            return acc;
+        }, {});
+    }, [pendingConsumptions]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -363,13 +396,6 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
             </div>
         );
     }
-
-    const urgentCheckouts = roomsPendingCheckout.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay?.vehicle_requested_at || stay?.valet_checkout_requested_at;
-    });
-
-    const parkedVehicles = roomsPendingCheckout; // Todos, incluyendo urgentes, pero en la otra tab se ven todos.
 
     return (
         <div className="min-h-screen bg-background pb-20">
@@ -540,14 +566,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {/* Mis Entregas - Agrupar por habitación */}
-                                    {Object.entries(
-                                        myConsumptions.reduce((acc: Record<string, any[]>, item) => {
-                                            const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
-                                            if (!acc[roomNumber]) acc[roomNumber] = [];
-                                            acc[roomNumber].push(item);
-                                            return acc;
-                                        }, {})
-                                    ).map(([roomNumber, items]) => {
+                                    {Object.entries(groupedMyConsumptions).map(([roomNumber, items]) => {
                                         const cardKey = `my-${roomNumber}`;
                                         const isExpanded = expandedServiceCards.has(cardKey);
                                         const toggleExpand = () => {
@@ -629,14 +648,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                     })}
                                     {/* Pendientes Generales */}
                                     {/* Agrupar por habitación para consistencia visual */}
-                                    {Object.entries(
-                                        pendingConsumptions.reduce((acc: Record<string, any[]>, item) => {
-                                            const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
-                                            if (!acc[roomNumber]) acc[roomNumber] = [];
-                                            acc[roomNumber].push(item);
-                                            return acc;
-                                        }, {})
-                                    ).map(([roomNumber, items]) => (
+                                    {Object.entries(groupedPendingConsumptions).map(([roomNumber, items]) => (
                                         <Card key={roomNumber} className="p-4 border-amber-200 bg-amber-50/50 dark:bg-amber-900/10">
                                             <div className="flex justify-between items-start mb-2">
                                                 <span className="text-xl font-bold">Hab. {roomNumber}</span>
