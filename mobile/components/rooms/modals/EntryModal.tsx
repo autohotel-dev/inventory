@@ -70,11 +70,11 @@ export const EntryModal = memo(({
                     <View className="rounded-t-3xl max-h-[90%] bg-white dark:bg-zinc-950">
                         <View className="flex-row justify-between items-center p-6 border-b border-zinc-100 dark:border-zinc-800">
                             <View>
-                                <Text className="text-[10px] font-black uppercase tracking-widest mb-1 text-zinc-400 dark:text-zinc-500">Check-in Valet</Text>
+                                <Text className="text-[10px] font-black uppercase tracking-widest mb-1 text-blue-500 dark:text-blue-400">Check-in Valet</Text>
                                 <Text className="text-xl font-black text-zinc-900 dark:text-white">Hab. {room?.number}</Text>
                             </View>
-                            <TouchableOpacity onPress={onClose} className="p-2">
-                                <X color={isDark ? '#71717a' : '#52525b'} size={24} />
+                            <TouchableOpacity onPress={onClose} className={`w-10 h-10 rounded-full items-center justify-center ${isDark ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
+                                <X color={isDark ? '#71717a' : '#52525b'} size={20} />
                             </TouchableOpacity>
                         </View>
                         <ScrollView className="p-6" showsVerticalScrollIndicator={false}>
@@ -203,23 +203,23 @@ export const EntryModal = memo(({
 
                                 <MultiPaymentInput totalAmount={amount} payments={payments} onPaymentsChange={setPayments} disabled={actionLoading} />
                             </View>
-                            <View className="flex-row gap-4 pb-12">
-                                <TouchableOpacity onPress={onClose} className="flex-1 h-16 rounded-2xl items-center justify-center border-2 border-zinc-100 dark:border-zinc-800">
-                                    <Text className="font-black dark:text-zinc-400">Cancelar</Text>
+                            <View className="flex-row gap-3 pb-12">
+                                <TouchableOpacity onPress={onClose} className="flex-1 h-14 rounded-2xl items-center justify-center border-2 border-zinc-200 dark:border-zinc-800">
+                                    <Text className="font-black uppercase tracking-widest text-xs text-zinc-400 dark:text-zinc-500">Cancelar</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={onSubmit}
                                     disabled={actionLoading || !plate.trim() || !brand.trim() || !model.trim()}
-                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${(plate.trim() && brand.trim() && model.trim())
-                                            ? 'bg-zinc-900 dark:bg-white'
-                                            : 'bg-zinc-200'
+                                    className={`flex-1 h-14 rounded-2xl items-center justify-center ${(plate.trim() && brand.trim() && model.trim())
+                                            ? 'bg-blue-600'
+                                            : 'bg-zinc-200 dark:bg-zinc-800'
                                         }`}
                                 >
-                                    <Text className={`font-black ${(plate.trim() && brand.trim() && model.trim())
-                                            ? 'text-white dark:text-black'
-                                            : 'text-zinc-400'
+                                    <Text className={`font-black uppercase tracking-widest text-xs ${(plate.trim() && brand.trim() && model.trim())
+                                            ? 'text-white'
+                                            : 'text-zinc-400 dark:text-zinc-600'
                                         }`}>
-                                        Enviar
+                                        Registrar Entrada
                                     </Text>
                                 </TouchableOpacity>
                             </View>

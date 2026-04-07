@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, TextInput, Modal, Alert, Switch } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
@@ -76,13 +76,17 @@ export default function ServicesScreen() {
         }
     }, [employeeId]);
 
+    // Ref estable para fetchData
+    const fetchDataRef = useRef(fetchData);
+    useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
+
     useEffect(() => {
-        fetchData();
+        fetchDataRef.current();
 
         let timeout: NodeJS.Timeout;
         const debouncedFetch = () => {
             clearTimeout(timeout);
-            timeout = setTimeout(() => fetchData(), 1000);
+            timeout = setTimeout(() => fetchDataRef.current(), 1000);
         };
 
         const channel = supabase.channel('valet-services-realtime')
@@ -94,7 +98,7 @@ export default function ServicesScreen() {
             supabase.removeChannel(channel);
             clearTimeout(timeout);
         };
-    }, [fetchData]);
+    }, []); // Se monta una sola vez
 
     // Auto-expand room from Deep Link
     const params = useLocalSearchParams();
@@ -255,14 +259,24 @@ export default function ServicesScreen() {
             >
                 {/* Mis Entregas */}
                 <View className="mb-8">
-                    <View className="flex-row items-center mb-4">
-                        <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={20} />
-                        <Text className={`text-lg font-bold ml-2 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Mis Entregas ({myConsumptions.length})</Text>
+                    <View className="flex-row items-center justify-between mb-4">
+                        <View className="flex-row items-center">
+                            <View className={`w-8 h-8 rounded-xl items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-50'}`}>
+                                <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={18} />
+                            </View>
+                            <Text className={`text-base font-black ml-2.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Mis Entregas</Text>
+                        </View>
+                        {myConsumptions.length > 0 && (
+                            <View className={`px-2.5 py-1 rounded-full ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                                <Text className={`text-xs font-black ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{myConsumptions.length}</Text>
+                            </View>
+                        )}
                     </View>
 
                     {myConsumptions.length === 0 && (
-                        <View className={`p-6 rounded-2xl border-2 border-dashed items-center mb-4 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                            <Text className={`font-black uppercase tracking-widest text-[10px] ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                        <View className={`p-8 rounded-2xl border-2 border-dashed items-center ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                            <ShoppingBag color={isDark ? '#27272a' : '#e4e4e7'} size={32} />
+                            <Text className={`font-black uppercase tracking-widest text-[10px] mt-3 ${isDark ? 'text-zinc-700' : 'text-zinc-400'}`}>
                                 No tienes entregas activas
                             </Text>
                         </View>
@@ -270,52 +284,55 @@ export default function ServicesScreen() {
 
                     {Object.entries(groupedMy).map(([roomNum, items]: [string, any]) => {
                         const inTransitItems = items.filter((i: any) => i.delivery_status === 'IN_TRANSIT');
+                        const roomTotal = items.reduce((sum: number, i: any) => sum + Number(i.total || 0), 0);
 
                         return (
-                            <View key={roomNum} className={`rounded-2xl border shadow-sm mb-3 overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
+                            <View key={roomNum} className={`rounded-2xl border mb-3 overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
                                 <TouchableOpacity
                                     onPress={() => toggleExpand(`my-${roomNum}`)}
                                     className={`flex-row justify-between items-center p-4 ${isDark ? 'bg-zinc-800/30' : 'bg-zinc-50'}`}
                                 >
                                     <View className="flex-row items-center">
-                                        <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Hab. {roomNum}</Text>
-                                        <View className="bg-zinc-900 px-2 py-0.5 rounded-full ml-3 border border-zinc-700">
-                                            <Text className="text-white text-[10px] font-bold">{items.length} a entregar</Text>
+                                        <View className={`w-10 h-10 rounded-xl items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-50'}`}>
+                                            <Text className={`text-sm font-black ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{roomNum}</Text>
+                                        </View>
+                                        <View className="ml-3">
+                                            <Text className={`text-base font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>Hab. {roomNum}</Text>
+                                            <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{items.length} producto{items.length > 1 ? 's' : ''} • ${roomTotal.toFixed(2)}</Text>
                                         </View>
                                     </View>
                                     <View className="flex-row items-center gap-2">
                                         {inTransitItems.length > 1 && (
                                             <TouchableOpacity
                                                 onPress={() => openConfirmModal(inTransitItems)}
-                                                className={`px-4 py-2 rounded-xl flex-row items-center border-2 shadow-sm ${isDark ? 'bg-white border-zinc-100' : 'bg-zinc-900 border-zinc-900'}`}
+                                                className="px-3.5 py-2 rounded-xl bg-emerald-600"
                                             >
-                                                <CheckCircle2 size={14} color={isDark ? '#000' : '#fff'} strokeWidth={3} />
-                                                <Text className={`text-[10px] font-black uppercase tracking-widest ml-1.5 ${isDark ? 'text-black' : 'text-white'}`}>Entregar Todo</Text>
+                                                <Text className="text-[10px] font-black uppercase tracking-wider text-white">Entregar Todo</Text>
                                             </TouchableOpacity>
                                         )}
-                                        {expandedRooms.has(`my-${roomNum}`) ? <ChevronUp size={20} color={isDark ? '#94a3b8' : '#64748b'} /> : <ChevronDown size={20} color={isDark ? '#94a3b8' : '#64748b'} />}
+                                        {expandedRooms.has(`my-${roomNum}`) ? <ChevronUp size={18} color={isDark ? '#52525b' : '#a1a1aa'} /> : <ChevronDown size={18} color={isDark ? '#52525b' : '#a1a1aa'} />}
                                     </View>
                                 </TouchableOpacity>
 
                                 {expandedRooms.has(`my-${roomNum}`) && (
-                                    <View className={`p-4 border-t ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
+                                    <View className={`p-3 border-t ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
                                         {items.map((item: any) => {
                                             const isInTransit = item.delivery_status === 'IN_TRANSIT';
                                             return (
-                                                <View key={item.id} className={`flex-row justify-between items-center py-3 px-2 rounded-lg mb-2 ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'}`}>
-                                                    <View className="flex-1">
-                                                        <Text className={`font-medium ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                                                <View key={item.id} className={`flex-row justify-between items-center p-3 rounded-xl mb-1.5 ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'}`}>
+                                                    <View className="flex-1 mr-3">
+                                                        <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-800'}`}>
                                                             {item.qty}x {item.products?.name || 'Producto'}
                                                         </Text>
-                                                        <Text className="text-green-500 font-bold">${Number(item.total || 0).toFixed(2)}</Text>
+                                                        <Text className={`text-sm font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>${Number(item.total || 0).toFixed(2)}</Text>
                                                     </View>
                                                     <View className="flex-row items-center gap-2">
                                                         {isInTransit ? (
-                                                            <TouchableOpacity onPress={() => openConfirmModal(item)} className={`px-4 py-2 rounded-xl border-2 ${isDark ? 'bg-white border-zinc-100' : 'bg-zinc-900 border-zinc-900'}`}>
-                                                                <Text className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-black' : 'text-white'}`}>Entregar</Text>
+                                                            <TouchableOpacity onPress={() => openConfirmModal(item)} className="px-3.5 py-2 rounded-xl bg-emerald-600">
+                                                                <Text className="text-[10px] font-black uppercase tracking-wider text-white">Entregar</Text>
                                                             </TouchableOpacity>
                                                         ) : null}
-                                                        <TouchableOpacity onPress={() => Alert.alert('Cancelar', '¿Deseas cancelar?', [{ text: 'No' }, { text: 'Sí', onPress: () => handleCancelConsumption(item.id) }])} className={`p-2 rounded-lg ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('Cancelar', '¿Deseas cancelar?', [{ text: 'No' }, { text: 'Sí', onPress: () => handleCancelConsumption(item.id) }])} className={`p-2 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
                                                             <XCircle color="#ef4444" size={16} />
                                                         </TouchableOpacity>
                                                     </View>
@@ -331,63 +348,99 @@ export default function ServicesScreen() {
 
                 {/* Pendientes Generales */}
                 <View className="mb-20">
-                    <View className="flex-row items-center mb-4">
-                        <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={20} />
-                        <Text className={`text-lg font-bold ml-2 ${isDark ? 'text-white' : 'text-zinc-800'}`}>Pendientes ({pendingConsumptions.length})</Text>
+                    <View className="flex-row items-center justify-between mb-4">
+                        <View className="flex-row items-center">
+                            <View className={`w-8 h-8 rounded-xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                                <ShoppingBag color={isDark ? '#71717a' : '#a1a1aa'} size={18} />
+                            </View>
+                            <Text className={`text-base font-black ml-2.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Pendientes</Text>
+                        </View>
+                        {pendingConsumptions.length > 0 && (
+                            <View className={`px-2.5 py-1 rounded-full ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
+                                <Text className={`text-xs font-black ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{pendingConsumptions.length}</Text>
+                            </View>
+                        )}
                     </View>
 
-                    {Object.entries(groupedPending).map(([roomNum, items]: [string, any]) => (
-                        <View key={roomNum} className={`rounded-2xl border shadow-sm mb-3 ${isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-                            <View className={`p-4 flex-row justify-between items-center border-b ${isDark ? 'border-zinc-900' : 'border-zinc-50'}`}>
+                    {pendingConsumptions.length === 0 && (
+                        <View className={`p-8 rounded-2xl border-2 border-dashed items-center ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                            <CheckCircle2 color={isDark ? '#27272a' : '#e4e4e7'} size={32} />
+                            <Text className={`font-black uppercase tracking-widest text-[10px] mt-3 ${isDark ? 'text-zinc-700' : 'text-zinc-400'}`}>
+                                Todo al día
+                            </Text>
+                        </View>
+                    )}
+
+                    {Object.entries(groupedPending).map(([roomNum, items]: [string, any]) => {
+                        const roomTotal = items.reduce((sum: number, i: any) => sum + Number(i.total || 0), 0);
+                        return (
+                        <View key={roomNum} className={`rounded-2xl border mb-3 overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
+                            <View className={`p-4 flex-row justify-between items-center ${isDark ? 'bg-zinc-800/30' : 'bg-zinc-50'}`}>
                                 <View className="flex-row items-center">
-                                    <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Hab. {roomNum}</Text>
-                                    <View className="bg-zinc-900 px-2 py-0.5 rounded-full ml-3 border border-zinc-700">
-                                        <Text className="text-white text-[10px] font-bold">{items.length}</Text>
+                                    <View className={`w-10 h-10 rounded-xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                                        <Text className={`text-sm font-black ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{roomNum}</Text>
+                                    </View>
+                                    <View className="ml-3">
+                                        <Text className={`text-base font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>Hab. {roomNum}</Text>
+                                        <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{items.length} producto{items.length > 1 ? 's' : ''} • ${roomTotal.toFixed(2)}</Text>
                                     </View>
                                 </View>
                                 {items.length > 1 && (
                                     <TouchableOpacity
                                         onPress={() => handleAcceptAllConsumptions(items, roomNum, employeeId!)}
-                                        className={`px-4 py-2 rounded-xl flex-row items-center border-2 shadow-sm ${isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200'}`}
+                                        className={`px-3.5 py-2 rounded-xl ${isDark ? 'bg-zinc-700' : 'bg-zinc-900'}`}
                                     >
-                                        <CheckCircle2 size={14} color={isDark ? '#e4e4e7' : '#18181b'} strokeWidth={3} />
-                                        <Text className={`text-[10px] font-black uppercase tracking-widest ml-1.5 ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>Aceptar Todo</Text>
+                                        <Text className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-zinc-100' : 'text-white'}`}>Aceptar Todo</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
-                            <View className="p-4">
+                            <View className="p-3">
                                 {items.map((item: any) => (
-                                    <View key={item.id} className={`flex-row justify-between items-center py-3 px-2 rounded-lg mb-2 ${isDark ? 'bg-zinc-900/50' : 'bg-zinc-50'}`}>
-                                        <View className="flex-1"><Text className={`font-medium ${isDark ? 'text-white' : 'text-zinc-900'}`}>{item.qty}x {item.products?.name}</Text></View>
-                                        <TouchableOpacity onPress={() => handleAcceptConsumption(item.id, roomNum, employeeId!)} className="px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700"><Text className="text-white text-xs font-bold font-black uppercase tracking-widest">Aceptar</Text></TouchableOpacity>
+                                    <View key={item.id} className={`flex-row justify-between items-center p-3 rounded-xl mb-1.5 ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'}`}>
+                                        <View className="flex-1 mr-3">
+                                            <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>{item.qty}x {item.products?.name}</Text>
+                                            <Text className={`text-sm font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>${Number(item.total || 0).toFixed(2)}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => handleAcceptConsumption(item.id, roomNum, employeeId!)} className={`px-3.5 py-2 rounded-xl ${isDark ? 'bg-zinc-700' : 'bg-zinc-900'}`}>
+                                            <Text className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-zinc-100' : 'text-white'}`}>Aceptar</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 ))}
                             </View>
                         </View>
-                    ))}
+                    );})}
                 </View>
             </ScrollView>
 
             <Modal visible={showDeliveryModal} animationType="slide" transparent>
                 <View className="flex-1 justify-end bg-black/70">
                     <View className={`rounded-t-3xl ${isDark ? 'bg-zinc-950' : 'bg-white'}`}>
+                        {/* Header */}
                         <View className={`flex-row justify-between items-center p-6 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
-                            <Text className={`text-xl font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-zinc-900'}`}>Confirmar Entrega</Text>
-                            <TouchableOpacity onPress={() => setShowDeliveryModal(false)} className="p-2"><X color={isDark ? '#71717a' : '#52525b'} size={24} /></TouchableOpacity>
+                            <View>
+                                <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-emerald-500' : 'text-emerald-600'}`}>Confirmar Entrega</Text>
+                                <Text className={`text-xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                                    Hab. {selectedItems[0]?.sales_orders?.room_stays?.[0]?.rooms?.number || '??'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowDeliveryModal(false)} className={`w-10 h-10 rounded-full items-center justify-center ${isDark ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
+                                <X color={isDark ? '#71717a' : '#52525b'} size={20} />
+                            </TouchableOpacity>
                         </View>
 
-                        <ScrollView className="p-6">
+                        <ScrollView className="p-6" showsVerticalScrollIndicator={false}>
+                            {/* Summary Card */}
                             <View className={`rounded-2xl p-5 mb-6 border-2 ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-100'}`}>
                                 {selectedItems.length === 1 ? (
                                     <View>
                                         <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Servicio</Text>
-                                        <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>{selectedItems[0]?.qty}x {selectedItems[0]?.products?.name}</Text>
+                                        <Text className={`text-lg font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{selectedItems[0]?.qty}x {selectedItems[0]?.products?.name}</Text>
                                         <Text className="text-3xl font-black text-emerald-500 mt-2">${Number(selectedItems[0]?.total || 0).toFixed(2)}</Text>
                                     </View>
                                 ) : (
                                     <View>
                                         <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Varios Servicios</Text>
-                                        <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>{selectedItems.length} servicios seleccionados</Text>
+                                        <Text className={`text-lg font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{selectedItems.length} productos</Text>
                                         <Text className="text-3xl font-black text-emerald-500 mt-2">
                                             ${selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0).toFixed(2)}
                                         </Text>
@@ -411,23 +464,23 @@ export default function ServicesScreen() {
                                 className={`mt-6 p-5 rounded-2xl border-2 font-bold ${isDark ? 'bg-black border-zinc-800 text-white' : 'bg-zinc-50 border-zinc-100 text-zinc-900'}`}
                             />
 
-                            <View className="flex-row gap-4 py-10">
-                                <TouchableOpacity onPress={() => setShowDeliveryModal(false)} className={`flex-1 h-16 rounded-2xl items-center justify-center border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
-                                    <Text className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>Cancelar</Text>
+                            <View className="flex-row gap-3 py-10">
+                                <TouchableOpacity onPress={() => setShowDeliveryModal(false)} className={`flex-1 h-14 rounded-2xl items-center justify-center border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                                    <Text className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Cancelar</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                     onPress={submitConfirmation} 
-                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${
+                                    className={`flex-1 h-14 rounded-2xl items-center justify-center ${
                                         (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
-                                        ? (isDark ? 'bg-white' : 'bg-zinc-900')
-                                        : 'bg-zinc-200'
+                                        ? 'bg-emerald-600'
+                                        : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')
                                     }`}
                                     disabled={actionLoading || payments.reduce((sum, p) => sum + p.amount, 0) < selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0)}
                                 >
                                     <Text className={`font-black uppercase tracking-widest text-xs ${
                                         (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
-                                        ? (isDark ? 'text-zinc-950' : 'text-white')
-                                        : 'text-zinc-400'
+                                        ? 'text-white'
+                                        : (isDark ? 'text-zinc-600' : 'text-zinc-400')
                                     }`}>
                                         Confirmar Entrega
                                     </Text>

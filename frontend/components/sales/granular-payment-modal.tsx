@@ -114,13 +114,13 @@ export function GranularPaymentModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-[2rem] h-[85vh] flex flex-col">
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-none md:rounded-[2rem] h-[100dvh] md:h-[85vh] w-full md:w-auto flex flex-col">
           {/* Header con glassmorphism */}
           <div className="relative p-6 shrink-0 overflow-hidden border-b border-white/5">
             <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/5"></div>
             <div className="relative flex items-center justify-between">
               <div className="space-y-1">
-                <DialogTitle className="text-3xl font-black tracking-tighter flex items-center gap-3 text-white">
+                <DialogTitle className="text-xl md:text-3xl font-black tracking-tighter flex items-center gap-3 text-white">
                   <div className="h-10 w-10 bg-primary/20 rounded-2xl flex items-center justify-center border border-primary/30 shadow-[0_0_15px_-5px_var(--primary)]">
                     <Receipt className="h-6 w-6 text-primary" />
                   </div>
@@ -134,7 +134,7 @@ export function GranularPaymentModal({
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+          <div className="flex-1 overflow-hidden flex flex-col md:flex-row min-h-0">
             {/* Columna Izquierda: Conceptos */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 bg-zinc-950/20 custom-scrollbar">
               {loading ? (
@@ -218,8 +218,8 @@ export function GranularPaymentModal({
             </div>
 
             {/* Columna Derecha: Panel de Pago */}
-            <div className="w-full md:w-[400px] border-l border-white/5 bg-zinc-950 flex flex-col shrink-0 relative z-10">
-              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="w-full md:w-[400px] border-t md:border-t-0 md:border-l border-white/5 bg-zinc-950 flex flex-col shrink-0 relative z-10 max-h-[45dvh] md:max-h-none">
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
                 <div className="space-y-8">
                   <div className="flex items-center justify-between pb-4 border-b border-white/5">
                     <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-primary">RESUMEN DE COBRO</h3>
@@ -231,7 +231,7 @@ export function GranularPaymentModal({
                   </div>
 
                   <div className="space-y-6">
-                    <div className="p-6 rounded-[2.5rem] bg-zinc-900/40 border border-white/10 shadow-2xl relative overflow-hidden group">
+                    <div className="p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] bg-zinc-900/40 border border-white/10 shadow-2xl relative overflow-hidden group">
                       <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none"></div>
                       <div className="relative space-y-4">
                         <div className="flex justify-between items-center text-xs">
@@ -246,7 +246,7 @@ export function GranularPaymentModal({
                         )}
                         <div className="pt-6 mt-2 border-t border-white/10">
                           <span className="font-black text-[10px] uppercase tracking-[0.3em] text-primary block mb-2">Total a Recibir</span>
-                          <span className="font-black text-5xl text-white tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                          <span className="font-black text-3xl md:text-5xl text-white tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
                             {formatCurrency(selectedTotal + (step === 'pay' ? tipAmount : 0))}
                           </span>
                         </div>
@@ -362,7 +362,7 @@ export function GranularPaymentModal({
                             </div>
                           </div>
                           <Button
-                            className="w-full h-14 text-xl font-black rounded-2xl shadow-2xl relative overflow-hidden group"
+                            className="w-full h-12 md:h-14 text-base md:text-xl font-black rounded-2xl shadow-2xl relative overflow-hidden group"
                             disabled={processing || Math.abs(payments.reduce((s, p) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
                             onClick={() => processPayment()}
                           >

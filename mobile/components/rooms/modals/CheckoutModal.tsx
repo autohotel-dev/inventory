@@ -68,9 +68,12 @@ export const CheckoutModal = memo(({
                     <View className="rounded-t-3xl max-h-[85%] bg-white dark:bg-zinc-950">
                         <View className="flex-row justify-between items-center p-6 border-b border-zinc-100 dark:border-zinc-800">
                             <View>
+                                <Text className="text-[10px] font-black uppercase tracking-widest mb-1 text-red-500 dark:text-red-400">Revisión de Salida</Text>
                                 <Text className="text-xl font-black text-zinc-900 dark:text-white">Hab. {room?.number}</Text>
                             </View>
-                            <TouchableOpacity onPress={onClose} className="p-2"><X color={isDark ? '#71717a' : '#52525b'} size={24} /></TouchableOpacity>
+                            <TouchableOpacity onPress={onClose} className={`w-10 h-10 rounded-full items-center justify-center ${isDark ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
+                                <X color={isDark ? '#71717a' : '#52525b'} size={20} />
+                            </TouchableOpacity>
                         </View>
                         <ScrollView className="p-6">
                             <View className="rounded-2xl p-5 mb-6 border-2 bg-zinc-50 border-zinc-100 dark:bg-zinc-900 dark:border-zinc-800">
@@ -234,25 +237,25 @@ export const CheckoutModal = memo(({
                                 </View>
                             )}
 
-                            <View className="flex-row gap-4 pb-12">
-                                <TouchableOpacity onPress={onClose} className="flex-1 h-16 border-2 rounded-2xl items-center justify-center border-zinc-100 dark:border-zinc-800">
+                            <View className="flex-row gap-3 pb-12">
+                                <TouchableOpacity onPress={onClose} className="flex-1 h-14 border-2 rounded-2xl items-center justify-center border-zinc-200 dark:border-zinc-800">
                                     <Text className="font-black text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Cancelar</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                     onPress={onSubmit} 
                                     disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware}
-                                    className={`flex-1 h-16 rounded-2xl items-center justify-center shadow-lg ${
+                                    className={`flex-1 h-14 rounded-2xl items-center justify-center ${
                                         (checklist.roomState && checklist.linens && checklist.glassware) 
-                                        ? 'bg-zinc-900 dark:bg-white' 
-                                        : 'bg-zinc-200'
+                                        ? 'bg-red-600' 
+                                        : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')
                                     }`}
                                 >
                                     <Text className={`font-black text-xs uppercase tracking-widest ${
                                         (checklist.roomState && checklist.linens && checklist.glassware) 
-                                        ? 'text-white dark:text-black' 
-                                        : 'text-zinc-400'
+                                        ? 'text-white' 
+                                        : (isDark ? 'text-zinc-600' : 'text-zinc-400')
                                     }`}>
-                                        Confirmar OK
+                                        Confirmar Salida
                                     </Text>
                                 </TouchableOpacity>
                             </View>

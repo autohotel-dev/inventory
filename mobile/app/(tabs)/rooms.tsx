@@ -8,7 +8,7 @@ import { useCheckoutActions } from '../../hooks/use-checkout-actions';
 import { useConsumptionActions } from '../../hooks/use-consumption-actions';
 import { useTheme } from '../../contexts/theme-context';
 import { searchVehicles, VehicleSearchResult } from '../../lib/vehicle-catalog';
-import { AlertCircle, AlertTriangle } from 'lucide-react-native';
+import { AlertCircle, AlertTriangle, Zap } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../components/MultiPaymentInput';
 import { PaymentEntry } from '../../lib/payment-types';
 import { FlashList } from "@shopify/flash-list";
@@ -532,6 +532,25 @@ export default function RoomsScreen() {
         if (success) setShowCheckoutModal(false);
     };
 
+    // Ordenar: urgentes primero, luego entradas sin vehículo, luego normales
+    const sortedRooms = useMemo(() => {
+        return [...rooms].sort((a, b) => {
+            const stayA = a.room_stays?.find((s: any) => s.status === 'ACTIVA');
+            const stayB = b.room_stays?.find((s: any) => s.status === 'ACTIVA');
+            if (!stayA || !stayB) return 0;
+
+            const urgentA = (stayA.vehicle_requested_at || stayA.valet_checkout_requested_at) && !stayA.checkout_valet_employee_id ? 1 : 0;
+            const urgentB = (stayB.vehicle_requested_at || stayB.valet_checkout_requested_at) && !stayB.checkout_valet_employee_id ? 1 : 0;
+            if (urgentA !== urgentB) return urgentB - urgentA; // urgentes primero
+
+            const entryA = !stayA.vehicle_plate ? 1 : 0;
+            const entryB = !stayB.vehicle_plate ? 1 : 0;
+            if (entryA !== entryB) return entryB - entryA; // entradas después
+
+            return Number(a.number || 0) - Number(b.number || 0); // por número
+        });
+    }, [rooms]);
+
     const renderRoom = useCallback(({ item: room }: { item: Room }) => {
         const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
         if (!stay) return null;
@@ -644,8 +663,19 @@ export default function RoomsScreen() {
                 </View>
             )}
 
+            {/* Banner de urgentes */}
+            {rooms.some(r => {
+                const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
+                return stay && (stay.vehicle_requested_at || stay.valet_checkout_requested_at) && !stay.checkout_valet_employee_id;
+            }) && (
+                <View className={`px-4 py-3 flex-row items-center ${isDark ? 'bg-red-950/30 border-b border-red-800/30' : 'bg-red-50 border-b border-red-100'}`}>
+                    <AlertTriangle color="#ef4444" size={16} />
+                    <Text className={`font-black uppercase tracking-[0.15em] text-[10px] ml-2 text-red-500`}>Hay habitaciones urgentes — aparecen primero</Text>
+                </View>
+            )}
+
             <AnyFlashList
-                data={rooms}
+                data={sortedRooms}
                 renderItem={renderRoom}
                 keyExtractor={(item: any) => item.id}
                 estimatedItemSize={350}
