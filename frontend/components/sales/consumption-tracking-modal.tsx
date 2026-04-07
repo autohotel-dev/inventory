@@ -398,7 +398,7 @@ export function ConsumptionTrackingModal({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[100dvh] md:max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-none md:rounded-[2rem] w-full">
+                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[100dvh] md:max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-none md:rounded-[2rem] w-full inset-0 md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] translate-x-0 translate-y-0">
                     <DialogHeader className="px-4 md:px-8 py-5 md:py-7 bg-zinc-900/50 border-b border-white/5 relative overflow-hidden shrink-0">
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
                         <div className="relative flex items-center justify-between">
@@ -433,76 +433,46 @@ export function ConsumptionTrackingModal({
                     </DialogHeader>
 
                     {/* Dashboard de resumen - Premium Cards */}
-                    <div className="px-3 md:px-8 py-3 md:py-5 bg-zinc-950/50 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 border-b border-white/5 shrink-0">
-                        {[
-                            { id: 'PENDING', label: 'Pendientes', value: stats.pending, icon: Clock, color: 'amber', active: activeFilter === 'PENDING' },
-                            { id: 'TRANSIT', label: 'En Camino', value: stats.accepted + stats.inTransit, icon: Truck, color: 'purple', active: activeFilter === 'TRANSIT' },
-                            { id: 'DELIVERED', label: 'Por Cobrar', value: stats.delivered, icon: Coins, color: 'pink', active: activeFilter === 'DELIVERED' },
-                            { id: 'COMPLETED', label: 'Completados', value: stats.completed, icon: CheckCircle, color: 'emerald', active: activeFilter === 'COMPLETED' },
-                        ].map((card) => {
-                            const activeStyles = {
-                                amber: "bg-amber-500/20 border-amber-500/40 shadow-[0_4px_20px_-8px_rgba(245,158,11,0.4)]",
-                                purple: "bg-purple-500/20 border-purple-500/40 shadow-[0_4px_20px_-8px_rgba(168,85,247,0.4)]",
-                                pink: "bg-pink-500/20 border-pink-500/40 shadow-[0_4px_20px_-8px_rgba(236,72,153,0.4)]",
-                                emerald: "bg-emerald-500/20 border-emerald-500/40 shadow-[0_4px_20px_-8px_rgba(16,185,129,0.4)]",
-                            };
+                    {/* Filter chips - horizontal scroll on mobile, grid on desktop */}
+                    <div className="px-3 md:px-8 py-2.5 md:py-5 bg-zinc-950/50 border-b border-white/5 shrink-0 overflow-x-auto">
+                        <div className="flex md:grid md:grid-cols-4 gap-2 md:gap-4 min-w-max md:min-w-0">
+                            {[
+                                { id: 'PENDING', label: 'Pend.', fullLabel: 'Pendientes', value: stats.pending, icon: Clock, color: 'amber', active: activeFilter === 'PENDING' },
+                                { id: 'TRANSIT', label: 'Camino', fullLabel: 'En Camino', value: stats.accepted + stats.inTransit, icon: Truck, color: 'purple', active: activeFilter === 'TRANSIT' },
+                                { id: 'DELIVERED', label: 'Cobrar', fullLabel: 'Por Cobrar', value: stats.delivered, icon: Coins, color: 'pink', active: activeFilter === 'DELIVERED' },
+                                { id: 'COMPLETED', label: 'Listos', fullLabel: 'Completados', value: stats.completed, icon: CheckCircle, color: 'emerald', active: activeFilter === 'COMPLETED' },
+                            ].map((card) => {
+                                const colorMap = {
+                                    amber: { active: 'bg-amber-500/20 border-amber-500/40', icon: 'bg-amber-500 text-white', iconInactive: 'bg-zinc-900 text-zinc-500', label: 'text-amber-400', labelInactive: 'text-zinc-500' },
+                                    purple: { active: 'bg-purple-500/20 border-purple-500/40', icon: 'bg-purple-500 text-white', iconInactive: 'bg-zinc-900 text-zinc-500', label: 'text-purple-400', labelInactive: 'text-zinc-500' },
+                                    pink: { active: 'bg-pink-500/20 border-pink-500/40', icon: 'bg-pink-500 text-white', iconInactive: 'bg-zinc-900 text-zinc-500', label: 'text-pink-400', labelInactive: 'text-zinc-500' },
+                                    emerald: { active: 'bg-emerald-500/20 border-emerald-500/40', icon: 'bg-emerald-500 text-white', iconInactive: 'bg-zinc-900 text-zinc-500', label: 'text-emerald-400', labelInactive: 'text-zinc-500' },
+                                };
+                                const c = colorMap[card.color as keyof typeof colorMap];
 
-                            const iconStyles = {
-                                amber: card.active ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
-                                purple: card.active ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
-                                pink: card.active ? "bg-pink-500 text-white shadow-lg shadow-pink-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
-                                emerald: card.active ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-zinc-950 text-zinc-500 group-hover:bg-zinc-900 group-hover:text-zinc-300",
-                            };
-
-                            const labelStyles = {
-                                amber: card.active ? "text-amber-400" : "text-zinc-500",
-                                purple: card.active ? "text-purple-400" : "text-zinc-500",
-                                pink: card.active ? "text-pink-400" : "text-zinc-500",
-                                emerald: card.active ? "text-emerald-400" : "text-zinc-500",
-                            };
-
-                            const bgIconStyles = {
-                                amber: "text-amber-500",
-                                purple: "text-purple-500",
-                                pink: "text-pink-500",
-                                emerald: "text-emerald-500",
-                            };
-
-                            return (
-                                <button
-                                    key={card.id}
-                                    onClick={() => setActiveFilter(activeFilter === card.id ? 'ALL' : card.id)}
-                                    className={cn(
-                                        "p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all duration-300 flex items-center gap-2.5 md:gap-4 relative overflow-hidden group",
-                                        card.active
-                                            ? activeStyles[card.color as keyof typeof activeStyles]
-                                            : "bg-zinc-900/40 border-white/5 hover:border-white/10 shadow-sm"
-                                    )}
-                                >
-                                    <div className={cn(
-                                        "p-2 md:p-2.5 rounded-lg md:rounded-xl transition-all duration-300",
-                                        iconStyles[card.color as keyof typeof iconStyles]
-                                    )}>
-                                        <card.icon className="h-4 w-4 md:h-5 md:w-5" />
-                                    </div>
-                                    <div className="text-left relative z-10">
-                                        <p className={cn(
-                                            "text-[9px] md:text-[10px] uppercase font-black tracking-[0.1em] md:tracking-[0.15em] leading-none mb-1",
-                                            labelStyles[card.color as keyof typeof labelStyles]
-                                        )}>{card.label}</p>
-                                        <p className={cn(
-                                            "text-xl md:text-2xl font-black italic tracking-tighter leading-none",
-                                            card.active ? "text-white" : "text-zinc-300"
-                                        )}>{card.value}</p>
-                                    </div>
-                                    {card.active && (
-                                        <div className={cn("absolute -right-2 -bottom-2 opacity-10 transition-transform duration-500 scale-150 rotate-12", bgIconStyles[card.color as keyof typeof bgIconStyles])}>
-                                            <card.icon size={48} />
+                                return (
+                                    <button
+                                        key={card.id}
+                                        onClick={() => setActiveFilter(activeFilter === card.id ? 'ALL' : card.id)}
+                                        className={cn(
+                                            "flex items-center gap-2 px-3 py-2 md:p-4 rounded-xl md:rounded-2xl border transition-all duration-300 group whitespace-nowrap",
+                                            card.active ? c.active : "bg-zinc-900/40 border-white/5"
+                                        )}
+                                    >
+                                        <div className={cn("p-1.5 md:p-2.5 rounded-lg transition-all", card.active ? c.icon : c.iconInactive)}>
+                                            <card.icon className="h-3.5 w-3.5 md:h-5 md:w-5" />
                                         </div>
-                                    )}
-                                </button>
-                            );
-                        })}
+                                        <div className="text-left">
+                                            <p className={cn("text-[8px] md:text-[10px] uppercase font-black tracking-wider leading-none mb-0.5", card.active ? c.label : c.labelInactive)}>
+                                                <span className="md:hidden">{card.label}</span>
+                                                <span className="hidden md:inline">{card.fullLabel}</span>
+                                            </p>
+                                            <p className={cn("text-base md:text-2xl font-black italic tracking-tighter leading-none", card.active ? 'text-white' : 'text-zinc-300')}>{card.value}</p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     <div className="flex-1 overflow-auto p-3 md:p-8 bg-zinc-900/10">
@@ -742,40 +712,38 @@ export function ConsumptionTrackingModal({
                     </div>
 
                     {/* Footer Premium */}
-                    <div className="p-4 md:p-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center bg-zinc-950 shrink-0 gap-4 md:gap-6">
-                        <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
-                            <Button
-                                variant="outline"
-                                onClick={handleConfirmAllPickups}
-                                disabled={actionLoading === 'bulk-pickup' || stats.accepted === 0}
-                                className="bg-zinc-900 border-white/5 hover:bg-primary hover:text-zinc-950 hover:border-transparent text-zinc-300 font-black uppercase tracking-widest italic rounded-xl md:rounded-2xl h-10 md:h-12 px-4 md:px-6 text-[10px] md:text-xs transition-all duration-300 group flex-1 md:flex-none"
-                            >
-                                <HandPlatter size={18} className="mr-3 group-hover:scale-125 transition-transform" />
-                                Todo Entregado a Cochero
-                            </Button>
-                            <Button
-                                variant="default"
-                                onClick={handleConfirmAllPayments}
-                                disabled={actionLoading === 'bulk-payment' || stats.delivered === 0}
-                                className="bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-transparent text-emerald-500 hover:text-zinc-950 font-black uppercase tracking-widest italic rounded-xl md:rounded-2xl h-10 md:h-12 px-4 md:px-6 text-[10px] md:text-xs transition-all duration-300 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)] group flex-1 md:flex-none"
-                            >
-                                {actionLoading === 'bulk-payment' ? <Loader2 className="h-5 w-5 animate-spin mr-3" /> : <Banknote size={18} className="mr-3 group-hover:scale-125 transition-transform" />}
-                                Confirmar Todos los Pagos
-                            </Button>
-                        </div>
-                        <div className="flex items-center gap-4 w-full md:w-auto">
-                            <Button
-                                variant="ghost"
-                                onClick={() => fetchConsumptions()}
-                                className="text-zinc-500 hover:text-white hover:bg-white/5 font-black uppercase tracking-widest text-[10px] italic py-0 h-12 px-5"
-                            >
-                                <Clock className="h-4 w-4 mr-2.5 opacity-50" />
-                                Actualizar
-                            </Button>
+                    {/* Footer - compact on mobile */}
+                    <div className="p-3 md:p-6 border-t border-white/5 bg-zinc-950 shrink-0 pb-safe">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={handleConfirmAllPickups}
+                                    disabled={actionLoading === 'bulk-pickup' || stats.accepted === 0}
+                                    size="sm"
+                                    className="bg-zinc-900 border-white/5 hover:bg-primary hover:text-zinc-950 text-zinc-300 font-black uppercase tracking-wider italic rounded-xl h-9 md:h-11 px-3 md:px-5 text-[9px] md:text-[10px] transition-all"
+                                >
+                                    <HandPlatter size={14} className="mr-1.5 md:mr-2" />
+                                    <span className="hidden sm:inline">Todo Entregado</span>
+                                    <span className="sm:hidden">Entregado</span>
+                                </Button>
+                                <Button
+                                    variant="default"
+                                    onClick={handleConfirmAllPayments}
+                                    disabled={actionLoading === 'bulk-payment' || stats.delivered === 0}
+                                    size="sm"
+                                    className="bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 text-emerald-500 hover:text-zinc-950 font-black uppercase tracking-wider italic rounded-xl h-9 md:h-11 px-3 md:px-5 text-[9px] md:text-[10px] transition-all"
+                                >
+                                    {actionLoading === 'bulk-payment' ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Banknote size={14} className="mr-1.5 md:mr-2" />}
+                                    <span className="hidden sm:inline">Confirmar Pagos</span>
+                                    <span className="sm:hidden">Pagos</span>
+                                </Button>
+                            </div>
                             <Button
                                 variant="outline"
                                 onClick={onClose}
-                                className="bg-zinc-900 border-white/5 hover:bg-white hover:text-black hover:border-transparent text-zinc-300 font-black uppercase tracking-[0.2em] italic rounded-2xl h-12 px-10 transition-all duration-300"
+                                size="sm"
+                                className="bg-zinc-900 border-white/5 hover:bg-white hover:text-black text-zinc-300 font-black uppercase tracking-wider italic rounded-xl h-9 md:h-11 px-4 md:px-8 text-[9px] md:text-xs transition-all"
                             >
                                 Cerrar
                             </Button>
