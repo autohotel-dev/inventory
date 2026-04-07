@@ -57,7 +57,13 @@ export const EntryModal = memo(({
                     onPlateScanned={(scannedPlate: string) => {
                         setPlate(scannedPlate);
                         setShowScanner(false);
-                    }} 
+                    }}
+                    onVehicleScanned={(result) => {
+                        if (result.plate) setPlate(result.plate);
+                        if (result.brand) setBrand(result.brand);
+                        if (result.model) setModel(result.model);
+                        setShowScanner(false);
+                    }}
                 />
             </Modal>
         );

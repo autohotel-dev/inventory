@@ -1,32 +1,96 @@
 import React, { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { X, Camera as CameraIcon, Zap } from 'lucide-react-native';
+import { X, Camera as CameraIcon, RotateCcw } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
+
+export interface VehicleScanResult {
+    plate: string | null;
+    brand: string | null;
+    model: string | null;
+}
 
 interface PlateScannerProps {
     onClose: () => void;
     onPlateScanned: (plate: string) => void;
+    onVehicleScanned?: (result: VehicleScanResult) => void;
 }
 
-export function PlateScanner({ onClose, onPlateScanned }: PlateScannerProps) {
+export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: PlateScannerProps) {
     const { isDark } = useTheme();
     const [permission, requestPermission] = useCameraPermissions();
     const [facing, setFacing] = useState<CameraType>('back');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [statusText, setStatusText] = useState('');
     const cameraRef = useRef<CameraView>(null);
 
-    // TODO: Usar Edge Function OCR
     const processImageOCR = async (base64String: string) => {
         setIsProcessing(true);
+        setStatusText('Analizando vehículo...');
         try {
-            // Placeholder: Simulate API OCR call 
-            // const { data, error } = await supabase.functions.invoke('ocr-plate', { body: { image: base64String } })
-            await new Promise(res => setTimeout(res, 1500));
-            // Simulate reading "LXR2024"
-            onPlateScanned('LXR2024');
-        } catch (err) {
-            console.error(err);
+            // Usar fetch directo para mejor control de errores
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+            
+            const response = await fetch(`${supabaseUrl}/functions/v1/ocr-plate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`,
+                },
+                body: JSON.stringify({ image: base64String }),
+            });
+
+            const data = await response.json();
+            console.log('[OCR] Response status:', response.status, 'Data:', JSON.stringify(data).substring(0, 200));
+
+            if (!response.ok) {
+                console.error('[OCR] Function error:', data);
+                setStatusText('Error en el servicio');
+                Alert.alert(
+                    'Error de OCR',
+                    data?.error || 'El servicio de reconocimiento no está disponible.',
+                    [
+                        { text: 'Reintentar', onPress: () => { setIsProcessing(false); setStatusText(''); } },
+                        { text: 'Manual', onPress: () => onClose() },
+                    ]
+                );
+                return;
+            }
+
+            if (data?.plate || data?.brand || data?.model) {
+                const parts = [];
+                if (data.plate) parts.push(`Placa: ${data.plate}`);
+                if (data.brand) parts.push(data.brand);
+                if (data.model) parts.push(data.model);
+                console.log('[OCR] Vehículo detectado:', parts.join(' | '));
+                setStatusText(`✅ ${parts.join(' • ')}`);
+                setTimeout(() => {
+                    if (onVehicleScanned) {
+                        onVehicleScanned({ plate: data.plate, brand: data.brand, model: data.model });
+                    } else if (data.plate) {
+                        onPlateScanned(data.plate);
+                    }
+                }, 800);
+            } else {
+                console.log('[OCR] No se detectó placa:', data);
+                setStatusText('No se detectó placa');
+                Alert.alert(
+                    'Placa no detectada',
+                    data?.message || 'Intenta de nuevo acercándote más o con mejor iluminación.',
+                    [
+                        { text: 'Reintentar', onPress: () => { setIsProcessing(false); setStatusText(''); } },
+                        { text: 'Ingresar manual', onPress: () => onClose() },
+                    ]
+                );
+            }
+        } catch (err: any) {
+            console.error('[OCR] Exception:', err?.message || err);
+            setStatusText('Error de conexión');
+            Alert.alert('Error de conexión', 'No se pudo conectar con el servicio OCR. Verifica tu conexión a internet.', [
+                { text: 'Reintentar', onPress: () => { setIsProcessing(false); setStatusText(''); } },
+                { text: 'Manual', onPress: () => onClose() },
+            ]);
         } finally {
             setIsProcessing(false);
         }
@@ -35,12 +99,19 @@ export function PlateScanner({ onClose, onPlateScanned }: PlateScannerProps) {
     const takePicture = async () => {
         if (!cameraRef.current) return;
         try {
-            const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.5 });
-            if (photo && photo.base64) {
+            setStatusText('Capturando...');
+            // Buena calidad para máxima precisión OCR
+            const photo = await cameraRef.current.takePictureAsync({ 
+                base64: true, 
+                quality: 0.7,
+                exif: false,
+            });
+            if (photo?.base64) {
                 await processImageOCR(photo.base64);
             }
         } catch (e) {
             console.error("Camera failed:", e);
+            setStatusText('Error de cámara');
         }
     };
 
@@ -67,9 +138,6 @@ export function PlateScanner({ onClose, onPlateScanned }: PlateScannerProps) {
                 ref={cameraRef} 
                 style={styles.camera} 
                 facing={facing}
-                barcodeScannerSettings={{
-                    barcodeTypes: ["qr"], // Optionally support barcodes simultaneously
-                }}
             >
                 <View style={styles.overlay}>
                     {/* Header bar */}
@@ -78,22 +146,35 @@ export function PlateScanner({ onClose, onPlateScanned }: PlateScannerProps) {
                             <X color="#ffffff" size={28} />
                         </TouchableOpacity>
                         <View style={styles.titleContainer}>
-                            <Text style={styles.headerTitle}>Ubica la placa en el recuadro</Text>
+                            <Text style={styles.headerTitle}>Enfoca la placa del vehículo</Text>
                         </View>
                         <View style={styles.iconButtonSpacer} />
                     </View>
 
                     {/* Target Box Indicator */}
                     <View style={styles.aimBoxContainer}>
-                        <View style={styles.aimBox} />
+                        <View style={styles.aimBox}>
+                            {/* Corner markers */}
+                            <View style={[styles.corner, styles.cornerTL]} />
+                            <View style={[styles.corner, styles.cornerTR]} />
+                            <View style={[styles.corner, styles.cornerBL]} />
+                            <View style={[styles.corner, styles.cornerBR]} />
+                        </View>
+                        <Text style={styles.aimHint}>
+                            Centra la placa dentro del recuadro
+                        </Text>
                     </View>
 
                     {/* Footer Controls */}
                     <View style={styles.footer}>
+                        {statusText ? (
+                            <Text style={styles.statusText}>{statusText}</Text>
+                        ) : null}
+
                         {isProcessing ? (
                             <View style={styles.processingIndicator}>
-                                <ActivityIndicator size="large" color="#ffffff" />
-                                <Text style={styles.processingText}>Escaneando OCR...</Text>
+                                <ActivityIndicator size="large" color="#eab308" />
+                                <Text style={styles.processingText}>Procesando con IA...</Text>
                             </View>
                         ) : (
                             <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
@@ -158,21 +239,65 @@ const styles = StyleSheet.create({
     },
     aimBox: {
         width: 300,
-        height: 120, // Rectangular for plates
-        borderWidth: 3,
-        borderColor: '#eab308', // Luxor yellow
+        height: 120,
+        borderWidth: 2,
+        borderColor: 'rgba(234, 179, 8, 0.4)',
         borderRadius: 12,
         backgroundColor: 'transparent',
-        shadowColor: '#eab308',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
+    },
+    corner: {
+        position: 'absolute',
+        width: 30,
+        height: 30,
+        borderColor: '#eab308',
+    },
+    cornerTL: {
+        top: -2,
+        left: -2,
+        borderTopWidth: 4,
+        borderLeftWidth: 4,
+        borderTopLeftRadius: 12,
+    },
+    cornerTR: {
+        top: -2,
+        right: -2,
+        borderTopWidth: 4,
+        borderRightWidth: 4,
+        borderTopRightRadius: 12,
+    },
+    cornerBL: {
+        bottom: -2,
+        left: -2,
+        borderBottomWidth: 4,
+        borderLeftWidth: 4,
+        borderBottomLeftRadius: 12,
+    },
+    cornerBR: {
+        bottom: -2,
+        right: -2,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
+        borderBottomRightRadius: 12,
+    },
+    aimHint: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 13,
+        marginTop: 16,
+        fontWeight: '500',
     },
     footer: {
-        height: 140,
+        height: 180,
         alignItems: 'center',
         justifyContent: 'center',
         paddingBottom: 40,
+    },
+    statusText: {
+        color: '#eab308',
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     captureButton: {
         width: 80,
@@ -194,7 +319,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     processingText: {
-        color: '#fff',
+        color: '#eab308',
         marginTop: 12,
         fontWeight: 'bold',
         fontSize: 16,
