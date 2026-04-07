@@ -27,6 +27,16 @@ serve(async (req) => {
             data = record.data || {};
             shouldNotify = true;
         }
+        
+        // =======================================================
+        // Legacy: sales_order_items - DESACTIVADO (manejado por tabla notifications)
+        // =======================================================
+        else if (payload.table === "sales_order_items") {
+            // SKIP: Las notificaciones de consumo se envían via RPC send_valet_notification
+            // que inserta en la tabla 'notifications'. Procesar aquí causaría duplicados.
+            console.log("🔔 [PUSH] Skipping sales_order_items (handled via notifications table)");
+            return new Response(JSON.stringify({ message: "Handled via notifications table" }), { status: 200 });
+        }
 
         // =======================================================
         // CASO 2: Legacy - room_stays

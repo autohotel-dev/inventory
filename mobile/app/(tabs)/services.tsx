@@ -80,25 +80,43 @@ export default function ServicesScreen() {
     const fetchDataRef = useRef(fetchData);
     useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
+    // Suscripción realtime — espera a que employeeId esté disponible
     useEffect(() => {
+        if (!employeeId) return;
+
+        // Fetch inicial con employeeId válido
         fetchDataRef.current();
 
         let timeout: NodeJS.Timeout;
         const debouncedFetch = () => {
             clearTimeout(timeout);
-            timeout = setTimeout(() => fetchDataRef.current(), 1000);
+            timeout = setTimeout(() => fetchDataRef.current(), 800);
         };
 
-        const channel = supabase.channel('valet-services-realtime')
+        const channelName = `valet-services-${employeeId}-${Date.now()}`;
+        const channel = supabase.channel(channelName)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, debouncedFetch)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ [Services] Realtime conectado');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.warn('⚠️ [Services] Error en canal, usando polling');
+                }
+            });
+
+        // Polling de respaldo cada 10s (mobile puede perder websockets en background)
+        const pollInterval = setInterval(() => {
+            fetchDataRef.current();
+        }, 10000);
+
         return () => {
             supabase.removeChannel(channel);
             clearTimeout(timeout);
+            clearInterval(pollInterval);
         };
-    }, []); // Se monta una sola vez
+    }, [employeeId]); // Re-suscribe cuando employeeId esté disponible
 
     // Auto-expand room from Deep Link
     const params = useLocalSearchParams();
