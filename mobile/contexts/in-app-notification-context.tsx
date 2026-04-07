@@ -270,25 +270,10 @@ export function InAppNotificationProvider({ children }: { children: ReactNode })
             } else {
                 Vibration.vibrate();
             }
-
-            // Reproducir sonido usando una notificación local silenciosa
-            // Esto usa el sonido del sistema configurado en el canal
-            const ExpoNotifications = await import('expo-notifications');
-            await ExpoNotifications.scheduleNotificationAsync({
-                content: {
-                    title: '',
-                    body: '',
-                    sound: 'default',
-                },
-                trigger: null, // Inmediato
-            });
-
-            // Cancelar inmediatamente para que no se vea pero sí suene
-            setTimeout(async () => {
-                await ExpoNotifications.dismissAllNotificationsAsync();
-            }, 100);
+            // NO crear notificación local para sonido — la push de la Edge Function
+            // ya reproduce sonido. Crear una notificación local aquí causaba duplicados.
         } catch (error) {
-            console.log('[InAppNotification] Error reproduciendo sonido:', error);
+            console.log('[InAppNotification] Error en vibración:', error);
         }
     };
 

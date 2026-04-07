@@ -10,6 +10,7 @@ import {
   getReceptionEmployeeId,
   generatePaymentReference,
 } from "@/hooks/use-room-actions";
+import { useSystemConfigRead } from "@/hooks/use-system-config";
 
 interface ConnectedQuickCheckinModalProps {
   isOpen: boolean;
@@ -19,8 +20,6 @@ interface ConnectedQuickCheckinModalProps {
   onSuccess: () => void;
 }
 
-const MAX_PENDING_QUICK_CHECKINS = 5;
-
 export function ConnectedQuickCheckinModal({
   isOpen,
   selectedRoom,
@@ -29,6 +28,8 @@ export function ConnectedQuickCheckinModal({
   onSuccess,
 }: ConnectedQuickCheckinModalProps) {
   const [actionLoading, setActionLoading] = useState(false);
+  const systemConfig = useSystemConfigRead();
+  const MAX_PENDING_QUICK_CHECKINS = systemConfig.maxPendingQuickCheckins;
 
   const handleQuickCheckin = async (data: {
     initialPeople: number;
