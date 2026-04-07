@@ -398,16 +398,17 @@ export function ConsumptionTrackingModal({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-[2rem]">
-                    <DialogHeader className="px-8 py-7 bg-zinc-900/50 border-b border-white/5 relative overflow-hidden shrink-0">
+                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[100dvh] md:max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-none md:rounded-[2rem] w-full">
+                    <DialogHeader className="px-4 md:px-8 py-5 md:py-7 bg-zinc-900/50 border-b border-white/5 relative overflow-hidden shrink-0">
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
                         <div className="relative flex items-center justify-between">
                             <div className="space-y-1">
-                                <DialogTitle className="flex items-center gap-4 text-3xl font-black tracking-tighter text-white uppercase italic">
-                                    <div className="p-3 bg-primary/20 rounded-2xl text-primary border border-primary/30 shadow-[0_0_15px_-5px_var(--primary)]">
-                                        <ConciergeBell className="h-7 w-7" />
+                                <DialogTitle className="flex items-center gap-3 md:gap-4 text-xl md:text-3xl font-black tracking-tighter text-white uppercase italic">
+                                    <div className="p-2.5 md:p-3 bg-primary/20 rounded-xl md:rounded-2xl text-primary border border-primary/30 shadow-[0_0_15px_-5px_var(--primary)]">
+                                        <ConciergeBell className="h-5 w-5 md:h-7 md:w-7" />
                                     </div>
-                                    Seguimiento de Servicios
+                                    <span className="hidden sm:inline">Seguimiento de Servicios</span>
+                                    <span className="sm:hidden">Servicios</span>
                                 </DialogTitle>
                                 <DialogDescription className="text-sm flex items-center gap-2 font-bold text-zinc-500 uppercase tracking-widest pl-1">
                                     Habitación <span className="text-white font-black italic">{roomNumber}</span>
@@ -432,7 +433,7 @@ export function ConsumptionTrackingModal({
                     </DialogHeader>
 
                     {/* Dashboard de resumen - Premium Cards */}
-                    <div className="px-8 py-5 bg-zinc-950/50 flex flex-wrap gap-4 border-b border-white/5 shrink-0">
+                    <div className="px-3 md:px-8 py-3 md:py-5 bg-zinc-950/50 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 border-b border-white/5 shrink-0">
                         {[
                             { id: 'PENDING', label: 'Pendientes', value: stats.pending, icon: Clock, color: 'amber', active: activeFilter === 'PENDING' },
                             { id: 'TRANSIT', label: 'En Camino', value: stats.accepted + stats.inTransit, icon: Truck, color: 'purple', active: activeFilter === 'TRANSIT' },
@@ -472,25 +473,25 @@ export function ConsumptionTrackingModal({
                                     key={card.id}
                                     onClick={() => setActiveFilter(activeFilter === card.id ? 'ALL' : card.id)}
                                     className={cn(
-                                        "flex-1 min-w-[160px] p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4 relative overflow-hidden group",
+                                        "p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all duration-300 flex items-center gap-2.5 md:gap-4 relative overflow-hidden group",
                                         card.active
                                             ? activeStyles[card.color as keyof typeof activeStyles]
                                             : "bg-zinc-900/40 border-white/5 hover:border-white/10 shadow-sm"
                                     )}
                                 >
                                     <div className={cn(
-                                        "p-2.5 rounded-xl transition-all duration-300",
+                                        "p-2 md:p-2.5 rounded-lg md:rounded-xl transition-all duration-300",
                                         iconStyles[card.color as keyof typeof iconStyles]
                                     )}>
-                                        <card.icon className="h-5 w-5" />
+                                        <card.icon className="h-4 w-4 md:h-5 md:w-5" />
                                     </div>
                                     <div className="text-left relative z-10">
                                         <p className={cn(
-                                            "text-[10px] uppercase font-black tracking-[0.15em] leading-none mb-1.5",
+                                            "text-[9px] md:text-[10px] uppercase font-black tracking-[0.1em] md:tracking-[0.15em] leading-none mb-1",
                                             labelStyles[card.color as keyof typeof labelStyles]
                                         )}>{card.label}</p>
                                         <p className={cn(
-                                            "text-2xl font-black italic tracking-tighter leading-none",
+                                            "text-xl md:text-2xl font-black italic tracking-tighter leading-none",
                                             card.active ? "text-white" : "text-zinc-300"
                                         )}>{card.value}</p>
                                     </div>
@@ -504,7 +505,7 @@ export function ConsumptionTrackingModal({
                         })}
                     </div>
 
-                    <div className="flex-1 overflow-auto p-8 bg-zinc-900/10">
+                    <div className="flex-1 overflow-auto p-3 md:p-8 bg-zinc-900/10">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-24 gap-6">
                                 <div className="relative h-16 w-16">
@@ -544,7 +545,7 @@ export function ConsumptionTrackingModal({
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-8">
+                            <div className="grid grid-cols-1 gap-4 md:gap-8">
                                 {filteredConsumptions.map((item) => {
                                     const status = item.delivery_status || 'PENDING_VALET';
                                     const config = STATUS_CONFIG[status];
@@ -571,8 +572,8 @@ export function ConsumptionTrackingModal({
                                                 "relative overflow-hidden border-white/5 bg-zinc-900/40 backdrop-blur-xl rounded-[1.8rem] transition-all duration-500",
                                                 status === 'ISSUE' ? "border-red-500/30 shadow-[0_0_30px_-10px_rgba(239,68,68,0.2)]" : "shadow-2xl shadow-black/40 border-white/5"
                                             )}>
-                                                <div className="p-7">
-                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                                                <div className="p-4 md:p-7">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-8">
                                                         {/* Info del Producto */}
                                                         <div className="flex items-start gap-5 flex-1 min-w-0">
                                                             <div className={cn(
@@ -584,7 +585,7 @@ export function ConsumptionTrackingModal({
                                                             </div>
                                                             <div className="space-y-1.5 min-w-0">
                                                                 <div className="flex items-center gap-3">
-                                                                    <h4 className="font-black text-xl leading-none text-white uppercase italic tracking-tighter truncate">
+                                                                    <h4 className="font-black text-base md:text-xl leading-none text-white uppercase italic tracking-tighter truncate">
                                                                         {item.products?.name || 'Producto'}
                                                                     </h4>
                                                                     <div className="px-2 py-0.5 rounded-lg bg-zinc-950 text-white font-black text-xs border border-white/10 shrink-0">
@@ -612,7 +613,7 @@ export function ConsumptionTrackingModal({
                                                         </div>
 
                                                         {/* Stepper Visual Premium */}
-                                                        <div className="flex-1 max-w-xl w-full">
+                                                        <div className="flex-1 max-w-xl w-full hidden md:block">
                                                             <div className="relative flex justify-between px-4">
                                                                 {/* Linea de fondo */}
                                                                 <div className="absolute top-5 left-8 right-8 h-[2px] bg-zinc-800 -z-0" />
@@ -654,7 +655,7 @@ export function ConsumptionTrackingModal({
                                                         </div>
 
                                                         {/* Acciones Premium */}
-                                                        <div className="flex items-center gap-3 pl-4 border-l border-white/5 lg:min-w-[180px] justify-end">
+                                                        <div className="flex items-center gap-2 md:gap-3 md:pl-4 md:border-l border-white/5 lg:min-w-[180px] justify-start md:justify-end">
                                                             {status === 'ACCEPTED' && (
                                                                 <Button
                                                                     onClick={() => handleConfirmPickup(item)}
@@ -741,13 +742,13 @@ export function ConsumptionTrackingModal({
                     </div>
 
                     {/* Footer Premium */}
-                    <div className="p-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center bg-zinc-950 shrink-0 gap-6">
-                        <div className="flex flex-wrap items-center gap-4">
+                    <div className="p-4 md:p-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center bg-zinc-950 shrink-0 gap-4 md:gap-6">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
                             <Button
                                 variant="outline"
                                 onClick={handleConfirmAllPickups}
                                 disabled={actionLoading === 'bulk-pickup' || stats.accepted === 0}
-                                className="bg-zinc-900 border-white/5 hover:bg-primary hover:text-zinc-950 hover:border-transparent text-zinc-300 font-black uppercase tracking-widest italic rounded-2xl h-12 px-6 transition-all duration-300 group"
+                                className="bg-zinc-900 border-white/5 hover:bg-primary hover:text-zinc-950 hover:border-transparent text-zinc-300 font-black uppercase tracking-widest italic rounded-xl md:rounded-2xl h-10 md:h-12 px-4 md:px-6 text-[10px] md:text-xs transition-all duration-300 group flex-1 md:flex-none"
                             >
                                 <HandPlatter size={18} className="mr-3 group-hover:scale-125 transition-transform" />
                                 Todo Entregado a Cochero
@@ -756,7 +757,7 @@ export function ConsumptionTrackingModal({
                                 variant="default"
                                 onClick={handleConfirmAllPayments}
                                 disabled={actionLoading === 'bulk-payment' || stats.delivered === 0}
-                                className="bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-transparent text-emerald-500 hover:text-zinc-950 font-black uppercase tracking-widest italic rounded-2xl h-12 px-6 transition-all duration-300 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)] group"
+                                className="bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-transparent text-emerald-500 hover:text-zinc-950 font-black uppercase tracking-widest italic rounded-xl md:rounded-2xl h-10 md:h-12 px-4 md:px-6 text-[10px] md:text-xs transition-all duration-300 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)] group flex-1 md:flex-none"
                             >
                                 {actionLoading === 'bulk-payment' ? <Loader2 className="h-5 w-5 animate-spin mr-3" /> : <Banknote size={18} className="mr-3 group-hover:scale-125 transition-transform" />}
                                 Confirmar Todos los Pagos

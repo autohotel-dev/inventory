@@ -81,14 +81,11 @@ export async function POST(req: Request) {
                 }
             }
         } else if (payload.table === 'sales_order_items' && payload.type === 'INSERT') {
+            // CONSUMPTIONS: Skip here — already handled by notifyActiveValets() in add-consumption-modal.tsx
+            // which sends a single, detailed push notification with all product names.
+            // This webhook fires per-item, causing N duplicate "Nuevo Consumo" notifications.
             if (payload.record.concept_type === 'CONSUMPTION') {
-                notificationContent = {
-                    title: '🛎️ Nuevo Consumo',
-                    body: 'Servicio solicitado para habitación.',
-                    url: '/valet',
-                    tag: `cons-${payload.record.id}`,
-                    roles: ['valet']
-                };
+                return NextResponse.json({ message: 'Consumption notification handled by RPC' });
             }
         }
 
