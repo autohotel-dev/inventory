@@ -208,31 +208,67 @@ export function ConsumptionTrackingModal({
         }
     }, [salesOrderId]);
 
-    // Realtime Subscription
+    // Realtime Subscription — sin filtro en el canal (los filtros por columna
+    // requieren configuración especial en la publicación de Supabase).
+    // En su lugar, verificamos el sales_order_id en el callback.
     useEffect(() => {
         if (!isOpen || !salesOrderId) return;
 
         fetchConsumptions();
 
         const supabase = createClient();
-        const channel = supabase
-            .channel(`tracking-${salesOrderId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'sales_order_items',
-                    filter: `sales_order_id=eq.${salesOrderId}`
-                },
-                () => {
-                    fetchConsumptions(true);
+        let isSubscribed = true;
+
+        const setup = async () => {
+            // Asegurar auth token para realtime
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.access_token) {
+                    supabase.realtime.setAuth(session.access_token);
                 }
-            )
-            .subscribe();
+            } catch { /* noop */ }
+
+            const channel = supabase
+                .channel(`tracking-${salesOrderId}-${Date.now()}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'sales_order_items',
+                    },
+                    (payload: any) => {
+                        if (!isSubscribed) return;
+                        // Verificar que el cambio es para nuestra orden
+                        const record = payload.new || payload.old;
+                        if (record?.sales_order_id === salesOrderId) {
+                            fetchConsumptions(true);
+                        }
+                    }
+                )
+                .subscribe((status: string) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log('✅ [Tracking] Realtime conectado para orden:', salesOrderId);
+                    } else if (status === 'CHANNEL_ERROR') {
+                        console.warn('⚠️ [Tracking] Error en canal realtime');
+                    }
+                });
+
+            return channel;
+        };
+
+        let channelRef: ReturnType<typeof supabase.channel> | null = null;
+        setup().then(ch => { channelRef = ch; });
+
+        // Fallback: polling cada 8s por si el websocket falla
+        const pollInterval = setInterval(() => {
+            if (isSubscribed) fetchConsumptions(true);
+        }, 8000);
 
         return () => {
-            supabase.removeChannel(channel);
+            isSubscribed = false;
+            clearInterval(pollInterval);
+            if (channelRef) supabase.removeChannel(channelRef);
         };
     }, [isOpen, salesOrderId, fetchConsumptions]);
 
