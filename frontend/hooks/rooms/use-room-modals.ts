@@ -97,6 +97,18 @@ export function useRoomModals() {
     [openModal]
   );
 
+  // Sincronizar selectedRoom con datos frescos cuando rooms se refrescan
+  // Crucial para que modales abiertos vean cambios en tiempo real
+  // (ej: cochero confirma salida → checkout_valet_employee_id se actualiza)
+  const syncSelectedRoom = useCallback((rooms: Room[]) => {
+    setSelectedRoom(prev => {
+      if (!prev) return prev;
+      const fresh = rooms.find(r => r.id === prev.id);
+      if (!fresh) return prev;
+      return fresh;
+    });
+  }, []);
+
   return {
     // Expose current state
     selectedRoom,
@@ -121,5 +133,6 @@ export function useRoomModals() {
     openStatusNoteModal,
     openGranularPaymentModal,
     openConsumptionModal,
+    syncSelectedRoom,
   };
 }

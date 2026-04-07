@@ -100,6 +100,14 @@ function RoomsBoardInternal() {
   const { reminderAlert, dismissReminder } = useCheckoutReminders(rooms, playAlert);
   const { hasPendingValetPayment } = useValetPaymentMonitor(modals.selectedRoom, modals.isOpen("actions"));
 
+  // Sincronizar modales abiertos con datos frescos de rooms
+  // (ej: cochero confirma salida → checkout_valet_employee_id se actualiza en tiempo real)
+  useEffect(() => {
+    if (rooms.length > 0) {
+      modals.syncSelectedRoom(rooms);
+    }
+  }, [rooms]);
+
   const authRedirectedRef = useRef(false);
   const { activeModule, currentStepIndex, currentMode } = useTraining();
 

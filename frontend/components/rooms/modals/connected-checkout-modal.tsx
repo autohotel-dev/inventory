@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
@@ -32,15 +32,59 @@ export function ConnectedCheckoutModal({
     hasUndeliveredItems?: boolean;
   } | null>(null);
 
+  // Estado local para reflejar la confirmación del cochero en tiempo real
+  const [confirmedValetId, setConfirmedValetId] = useState<string | null>(null);
+
+  const hasLoadedRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen && room) {
+    if (isOpen && room && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      // Inicializar con el valor actual del room
+      const activeStay = getActiveStay(room);
+      setConfirmedValetId(activeStay?.checkout_valet_employee_id || null);
       loadCheckoutInfo(room);
-    } else {
+    } else if (!isOpen) {
+      hasLoadedRef.current = false;
       setCheckoutInfo(null);
       setCheckoutAmount(0);
+      setConfirmedValetId(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, room]);
+  }, [isOpen]);
+
+  // Polling para detectar cuando el cochero confirma la revisión
+  // Realtime de room_stays no funciona por RLS, así que consultamos directo cada 3s
+  useEffect(() => {
+    if (!isOpen || !room) return;
+    
+    const activeStay = getActiveStay(room);
+    if (!activeStay) return;
+    // Si ya tenemos confirmación, no necesitamos polling
+    if (confirmedValetId) return;
+    // Solo hacer polling si hay vehículo (necesita revisión de cochero)
+    if (!activeStay.vehicle_plate) return;
+    
+    const supabase = createClient();
+    
+    const pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from("room_stays")
+        .select("checkout_valet_employee_id")
+        .eq("id", activeStay.id)
+        .single();
+      
+      if (data?.checkout_valet_employee_id && data.checkout_valet_employee_id !== confirmedValetId) {
+        console.log("✅ [Checkout Modal] Cochero confirmó revisión:", data.checkout_valet_employee_id);
+        setConfirmedValetId(data.checkout_valet_employee_id);
+        // Refrescar el board para actualizar el ícono del cochecito
+        onSuccess();
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, room?.id, confirmedValetId]);
 
   const loadCheckoutInfo = async (selectedRoom: Room) => {
     const info = await prepareCheckout(selectedRoom);
@@ -106,7 +150,6 @@ export function ConnectedCheckoutModal({
     );
 
     if (success) {
-      // Intento de impresión de ticket comentado por solicitud
       try {
         const activeStay = getActiveStay(room);
         const printData: ConsumptionTicketData = {
@@ -150,6 +193,11 @@ export function ConnectedCheckoutModal({
     }
   };
 
+  // Usar confirmedValetId (estado local actualizado vía realtime) como fuente primaria
+  const effectiveValetId = confirmedValetId 
+    || (room ? getActiveStay(room)?.checkout_valet_employee_id : null) 
+    || null;
+
   return (
     <RoomCheckoutModal
       isOpen={isOpen && !!room}
@@ -164,9 +212,7 @@ export function ConnectedCheckoutModal({
       onClose={onClose}
       onRequestValet={RequestValetAction}
       onConfirm={handleCheckout}
-      defaultValetId={
-        room ? getActiveStay(room)?.checkout_valet_employee_id : null
-      }
+      defaultValetId={effectiveValetId}
       vehiclePlate={room ? getActiveStay(room)?.vehicle_plate || null : null}
       checkoutPaymentData={(() => {
         const data = room ? getActiveStay(room)?.checkout_payment_data : undefined;

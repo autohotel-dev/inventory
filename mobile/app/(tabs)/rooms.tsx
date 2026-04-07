@@ -112,13 +112,17 @@ export default function RoomsScreen() {
         }
     }, [isInitialLoad]);
 
+    // Ref estable para fetchRooms (evitar closures obsoletos en Realtime)
+    const fetchRoomsRef = useRef(fetchRooms);
+    useEffect(() => { fetchRoomsRef.current = fetchRooms; }, [fetchRooms]);
+
     useEffect(() => {
-        fetchRooms();
+        fetchRoomsRef.current();
 
         let timeout: NodeJS.Timeout;
         const debouncedFetch = () => {
             clearTimeout(timeout);
-            timeout = setTimeout(() => fetchRooms(true), 1000);
+            timeout = setTimeout(() => fetchRoomsRef.current(true), 1000);
         };
 
         const channel = supabase.channel('valet-rooms-realtime')
@@ -133,7 +137,7 @@ export default function RoomsScreen() {
             supabase.removeChannel(channel);
             clearTimeout(timeout);
         };
-    }, [fetchRooms]);
+    }, []); // Sin dependencias → se monta UNA sola vez
 
     const {
         handleAcceptEntry: originalHandleAcceptEntry,
