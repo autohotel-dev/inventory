@@ -74,29 +74,13 @@ export function usePaymentProcessing({
         if (itemsError) throw itemsError;
       }
 
-      // 1.5. Finalizar pagos reportados por valet (limpia el indicador y el histórico)
-      const { error: valetConfirmError } = await supabase
-        .from("payments")
-        .update({
-          status: "PAGADO",
-          confirmed_at: new Date().toISOString(),
-          confirmed_by: employee.id
-        })
-        .eq("sales_order_id", salesOrderId)
-        .eq("status", "COBRADO_POR_VALET");
-
-      if (valetConfirmError) {
-        console.error("Error confirming valet payments:", valetConfirmError);
-        // No lanzamos error para no detener el flujo principal
-      }
-
-      // 1.6. Limpiar pagos PENDIENTE (ej. hora extra auto) para evitar duplicados
+      // 1.5. Limpiar pagos PENDIENTE (ej. hora extra auto) para evitar duplicados
+      // NOTA: Se hace ANTES de procesar pagos para no interferir con la cola del cochero
       await supabase
         .from("payments")
         .delete()
         .eq("sales_order_id", salesOrderId)
         .eq("status", "PENDIENTE");
-
 
       // 2. Obtener sesión activa de RECEPCIONISTA para enlazar el pago a la caja correcta
       const { data: session } = await supabase
@@ -111,9 +95,6 @@ export function usePaymentProcessing({
         .eq('status', 'active')
         .in('employees.role', ['receptionist', 'admin', 'manager'])
         .maybeSingle();
-      
-
-      // 3. Buscar pagos existentes del cochero para actualizarlos en lugar de duplicar
       
       // LOG DE AUDITORÍA: Inicio de proceso de pago
       await supabase.rpc('log_audit', {
@@ -130,100 +111,127 @@ export function usePaymentProcessing({
         },
         p_severity: 'INFO'
       });
-      
+
+      // 3. FIX DUPLICACIÓN: Estrategia de COLA en lugar de match por method+amount
+      // Obtenemos TODOS los pagos del cochero como una cola ordenada por fecha
+      // Los consumimos secuencialmente, actualizándolos con los datos corregidos de recepción
+      // Esto permite que recepción cambie método, monto, terminal, etc. sin crear duplicados
       const { data: existingPayments } = await supabase
         .from("payments")
-        .select("id, amount, payment_method, status")
+        .select("id, amount, payment_method, status, shift_session_id, collected_at, collected_by")
         .eq("sales_order_id", salesOrderId)
         .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"])
-        .not("collected_by", "is", null);
+        .not("collected_by", "is", null)
+        .order("created_at", { ascending: true });
+
+      // Cola de pagos del cochero para consumir
+      const valetPaymentQueue = [...(existingPayments || [])];
+      const validPayments = payments.filter(p => p.amount > 0);
       
-      
-      // Crear un mapa de pagos existentes por método y monto
-      const existingPaymentsMap = new Map();
-      existingPayments?.forEach((p: any) => {
-        const key = `${p.payment_method}-${p.amount}`;
-        existingPaymentsMap.set(key, p);
-      });
-      
-      
-      for (const p of payments) {
-        if (p.amount > 0) {
-          const paymentKey = `${p.method}-${p.amount}`;
-          const existingPayment = existingPaymentsMap.get(paymentKey);
+      console.log(`🔄 Procesando ${validPayments.length} pago(s) de recepción, ${valetPaymentQueue.length} pago(s) del cochero en cola`);
+
+      for (const p of validPayments) {
+        const existingPayment = valetPaymentQueue.shift(); // Tomar el primero de la cola
+        
+        if (existingPayment) {
+          // ACTUALIZAR pago existente del cochero con datos corregidos de recepción
+          // Esto permite corregir: método, monto, terminal, tarjeta, referencia
+          const oldData = {
+            status: existingPayment.status,
+            amount: existingPayment.amount,
+            payment_method: existingPayment.payment_method,
+            shift_session_id: existingPayment.shift_session_id,
+            collected_at: existingPayment.collected_at
+          };
           
-          if (existingPayment && p.collected_by) {
-            // ACTUALIZAR pago existente del cochero
+          const newData = {
+            amount: p.amount,  // ← Monto corregido por recepción
+            payment_method: p.method,  // ← Método corregido por recepción
+            status: "PAGADO",
+            confirmed_at: new Date().toISOString(),
+            confirmed_by: employee.id,
+            shift_session_id: session?.id || null,
+            collected_at: new Date().toISOString(),
+            terminal_code: p.terminal || null,
+            reference: p.reference || existingPayment.id, // Preservar referencia si no hay nueva
+            card_last_4: p.cardLast4 || null,
+            card_type: p.cardType || null,
+            payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO"
+          };
+          
+          const { error: updateError } = await supabase
+            .from("payments")
+            .update(newData)
+            .eq("id", existingPayment.id);
             
-            const oldData = {
-              status: existingPayment.status,
-              shift_session_id: existingPayment.shift_session_id,
-              collected_at: existingPayment.collected_at
-            };
-            
-            const newData = {
-              status: "PAGADO",
-              shift_session_id: session?.id || null,
-              collected_at: new Date().toISOString(),
-              terminal_code: p.terminal || existingPayment.terminal_code,
-              reference: p.reference || existingPayment.reference,
-              card_last_4: p.cardLast4 || existingPayment.card_last_4,
-              card_type: p.cardType || existingPayment.card_type,
-              payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO"
-            };
-            
-            const { error: updateError } = await supabase
-              .from("payments")
-              .update(newData)
-              .eq("id", existingPayment.id);
-              
-            if (updateError) throw updateError;
-            
-            // LOG DE AUDITORÍA: Pago actualizado
+          if (updateError) throw updateError;
+          console.log(`✅ Pago del cochero ${existingPayment.id.slice(0,8)} actualizado con datos corregidos`);
+          
+          // LOG DE AUDITORÍA: Pago actualizado (corrección)
+          try {
             await supabase.rpc('log_audit', {
-              p_event_type: 'PAYMENT_UPDATED',
+              p_event_type: 'PAYMENT_CORRECTED',
               p_entity_type: 'PAYMENT',
               p_entity_id: existingPayment.id,
               p_action: 'UPDATE',
               p_old_data: oldData,
               p_new_data: newData,
-              p_description: `Pago actualizado de ${existingPayment.status} a PAGADO, asignado a turno de recepción`,
+              p_description: `Pago del cochero corregido por recepción: ${existingPayment.payment_method}→${p.method}, $${existingPayment.amount}→$${p.amount}`,
               p_metadata: {
-                payment_method: p.method,
-                amount: p.amount,
-                collected_by: p.collected_by,
+                original_collected_by: existingPayment.collected_by,
+                corrected_by: employee.id,
                 old_session: existingPayment.shift_session_id,
-                new_session: session?.id,
-                employee_id: employee.id
+                new_session: session?.id
               },
               p_severity: 'INFO'
             });
-            
-          } else {
-            // INSERTAR nuevo pago (solo si no existe o no tiene collected_by)
-            
-            const insertData = {
-              sales_order_id: salesOrderId,
-              amount: p.amount,
-              payment_method: p.method,
-              card_last_4: p.cardLast4 || null,
-              card_type: p.cardType || null,
-              terminal_code: p.terminal || null,
-              reference: p.reference || `PAGO-${Date.now().toString(36).toUpperCase()}`,
-              concept: "PAGO_POR_CONCEPTOS",
+          } catch (auditErr) {
+            console.warn("Audit log failed (non-blocking):", auditErr);
+          }
+          
+        } else {
+          // No hay más pagos del cochero en la cola → INSERTAR nuevo pago
+          const insertData = {
+            sales_order_id: salesOrderId,
+            amount: p.amount,
+            payment_method: p.method,
+            card_last_4: p.cardLast4 || null,
+            card_type: p.cardType || null,
+            terminal_code: p.terminal || null,
+            reference: p.reference || `PAGO-${Date.now().toString(36).toUpperCase()}`,
+            concept: "PAGO_POR_CONCEPTOS",
+            status: "PAGADO",
+            payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
+            created_by: user.id,
+            shift_session_id: session?.id || null,
+            collected_at: new Date().toISOString(),
+            collected_by: p.collected_by || null
+          };
+          
+          const { error: payError } = await supabase.from("payments").insert(insertData);
+          if (payError) throw payError;
+          console.log('✅ Nuevo pago insertado (sin pago previo del cochero)');
+        }
+      }
+
+      // 3.5. Si sobran pagos del cochero (recepción envió menos pagos que el cochero)
+      // Marcarlos como PAGADO para que no queden huérfanos
+      if (valetPaymentQueue.length > 0) {
+        console.log(`⚠️ ${valetPaymentQueue.length} pago(s) sobrantes del cochero → marcando como PAGADO`);
+        for (const remaining of valetPaymentQueue) {
+          const { error: remainingError } = await supabase
+            .from("payments")
+            .update({
               status: "PAGADO",
-              payment_type: payments.length > 1 ? "PARCIAL" : "COMPLETO",
-              created_by: user.id,
-              shift_session_id: session?.id || null,
-              collected_at: new Date().toISOString(),
-              // PRESERVAR collected_by si viene del cochero
-              collected_by: p.collected_by || null
-            };
-            
-            
-            const { error: payError } = await supabase.from("payments").insert(insertData);
-            if (payError) throw payError;
-            console.log('✅ Nuevo pago insertado correctamente');
+              confirmed_at: new Date().toISOString(),
+              confirmed_by: employee.id,
+              shift_session_id: session?.id || null
+            })
+            .eq("id", remaining.id);
+          
+          if (remainingError) {
+            console.error(`Error updating remaining valet payment ${remaining.id}:`, remainingError);
+            // No lanzamos error - anti-bloqueo: mejor dejar como PAGADO que bloquear el flujo
           }
         }
       }

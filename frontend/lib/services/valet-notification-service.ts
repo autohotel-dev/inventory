@@ -4,10 +4,12 @@ import { logger } from "@/lib/utils/logger";
 /**
  * Notifica a los empleados con rol 'valet' o 'cochero' que tengan un turno activo.
  * 
- * @param supabase Cliente de Supabase
- * @param title Título de la notificación
- * @param message Mensaje de la notificación
- * @param data Datos adicionales para la notificación (navegación, IDs, etc.)
+ * Usa un RPC (notify_valets) con SECURITY DEFINER en Supabase para bypass RLS.
+ * La recepcionista puede llamar esta función y la BD se encarga de encontrar
+ * a los cocheros y crear las notificaciones internamente.
+ * 
+ * El webhook de la BD detectará los INSERTs en `notifications` y disparará
+ * la Edge Function para enviar push notifications.
  */
 export async function notifyActiveValets(
     supabase: ReturnType<typeof createClient>,
@@ -16,50 +18,25 @@ export async function notifyActiveValets(
     data: any
 ) {
     try {
-        // 1. Buscar sesiones activas de valets/cocheros
-        const { data: activeSessions } = await supabase
-            .from("shift_sessions")
-            .select(`
-        employees!inner (
-          auth_user_id,
-          role
-        )
-      `)
-            .eq("status", "active")
-            .in("employees.role", ["valet", "cochero", "Cochero"])
-            .not("employees.auth_user_id", "is", null);
+        const { data: result, error } = await supabase.rpc("send_valet_notification", {
+            p_title: title,
+            p_message: message,
+            p_data: data || {},
+        });
 
-        if (!activeSessions || activeSessions.length === 0) {
-            logger.info("No active valets found to notify", { title });
+        if (error) {
+            logger.error("Error calling notify_valets RPC", error);
             return;
         }
 
-        // 2. Extraer IDs únicos (para evitar duplicados)
-        const uniqueUserIds = new Set<string>();
-        activeSessions.forEach((session: any) => {
-            if (session.employees?.auth_user_id) {
-                uniqueUserIds.add(session.employees.auth_user_id);
-            }
-        });
-
-        if (uniqueUserIds.size === 0) return;
-
-        // 3. Insertar notificación para CADA usuario activo
-        const notificationsToInsert = Array.from(uniqueUserIds).map((userId) => ({
-            user_id: userId,
-            type: "system_alert",
-            title: title,
-            message: message,
-            data: data,
-            is_read: false,
-        }));
-
-        const { error } = await supabase.from("notifications").insert(notificationsToInsert);
-
-        if (error) {
-            logger.error("Error inserting notifications for active valets", error);
+        if (result?.sent > 0) {
+            logger.info(`Notification sent to ${result.sent} valet(s)`, {
+                title,
+                activeSessionsFound: result.active_sessions,
+                fallback: result.fallback
+            });
         } else {
-            logger.info(`Notification sent to ${uniqueUserIds.size} active valets`, { title });
+            logger.info("No valets found to notify", { title, result });
         }
 
     } catch (error) {

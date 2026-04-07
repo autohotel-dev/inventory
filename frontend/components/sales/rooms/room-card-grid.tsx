@@ -17,6 +17,7 @@ interface RoomCardGridProps {
   setSelectedRoom: (room: Room) => void;
   setShowInfoModal: (show: boolean) => void;
   setShowTrackingModal: (show: boolean) => void;
+  onCancelStay?: (room: Room) => void;
 }
 
 export const RoomCardGrid = memo(function RoomCardGrid({
@@ -29,6 +30,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
   setSelectedRoom,
   setShowInfoModal,
   setShowTrackingModal,
+  onCancelStay,
 }: RoomCardGridProps) {
   return (
     <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 min-h-[50vh]">
@@ -117,13 +119,6 @@ export const RoomCardGrid = memo(function RoomCardGrid({
               setShowInfoModal(true);
             }}
             onActions={() => {
-              if (valetPending) {
-                toast.error("Esperando al Cochero", {
-                  description: "No se pueden realizar acciones hasta que el cochero envíe el formulario de entrada.",
-                  duration: 5000
-                });
-                return;
-              }
               openActionsDock(room);
             }}
             onAddProduct={() => openConsumptionModal(room)}
@@ -133,6 +128,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             }}
             isValetPending={!!valetPending && (status === "OCUPADA" || status === "BLOQUEADA")}
             valetId={activeStay && (status === "OCUPADA" || status === "BLOQUEADA") ? activeStay.valet_employee_id : null}
+            onCancelStay={onCancelStay ? () => onCancelStay(room) : undefined}
           />
         );
       })}

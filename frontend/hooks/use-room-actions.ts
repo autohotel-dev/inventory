@@ -1747,29 +1747,24 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
       if (stayError || !stay) throw new Error("No se encontró la estancia");
 
-      // FIX #8: Verificar si ya se solicitó el vehículo
-      if (stay.vehicle_requested_at) {
-        toast.info("Vehículo ya solicitado", {
-          description: "El vehículo para esta habitación ya fue solicitado anteriormente."
-        });
-        return true; // No es error, solo ya está solicitado
+      // Si no se ha solicitado antes, registrar el timestamp
+      if (!stay.vehicle_requested_at) {
+        const { error } = await supabase
+          .from('room_stays')
+          .update({ vehicle_requested_at: new Date().toISOString() })
+          .eq('id', stayId);
+
+        if (error) throw error;
       }
 
-      // 3. Registrar solicitud en DB (timestamp)
-      const { error } = await supabase
-        .from('room_stays')
-        .update({ vehicle_requested_at: new Date().toISOString() })
-        .eq('id', stayId);
-
-      if (error) throw error;
-
-      // 4. Crear notificación contextual para todos los cocheros activos
+      // Siempre enviar notificación al cochero (incluso si es un re-envío)
       const roomNumber = (stay.room as any)?.number || "Desconocida";
       const hasPlate = !!stay.vehicle_plate;
+      const isResend = !!stay.vehicle_requested_at;
 
-      const title = hasPlate ? '🚗 Solicitar Auto' : '🚗 Registro Pendiente';
+      const title = hasPlate ? '🚗 Solicitar Revisión' : '🚗 Registro Pendiente';
       const message = hasPlate
-        ? `Recepción solicita el vehículo de la Habitación ${roomNumber} (Placas: ${stay.vehicle_plate})`
+        ? `${isResend ? '🔔 RECORDATORIO: ' : ''}Recepción solicita revisión del vehículo Hab. ${roomNumber} (Placas: ${stay.vehicle_plate})`
         : `Recepción te recuerda registrar el vehículo de la Habitación ${roomNumber}`;
 
       await notifyActiveValets(
@@ -1779,9 +1774,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         { type: hasPlate ? 'VEHICLE_REQUEST' : 'system_alert', stay_id: stayId, room_number: roomNumber }
       );
 
-
-
-      toast.success("Recordatorio enviado al cochero 🔔");
+      toast.success(isResend ? "Recordatorio re-enviado al cochero 🔔" : "Solicitud enviada al cochero 🔔");
       return true;
     } catch (e) {
       console.error(e);

@@ -569,6 +569,10 @@ function RoomsBoardInternal() {
             setSelectedRoom={modals.setSelectedRoom}
             setShowInfoModal={setShowInfoModalCb}
             setShowTrackingModal={setShowTrackingModalCb}
+            onCancelStay={(room) => {
+              modals.setSelectedRoom(room);
+              modals.openModal("cancelStay");
+            }}
           />
         </CardContent>
       </Card>

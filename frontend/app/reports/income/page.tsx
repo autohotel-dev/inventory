@@ -97,7 +97,7 @@ function IncomeReportContent() {
             .from("shift_closings")
             .select(`
                 *,
-                employees (
+                employees!shift_closings_employee_id_fkey (
                     first_name,
                     last_name,
                     role

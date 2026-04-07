@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
@@ -73,6 +73,7 @@ export interface RoomCardProps {
   onActions: () => void;
   onAddProduct?: () => void;
   onViewServices?: () => void;
+  onCancelStay?: () => void;
 }
 
 import { memo } from "react";
@@ -96,6 +97,7 @@ export function RoomCardComponent({
   onActions,
   onAddProduct,
   onViewServices,
+  onCancelStay,
 }: RoomCardProps) {
   /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
@@ -142,11 +144,24 @@ export function RoomCardComponent({
       {/* Indicador de Valet Pendiente (Workflow Estricto) - Bloqueo Visual */}
       {isValetPending && !showDoorAlert && (
         <>
-          <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center animate-pulse cursor-not-allowed group-hover:bg-background/60 transition-colors">
-            <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm">
+          <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center gap-1.5 cursor-not-allowed group-hover:bg-background/60 transition-colors">
+            <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm animate-pulse">
               Esperando Cochero
             </span>
           </div>
+          {onCancelStay && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancelStay();
+              }}
+              className="absolute -top-1.5 -left-1.5 z-30 flex items-center justify-center h-5 w-5 bg-red-600 hover:bg-red-500 text-white rounded-full shadow-lg ring-2 ring-background transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+              title="Cancelar estancia (requiere autorización)"
+            >
+              <XCircle className="h-3 w-3" />
+            </button>
+          )}
           <div className="absolute -top-1.5 -right-1.5 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 ring-2 ring-background animate-pulse" title="Esperando registro de vehículo por Valet">
             <span className="h-2 w-2 rounded-full bg-white" />
           </div>
