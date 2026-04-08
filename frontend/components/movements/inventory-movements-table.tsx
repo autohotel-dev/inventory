@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,22 +114,39 @@ export function InventoryMovementsTable() {
 
 
 
-  const filteredMovements = movements.filter(movement => {
-    const matchesSearch = search === "" ||
-      movement.product?.name.toLowerCase().includes(search.toLowerCase()) ||
-      movement.product?.sku.toLowerCase().includes(search.toLowerCase()) ||
-      movement.warehouse?.name.toLowerCase().includes(search.toLowerCase()) ||
-      movement.reason.toLowerCase().includes(search.toLowerCase());
+  const filteredMovements = useMemo(() => {
+    return movements.filter(movement => {
+      const matchesSearch = search === "" ||
+        movement.product?.name.toLowerCase().includes(search.toLowerCase()) ||
+        movement.product?.sku.toLowerCase().includes(search.toLowerCase()) ||
+        movement.warehouse?.name.toLowerCase().includes(search.toLowerCase()) ||
+        movement.reason.toLowerCase().includes(search.toLowerCase());
 
-    const matchesType = typeFilter === "" || movement.movement_type === typeFilter;
+      const matchesType = typeFilter === "" || movement.movement_type === typeFilter;
 
-    const matchesDate = dateFilter === "" ||
-      new Date(movement.created_at).toDateString() === new Date(dateFilter).toDateString();
+      const matchesDate = dateFilter === "" ||
+        new Date(movement.created_at).toDateString() === new Date(dateFilter).toDateString();
 
-    const matchesProduct = productFilter === "" || movement.product_id === productFilter;
+      const matchesProduct = productFilter === "" || movement.product_id === productFilter;
 
-    return matchesSearch && matchesType && matchesDate && matchesProduct;
-  });
+      return matchesSearch && matchesType && matchesDate && matchesProduct;
+    });
+  }, [movements, search, typeFilter, dateFilter, productFilter]);
+
+  const stats = useMemo(() => {
+    return movements.reduce(
+      (acc, m) => {
+        if (m.movement_type === 'IN') acc.inMovements++;
+        else if (m.movement_type === 'OUT') acc.outMovements++;
+        else if (m.movement_type === 'ADJUSTMENT') acc.adjustments++;
+        return acc;
+      },
+      { inMovements: 0, outMovements: 0, adjustments: 0 }
+    );
+  }, [movements]);
+
+  const totalMovements = movements.length;
+  const { inMovements, outMovements, adjustments } = stats;
 
   if (loading) {
     return (
@@ -138,11 +155,6 @@ export function InventoryMovementsTable() {
       </div>
     );
   }
-
-  const totalMovements = movements.length;
-  const inMovements = movements.filter(m => m.movement_type === 'IN').length;
-  const outMovements = movements.filter(m => m.movement_type === 'OUT').length;
-  const adjustments = movements.filter(m => m.movement_type === 'ADJUSTMENT').length;
 
   return (
     <div className="space-y-6">
