@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -161,7 +161,7 @@ export function ProfitabilityReport() {
         fetchProfitabilityReport();
     }, []);
 
-    const getSortedProducts = () => {
+    const sortedProducts = useMemo(() => {
         if (!data) return [];
 
         const sorted = [...data.productProfitability];
@@ -176,7 +176,7 @@ export function ProfitabilityReport() {
             default:
                 return sorted;
         }
-    };
+    }, [data, sortBy]);
 
     const handleExportExcel = () => {
         if (!data) return;
@@ -194,7 +194,7 @@ export function ProfitabilityReport() {
                 { header: 'Margen %', key: 'margin_percentage', width: 12 },
                 { header: 'ROI %', key: 'roi', width: 12 }
             ],
-            data: getSortedProducts()
+            data: sortedProducts
         });
     };
 
@@ -217,7 +217,21 @@ export function ProfitabilityReport() {
         );
     }
 
-    const sortedProducts = getSortedProducts();
+    const marginDistribution = useMemo(() => {
+        return sortedProducts.reduce(
+            (acc, p) => {
+                if (p.margin_percentage >= 30) {
+                    acc.high++;
+                } else if (p.margin_percentage >= 15) {
+                    acc.medium++;
+                } else {
+                    acc.low++;
+                }
+                return acc;
+            },
+            { high: 0, medium: 0, low: 0 }
+        );
+    }, [sortedProducts]);
 
     return (
         <div className="space-y-6">
@@ -391,7 +405,7 @@ export function ProfitabilityReport() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold">
-                            {sortedProducts.filter(p => p.margin_percentage >= 30).length}
+                            {marginDistribution.high}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Productos con margen ≥ 30%
@@ -407,7 +421,7 @@ export function ProfitabilityReport() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold">
-                            {sortedProducts.filter(p => p.margin_percentage >= 15 && p.margin_percentage < 30).length}
+                            {marginDistribution.medium}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Productos con margen 15-30%
@@ -423,7 +437,7 @@ export function ProfitabilityReport() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-2xl font-bold text-red-600">
-                            {sortedProducts.filter(p => p.margin_percentage < 15).length}
+                            {marginDistribution.low}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Productos con margen &lt; 15%
