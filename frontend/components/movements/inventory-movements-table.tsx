@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,10 +139,25 @@ export function InventoryMovementsTable() {
     );
   }
 
-  const totalMovements = movements.length;
-  const inMovements = movements.filter(m => m.movement_type === 'IN').length;
-  const outMovements = movements.filter(m => m.movement_type === 'OUT').length;
-  const adjustments = movements.filter(m => m.movement_type === 'ADJUSTMENT').length;
+  // Performance improvement: consolidate 3 filters into a single O(n) pass using useMemo.
+  // Also re-runs only when the movements array reference changes.
+  const stats = useMemo(() => {
+    return movements.reduce(
+      (acc, m) => {
+        acc.totalMovements++;
+        if (m.movement_type === 'IN') acc.inMovements++;
+        if (m.movement_type === 'OUT') acc.outMovements++;
+        if (m.movement_type === 'ADJUSTMENT') acc.adjustments++;
+        return acc;
+      },
+      {
+        totalMovements: 0,
+        inMovements: 0,
+        outMovements: 0,
+        adjustments: 0,
+      }
+    );
+  }, [movements]);
 
   return (
     <div className="space-y-6">
@@ -152,7 +167,7 @@ export function InventoryMovementsTable() {
           <div className="flex items-center space-x-2">
             <Package className="h-5 w-5 text-blue-600" />
             <div>
-              <div className="text-2xl font-bold text-foreground">{totalMovements}</div>
+              <div className="text-2xl font-bold text-foreground">{stats.totalMovements}</div>
               <div className="text-sm text-muted-foreground">Total Movimientos</div>
             </div>
           </div>
@@ -162,7 +177,7 @@ export function InventoryMovementsTable() {
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-5 w-5 text-green-600" />
             <div>
-              <div className="text-2xl font-bold text-green-600">{inMovements}</div>
+              <div className="text-2xl font-bold text-green-600">{stats.inMovements}</div>
               <div className="text-sm text-muted-foreground">Entradas</div>
             </div>
           </div>
@@ -172,7 +187,7 @@ export function InventoryMovementsTable() {
           <div className="flex items-center space-x-2">
             <TrendingDown className="h-5 w-5 text-red-600" />
             <div>
-              <div className="text-2xl font-bold text-red-600">{outMovements}</div>
+              <div className="text-2xl font-bold text-red-600">{stats.outMovements}</div>
               <div className="text-sm text-muted-foreground">Salidas</div>
             </div>
           </div>
@@ -182,7 +197,7 @@ export function InventoryMovementsTable() {
           <div className="flex items-center space-x-2">
             <RotateCcw className="h-5 w-5 text-orange-600" />
             <div>
-              <div className="text-2xl font-bold text-orange-600">{adjustments}</div>
+              <div className="text-2xl font-bold text-orange-600">{stats.adjustments}</div>
               <div className="text-sm text-muted-foreground">Ajustes</div>
             </div>
           </div>

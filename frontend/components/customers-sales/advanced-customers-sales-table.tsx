@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,13 +230,31 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         );
     }
 
-    const totalCustomerSales = customerSales.length;
-    const completedCustomerSales = customerSales.filter(c => c.status === 'COMPLETED').length;
-    const endedCustomerSales = customerSales.filter(c => c.status === 'ENDED').length;
-    const pendingCustomerSales = customerSales.filter(c => c.status === 'PARTIAL').length;
-    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.paid_amount || 0), 0);
-    const totalPending = customerSales.reduce((sum, c) => sum + (c.remaining_amount || 0), 0);
-    const totalEstimated = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
+    // Performance improvement: consolidate 3 filters and 3 reduces into a single O(n) pass using useMemo.
+    // Also re-runs only when the customerSales array reference changes.
+    const stats = useMemo(() => {
+        return customerSales.reduce(
+            (acc, c) => {
+                acc.totalCustomerSales++;
+                if (c.status === "COMPLETED") acc.completedCustomerSales++;
+                if (c.status === "ENDED") acc.endedCustomerSales++;
+                if (c.status === "PARTIAL") acc.pendingCustomerSales++;
+                acc.totalRevenue += c.paid_amount || 0;
+                acc.totalPending += c.remaining_amount || 0;
+                acc.totalEstimated += c.total || 0;
+                return acc;
+            },
+            {
+                totalCustomerSales: 0,
+                completedCustomerSales: 0,
+                endedCustomerSales: 0,
+                pendingCustomerSales: 0,
+                totalRevenue: 0,
+                totalPending: 0,
+                totalEstimated: 0,
+            }
+        );
+    }, [customerSales]);
 
     return (
         <div className="space-y-6">
@@ -248,7 +266,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{totalCustomerSales}</div>
+                        <div className="text-2xl font-bold">{stats.totalCustomerSales}</div>
                         <p className="text-xs text-muted-foreground">
                             Total de ventas
                         </p>
@@ -261,7 +279,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <Clock className="h-4 w-4 text-purple-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-purple-600">{pendingCustomerSales}</div>
+                        <div className="text-2xl font-bold text-purple-600">{stats.pendingCustomerSales}</div>
                         <p className="text-xs text-muted-foreground">
                             Ventas a credito
                         </p>
@@ -274,9 +292,9 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <TrendingUp className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{completedCustomerSales}</div>
+                        <div className="text-2xl font-bold text-green-600">{stats.completedCustomerSales}</div>
                         <p className="text-xs text-muted-foreground">
-                            {((completedCustomerSales / totalCustomerSales) * 100).toFixed(1)}% del total
+                            {stats.totalCustomerSales > 0 ? ((stats.completedCustomerSales / stats.totalCustomerSales) * 100).toFixed(1) : "0.0"}% del total
                         </p>
                     </CardContent>
                 </Card>
@@ -287,9 +305,9 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <TrendingUp className="h-4 w-4 text-red-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-red-500">{endedCustomerSales}</div>
+                        <div className="text-2xl font-bold text-red-500">{stats.endedCustomerSales}</div>
                         <p className="text-xs text-muted-foreground">
-                            {((endedCustomerSales / totalCustomerSales) * 100).toFixed(1)}% del total
+                            {stats.totalCustomerSales > 0 ? ((stats.endedCustomerSales / stats.totalCustomerSales) * 100).toFixed(1) : "0.0"}% del total
                         </p>
                     </CardContent>
                 </Card>
@@ -300,7 +318,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <DollarSign className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-600">${totalEstimated.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-green-600">${stats.totalEstimated.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">
                             Total ingresos estimados
                         </p>
@@ -313,7 +331,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <DollarSign className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">${totalRevenue.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-blue-600">${stats.totalRevenue.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">
                             Total ingresos pagados
                         </p>
@@ -326,7 +344,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         <DollarSign className="h-4 w-4 text-amber-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-amber-600">${totalPending.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-amber-600">${stats.totalPending.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">
                             Ventas pendientes
                         </p>
