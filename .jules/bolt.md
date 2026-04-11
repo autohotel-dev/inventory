@@ -1,3 +1,7 @@
 ## 2024-05-18 - [Optimizing Frequent Array Methods in React]
 **Learning:** React components containing both search terms (`onChange` state variables triggered every keystroke) and large array renders (like sorting and filtering list items) often re-run `.sort()` and `.filter()` operations on every state update, which can block the main thread and feel sluggish on large data sets (e.g., employee lists). Adding `useMemo` avoids redundant sorts and filters unless the core data or specific filter criteria actually change.
 **Action:** When identifying performance bottlenecks where large arrays are filtered/sorted *and* local state changes rapidly (like text input fields), prioritize wrapping these array transformations in `useMemo`.
+
+## 2024-05-18 - [Optimizing Multiple Array Interactions]
+**Learning:** Performing multiple independent `.filter(condition).length` operations to calculate different statistics on the same array structure iterates over the entire array for each condition. This results in an O(M * N) time complexity where N is the array length and M is the number of filters. In `advanced-sales-table.tsx`, this was running 6 iterations on every re-render.
+**Action:** Consolidate multiple statistics calculations derived from the same array into a single `.reduce()` pass to lower time complexity to O(N) and reduce CPU load, especially crucial in front-end tables processing significant rows dynamically.
