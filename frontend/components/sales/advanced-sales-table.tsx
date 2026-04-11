@@ -195,21 +195,34 @@ export function AdvancedSalesTable() {
       setSales(filteredData);
       
       // Calcular estadísticas
-      const totalAmount = filteredData.reduce((sum, s) => sum + (s.total || 0), 0);
-      const pending = filteredData.filter(s => s.status === 'PARTIAL').length;
-      const completed = filteredData.filter(s => s.status === 'COMPLETED').length;
-      const cancelled = filteredData.filter(s => s.status === 'CANCELLED').length;
-      const open = filteredData.filter(s => s.status === 'OPEN').length;
-      const ended = filteredData.filter(s => s.status === 'ENDED').length;
+      const stats = filteredData.reduce(
+        (acc, s) => {
+          acc.totalAmount += s.total || 0;
+          if (s.status === 'PARTIAL') acc.pending++;
+          else if (s.status === 'COMPLETED') acc.completed++;
+          else if (s.status === 'CANCELLED') acc.cancelled++;
+          else if (s.status === 'OPEN') acc.open++;
+          else if (s.status === 'ENDED') acc.ended++;
+          return acc;
+        },
+        {
+          totalAmount: 0,
+          pending: 0,
+          completed: 0,
+          cancelled: 0,
+          open: 0,
+          ended: 0,
+        }
+      );
       
       setStats({
         total: filteredData.length,
-        totalAmount,
-        pending,
-        completed,
-        cancelled,
-        open,
-        ended
+        totalAmount: stats.totalAmount,
+        pending: stats.pending,
+        completed: stats.completed,
+        cancelled: stats.cancelled,
+        open: stats.open,
+        ended: stats.ended
       });
       
     } catch (error) {
