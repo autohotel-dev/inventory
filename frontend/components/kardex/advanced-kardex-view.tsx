@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,7 +180,7 @@ export function AdvancedKardexView() {
     }
   }, [selectedProduct]);
 
-  const filteredEntries = kardexEntries.filter(entry => {
+  const filteredEntries = useMemo(() => kardexEntries.filter(entry => {
     const matchesSearch = search === "" ||
       entry.reason.toLowerCase().includes(search.toLowerCase()) ||
       entry.warehouse_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -192,15 +192,23 @@ export function AdvancedKardexView() {
     const matchesType = typeFilter === "" || entry.movement_type === typeFilter;
 
     return matchesSearch && matchesDate && matchesType;
-  });
+  }), [kardexEntries, search, dateFilter, typeFilter]);
 
-  const selectedProductInfo = products.find(p => p.id === selectedProduct);
+  const selectedProductInfo = useMemo(() => products.find(p => p.id === selectedProduct), [products, selectedProduct]);
 
   // Estadísticas del kardex
   const totalMovements = kardexEntries.length;
-  const inMovements = kardexEntries.filter(e => e.movement_type === 'IN').length;
-  const outMovements = kardexEntries.filter(e => e.movement_type === 'OUT').length;
-  const adjustments = kardexEntries.filter(e => e.movement_type === 'ADJUSTMENT').length;
+  const { inMovements, outMovements, adjustments } = useMemo(() => {
+    return kardexEntries.reduce(
+      (acc, e) => {
+        if (e.movement_type === 'IN') acc.inMovements++;
+        else if (e.movement_type === 'OUT') acc.outMovements++;
+        else if (e.movement_type === 'ADJUSTMENT') acc.adjustments++;
+        return acc;
+      },
+      { inMovements: 0, outMovements: 0, adjustments: 0 }
+    );
+  }, [kardexEntries]);
 
   return (
     <div className="space-y-6">
