@@ -1,3 +1,7 @@
 ## 2024-05-18 - [Optimizing Frequent Array Methods in React]
 **Learning:** React components containing both search terms (`onChange` state variables triggered every keystroke) and large array renders (like sorting and filtering list items) often re-run `.sort()` and `.filter()` operations on every state update, which can block the main thread and feel sluggish on large data sets (e.g., employee lists). Adding `useMemo` avoids redundant sorts and filters unless the core data or specific filter criteria actually change.
 **Action:** When identifying performance bottlenecks where large arrays are filtered/sorted *and* local state changes rapidly (like text input fields), prioritize wrapping these array transformations in `useMemo`.
+
+## 2024-05-19 - [Consolidating Array Passes for Computed Statistics]
+**Learning:** In dashboards or tables where multiple summary statistics are derived from a single array of items (e.g. counting status types via multiple `.filter(condition).length` calls), React will independently traverse the entire array for each statistic. When these operations are executed synchronously on re-renders, it compounds the rendering cost significantly on large datasets.
+**Action:** Consolidate multiple O(N) array passes (like chained filters or map/filters) into a single O(N) `.reduce()` pass to gather all required statistics simultaneously, and memoize the result with `useMemo` to skip re-computation on unrelated state changes. Ensure these hooks are placed before any early returns (like `if (loading)`) to avoid breaking the Rules of Hooks.
