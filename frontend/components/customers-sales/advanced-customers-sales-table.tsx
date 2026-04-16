@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,26 +201,56 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         }
     };
 
-    const filteredCustomerSales = customerSales.filter(customerSale => {
-        // Usar nombre real del cliente (de la vista o del campo name)
-        const customerSaleOrderNumber = customerSale.order_number || "";
-        const customerSaleStatus = customerSale.status || "";
+    // ⚡ Bolt: Optimización de rendimiento
+    // Memorizar los filtros para evitar recalcular en cada re-render a menos que cambien los datos o los filtros
+    const filteredCustomerSales = useMemo(() => {
+        return customerSales.filter(customerSale => {
+            // Usar nombre real del cliente (de la vista o del campo name)
+            const customerSaleOrderNumber = customerSale.order_number || "";
+            const customerSaleStatus = customerSale.status || "";
 
-        const matchesSearch = search === "" ||
-            customerSaleOrderNumber.toLowerCase().includes(search.toLowerCase()) ||
-            customerSaleStatus.toLowerCase().includes(search.toLowerCase());
+            const matchesSearch = search === "" ||
+                customerSaleOrderNumber.toLowerCase().includes(search.toLowerCase()) ||
+                customerSaleStatus.toLowerCase().includes(search.toLowerCase());
 
-        const matchesStatus = statusFilter === "" ||
-            (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
-            (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
-            (statusFilter === "PARTIAL" && customerSale.status === "PARTIAL") ||
-            (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
-            (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
+            const matchesStatus = statusFilter === "" ||
+                (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
+                (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
+                (statusFilter === "PARTIAL" && customerSale.status === "PARTIAL") ||
+                (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
+                (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
 
-        const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
+            const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
 
-        return matchesSearch && matchesStatus && matchesWarehouse;
-    });
+            return matchesSearch && matchesStatus && matchesWarehouse;
+        });
+    }, [customerSales, search, statusFilter, warehouseFilter]);
+
+    // ⚡ Bolt: Optimización de rendimiento
+    // Consolidar 6 iteraciones sobre customerSales en una sola (O(6n) -> O(n)) y memorizar el resultado
+    const stats = useMemo(() => {
+        return customerSales.reduce(
+            (acc, c) => {
+                acc.totalRevenue += c.paid_amount || 0;
+                acc.totalPending += c.remaining_amount || 0;
+                acc.totalEstimated += c.total || 0;
+
+                if (c.status === 'COMPLETED') acc.completedCustomerSales++;
+                else if (c.status === 'ENDED') acc.endedCustomerSales++;
+                else if (c.status === 'PARTIAL') acc.pendingCustomerSales++;
+
+                return acc;
+            },
+            {
+                completedCustomerSales: 0,
+                endedCustomerSales: 0,
+                pendingCustomerSales: 0,
+                totalRevenue: 0,
+                totalPending: 0,
+                totalEstimated: 0,
+            }
+        );
+    }, [customerSales]);
 
     if (loading) {
         return (
@@ -231,12 +261,14 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
     }
 
     const totalCustomerSales = customerSales.length;
-    const completedCustomerSales = customerSales.filter(c => c.status === 'COMPLETED').length;
-    const endedCustomerSales = customerSales.filter(c => c.status === 'ENDED').length;
-    const pendingCustomerSales = customerSales.filter(c => c.status === 'PARTIAL').length;
-    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.paid_amount || 0), 0);
-    const totalPending = customerSales.reduce((sum, c) => sum + (c.remaining_amount || 0), 0);
-    const totalEstimated = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
+    const {
+        completedCustomerSales,
+        endedCustomerSales,
+        pendingCustomerSales,
+        totalRevenue,
+        totalPending,
+        totalEstimated,
+    } = stats;
 
     return (
         <div className="space-y-6">
