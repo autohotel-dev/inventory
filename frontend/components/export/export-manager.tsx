@@ -180,11 +180,15 @@ export function ExportManager() {
             return sum + (stock * p.price);
           }, 0) || 0;
 
-          const movementsByType = {
-            IN: analyticsMovements?.filter((m: any) => m.movement_type === 'IN').length || 0,
-            OUT: analyticsMovements?.filter((m: any) => m.movement_type === 'OUT').length || 0,
-            ADJUSTMENT: analyticsMovements?.filter((m: any) => m.movement_type === 'ADJUSTMENT').length || 0
-          };
+          // ⚡ Bolt Performance Optimization:
+          // Consolidated multiple .filter(...).length O(k*n) operations into a single O(n) .reduce() pass.
+          // Reduces array traversals and CPU cycles for processing large movement arrays.
+          const movementsByType = (analyticsMovements || []).reduce((acc: any, m: any) => {
+            if (m.movement_type === 'IN') acc.IN++;
+            else if (m.movement_type === 'OUT') acc.OUT++;
+            else if (m.movement_type === 'ADJUSTMENT') acc.ADJUSTMENT++;
+            return acc;
+          }, { IN: 0, OUT: 0, ADJUSTMENT: 0 });
 
           data = [{
             'Fecha Reporte': new Date().toLocaleDateString(),
@@ -194,8 +198,13 @@ export function ExportManager() {
             'Entradas (30 días)': movementsByType.IN,
             'Salidas (30 días)': movementsByType.OUT,
             'Ajustes (30 días)': movementsByType.ADJUSTMENT,
-            'Productos Activos': analyticsProducts?.filter((p: any) => p.is_active).length || 0,
-            'Productos Inactivos': analyticsProducts?.filter((p: any) => !p.is_active).length || 0
+            // ⚡ Bolt Performance Optimization:
+            // Single O(n) reduce pass for product status statistics instead of multiple .filter() calls
+            ...((analyticsProducts || []).reduce((acc: any, p: any) => {
+              if (p.is_active) acc['Productos Activos']++;
+              else acc['Productos Inactivos']++;
+              return acc;
+            }, { 'Productos Activos': 0, 'Productos Inactivos': 0 }))
           }];
           filename = `reporte_analytics_${new Date().toISOString().split('T')[0]}`;
           break;
