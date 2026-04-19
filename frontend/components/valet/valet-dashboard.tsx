@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
@@ -280,40 +280,52 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
         return () => clearInterval(interval);
     }, [employeeId, showCheckInModal, showCheckoutModal, showDeliveryModal, fetchPendingConsumptions, fetchMyConsumptions]);
 
-    // Filtrar habitaciones sin vehículo (entradas pendientes)
-    const roomsWithoutVehicle = rooms.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay && !stay.vehicle_plate;
-    });
+    const {
+        entriesToAccept,
+        myPendingEntries,
+        roomsPendingCheckout,
+        urgentCheckouts
+    } = useMemo(() => {
+        const pendingCheckout: Room[] = [];
+        const entriesAccept: Room[] = [];
+        const myPending: Room[] = [];
 
-    // Filtrar habitaciones con vehículo pero sin checkout confirmado (salidas pendientes)
-    const roomsPendingCheckout = rooms.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        // Aquí deberías tener una forma de saber si está en proceso de checkout
-        // Por ahora, mostrar habitaciones con checkout_valet_employee_id null
-        return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id;
-    }).sort((a, b) => {
-        const stayA = a.room_stays?.find(s => s.status === 'ACTIVA');
-        const stayB = b.room_stays?.find(s => s.status === 'ACTIVA');
-        // Priorizar vehículos solicitados
-        const reqA = stayA?.vehicle_requested_at ? 1 : 0;
-        const reqB = stayB?.vehicle_requested_at ? 1 : 0;
-        if (reqA !== reqB) return reqB - reqA; // Solicitados primero
-        return 0;
+        rooms.forEach(r => {
+            const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
+            if (!stay) return;
 
-    });
+            if (!stay.vehicle_plate) {
+                if (!stay.valet_employee_id) {
+                    entriesAccept.push(r);
+                } else if (stay.valet_employee_id === employeeId) {
+                    myPending.push(r);
+                }
+            } else if (!stay.checkout_valet_employee_id) {
+                pendingCheckout.push(r);
+            }
+        });
 
-    // 1. Entradas SIN valet asignado (Cualquiera puede aceptar)
-    const entriesToAccept = roomsWithoutVehicle.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return !stay?.valet_employee_id;
-    });
+        pendingCheckout.sort((a, b) => {
+            const stayA = a.room_stays?.find(s => s.status === 'ACTIVA');
+            const stayB = b.room_stays?.find(s => s.status === 'ACTIVA');
+            const reqA = stayA?.vehicle_requested_at ? 1 : 0;
+            const reqB = stayB?.vehicle_requested_at ? 1 : 0;
+            if (reqA !== reqB) return reqB - reqA;
+            return 0;
+        });
 
-    // 2. Mis entradas pendientes (Valet asignado = Yo, pero sin vehículo)
-    const myPendingEntries = roomsWithoutVehicle.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay?.valet_employee_id === employeeId;
-    });
+        const urgent = pendingCheckout.filter(r => {
+            const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
+            return stay?.vehicle_requested_at || stay?.valet_checkout_requested_at;
+        });
+
+        return {
+            entriesToAccept: entriesAccept,
+            myPendingEntries: myPending,
+            roomsPendingCheckout: pendingCheckout,
+            urgentCheckouts: urgent
+        };
+    }, [rooms, employeeId]);
 
     const handleOpenCheckIn = (room: Room) => {
         setSelectedRoom(room);
@@ -363,11 +375,6 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
             </div>
         );
     }
-
-    const urgentCheckouts = roomsPendingCheckout.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay?.vehicle_requested_at || stay?.valet_checkout_requested_at;
-    });
 
     const parkedVehicles = roomsPendingCheckout; // Todos, incluyendo urgentes, pero en la otra tab se ven todos.
 
