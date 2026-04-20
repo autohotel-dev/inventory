@@ -1,6 +1,6 @@
 @echo off
 title Tuya Sensor Monitor - Local
-cd /d "C:\Users\autoh\Documents\GitHub\inventory"
+cd /d "C:\Users\autoh\Documents\GitHub\inventory\frontend"
 echo ========================================
 echo   Iniciando Monitor de Sensores Tuya
 echo ========================================
