@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { RoomCard } from "@/components/sales/room-card";
 import { Room } from "@/components/sales/room-types";
 import { getActiveStay } from "@/hooks/use-room-actions";
@@ -32,68 +32,94 @@ export const RoomCardGrid = memo(function RoomCardGrid({
   setShowTrackingModal,
   onCancelStay,
 }: RoomCardGridProps) {
+  // ⚡ Bolt Optimization: Extract expensive array loops and derivations out of JSX render.
+  // Pre-computes active stays, filters order items, and maps sensors into a clean memoized array
+  // to avoid recalculating these values on every component re-render.
+  const memoizedRooms = useMemo(() => {
+    return rooms.map((room) => {
+      const status = room.status || "OTRO";
+      const timeInfo = getRemainingTimeLabel(room);
+      const isSaliendo = !!timeInfo?.isSaliendo;
+
+      // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)
+      const activeStay = getActiveStay(room);
+      const salesOrder = Array.isArray(activeStay?.sales_orders)
+        ? activeStay.sales_orders[0]
+        : activeStay?.sales_orders;
+
+      const hasPendingPayment = status === "OCUPADA" &&
+        salesOrder &&
+        (salesOrder.remaining_amount || 0) > 0;
+
+      // Obtener información del vehículo si existe estancia activa
+      const vehicleStatus = {
+        hasVehicle: !!activeStay?.vehicle_plate,
+        isReady: !!activeStay?.checkout_valet_employee_id,
+        plate: activeStay?.vehicle_plate || undefined,
+        model: activeStay?.vehicle_model || undefined,
+        brand: activeStay?.vehicle_brand || undefined,
+        isWaitingAuthorization: !!activeStay?.valet_checkout_requested_at && !activeStay?.vehicle_requested_at
+      };
+
+      const items = salesOrder?.sales_order_items || [];
+      const pendingItems = items.filter((item: any) =>
+        item.concept_type === 'CONSUMPTION' &&
+        ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
+      );
+      const hasPendingService = pendingItems.length > 0;
+
+      // Semáforo: Crítico si lleva más de 15 minutos pendiente (PENDING_VALET o ACCEPTED)
+      const isCriticalService = pendingItems.some((item: any) => {
+        if (!item.created_at || item.delivery_status === 'IN_TRANSIT') return false;
+        const createdDate = new Date(item.created_at);
+        const diffMins = (new Date().getTime() - createdDate.getTime()) / (1000 * 60);
+        return diffMins > 15;
+      });
+
+      // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
+      // RELAX: Si está BLOQUEADA (hora extra auto), PERMITIR abrir acciones para cobrar y desbloquear
+      const isExtraHourBlock = status === "BLOQUEADA";
+      // RELAX: Si el cochero ya reportó un pago pero aún no se corrobora, NO bloqueamos (permitimos cobrar)
+      const hasUnconfirmedValetPayment = salesOrder?.payments?.some(
+        (p: any) => p.status === 'COBRADO_POR_VALET' && !p.confirmed_at
+      );
+
+      const valetPriorityConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'DAMAGE_CHARGE', 'ROOM_CHANGE_ADJUSTMENT'];
+      const hasValetPriorityConcept = items.some((item: any) => valetPriorityConcepts.includes(item.concept_type || ''));
+
+      const valetPending =
+        status === "OCUPADA" &&
+        activeStay &&
+        !activeStay.checkout_payment_data &&
+        !isExtraHourBlock &&
+        hasPendingPayment &&
+        hasValetPriorityConcept && // <--- Solo bloqueamos si hay conceptos que el valet debe informar
+        !hasUnconfirmedValetPayment;
+
+      const sensorStatus = (() => {
+        const s = sensors.find(sen => sen.room_id === room.id);
+        if (!s) return null;
+        return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
+      })();
+
+      return {
+        room,
+        status,
+        isSaliendo,
+        hasPendingPayment,
+        hasPendingService,
+        isCriticalService,
+        valetPending,
+        activeStay,
+        vehicleStatus: (status === "OCUPADA" || status === "BLOQUEADA") ? (activeStay ? vehicleStatus : null) : null,
+        sensorStatus
+      };
+    });
+  }, [rooms, sensors, getRemainingTimeLabel]);
+
   return (
     <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 min-h-[50vh]">
-      {rooms.map((room) => {
-        const status = room.status || "OTRO";
-        const timeInfo = getRemainingTimeLabel(room);
-        const isSaliendo = !!timeInfo?.isSaliendo;
-
-        // Verificar si tiene pago pendiente (remaining_amount > 0 en habitación ocupada)
-        const activeStay = getActiveStay(room);
-        const salesOrder = Array.isArray(activeStay?.sales_orders)
-          ? activeStay.sales_orders[0]
-          : activeStay?.sales_orders;
-
-        const hasPendingPayment = status === "OCUPADA" &&
-          salesOrder &&
-          (salesOrder.remaining_amount || 0) > 0;
-
-        // Obtener información del vehículo si existe estancia activa
-        const vehicleStatus = {
-          hasVehicle: !!activeStay?.vehicle_plate,
-          isReady: !!activeStay?.checkout_valet_employee_id,
-          plate: activeStay?.vehicle_plate || undefined,
-          model: activeStay?.vehicle_model || undefined,
-          brand: activeStay?.vehicle_brand || undefined,
-          isWaitingAuthorization: !!activeStay?.valet_checkout_requested_at && !activeStay?.vehicle_requested_at
-        };
-
-        const items = salesOrder?.sales_order_items || [];
-        const pendingItems = items.filter((item: any) =>
-          item.concept_type === 'CONSUMPTION' &&
-          ['PENDING_VALET', 'ACCEPTED', 'IN_TRANSIT'].includes(item.delivery_status || '')
-        );
-        const hasPendingService = pendingItems.length > 0;
-
-        // Semáforo: Crítico si lleva más de 15 minutos pendiente (PENDING_VALET o ACCEPTED)
-        const isCriticalService = pendingItems.some((item: any) => {
-          if (!item.created_at || item.delivery_status === 'IN_TRANSIT') return false;
-          const createdDate = new Date(item.created_at);
-          const diffMins = (new Date().getTime() - createdDate.getTime()) / (1000 * 60);
-          return diffMins > 15;
-        });
-
-        // WORKFLOW ESTRICTO: Bloquear acciones si falta registro de valet
-        // RELAX: Si está BLOQUEADA (hora extra auto), PERMITIR abrir acciones para cobrar y desbloquear
-        const isExtraHourBlock = status === "BLOQUEADA";
-        // RELAX: Si el cochero ya reportó un pago pero aún no se corrobora, NO bloqueamos (permitimos cobrar)
-        const hasUnconfirmedValetPayment = salesOrder?.payments?.some(
-          (p: any) => p.status === 'COBRADO_POR_VALET' && !p.confirmed_at
-        );
-
-        const valetPriorityConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'DAMAGE_CHARGE', 'ROOM_CHANGE_ADJUSTMENT'];
-        const hasValetPriorityConcept = items.some((item: any) => valetPriorityConcepts.includes(item.concept_type || ''));
-
-        const valetPending =
-          status === "OCUPADA" &&
-          activeStay &&
-          !activeStay.checkout_payment_data &&
-          !isExtraHourBlock &&
-          hasPendingPayment &&
-          hasValetPriorityConcept && // <--- Solo bloqueamos si hay conceptos que el valet debe informar
-          !hasUnconfirmedValetPayment;
-
+      {memoizedRooms.map(({ room, status, isSaliendo, hasPendingPayment, hasPendingService, isCriticalService, valetPending, activeStay, vehicleStatus, sensorStatus }) => {
         return (
           <RoomCard
             key={room.id}
@@ -108,12 +134,8 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             isCriticalService={isCriticalService}
             roomTypeName={room.room_types?.name}
             notes={room.notes}
-            sensorStatus={(() => {
-              const s = sensors.find(sen => sen.room_id === room.id);
-              if (!s) return null;
-              return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
-            })()}
-            vehicleStatus={(status === "OCUPADA" || status === "BLOQUEADA") ? (activeStay ? vehicleStatus : null) : null}
+            sensorStatus={sensorStatus}
+            vehicleStatus={vehicleStatus}
             onInfo={() => {
               setSelectedRoom(room);
               setShowInfoModal(true);
