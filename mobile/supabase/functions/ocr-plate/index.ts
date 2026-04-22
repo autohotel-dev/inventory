@@ -93,9 +93,6 @@ RESPONDE SOLO con este JSON (sin markdown, sin explicación):
                 generationConfig: {
                     temperature: 0.1,
                     maxOutputTokens: 256,
-                    thinkingConfig: {
-                        thinkingBudget: 0,
-                    },
                 },
             }),
         });

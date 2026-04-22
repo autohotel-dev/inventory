@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, RefreshControl, TouchableOpacity, Alert, ScrollView, Dimensions, Modal, Pressable, TextInput } from 'react-native';
+import { View, Text, RefreshControl, TouchableOpacity, Alert, ScrollView, Dimensions, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../contexts/theme-context';
 import * as Haptics from 'expo-haptics';
 import { Skeleton } from '../../components/Skeleton';
-import { Ban, Droplets, Wind, BedDouble, X, CheckCircle, AlertTriangle, Wrench } from 'lucide-react-native';
+import { Ban, Droplets, Wind, BedDouble, X, CheckCircle, AlertTriangle, Wrench, WifiOff, Camera, Trash2, Sparkles, PlayCircle } from 'lucide-react-native';
 import { Room } from '../../lib/types';
+import NetInfo from '@react-native-community/netinfo';
+import { addOfflineAction, syncOfflineQueue } from '../../lib/offline-queue';
+import * as ImagePicker from 'expo-image-picker';
+import { decode } from 'base64-arraybuffer';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_GAP = 10;
@@ -13,7 +17,7 @@ const PADDING = 16;
 const NUM_COLUMNS = 3;
 const CARD_SIZE = (SCREEN_WIDTH - (PADDING * 2) - (CARD_GAP * (NUM_COLUMNS - 1))) / NUM_COLUMNS;
 
-type CamaristaRoomStatus = 'LIBRE' | 'SUCIA' | 'BLOQUEADA' | 'OCUPADA' | string;
+type CamaristaRoomStatus = 'LIBRE' | 'SUCIA' | 'BLOQUEADA' | 'OCUPADA' | 'LIMPIANDO' | string;
 
 // ==========================================
 // Componente: Resumen de estados
@@ -22,6 +26,7 @@ function StatusSummary({ rooms, isDark }: { rooms: Room[]; isDark: boolean }) {
     const counts = {
         LIBRE: rooms.filter(r => r.status === 'LIBRE').length,
         SUCIA: rooms.filter(r => r.status === 'SUCIA').length,
+        LIMPIANDO: rooms.filter(r => r.status === 'LIMPIANDO').length,
         OCUPADA: rooms.filter(r => r.status === 'OCUPADA').length,
         BLOQUEADA: rooms.filter(r => r.status === 'BLOQUEADA').length,
     };
@@ -29,6 +34,7 @@ function StatusSummary({ rooms, isDark }: { rooms: Room[]; isDark: boolean }) {
     const items = [
         { label: 'Limpias', count: counts.LIBRE, color: '#10b981', bg: isDark ? 'bg-emerald-950/50' : 'bg-emerald-50' },
         { label: 'Sucias', count: counts.SUCIA, color: '#f97316', bg: isDark ? 'bg-orange-950/50' : 'bg-orange-50' },
+        { label: 'Limpiando', count: counts.LIMPIANDO, color: '#06b6d4', bg: isDark ? 'bg-cyan-950/50' : 'bg-cyan-50' },
         { label: 'Ocupadas', count: counts.OCUPADA, color: '#3b82f6', bg: isDark ? 'bg-blue-950/50' : 'bg-blue-50' },
         { label: 'Bloqueadas', count: counts.BLOQUEADA, color: '#71717a', bg: isDark ? 'bg-zinc-900' : 'bg-zinc-100' },
     ];
@@ -53,37 +59,121 @@ function RoomActionModal({
     visible,
     onClose,
     onUpdateStatus,
-    isDark
+    isDark,
+    isOffline
 }: {
     room: Room | null;
     visible: boolean;
     onClose: () => void;
-    onUpdateStatus: (roomId: string, status: string, notes?: string | null) => void;
+    onUpdateStatus: (roomId: string, status: string, notes?: string | null, maintenanceImageUrl?: string | null) => void;
     isDark: boolean;
+    isOffline: boolean;
 }) {
     const [maintenanceNote, setMaintenanceNote] = useState('');
     const [isReportingMaintenance, setIsReportingMaintenance] = useState(false);
+    const [maintenanceImage, setMaintenanceImage] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
-        if (visible) {
+        if (visible && room) {
+            setMaintenanceNote(room.notes || '');
+            setMaintenanceImage(room.maintenance_image_url || null);
             setIsReportingMaintenance(false);
-            setMaintenanceNote(room?.notes || '');
+        } else {
+            setMaintenanceNote('');
+            setMaintenanceImage(null);
         }
     }, [visible, room]);
+
+    const handleTakePhoto = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permiso denegado', 'Necesitamos acceso a la cámara para tomar fotos de evidencia.');
+            return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.5,
+            base64: true,
+        });
+
+        if (!result.canceled && result.assets[0].base64) {
+            setMaintenanceImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!room) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        setIsUploading(true);
+
+        try {
+            let finalImageUrl = room.maintenance_image_url || null;
+
+            // Si hay una imagen nueva en base64, subirla a Supabase Storage
+            if (maintenanceImage && maintenanceImage.startsWith('data:image')) {
+                const base64Data = maintenanceImage.replace(/^data:image\/\w+;base64,/, '');
+                const filePath = `${room.id}_${Date.now()}.jpg`;
+                
+                const { data, error } = await supabase.storage
+                    .from('maintenance_reports')
+                    .upload(filePath, decode(base64Data), {
+                        contentType: 'image/jpeg'
+                    });
+
+                if (error) {
+                    console.error('Error uploading image:', error);
+                    Alert.alert('Error', 'No se pudo subir la foto de evidencia.');
+                    setIsUploading(false);
+                    return;
+                }
+
+                const { data: publicUrlData } = supabase.storage
+                    .from('maintenance_reports')
+                    .getPublicUrl(filePath);
+                
+                finalImageUrl = publicUrlData.publicUrl;
+            } else if (!maintenanceImage) {
+                // Si borraron la imagen
+                finalImageUrl = null;
+            }
+
+            onUpdateStatus(room.id, 'BLOQUEADA', maintenanceNote, finalImageUrl);
+            onClose();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     if (!room) return null;
 
     const isOccupied = room.status === 'OCUPADA';
     const currentStyle = getStatusStyle(room.status, isDark);
 
-    const actions = [
+    const baseActions = [
         {
-            label: 'Marcar como Limpia',
+            label: 'Finalizar Limpieza',
             status: 'LIBRE',
             icon: <CheckCircle size={28} color="#ffffff" />,
             bg: '#10b981',
             activeBg: '#059669',
             description: 'La habitación está lista para recibir huéspedes',
+            showIf: ['LIMPIANDO']
+        },
+        {
+            label: 'Iniciar Limpieza',
+            status: 'LIMPIANDO',
+            icon: <PlayCircle size={28} color="#ffffff" />,
+            bg: '#06b6d4',
+            activeBg: '#0891b2',
+            description: 'Comenzar a limpiar esta habitación',
+            showIf: ['SUCIA', 'LIBRE']
         },
         {
             label: 'Marcar como Sucia',
@@ -92,6 +182,7 @@ function RoomActionModal({
             bg: '#f97316',
             activeBg: '#ea580c',
             description: 'La habitación necesita limpieza',
+            showIf: ['LIBRE']
         },
         {
             label: 'Reportar Mantenimiento',
@@ -100,8 +191,12 @@ function RoomActionModal({
             bg: '#71717a',
             activeBg: '#52525b',
             description: 'La habitación tiene un problema y no se puede usar',
+            showIf: ['LIBRE', 'SUCIA', 'LIMPIANDO', 'BLOQUEADA']
         },
     ];
+    
+    // Solo mostrar las acciones que aplican al estado actual
+    const actions = baseActions.filter(a => a.showIf.includes(room.status));
 
     return (
         <Modal
@@ -110,10 +205,14 @@ function RoomActionModal({
             animationType="slide"
             onRequestClose={onClose}
         >
-            <Pressable
-                onPress={onClose}
-                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}
+            <KeyboardAvoidingView 
+                style={{ flex: 1 }} 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
+                <Pressable
+                    onPress={onClose}
+                    style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}
+                >
                 <Pressable
                     onPress={() => { }} // Prevenir que el toque cierre el modal
                     style={{
@@ -175,6 +274,12 @@ function RoomActionModal({
                                 <X size={18} color={isDark ? '#71717a' : '#a1a1aa'} />
                             </TouchableOpacity>
                         </View>
+                        {isOffline && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ef4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginTop: 12 }}>
+                                <WifiOff size={14} color="#ffffff" />
+                                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>Modo Sin Conexión - Cambios en cola</Text>
+                            </View>
+                        )}
                     </View>
 
                     {/* Aviso de ocupada */}
@@ -222,6 +327,40 @@ function RoomActionModal({
                                             fontSize: 16,
                                         }}
                                     />
+                                    
+                                    {/* Evidencia Fotográfica */}
+                                    <View style={{ marginTop: 8 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '600', color: isDark ? '#a1a1aa' : '#71717a', marginBottom: 8 }}>Evidencia Fotográfica (Opcional)</Text>
+                                        {maintenanceImage ? (
+                                            <View style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', height: 120, width: '100%' }}>
+                                                <Image source={{ uri: maintenanceImage }} style={{ width: '100%', height: '100%' }} />
+                                                <TouchableOpacity
+                                                    onPress={() => setMaintenanceImage(null)}
+                                                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, borderRadius: 20 }}
+                                                >
+                                                    <Trash2 size={16} color="#ffffff" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity
+                                                onPress={handleTakePhoto}
+                                                style={{
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    backgroundColor: isDark ? '#27272a' : '#f4f4f5',
+                                                    padding: 16,
+                                                    borderRadius: 12,
+                                                    borderWidth: 1,
+                                                    borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+                                                    borderStyle: 'dashed'
+                                                }}
+                                            >
+                                                <Camera size={20} color={isDark ? '#a1a1aa' : '#71717a'} />
+                                                <Text style={{ color: isDark ? '#a1a1aa' : '#71717a', fontWeight: '600', marginLeft: 8 }}>Tomar Foto</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
                                         <TouchableOpacity
                                             onPress={() => {
@@ -242,21 +381,19 @@ function RoomActionModal({
                                             <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#ffffff' : '#18181b' }}>{room.status === 'BLOQUEADA' ? 'Cerrar' : 'Cancelar'}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            disabled={!maintenanceNote.trim() || (room.status === 'BLOQUEADA' && maintenanceNote === room.notes)}
-                                            onPress={() => {
-                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                                                onUpdateStatus(room.id, 'BLOQUEADA', maintenanceNote);
-                                                onClose();
-                                            }}
+                                            disabled={isUploading || (!maintenanceNote.trim() || (room.status === 'BLOQUEADA' && maintenanceNote === room.notes && maintenanceImage === room.maintenance_image_url))}
+                                            onPress={handleSave}
                                             style={{
                                                 flex: 1,
                                                 padding: 16,
                                                 borderRadius: 16,
-                                                backgroundColor: (!maintenanceNote.trim() || (room.status === 'BLOQUEADA' && maintenanceNote === room.notes)) ? (isDark ? '#52525b' : '#a1a1aa') : '#71717a',
+                                                backgroundColor: (isUploading || (!maintenanceNote.trim() || (room.status === 'BLOQUEADA' && maintenanceNote === room.notes && maintenanceImage === room.maintenance_image_url))) ? (isDark ? '#52525b' : '#a1a1aa') : '#71717a',
                                                 alignItems: 'center',
                                             }}
                                         >
-                                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#ffffff' }}>{room.status === 'BLOQUEADA' ? 'Actualizar Nota' : 'Guardar'}</Text>
+                                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#ffffff' }}>
+                                                {isUploading ? 'Guardando...' : (room.status === 'BLOQUEADA' ? 'Actualizar' : 'Guardar')}
+                                            </Text>
                                         </TouchableOpacity>
                                     </View>
 
@@ -377,6 +514,7 @@ function RoomActionModal({
                     )}
                 </Pressable>
             </Pressable>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }
@@ -403,6 +541,15 @@ function getStatusStyle(status: CamaristaRoomStatus, isDark: boolean) {
                 numberColor: isDark ? '#fff7ed' : '#431407',
                 icon: <Droplets size={16} color={isDark ? '#fb923c' : '#c2410c'} />,
                 label: 'SUCIA',
+            };
+        case 'LIMPIANDO':
+            return {
+                bg: isDark ? '#164e63' : '#ecfeff',
+                border: isDark ? '#0891b2' : '#67e8f9',
+                textColor: isDark ? '#22d3ee' : '#0891b2',
+                numberColor: isDark ? '#ecfeff' : '#164e63',
+                icon: <Sparkles size={16} color={isDark ? '#22d3ee' : '#0891b2'} />,
+                label: 'LIMPIANDO',
             };
         case 'BLOQUEADA':
             return {
@@ -442,6 +589,8 @@ export default function CamaristaPanel() {
     const [rooms, setRooms] = useState<Room[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [isOffline, setIsOffline] = useState(false);
+    const channelRef = useRef<any>(null);
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
 
@@ -474,15 +623,35 @@ export default function CamaristaPanel() {
     useEffect(() => { fetchRoomsRef.current = fetchRooms; }, [fetchRooms]);
 
     useEffect(() => {
+        // Escuchar cambios de red para el modo offline
+        const unsubscribeNetInfo = NetInfo.addEventListener(state => {
+            const offline = !(state.isConnected && state.isInternetReachable !== false);
+            setIsOffline(offline);
+            
+            // Si vuelve la conexión, sincronizar cola y recargar
+            if (!offline) {
+                syncOfflineQueue().then(syncedCount => {
+                    if (syncedCount > 0) {
+                        fetchRoomsRef.current(true); // Refrescar para asegurar consistencia
+                    }
+                });
+            }
+        });
+
         fetchRoomsRef.current();
 
-        const channel = supabase.channel('camarista-rooms')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
-                fetchRoomsRef.current(true);
+        const channel = supabase.channel('public:rooms')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
+                if (!isOffline) {
+                    fetchRoomsRef.current(true);
+                }
             })
             .subscribe();
+            
+        channelRef.current = channel;
 
         return () => {
+            unsubscribeNetInfo();
             supabase.removeChannel(channel);
         };
     }, []);
@@ -490,19 +659,40 @@ export default function CamaristaPanel() {
     const onRefresh = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setRefreshing(true);
-        fetchRooms();
+        // Intentar sincronizar antes de recargar si parece que tenemos red
+        syncOfflineQueue().then(() => fetchRooms());
     };
 
-    const updateRoomStatus = async (roomId: string, newStatus: string, notes: string | null = null) => {
+    const updateRoomStatus = async (roomId: string, newStatus: string, notes: string | null = null, maintenanceImageUrl: string | null = null) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         // Optimistic update
-        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: newStatus, notes: notes !== undefined ? notes : r.notes } : r));
+        setRooms(prev => prev.map(r => r.id === roomId ? { 
+            ...r, 
+            status: newStatus, 
+            notes: notes !== undefined ? notes : r.notes,
+            maintenance_image_url: maintenanceImageUrl !== undefined ? maintenanceImageUrl : r.maintenance_image_url
+        } : r));
 
         try {
+            const netInfo = await NetInfo.fetch();
+            const isCurrentlyOffline = !(netInfo.isConnected && netInfo.isInternetReachable !== false);
+
+            if (isCurrentlyOffline) {
+                console.log('[Offline] Guardando acción en cola...');
+                await addOfflineAction({
+                    type: 'UPDATE_ROOM_STATUS',
+                    payload: { roomId, newStatus, notes, maintenanceImageUrl } as any
+                });
+                return; // Salir sin hacer la llamada a Supabase
+            }
+
             const updatePayload: any = { status: newStatus };
             if (notes !== undefined) {
                 updatePayload.notes = notes;
+            }
+            if (maintenanceImageUrl !== undefined) {
+                updatePayload.maintenance_image_url = maintenanceImageUrl;
             }
 
             const { error } = await supabase
@@ -629,6 +819,7 @@ export default function CamaristaPanel() {
                 onClose={() => setModalVisible(false)}
                 onUpdateStatus={updateRoomStatus}
                 isDark={isDark}
+                isOffline={isOffline}
             />
         </View>
     );

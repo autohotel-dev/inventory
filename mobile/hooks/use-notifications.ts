@@ -83,7 +83,7 @@ Notifications.setNotificationHandler({
 
 export interface NotificationData {
     type?: 'VEHICLE_REQUEST' | 'NEW_CONSUMPTION' | 'NEW_ENTRY' | 'CHECKOUT_REQUEST' | 'GENERAL' | 'REGULAR_CONSUMPTION' | 'NEW_EXTRA'
-    | 'ROOM_CHANGE' | 'DAMAGE_REPORT' | 'PROMO_4H';
+    | 'ROOM_CHANGE' | 'DAMAGE_REPORT' | 'PROMO_4H' | 'ROOM_DIRTY';
     roomNumber?: string;
     stayId?: string;
     consumptionId?: string;
@@ -382,6 +382,12 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
                 stayId: data.stayId,
                 salesOrderId: data.salesOrderId
             }
+        });
+    } else if (data.type === 'ROOM_DIRTY') {
+        // Redirigir al panel de limpieza
+        router.push({
+            pathname: '/(tabs)/camarista',
+            params: { roomNumber: data.roomNumber }
         });
     }
 }

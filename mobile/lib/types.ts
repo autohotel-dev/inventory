@@ -60,6 +60,7 @@ export interface Room {
     number: string;
     status: string;
     notes?: string | null;
+    maintenance_image_url?: string | null;
     room_type_id: string;
     room_types: RoomType;
     room_stays: RoomStay[]; // Usually fetched with !inner for active stays
