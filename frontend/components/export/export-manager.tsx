@@ -180,11 +180,22 @@ export function ExportManager() {
             return sum + (stock * p.price);
           }, 0) || 0;
 
-          const movementsByType = {
-            IN: analyticsMovements?.filter((m: any) => m.movement_type === 'IN').length || 0,
-            OUT: analyticsMovements?.filter((m: any) => m.movement_type === 'OUT').length || 0,
-            ADJUSTMENT: analyticsMovements?.filter((m: any) => m.movement_type === 'ADJUSTMENT').length || 0
-          };
+          // ⚡ Bolt Optimization: Consolidate multiple .filter().length iterations into a single .reduce() pass
+          // Reduces O(3n) passes to O(n) for movements
+          const movementsByType = (analyticsMovements || []).reduce((acc: { IN: number, OUT: number, ADJUSTMENT: number }, m: any) => {
+            if (m.movement_type === 'IN') acc.IN++;
+            else if (m.movement_type === 'OUT') acc.OUT++;
+            else if (m.movement_type === 'ADJUSTMENT') acc.ADJUSTMENT++;
+            return acc;
+          }, { IN: 0, OUT: 0, ADJUSTMENT: 0 });
+
+          // ⚡ Bolt Optimization: Consolidate active/inactive product iterations into a single .reduce() pass
+          // Reduces O(2n) passes to O(n) for products
+          const productsStatus = (analyticsProducts || []).reduce((acc: { active: number, inactive: number }, p: any) => {
+            if (p.is_active) acc.active++;
+            else acc.inactive++;
+            return acc;
+          }, { active: 0, inactive: 0 });
 
           data = [{
             'Fecha Reporte': new Date().toLocaleDateString(),
@@ -194,8 +205,8 @@ export function ExportManager() {
             'Entradas (30 días)': movementsByType.IN,
             'Salidas (30 días)': movementsByType.OUT,
             'Ajustes (30 días)': movementsByType.ADJUSTMENT,
-            'Productos Activos': analyticsProducts?.filter((p: any) => p.is_active).length || 0,
-            'Productos Inactivos': analyticsProducts?.filter((p: any) => !p.is_active).length || 0
+            'Productos Activos': productsStatus.active,
+            'Productos Inactivos': productsStatus.inactive
           }];
           filename = `reporte_analytics_${new Date().toISOString().split('T')[0]}`;
           break;
