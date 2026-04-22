@@ -1074,8 +1074,6 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
 
         // Si no es cortesía, siempre crear un pago PENDIENTE para que el cochero lo cobre
         if (!isCourtesy && totalPrice > 0) {
-        if (!isCourtesy && totalPrice > 0) {
-          
           await supabase.from("payments").insert({
             sales_order_id: activeStay.sales_order_id,
             amount: totalPrice,

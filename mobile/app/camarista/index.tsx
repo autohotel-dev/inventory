@@ -164,7 +164,7 @@ function RoomActionModal({
             bg: '#10b981',
             activeBg: '#059669',
             description: 'La habitación está lista para recibir huéspedes',
-            showIf: ['LIMPIANDO']
+            showIf: ['LIMPIANDO', 'BLOQUEADA']
         },
         {
             label: 'Iniciar Limpieza',
@@ -182,7 +182,7 @@ function RoomActionModal({
             bg: '#f97316',
             activeBg: '#ea580c',
             description: 'La habitación necesita limpieza',
-            showIf: ['LIBRE']
+            showIf: ['LIBRE', 'BLOQUEADA']
         },
         {
             label: 'Reportar Mantenimiento',

@@ -768,8 +768,9 @@ export function AddConsumptionModal({
         return;
       }
 
-      // Insertar items en sales_order_items (con precios ajustados por promo)
       // Get the active shift session ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { data: activeSession } = await supabase
         .from('shift_sessions')
         .select('id')
@@ -801,7 +802,6 @@ export function AddConsumptionModal({
       if (itemsError) throw itemsError;
 
       // Crear movimientos de inventario
-      const { data: { user } } = await supabase.auth.getUser();
       const movements = Array.from(cartItems.values()).map(({ product, qty }) => ({
         product_id: product.id,
         warehouse_id: orderInfo.warehouse_id,
