@@ -1,7 +1,8 @@
 import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter, useSegments } from 'expo-router';
+import { useUserRole } from '../hooks/use-user-role';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
 import { ThemeProvider, useTheme } from '../contexts/theme-context';
@@ -10,85 +11,52 @@ import { InAppNotificationProvider } from '../contexts/in-app-notification-conte
 import { useNotifications } from '../hooks/use-notifications';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
-// import * as Sentry from 'sentry-expo';
 import "../global.css";
-
-// Optional: Initialize Sentry if DSN is provided
-// if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-//     Sentry.init({
-//         dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-//         enableInExpoDevelopment: true,
-//         debug: false,
-//     });
-// }
 
 function RootLayoutNav() {
     const segments = useSegments();
     const router = useRouter();
     const { isDark } = useTheme();
-    const [employeeId, setEmployeeId] = useState<string | null>(null);
+    const { role, employeeId, isLoading: roleLoading } = useUserRole();
 
     // Inicializar notificaciones push
     useNotifications(employeeId);
 
-    // 1. Manejo de sesión y navegación
+    // === NAVEGACIÓN BASADA EN ROL ===
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            console.log("Auth Event:", event, "Session exists:", !!session);
-            handleNavigation(session);
-        });
+        if (roleLoading) return;
 
-        // Check initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
-            handleNavigation(session);
-        });
-
-        function handleNavigation(session: any) {
-            const firstSegment = segments[0];
-            const isAtLogin = firstSegment === 'login';
-            const inTabs = firstSegment === '(tabs)';
-            const isAtRoot = !firstSegment || firstSegment === '';
+            const seg = segments[0];
 
             if (!session) {
-                if (!isAtLogin) {
+                if (seg !== 'login') {
                     router.replace('/login');
                 }
-            } else if (isAtLogin || isAtRoot) {
-                router.replace('/(tabs)');
+                return;
             }
-        }
 
-        return () => subscription.unsubscribe();
-    }, [segments]);
-
-    // 2. Carga de datos del empleado (separado para no interferir con la navegación)
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user?.id) fetchEmployeeId(user.id);
+            // Hay sesión activa — redirigir según rol
+            if (role === 'camarista') {
+                if (seg !== 'camarista') {
+                    router.replace('/camarista');
+                }
+            } else if (role) {
+                if (seg === 'login' || !seg || seg === '' || seg === 'camarista') {
+                    router.replace('/(tabs)');
+                }
+            }
         });
 
+        // Escuchar cambios de auth (login/logout)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user?.id) {
-                fetchEmployeeId(session.user.id);
-            } else {
-                setEmployeeId(null);
+            if (!session) {
+                router.replace('/login');
             }
         });
 
-        async function fetchEmployeeId(userId: string) {
-            const { data } = await supabase
-                .from('employees')
-                .select('id')
-                .eq('auth_user_id', userId)
-                .maybeSingle();
-
-            if (data?.id && data.id !== employeeId) {
-                setEmployeeId(data.id);
-            }
-        }
-
         return () => subscription.unsubscribe();
-    }, []);
+    }, [role, roleLoading, segments]);
 
     return (
         <View className="flex-1" style={{ backgroundColor: isDark ? '#09090b' : '#fafafa' }}>
@@ -96,8 +64,10 @@ function RootLayoutNav() {
                 headerShown: false,
                 contentStyle: { backgroundColor: isDark ? '#09090b' : '#fafafa' }
             }}>
+                <Stack.Screen name="index" options={{ title: 'Inicio' }} />
                 <Stack.Screen name="login" options={{ title: 'Iniciar Sesión' }} />
                 <Stack.Screen name="(tabs)" options={{ title: 'Panel Cocheros' }} />
+                <Stack.Screen name="camarista" options={{ title: 'Panel Camarista' }} />
             </Stack>
         </View>
     );

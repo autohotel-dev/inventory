@@ -25,6 +25,7 @@ export function useUserRole(): UserRoleData {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserRole = useCallback(async () => {
+    setIsLoading(true); // CRITICAL: signal consumers to wait for fresh data
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 

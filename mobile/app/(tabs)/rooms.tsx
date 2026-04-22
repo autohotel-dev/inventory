@@ -26,6 +26,11 @@ import { VerifyExtraModal } from '../../components/rooms/modals/VerifyExtraModal
 import { VerifyRoomChangeModal } from '../../components/rooms/modals/VerifyRoomChangeModal';
 import { CheckoutModal } from '../../components/rooms/modals/CheckoutModal';
 
+export const VALID_COCHERO_CONCEPTS = [
+    'EXTRA_PERSON', 'EXTRA_HOUR', 'RENEWAL', 'PROMO_4H', 
+    'CONSUMPTION', 'DAMAGE_CHARGE', 'Minibar', 'Cafeteria', 'Cocina'
+];
+
 export default function RoomsScreen() {
     const { employeeId, hasActiveShift, isLoading: roleLoading } = useUserRole();
     const { isDark } = useTheme();
@@ -532,23 +537,61 @@ export default function RoomsScreen() {
         if (success) setShowCheckoutModal(false);
     };
 
-    // Ordenar: urgentes primero, luego entradas sin vehículo, luego normales
+    // Ordenar: urgentes primero, luego servicios pendientes, luego entradas sin vehículo, luego normales
     const sortedRooms = useMemo(() => {
         return [...rooms].sort((a, b) => {
             const stayA = a.room_stays?.find((s: any) => s.status === 'ACTIVA');
             const stayB = b.room_stays?.find((s: any) => s.status === 'ACTIVA');
             if (!stayA || !stayB) return 0;
 
+            // 1. Urgentes (Entregar Auto)
             const urgentA = (stayA.vehicle_requested_at || stayA.valet_checkout_requested_at) && !stayA.checkout_valet_employee_id ? 1 : 0;
             const urgentB = (stayB.vehicle_requested_at || stayB.valet_checkout_requested_at) && !stayB.checkout_valet_employee_id ? 1 : 0;
             if (urgentA !== urgentB) return urgentB - urgentA; // urgentes primero
 
+            // 2. Servicios Pendientes
+            const ordersA: SalesOrder[] = Array.isArray(stayA.sales_orders) ? stayA.sales_orders : (stayA.sales_orders ? [stayA.sales_orders] : []);
+            const allItemsA = ordersA.flatMap(o => o.sales_order_items || []);
+            const pendingA = allItemsA.some(item => 
+                VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
+                (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
+            ) ? 1 : 0;
+
+            const ordersB: SalesOrder[] = Array.isArray(stayB.sales_orders) ? stayB.sales_orders : (stayB.sales_orders ? [stayB.sales_orders] : []);
+            const allItemsB = ordersB.flatMap(o => o.sales_order_items || []);
+            const pendingB = allItemsB.some(item => 
+                VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
+                (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
+            ) ? 1 : 0;
+
+            if (pendingA !== pendingB) return pendingB - pendingA; // pendientes primero
+
+            // 3. Entradas (sin vehículo)
             const entryA = !stayA.vehicle_plate ? 1 : 0;
             const entryB = !stayB.vehicle_plate ? 1 : 0;
             if (entryA !== entryB) return entryB - entryA; // entradas después
 
-            return Number(a.number || 0) - Number(b.number || 0); // por número
+            // 4. Por número
+            return Number(a.number || 0) - Number(b.number || 0);
         });
+    }, [rooms]);
+
+    // Calcular total de servicios pendientes de forma global
+    const totalPendingServices = useMemo(() => {
+        let total = 0;
+        rooms.forEach(r => {
+            const stay = r.room_stays?.find((s: any) => s.status === 'ACTIVA');
+            if (stay) {
+                const orders: SalesOrder[] = Array.isArray(stay.sales_orders) ? stay.sales_orders : (stay.sales_orders ? [stay.sales_orders] : []);
+                const allItems = orders.flatMap(o => o.sales_order_items || []);
+                const pending = allItems.filter(item => 
+                    VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
+                    (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
+                );
+                total += pending.length;
+            }
+        });
+        return total;
     }, [rooms]);
 
     const renderRoom = useCallback(({ item: room }: { item: Room }) => {
@@ -567,7 +610,7 @@ export default function RoomsScreen() {
         }
 
         const pendingExtras = allOrderItems.filter(item =>
-            (item.concept_type === 'EXTRA_PERSON' || item.concept_type === 'EXTRA_HOUR' || item.concept_type === 'RENEWAL' || item.concept_type === 'PROMO_4H') &&
+            VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
             (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
         );
 
@@ -671,6 +714,16 @@ export default function RoomsScreen() {
                 <View className={`px-4 py-3 flex-row items-center ${isDark ? 'bg-red-950/30 border-b border-red-800/30' : 'bg-red-50 border-b border-red-100'}`}>
                     <AlertTriangle color="#ef4444" size={16} />
                     <Text className={`font-black uppercase tracking-[0.15em] text-[10px] ml-2 text-red-500`}>Hay habitaciones urgentes — aparecen primero</Text>
+                </View>
+            )}
+
+            {/* Banner de servicios pendientes */}
+            {totalPendingServices > 0 && (
+                <View className={`px-4 py-3 flex-row items-center ${isDark ? 'bg-orange-950/40 border-b border-orange-800/40' : 'bg-orange-50 border-b border-orange-200'}`}>
+                    <Zap color={isDark ? "#f97316" : "#ea580c"} size={16} />
+                    <Text className={`font-black uppercase tracking-[0.15em] text-[10px] ml-2 ${isDark ? 'text-orange-500' : 'text-orange-700'}`}>
+                        Tienes {totalPendingServices} servicio{totalPendingServices !== 1 ? 's' : ''} pendiente{totalPendingServices !== 1 ? 's' : ''} por atender
+                    </Text>
                 </View>
             )}
 

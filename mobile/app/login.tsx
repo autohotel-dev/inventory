@@ -90,7 +90,7 @@ export default function LoginScreen() {
                     await SecureStore.setItemAsync('luxor_valet_password', authPwd);
                     setHasCredentials(true);
                 }
-                router.replace('/(tabs)');
+                // Delegamos la navegación al RootLayoutNav que checa el role.
             }
         } catch (err: any) {
             showFeedback('Error', 'Ocurrió un error inesperado al intentar entrar.', 'error');

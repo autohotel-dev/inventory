@@ -73,7 +73,9 @@ export const RoomCard = memo(({
         <View
             className={`m-2 p-5 rounded-2xl border-2 shadow-sm ${isUrgent
                 ? 'bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/50'
-                : 'bg-white border-zinc-100 dark:bg-zinc-900 dark:border-zinc-800'
+                : showAcceptButton || showVerifyButton
+                    ? 'bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800/50'
+                    : 'bg-white border-zinc-100 dark:bg-zinc-900 dark:border-zinc-800'
                 }`}>
             <View className="flex-row justify-between items-center mb-5">
                 <View>
@@ -124,7 +126,7 @@ export const RoomCard = memo(({
                 >
                     <CheckCircle2 color="white" size={20} strokeWidth={3} />
                     <Text className="font-black uppercase tracking-widest text-xs ml-2 text-white">
-                        Aceptar Solicitud ({pendingAcceptanceExtras.length})
+                        Atender Servicio(s) ({pendingAcceptanceExtras.length})
                     </Text>
                 </TouchableOpacity>
             )}
@@ -137,7 +139,7 @@ export const RoomCard = memo(({
                 >
                     <AlertTriangle color="white" size={20} strokeWidth={3} />
                     <Text className="font-black uppercase tracking-widest text-xs ml-2 text-white">
-                        Verificar Extra ({acceptedExtras.length})
+                        Completar Servicio(s) ({acceptedExtras.length})
                     </Text>
                 </TouchableOpacity>
             )}

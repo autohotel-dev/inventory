@@ -1,14 +1,24 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Home, LayoutDashboard, UserCircle, ShoppingBag } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
 import { supabase } from '../../lib/supabase';
 import { SyncQueue } from '../../lib/sync-queue';
+import { useUserRole } from '../../hooks/use-user-role';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
     const [pendingServiceCount, setPendingServiceCount] = useState(0);
     const [pendingEntryCount, setPendingEntryCount] = useState(0);
+    const { role } = useUserRole();
+    const router = useRouter();
+
+    // Redirección de seguridad (Race-condition breaker)
+    useEffect(() => {
+        if (role === 'camarista') {
+            router.replace('/camarista');
+        }
+    }, [role]);
 
     // Conteo liviano de servicios pendientes para el badge del tab
     const fetchPendingCount = useCallback(async () => {
