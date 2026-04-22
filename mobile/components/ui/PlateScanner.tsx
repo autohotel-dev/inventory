@@ -22,7 +22,14 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
     const [facing, setFacing] = useState<CameraType>('back');
     const [isProcessing, setIsProcessing] = useState(false);
     const [statusText, setStatusText] = useState('');
+    const [zoomIndex, setZoomIndex] = useState(0);
+    const zoomLevels = [0, 0.03, 0.08];
+    const zoomLabels = ['1x', '2x', '3x'];
     const cameraRef = useRef<CameraView>(null);
+
+    const toggleZoom = () => {
+        setZoomIndex((prev) => (prev + 1) % zoomLevels.length);
+    };
 
     const processImageOCR = async (base64String: string) => {
         setIsProcessing(true);
@@ -138,6 +145,7 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                 ref={cameraRef} 
                 style={styles.camera} 
                 facing={facing}
+                zoom={zoomLevels[zoomIndex]}
             >
                 <View style={styles.overlay}>
                     {/* Header bar */}
@@ -177,11 +185,17 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                                 <Text style={styles.processingText}>Procesando con IA...</Text>
                             </View>
                         ) : (
-                            <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
-                                <View style={styles.captureInnerCircle}>
-                                    <CameraIcon color="#000" size={32} />
-                                </View>
-                            </TouchableOpacity>
+                            <View style={styles.captureContainer}>
+                                <View style={styles.zoomButtonSpacer} />
+                                <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
+                                    <View style={styles.captureInnerCircle}>
+                                        <CameraIcon color="#000" size={32} />
+                                    </View>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={toggleZoom} style={styles.zoomButton}>
+                                    <Text style={styles.zoomButtonText}>{zoomLabels[zoomIndex]}</Text>
+                                </TouchableOpacity>
+                            </View>
                         )}
                     </View>
                 </View>
@@ -298,6 +312,32 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         textTransform: 'uppercase',
         letterSpacing: 1,
+    },
+    captureContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+    },
+    zoomButtonSpacer: {
+        width: 50,
+        marginRight: 30,
+    },
+    zoomButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 30,
+    },
+    zoomButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
     captureButton: {
         width: 80,

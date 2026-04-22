@@ -26,10 +26,10 @@ BEGIN
   SELECT 
     e.id AS employee_id,
     e.first_name || ' ' || e.last_name AS employee_name,
-    COUNT(rs.id) FILTER (WHERE rs.check_in_at IS NOT NULL) AS total_checkins,
+    COUNT(rs.id) FILTER (WHERE rs.check_in_at IS NOT NULL)::INTEGER AS total_checkins,
     -- Entry time: from vehicle requested (or creation) to check-in
     ROUND(AVG(EXTRACT(EPOCH FROM (rs.check_in_at - COALESCE(rs.vehicle_requested_at, rs.created_at)))/60)::numeric, 2) AS avg_checkin_time_minutes,
-    COUNT(rs.id) FILTER (WHERE rs.actual_check_out_at IS NOT NULL AND rs.checkout_valet_employee_id = e.id) AS total_checkouts,
+    COUNT(rs.id) FILTER (WHERE rs.actual_check_out_at IS NOT NULL AND rs.checkout_valet_employee_id = e.id)::INTEGER AS total_checkouts,
     -- Exit time: from valet requested to actual checkout
     ROUND(AVG(EXTRACT(EPOCH FROM (rs.actual_check_out_at - rs.valet_checkout_requested_at))/60)::numeric, 2) AS avg_checkout_time_minutes,
     -- Simulating services count from employee movements (extra persons, extra hours, etc.)

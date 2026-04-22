@@ -94,6 +94,15 @@ RESPONDE SOLO con este JSON (sin markdown, sin explicación):
                     temperature: 0.1,
                     maxOutputTokens: 256,
                     responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            plate: { type: "STRING" },
+                            brand: { type: "STRING" },
+                            model: { type: "STRING" }
+                        },
+                        required: ["plate", "brand", "model"]
+                    }
                 },
             }),
         });
