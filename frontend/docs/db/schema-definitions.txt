@@ -992,9 +992,11 @@ create table public.sales_order_items (
   cancellation_reason text null,
   issue_description text null,
   created_at timestamp with time zone null default now(),
+  shift_session_id uuid null,
   constraint sales_order_items_pkey primary key (id),
   constraint sales_order_items_product_id_fkey foreign KEY (product_id) references products (id) on delete RESTRICT,
   constraint sales_order_items_sales_order_id_fkey foreign KEY (sales_order_id) references sales_orders (id) on delete CASCADE,
+  constraint sales_order_items_shift_session_id_fkey foreign KEY (shift_session_id) references shift_sessions (id) on delete SET NULL,
   constraint sales_order_items_delivery_accepted_by_fkey foreign KEY (delivery_accepted_by) references employees (id),
   constraint sales_order_items_delivery_picked_up_by_fkey foreign KEY (delivery_picked_up_by) references employees (id),
   constraint sales_order_items_payment_received_by_fkey foreign KEY (payment_received_by) references employees (id),
@@ -1056,6 +1058,8 @@ create table public.sales_order_items (
 create index IF not exists idx_sales_order_items_is_paid on public.sales_order_items using btree (is_paid) TABLESPACE pg_default;
 
 create index IF not exists idx_sales_order_items_concept_type on public.sales_order_items using btree (concept_type) TABLESPACE pg_default;
+
+create index IF not exists idx_sales_order_items_shift_session on public.sales_order_items using btree (shift_session_id) TABLESPACE pg_default;
 
 create index IF not exists idx_sales_order_items_pending_delivery on public.sales_order_items using btree (delivery_accepted_by) TABLESPACE pg_default
 where

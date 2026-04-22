@@ -125,7 +125,8 @@ export async function createDamageItem(
     salesOrderId: string,
     amount: number,
     description: string,
-    qty: number = 1
+    qty: number = 1,
+    shiftSessionId: string | null = null
 ): Promise<Result<boolean>> {
     const supabase = createClient();
 
@@ -153,7 +154,8 @@ export async function createDamageItem(
             concept_type: "DAMAGE_CHARGE",
             is_paid: false,
             courtesy_reason: description,
-            is_courtesy: false
+            is_courtesy: false,
+            shift_session_id: shiftSessionId
         }).select("id").single();
 
         if (error || !data) {
@@ -182,7 +184,8 @@ export async function createServiceItem(
     conceptType: string,
     qty: number = 1,
     isCourtesy: boolean = false,
-    courtesyReason: string = ""
+    courtesyReason: string = "",
+    shiftSessionId: string | null = null
 ): Promise<Result<string>> {
     const supabase = createClient();
 
@@ -206,7 +209,8 @@ export async function createServiceItem(
             is_courtesy: isCourtesy,
             courtesy_reason: isCourtesy ? courtesyReason : null,
             payment_method: isCourtesy ? 'CORTESIA' : null,
-            delivery_status: 'PENDING_VALET'
+            delivery_status: 'PENDING_VALET',
+            shift_session_id: shiftSessionId
         }).select("id").single();
 
         if (error || !data) {

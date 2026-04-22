@@ -583,12 +583,16 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               return;
             }
 
+            const currentShiftId = await getReceptionShiftId(supabase);
             // Crear item de servicio para el cobro
             const itemResult = await createServiceItem(
               activeStay.sales_order_id,
               extraPrice,
               "EXTRA_PERSON",
-              1
+              1,
+              false,
+              "",
+              currentShiftId
             );
 
             if (!itemResult.success) {
@@ -606,7 +610,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
               concept: "PERSONA_EXTRA",
               status: "PENDIENTE",
               payment_type: "COMPLETO",
-              shift_session_id: await getReceptionShiftId(supabase),
+              shift_session_id: currentShiftId,
             });
 
             if (paymentError) {
@@ -946,11 +950,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     const supabase = createClient();
 
     try {
+      const currentShiftId = await getReceptionShiftId(supabase);
       // 1. Crear item de daño
       const itemResult = await createDamageItem(
         activeStay.sales_order_id,
         amount,
-        description
+        description,
+        1,
+        currentShiftId
       );
 
       if (!itemResult.success) {
@@ -975,7 +982,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         concept: "DAMAGE_CHARGE",
         status: "PENDIENTE",
         payment_type: "COMPLETO",
-        shift_session_id: await getReceptionShiftId(supabase),
+        shift_session_id: currentShiftId,
         notes: description
       });
 
@@ -1049,6 +1056,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         return;
       }
 
+        const currentShiftId = await getReceptionShiftId(supabase);
         // Crear items de servicio para cada hora
         let lastItemId = "";
         for (let i = 0; i < hours; i++) {
@@ -1058,14 +1066,15 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
             "EXTRA_HOUR",
             1,
             isCourtesy,
-            courtesyReason
+            courtesyReason,
+            currentShiftId
           );
           if (itemRes.success) lastItemId = itemRes.data;
         }
 
         // Si no es cortesía, siempre crear un pago PENDIENTE para que el cochero lo cobre
         if (!isCourtesy && totalPrice > 0) {
-          const currentShiftId = await getReceptionShiftId(supabase);
+        if (!isCourtesy && totalPrice > 0) {
           
           await supabase.from("payments").insert({
             sales_order_id: activeStay.sales_order_id,
@@ -1166,16 +1175,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         return;
       }
 
+        const currentShiftId = await getReceptionShiftId(supabase);
         const itemRes = await createServiceItem(
           activeStay.sales_order_id,
           basePrice,
           "RENEWAL",
-          1
+          1,
+          false,
+          "",
+          currentShiftId
         );
         const consumptionId = itemRes.success ? itemRes.data : undefined;
 
         // Siempre crear un pago PENDIENTE para renovación
-        const currentShiftId = await getReceptionShiftId(supabase);
+        // Siempre crear un pago PENDIENTE para renovación
         
         await supabase.from("payments").insert({
           sales_order_id: activeStay.sales_order_id,
@@ -1309,16 +1322,20 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
         return;
       }
 
+        const currentShiftId = await getReceptionShiftId(supabase);
         const itemRes = await createServiceItem(
           activeStay.sales_order_id,
           promoPrice,
           "PROMO_4H",
-          1
+          1,
+          false,
+          "",
+          currentShiftId
         );
         const consumptionId = itemRes.success ? itemRes.data : undefined;
 
         // Siempre crear un pago PENDIENTE para la promoción
-        const currentShiftId = await getReceptionShiftId(supabase);
+        // Siempre crear un pago PENDIENTE para la promoción
         
         await supabase.from("payments").insert({
           sales_order_id: activeStay.sales_order_id,

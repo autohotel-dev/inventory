@@ -265,12 +265,11 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
       const totalExpenses = expenses?.reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
       const total_sales = total_cash + total_card_bbva + total_card_getnet;
 
-      // Accrual
+      // Accrual (usando el turno explícito)
       const { data: accrualItemsData } = await supabase
         .from("sales_order_items")
         .select(`*, products(name, sku), sales_orders(id, room_stays(rooms(number)))`)
-        .gte("created_at", session.clock_in_at)
-        .lte("created_at", periodEnd);
+        .eq("shift_session_id", session.id);
 
       const accrual_items = accrualItemsData || [];
       const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);

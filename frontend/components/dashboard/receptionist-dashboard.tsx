@@ -406,9 +406,24 @@ export function ReceptionistDashboard() {
         .select("id", { count: "exact", head: true })
         .eq("status", "OCUPADA");
 
+      // Obtener desglose por concepto de items en este turno (usando shift_session_id)
+      let itemsQuery = supabase
+        .from("sales_order_items")
+        .select("concept_type, total, is_paid");
+        
+      if (activeSession) {
+        itemsQuery = itemsQuery.eq("shift_session_id", activeSession.id);
+      } else {
+        itemsQuery = itemsQuery.gte("created_at", startDate);
+      }
+      
+      const { data: shiftItems } = await itemsQuery;
+
       // Calcular totales
-      const totalSales = sales?.length || 0;
-      const totalAmount = sales?.reduce((sum: number, s: any) => sum + (s.total || 0), 0) || 0;
+      const totalSales = sales?.length || 0; // Se mantiene para conteo de órdenes/estancias
+      
+      // El totalAmount ahora se calcula sumando todos los items del turno actual
+      const totalAmount = shiftItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
 
       let cashAmount = 0;
       let cardBBVA = 0;
@@ -423,23 +438,17 @@ export function ReceptionistDashboard() {
           } else if (p.terminal_code === "GETNET") {
             cardGetnet += p.amount || 0;
           } else {
-            // Fallback para tarjetas antiguas o sin terminal especificada (asumir BBVA por defecto o dividir?)
-            // Por ahora lo mandamos a BBVA si no hay info, o podríamos crear categoría 'Otros'
             cardBBVA += p.amount || 0;
           }
         } else if (p.payment_method === "TARJETA_BBVA") {
-          // Compatibilidad legacy si existiera
           cardBBVA += p.amount || 0;
         } else if (p.payment_method === "TARJETA_GETNET") {
-          // Compatibilidad legacy si existiera
           cardGetnet += p.amount || 0;
         }
       });
 
       const completedCheckouts = sales?.filter((s: any) => s.status === "COMPLETED" || s.status === "ENDED").length || 0;
 
-      // Obtener desglose por concepto de items pagados
-      const salesIds = sales?.map((s: any) => s.id) || [];
       const conceptBreakdown = {
         ROOM_BASE: 0,
         EXTRA_HOUR: 0,
@@ -448,20 +457,15 @@ export function ReceptionistDashboard() {
         PRODUCT: 0,
       };
 
-      if (salesIds.length > 0) {
-        const { data: paidItems } = await supabase
-          .from("sales_order_items")
-          .select("concept_type, total")
-          .in("sales_order_id", salesIds)
-          .eq("is_paid", true);
-
-        paidItems?.forEach((item: any) => {
+      // Desglose de items que pertenecen a este turno y están pagados
+      shiftItems?.forEach((item: any) => {
+        if (item.is_paid) {
           const type = item.concept_type || "PRODUCT";
           if (type in conceptBreakdown) {
             conceptBreakdown[type as keyof typeof conceptBreakdown] += item.total || 0;
           }
-        });
-      }
+        }
+      });
 
       setSummary({
         totalSales,

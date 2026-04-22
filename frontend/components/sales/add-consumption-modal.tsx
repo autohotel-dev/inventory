@@ -769,6 +769,14 @@ export function AddConsumptionModal({
       }
 
       // Insertar items en sales_order_items (con precios ajustados por promo)
+      // Get the active shift session ID
+      const { data: activeSession } = await supabase
+        .from('shift_sessions')
+        .select('id')
+        .eq('employee_id', user?.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
       const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => {
         const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
         const effectiveUnitPrice = is_courtesy ? 0 : (qty > 0 ? total / qty : product.price);
@@ -781,7 +789,8 @@ export function AddConsumptionModal({
           is_paid: false,
           is_courtesy: is_courtesy || false,
           courtesy_reason: courtesy_reason || null,
-          delivery_status: 'PENDING_VALET'
+          delivery_status: 'PENDING_VALET',
+          shift_session_id: activeSession?.id || null
         };
       });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, RefreshControl, TouchableOpacity, Alert, ScrollView, Dimensions, Modal, Pressable } from 'react-native';
+import { View, Text, RefreshControl, TouchableOpacity, Alert, ScrollView, Dimensions, Modal, Pressable, TextInput } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../contexts/theme-context';
 import * as Haptics from 'expo-haptics';
@@ -48,19 +48,29 @@ function StatusSummary({ rooms, isDark }: { rooms: Room[]; isDark: boolean }) {
 // ==========================================
 // Componente: Modal de acciones de habitación
 // ==========================================
-function RoomActionModal({ 
-    room, 
-    visible, 
-    onClose, 
-    onUpdateStatus, 
-    isDark 
-}: { 
-    room: Room | null; 
-    visible: boolean; 
-    onClose: () => void; 
-    onUpdateStatus: (roomId: string, status: string) => void;
+function RoomActionModal({
+    room,
+    visible,
+    onClose,
+    onUpdateStatus,
+    isDark
+}: {
+    room: Room | null;
+    visible: boolean;
+    onClose: () => void;
+    onUpdateStatus: (roomId: string, status: string, notes?: string | null) => void;
     isDark: boolean;
 }) {
+    const [maintenanceNote, setMaintenanceNote] = useState('');
+    const [isReportingMaintenance, setIsReportingMaintenance] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setIsReportingMaintenance(false);
+            setMaintenanceNote(room?.notes || '');
+        }
+    }, [visible, room]);
+
     if (!room) return null;
 
     const isOccupied = room.status === 'OCUPADA';
@@ -100,12 +110,12 @@ function RoomActionModal({
             animationType="slide"
             onRequestClose={onClose}
         >
-            <Pressable 
+            <Pressable
                 onPress={onClose}
                 style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}
             >
-                <Pressable 
-                    onPress={() => {}} // Prevenir que el toque cierre el modal
+                <Pressable
+                    onPress={() => { }} // Prevenir que el toque cierre el modal
                     style={{
                         backgroundColor: isDark ? '#18181b' : '#ffffff',
                         borderTopLeftRadius: 28,
@@ -179,7 +189,7 @@ function RoomActionModal({
                             alignItems: 'center',
                             gap: 12,
                             borderWidth: 1,
-                            borderColor: isDark ? '#312e81' : '#c7d2fe',
+                            borderColor: isDark ? '#312e81' : '#415abfff',
                         }}>
                             <AlertTriangle size={22} color="#6366f1" />
                             <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: isDark ? '#a5b4fc' : '#4338ca', lineHeight: 18 }}>
@@ -191,67 +201,178 @@ function RoomActionModal({
                     {/* Botones de acción */}
                     {!isOccupied && (
                         <View style={{ paddingHorizontal: 24, gap: 10 }}>
-                            {actions.map(action => {
-                                const isCurrentStatus = room.status === action.status;
-
-                                return (
-                                    <TouchableOpacity
-                                        key={action.status}
-                                        activeOpacity={0.8}
-                                        disabled={isCurrentStatus}
-                                        onPress={() => {
-                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                                            onUpdateStatus(room.id, action.status);
-                                            onClose();
-                                        }}
+                            {isReportingMaintenance || (room.status === 'BLOQUEADA') ? (
+                                <View style={{ gap: 12 }}>
+                                    <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#e4e4e7' : '#3f3f46' }}>
+                                        Motivo del Bloqueo/Mantenimiento:
+                                    </Text>
+                                    <TextInput
+                                        value={maintenanceNote}
+                                        onChangeText={setMaintenanceNote}
+                                        placeholder="Ej. Fuga de agua, Pintura..."
+                                        placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                                        multiline
                                         style={{
-                                            flexDirection: 'row',
-                                            alignItems: 'center',
-                                            backgroundColor: isCurrentStatus 
-                                                ? (isDark ? '#27272a' : '#f4f4f5') 
-                                                : action.bg,
-                                            borderRadius: 20,
-                                            padding: 18,
-                                            gap: 14,
-                                            opacity: isCurrentStatus ? 0.5 : 1,
-                                        }}
-                                    >
-                                        <View style={{
-                                            width: 52,
-                                            height: 52,
+                                            backgroundColor: isDark ? '#27272a' : '#f4f4f5',
+                                            color: isDark ? '#ffffff' : '#000000',
                                             borderRadius: 16,
-                                            backgroundColor: isCurrentStatus 
-                                                ? (isDark ? '#3f3f46' : '#e4e4e7')
-                                                : 'rgba(255,255,255,0.2)',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                        }}>
-                                            {action.icon}
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={{
-                                                fontSize: 16,
-                                                fontWeight: '800',
-                                                color: isCurrentStatus 
-                                                    ? (isDark ? '#71717a' : '#a1a1aa')
-                                                    : '#ffffff',
-                                            }}>
-                                                {isCurrentStatus ? `✓ ${action.label}` : action.label}
+                                            padding: 16,
+                                            minHeight: 100,
+                                            textAlignVertical: 'top',
+                                            fontSize: 16,
+                                        }}
+                                    />
+                                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                if (room.status === 'BLOQUEADA') {
+                                                    onClose();
+                                                } else {
+                                                    setIsReportingMaintenance(false);
+                                                }
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: 16,
+                                                borderRadius: 16,
+                                                backgroundColor: isDark ? '#3f3f46' : '#e4e4e7',
+                                                alignItems: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#ffffff' : '#18181b' }}>{room.status === 'BLOQUEADA' ? 'Cerrar' : 'Cancelar'}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            disabled={!maintenanceNote.trim() || (room.status === 'BLOQUEADA' && maintenanceNote === room.notes)}
+                                            onPress={() => {
+                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                                                onUpdateStatus(room.id, 'BLOQUEADA', maintenanceNote);
+                                                onClose();
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: 16,
+                                                borderRadius: 16,
+                                                backgroundColor: (!maintenanceNote.trim() || (room.status === 'BLOQUEADA' && maintenanceNote === room.notes)) ? (isDark ? '#52525b' : '#a1a1aa') : '#71717a',
+                                                alignItems: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#ffffff' }}>{room.status === 'BLOQUEADA' ? 'Actualizar Nota' : 'Guardar'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {room.status === 'BLOQUEADA' && (
+                                        <View style={{ marginTop: 16, gap: 10 }}>
+                                            <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#e4e4e7' : '#3f3f46' }}>
+                                                Cambiar estado a:
                                             </Text>
-                                            <Text style={{
-                                                fontSize: 12,
-                                                fontWeight: '500',
-                                                color: isCurrentStatus 
-                                                    ? (isDark ? '#52525b' : '#d4d4d8')
-                                                    : 'rgba(255,255,255,0.75)',
-                                                marginTop: 2,
-                                            }}>
-                                                {isCurrentStatus ? 'Estado actual' : action.description}
-                                            </Text>
+                                            {actions.filter(a => a.status !== 'BLOQUEADA').map(action => (
+                                                <TouchableOpacity
+                                                    key={action.status}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                                                        onUpdateStatus(room.id, action.status, null);
+                                                        onClose();
+                                                    }}
+                                                    style={{
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        backgroundColor: action.bg,
+                                                        borderRadius: 20,
+                                                        padding: 18,
+                                                        gap: 14,
+                                                    }}
+                                                >
+                                                    <View style={{
+                                                        width: 52,
+                                                        height: 52,
+                                                        borderRadius: 16,
+                                                        backgroundColor: 'rgba(255,255,255,0.2)',
+                                                        justifyContent: 'center',
+                                                        alignItems: 'center',
+                                                    }}>
+                                                        {action.icon}
+                                                    </View>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={{ fontSize: 16, fontWeight: '800', color: '#ffffff' }}>
+                                                            {action.label}
+                                                        </Text>
+                                                        <Text style={{ fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+                                                            {action.description}
+                                                        </Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
                                         </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
+                                    )}
+                                </View>
+                            ) : (
+                                actions.map(action => {
+                                    const isCurrentStatus = room.status === action.status;
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={action.status}
+                                            activeOpacity={0.8}
+                                            disabled={isCurrentStatus}
+                                            onPress={() => {
+                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                                                if (action.status === 'BLOQUEADA') {
+                                                    setIsReportingMaintenance(true);
+                                                } else {
+                                                    onUpdateStatus(room.id, action.status, null);
+                                                    onClose();
+                                                }
+                                            }}
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                backgroundColor: isCurrentStatus
+                                                    ? (isDark ? '#27272a' : '#f4f4f5')
+                                                    : action.bg,
+                                                borderRadius: 20,
+                                                padding: 18,
+                                                gap: 14,
+                                                opacity: isCurrentStatus ? 0.5 : 1,
+                                            }}
+                                        >
+                                            <View style={{
+                                                width: 52,
+                                                height: 52,
+                                                borderRadius: 16,
+                                                backgroundColor: isCurrentStatus
+                                                    ? (isDark ? '#3f3f46' : '#e4e4e7')
+                                                    : 'rgba(255,255,255,0.2)',
+                                                justifyContent: 'center',
+                                                alignItems: 'center',
+                                            }}>
+                                                {action.icon}
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{
+                                                    fontSize: 16,
+                                                    fontWeight: '800',
+                                                    color: isCurrentStatus
+                                                        ? (isDark ? '#71717a' : '#a1a1aa')
+                                                        : '#ffffff',
+                                                }}>
+                                                    {isCurrentStatus ? `✓ ${action.label}` : action.label}
+                                                </Text>
+                                                <Text style={{
+                                                    fontSize: 12,
+                                                    fontWeight: '500',
+                                                    color: isCurrentStatus
+                                                        ? (isDark ? '#52525b' : '#d4d4d8')
+                                                        : 'rgba(255,255,255,0.75)',
+                                                    marginTop: 2,
+                                                }}>
+                                                    {isCurrentStatus ? 'Estado actual' : action.description}
+                                                </Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })
+                            )}
                         </View>
                     )}
                 </Pressable>
@@ -333,6 +454,7 @@ export default function CamaristaPanel() {
                     id,
                     number,
                     status,
+                    notes,
                     room_type_id,
                     room_types(*)
                 `)
@@ -371,23 +493,28 @@ export default function CamaristaPanel() {
         fetchRooms();
     };
 
-    const updateRoomStatus = async (roomId: string, newStatus: string) => {
+    const updateRoomStatus = async (roomId: string, newStatus: string, notes: string | null = null) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        
+
         // Optimistic update
-        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: newStatus } : r));
+        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: newStatus, notes: notes !== undefined ? notes : r.notes } : r));
 
         try {
+            const updatePayload: any = { status: newStatus };
+            if (notes !== undefined) {
+                updatePayload.notes = notes;
+            }
+
             const { error } = await supabase
                 .from('rooms')
-                .update({ status: newStatus })
+                .update(updatePayload)
                 .eq('id', roomId);
-            
+
             if (error) throw error;
         } catch (error) {
             console.error("Error updating room status:", error);
             Alert.alert("Error", "No se pudo actualizar el estado de la habitación.");
-            fetchRooms(true); 
+            fetchRooms(true);
         }
     };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { View, Text, TouchableOpacity, RefreshControl, Modal, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, RefreshControl, Modal, KeyboardAvoidingView, Platform, Alert, ScrollView, Dimensions, TextInput } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useEntryActions } from '../../hooks/use-entry-actions';
@@ -20,11 +20,18 @@ const AnyFlashList = FlashList as any;
 
 
 
-import { RoomCard } from '../../components/rooms/RoomCard';
+import { CompactRoomCard } from '../../components/rooms/CompactRoomCard';
+import { ValetActionModal } from '../../components/rooms/modals/ValetActionModal';
 import { EntryModal } from '../../components/rooms/modals/EntryModal';
 import { VerifyExtraModal } from '../../components/rooms/modals/VerifyExtraModal';
 import { VerifyRoomChangeModal } from '../../components/rooms/modals/VerifyRoomChangeModal';
 import { CheckoutModal } from '../../components/rooms/modals/CheckoutModal';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_GAP = 12;
+const PADDING = 16;
+const NUM_COLUMNS = 3;
+const CARD_SIZE = (SCREEN_WIDTH - (PADDING * 2) - (CARD_GAP * (NUM_COLUMNS - 1))) / NUM_COLUMNS;
 
 export const VALID_COCHERO_CONCEPTS = [
     'EXTRA_PERSON', 'EXTRA_HOUR', 'RENEWAL', 'PROMO_4H', 
@@ -38,6 +45,17 @@ export default function RoomsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+    // Filters & Search
+    const [filterState, setFilterState] = useState<'TODOS' | 'MIS_AUTOS' | 'URGENTES' | 'SERVICIOS'>('TODOS');
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // States for Action Modal
+    const [actionModalVisible, setActionModalVisible] = useState(false);
+    const [actionRoom, setActionRoom] = useState<Room | null>(null);
+    const [actionStay, setActionStay] = useState<any>(null);
+    const [actionPendingExtras, setActionPendingExtras] = useState<SalesOrderItem[]>([]);
+    const [actionPendingRoomChangeItem, setActionPendingRoomChangeItem] = useState<SalesOrderItem | null>(null);
 
     // States for Entry Modal
     const [selectedRoom, setSelectedRoom] = useState<any>(null);
@@ -576,6 +594,46 @@ export default function RoomsScreen() {
         });
     }, [rooms]);
 
+    // Calcular habitaciones filtradas
+    const filteredAndSortedRooms = useMemo(() => {
+        let result = sortedRooms;
+
+        if (searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase().trim();
+            result = result.filter(r => {
+                const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
+                const plateMatch = stay?.vehicle_plate?.toLowerCase().includes(query);
+                const roomMatch = r.number.toString().includes(query);
+                return plateMatch || roomMatch;
+            });
+        }
+
+        if (filterState === 'MIS_AUTOS') {
+            result = result.filter(r => {
+                const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
+                return stay?.valet_employee_id === employeeId;
+            });
+        } else if (filterState === 'URGENTES') {
+            result = result.filter(r => {
+                const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
+                return stay && (stay.vehicle_requested_at || stay.valet_checkout_requested_at) && !stay.checkout_valet_employee_id;
+            });
+        } else if (filterState === 'SERVICIOS') {
+            result = result.filter(r => {
+                const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
+                if (!stay) return false;
+                const orders: SalesOrder[] = Array.isArray(stay.sales_orders) ? stay.sales_orders : (stay.sales_orders ? [stay.sales_orders] : []);
+                const allItems = orders.flatMap(o => o.sales_order_items || []);
+                return allItems.some(item => 
+                    VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
+                    (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
+                );
+            });
+        }
+
+        return result;
+    }, [sortedRooms, filterState, searchQuery, employeeId]);
+
     // Calcular total de servicios pendientes de forma global
     const totalPendingServices = useMemo(() => {
         let total = 0;
@@ -635,49 +693,28 @@ export default function RoomsScreen() {
         ) || null;
 
         return (
-            <RoomCard
+            <CompactRoomCard
                 roomId={room.id}
-                stayId={stay.id}
                 roomNumber={room.number}
                 vehiclePlate={stay.vehicle_plate}
-                vehicleBrand={stay.vehicle_brand}
                 valetEmployeeId={stay.valet_employee_id}
                 isUrgent={!!(stay.vehicle_requested_at || stay.valet_checkout_requested_at)}
                 isProposed={!!stay.valet_checkout_requested_at}
                 isCheckoutReviewed={!!stay.checkout_valet_employee_id}
-                isDark={isDark}
                 hasActiveShift={hasActiveShift}
-                actionLoading={actionLoading}
                 employeeId={employeeId}
-                handleAcceptEntry={async (stayId, roomNumber, valetId) => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    return await handleAcceptEntry(stayId, roomNumber, valetId);
-                }}
-                handleOpenEntry={(roomId) => {
-                    Haptics.selectionAsync();
-                    handleOpenEntry(roomId);
-                }}
-                handleOpenCheckout={(roomId) => {
-                    Haptics.selectionAsync();
-                    handleOpenCheckout(roomId);
-                }}
-                handleProposeCheckout={async (stayId, roomNumber, valetId) => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    return await handleProposeCheckout(stayId, roomNumber, valetId, checkoutPayments);
-                }}
+                isDark={isDark}
                 pendingExtras={pendingExtras}
-                onVerifyExtras={() => {
-                    Haptics.selectionAsync();
-                    handleVerifyExtraOpen(room, pendingExtras);
-                }}
-                onAcceptVerification={async (roomId, items) => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                    await handleAcceptVerification(items, room.number, employeeId!);
-                }}
                 pendingRoomChangeItem={pendingRoomChangeItem}
-                onVerifyRoomChange={(roomId, item) => {
+                size={CARD_SIZE}
+                onPress={() => {
                     Haptics.selectionAsync();
-                    handleVerifyRoomChangeOpen(room, item);
+                    setSelectedRoom({ ...room, stay }); // Update entry/checkout states just in case
+                    setActionRoom(room);
+                    setActionStay(stay);
+                    setActionPendingExtras(pendingExtras);
+                    setActionPendingRoomChangeItem(pendingRoomChangeItem);
+                    setActionModalVisible(true);
                 }}
             />
         );
@@ -685,13 +722,20 @@ export default function RoomsScreen() {
 
     if (loading || roleLoading) {
         return (
-            <View className={`flex-1 ${isDark ? 'bg-zinc-950' : 'bg-zinc-50'}`}>
-                <View className="p-4 px-6 pt-12">
-                    <Skeleton width={180} height={28} borderRadius={14} style={{ marginBottom: 8 }} />
-                    <Skeleton width={120} height={14} borderRadius={4} />
+            <View className={`flex-1 p-4 ${isDark ? 'bg-zinc-950' : 'bg-zinc-50'}`}>
+                <View className="flex-row gap-2 mb-4">
+                    {[1, 2, 3, 4].map(i => (
+                        <View key={i} className="flex-1">
+                            <Skeleton height={36} borderRadius={16} />
+                        </View>
+                    ))}
                 </View>
-                <View className="px-2">
-                    {[1, 2, 3].map(i => <RoomCardSkeleton key={i} />)}
+                <View className="flex-row flex-wrap" style={{ gap: CARD_GAP, paddingHorizontal: PADDING - 4 }}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                        <View key={i}>
+                            <Skeleton height={CARD_SIZE} width={CARD_SIZE} borderRadius={16} />
+                        </View>
+                    ))}
                 </View>
             </View>
         );
@@ -706,42 +750,44 @@ export default function RoomsScreen() {
                 </View>
             )}
 
-            {/* Banner de urgentes */}
-            {rooms.some(r => {
-                const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
-                return stay && (stay.vehicle_requested_at || stay.valet_checkout_requested_at) && !stay.checkout_valet_employee_id;
-            }) && (
-                <View className={`px-4 py-3 flex-row items-center ${isDark ? 'bg-red-950/30 border-b border-red-800/30' : 'bg-red-50 border-b border-red-100'}`}>
-                    <AlertTriangle color="#ef4444" size={16} />
-                    <Text className={`font-black uppercase tracking-[0.15em] text-[10px] ml-2 text-red-500`}>Hay habitaciones urgentes — aparecen primero</Text>
-                </View>
-            )}
-
-            {/* Banner de servicios pendientes */}
-            {totalPendingServices > 0 && (
-                <View className={`px-4 py-3 flex-row items-center ${isDark ? 'bg-orange-950/40 border-b border-orange-800/40' : 'bg-orange-50 border-b border-orange-200'}`}>
-                    <Zap color={isDark ? "#f97316" : "#ea580c"} size={16} />
-                    <Text className={`font-black uppercase tracking-[0.15em] text-[10px] ml-2 ${isDark ? 'text-orange-500' : 'text-orange-700'}`}>
-                        Tienes {totalPendingServices} servicio{totalPendingServices !== 1 ? 's' : ''} pendiente{totalPendingServices !== 1 ? 's' : ''} por atender
-                    </Text>
-                </View>
-            )}
-
-            <AnyFlashList
-                data={sortedRooms}
-                renderItem={renderRoom}
-                keyExtractor={(item: any) => item.id}
-                estimatedItemSize={350}
-                contentContainerStyle={{ padding: 8, paddingBottom: 100 }}
-                ListEmptyComponent={
-                    !loading ? (
-                        <View className="flex-1 items-center justify-center py-20">
-                            <Text className={`font-bold ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                                No hay habitaciones activas
+            {/* Header: Search and Filters */}
+            <View className="px-4 py-2 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
+                <TextInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Buscar cuarto o placa..."
+                    placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                    className={`h-10 px-4 rounded-xl font-medium mb-3 ${isDark ? 'bg-zinc-900 text-white' : 'bg-zinc-200/50 text-black'}`}
+                />
+                
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                    {[
+                        { id: 'TODOS', label: `Todos (${rooms.length})` },
+                        { id: 'MIS_AUTOS', label: 'Mis Autos' },
+                        { id: 'URGENTES', label: 'Urgentes' },
+                        { id: 'SERVICIOS', label: 'Servicios' }
+                    ].map(f => (
+                        <TouchableOpacity
+                            key={f.id}
+                            onPress={() => setFilterState(f.id as any)}
+                            className={`px-4 py-2 rounded-full border ${filterState === f.id 
+                                ? (isDark ? 'bg-zinc-100 border-zinc-100' : 'bg-zinc-900 border-zinc-900')
+                                : (isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-100 border-zinc-200')
+                            }`}
+                        >
+                            <Text className={`font-bold text-[11px] uppercase tracking-wider ${filterState === f.id
+                                ? (isDark ? 'text-black' : 'text-white')
+                                : (isDark ? 'text-zinc-400' : 'text-zinc-500')
+                            }`}>
+                                {f.label}
                             </Text>
-                        </View>
-                    ) : null
-                }
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
+            <ScrollView
+                contentContainerStyle={{ padding: PADDING, paddingBottom: 100 }}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -749,7 +795,19 @@ export default function RoomsScreen() {
                         tintColor={isDark ? '#94a3b8' : '#64748b'}
                     />
                 }
-            />
+            >
+                <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
+                    {filteredAndSortedRooms.map(room => renderRoom({ item: room }))}
+                </View>
+
+                {filteredAndSortedRooms.length === 0 && (
+                    <View className="flex-1 items-center justify-center py-20">
+                        <Text className={`font-bold ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                            {searchQuery ? 'No se encontraron resultados' : 'No hay habitaciones activas'}
+                        </Text>
+                    </View>
+                )}
+            </ScrollView>
 
             <EntryModal
                 visible={showEntryModal}
@@ -830,6 +888,56 @@ export default function RoomsScreen() {
                 actionLoading={actionLoading}
                 onSubmit={handleVerifyRoomChangeSubmit}
             />
+
+            {actionRoom && actionStay && (
+                <ValetActionModal
+                    visible={actionModalVisible}
+                    onClose={() => setActionModalVisible(false)}
+                    roomId={actionRoom.id}
+                    stayId={actionStay.id}
+                    roomNumber={actionRoom.number}
+                    vehiclePlate={actionStay.vehicle_plate}
+                    vehicleBrand={actionStay.vehicle_brand}
+                    valetEmployeeId={actionStay.valet_employee_id}
+                    isUrgent={!!(actionStay.vehicle_requested_at || actionStay.valet_checkout_requested_at)}
+                    isProposed={!!actionStay.valet_checkout_requested_at}
+                    isCheckoutReviewed={!!actionStay.checkout_valet_employee_id}
+                    isDark={isDark}
+                    hasActiveShift={hasActiveShift}
+                    actionLoading={actionLoading}
+                    employeeId={employeeId}
+                    handleAcceptEntry={async (stayId, roomNumber, valetId) => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        return await handleAcceptEntry(stayId, roomNumber, valetId);
+                    }}
+                    handleOpenEntry={(roomId) => {
+                        Haptics.selectionAsync();
+                        handleOpenEntry(roomId);
+                    }}
+                    handleOpenCheckout={(roomId) => {
+                        Haptics.selectionAsync();
+                        handleOpenCheckout(roomId);
+                    }}
+                    handleProposeCheckout={async (stayId, roomNumber, valetId) => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        return await handleProposeCheckout(stayId, roomNumber, valetId, checkoutPayments);
+                    }}
+                    pendingExtras={actionPendingExtras}
+                    onVerifyExtras={() => {
+                        Haptics.selectionAsync();
+                        handleVerifyExtraOpen(actionRoom, actionPendingExtras);
+                    }}
+                    onAcceptVerification={async (roomId, items) => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                        await handleAcceptVerification(items, actionRoom.number, employeeId!);
+                    }}
+                    pendingRoomChangeItem={actionPendingRoomChangeItem}
+                    onVerifyRoomChange={(roomId, item) => {
+                        Haptics.selectionAsync();
+                        handleVerifyRoomChangeOpen(actionRoom, item);
+                    }}
+                />
+            )}
         </View>
     );
 }
