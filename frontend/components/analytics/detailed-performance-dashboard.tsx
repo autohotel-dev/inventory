@@ -28,6 +28,7 @@ interface CocheroKPI {
   total_checkouts: number;
   avg_checkout_time_minutes: number;
   total_services: number;
+  is_active?: boolean;
 }
 
 interface ReceptionistKPI {
@@ -38,6 +39,7 @@ interface ReceptionistKPI {
   total_extras_charged: number;
   total_revenue: number;
   anomalies_detected: number;
+  is_active?: boolean;
 }
 
 interface CamaristaKPI {
@@ -46,6 +48,7 @@ interface CamaristaKPI {
   total_rooms_cleaned: number;
   avg_cleaning_time_minutes: number;
   currently_cleaning: number;
+  is_active?: boolean;
 }
 
 export function DetailedPerformanceDashboard() {
@@ -58,6 +61,11 @@ export function DetailedPerformanceDashboard() {
   const [receptionists, setReceptionists] = useState<ReceptionistKPI[]>([]);
   const [camaristas, setCamaristas] = useState<CamaristaKPI[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
+
+  const filteredCocheros = cocheros.filter(c => statusFilter === 'all' ? true : statusFilter === 'active' ? c.is_active : !c.is_active);
+  const filteredReceptionists = receptionists.filter(r => statusFilter === 'all' ? true : statusFilter === 'active' ? r.is_active : !r.is_active);
+  const filteredCamaristas = camaristas.filter(c => statusFilter === 'all' ? true : statusFilter === 'active' ? c.is_active : !c.is_active);
 
   useEffect(() => {
     const fetchKPIs = async () => {
@@ -101,20 +109,31 @@ export function DetailedPerformanceDashboard() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <input 
-            type="date" 
-            value={dateRange.start} 
-            onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-            className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary"
-          />
-          <span className="text-muted-foreground">a</span>
-          <input 
-            type="date" 
-            value={dateRange.end} 
-            onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-            className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary"
-          />
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary h-10"
+          >
+            <option value="active">Personal Activo</option>
+            <option value="inactive">Personal Inactivo</option>
+            <option value="all">Todos los Empleados</option>
+          </select>
+          <div className="flex items-center gap-2">
+            <input 
+              type="date" 
+              value={dateRange.start} 
+              onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary h-10"
+            />
+            <span className="text-muted-foreground">a</span>
+            <input 
+              type="date" 
+              value={dateRange.end} 
+              onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary h-10"
+            />
+          </div>
         </div>
       </div>
 
@@ -150,7 +169,7 @@ export function DetailedPerformanceDashboard() {
                 </div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Tiempo de Entrada</h4>
                 <div className="text-3xl font-bold">
-                  {cocheros.length > 0 ? Math.round(cocheros.reduce((a, b) => a + Number(b.avg_checkin_time_minutes), 0) / cocheros.length) : 0} min
+                  {filteredCocheros.length > 0 ? Math.round(filteredCocheros.reduce((a, b) => a + Number(b.avg_checkin_time_minutes), 0) / filteredCocheros.length) : 0} min
                 </div>
               </CardContent>
             </Card>
@@ -164,7 +183,7 @@ export function DetailedPerformanceDashboard() {
                 </div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Tiempo de Salida</h4>
                 <div className="text-3xl font-bold">
-                  {cocheros.length > 0 ? Math.round(cocheros.reduce((a, b) => a + Number(b.avg_checkout_time_minutes), 0) / cocheros.length) : 0} min
+                  {filteredCocheros.length > 0 ? Math.round(filteredCocheros.reduce((a, b) => a + Number(b.avg_checkout_time_minutes), 0) / filteredCocheros.length) : 0} min
                 </div>
               </CardContent>
             </Card>
@@ -178,7 +197,7 @@ export function DetailedPerformanceDashboard() {
                 </div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Servicios Extras Atendidos</h4>
                 <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-400">
-                  {cocheros.reduce((a, b) => a + Number(b.total_services), 0)}
+                  {filteredCocheros.reduce((a, b) => a + Number(b.total_services), 0)}
                 </div>
               </CardContent>
             </Card>
@@ -200,9 +219,9 @@ export function DetailedPerformanceDashboard() {
                 <tbody className="divide-y">
                   {loading ? (
                     <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Cargando...</td></tr>
-                  ) : cocheros.length === 0 ? (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo</td></tr>
-                  ) : cocheros.map(c => (
+                  ) : filteredCocheros.length === 0 ? (
+                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo para este filtro</td></tr>
+                  ) : filteredCocheros.map(c => (
                     <tr key={c.employee_id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4 font-semibold">{c.employee_name}</td>
                       <td className="px-6 py-4">{c.total_checkins}</td>
@@ -232,25 +251,25 @@ export function DetailedPerformanceDashboard() {
             <Card className="bg-gradient-to-br from-indigo-500/10 to-transparent border-0 shadow-sm">
               <CardContent className="p-6">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Entradas Procesadas</h4>
-                <div className="text-3xl font-bold">{receptionists.reduce((a, b) => a + Number(b.total_entries_processed), 0)}</div>
+                <div className="text-3xl font-bold">{filteredReceptionists.reduce((a, b) => a + Number(b.total_entries_processed), 0)}</div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-purple-500/10 to-transparent border-0 shadow-sm">
               <CardContent className="p-6">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Salidas Procesadas</h4>
-                <div className="text-3xl font-bold">{receptionists.reduce((a, b) => a + Number(b.total_exits_processed), 0)}</div>
+                <div className="text-3xl font-bold">{filteredReceptionists.reduce((a, b) => a + Number(b.total_exits_processed), 0)}</div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-emerald-500/10 to-transparent border-0 shadow-sm">
               <CardContent className="p-6">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Cobros de Extras</h4>
-                <div className="text-3xl font-bold text-emerald-600">{receptionists.reduce((a, b) => a + Number(b.total_extras_charged), 0)}</div>
+                <div className="text-3xl font-bold text-emerald-600">{filteredReceptionists.reduce((a, b) => a + Number(b.total_extras_charged), 0)}</div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-amber-500/10 to-transparent border-0 shadow-sm">
               <CardContent className="p-6">
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">Anomalías Detectadas</h4>
-                <div className="text-3xl font-bold text-amber-600">{receptionists.reduce((a, b) => a + Number(b.anomalies_detected), 0)}</div>
+                <div className="text-3xl font-bold text-amber-600">{filteredReceptionists.reduce((a, b) => a + Number(b.anomalies_detected), 0)}</div>
               </CardContent>
             </Card>
           </div>
@@ -271,9 +290,9 @@ export function DetailedPerformanceDashboard() {
                 <tbody className="divide-y">
                   {loading ? (
                     <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Cargando...</td></tr>
-                  ) : receptionists.length === 0 ? (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo</td></tr>
-                  ) : receptionists.map(r => (
+                  ) : filteredReceptionists.length === 0 ? (
+                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo para este filtro</td></tr>
+                  ) : filteredReceptionists.map(r => (
                     <tr key={r.employee_id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4 font-semibold">{r.employee_name}</td>
                       <td className="px-6 py-4">{r.total_entries_processed}</td>
@@ -310,7 +329,7 @@ export function DetailedPerformanceDashboard() {
                 </div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Habitaciones Limpiadas</h4>
                 <div className="text-3xl font-bold">
-                  {camaristas.reduce((a, b) => a + Number(b.total_rooms_cleaned), 0)}
+                  {filteredCamaristas.reduce((a, b) => a + Number(b.total_rooms_cleaned), 0)}
                 </div>
               </CardContent>
             </Card>
@@ -324,7 +343,7 @@ export function DetailedPerformanceDashboard() {
                 </div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Tiempo de Limpieza</h4>
                 <div className="text-3xl font-bold">
-                  {camaristas.length > 0 ? Math.round(camaristas.reduce((a, b) => a + Number(b.avg_cleaning_time_minutes), 0) / camaristas.length) : 0} min
+                  {filteredCamaristas.length > 0 ? Math.round(filteredCamaristas.reduce((a, b) => a + Number(b.avg_cleaning_time_minutes), 0) / filteredCamaristas.length) : 0} min
                 </div>
               </CardContent>
             </Card>
@@ -338,7 +357,7 @@ export function DetailedPerformanceDashboard() {
                 </div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Limpiando Actualmente</h4>
                 <div className="text-3xl font-bold text-blue-600">
-                  {camaristas.reduce((a, b) => a + Number(b.currently_cleaning), 0)}
+                  {filteredCamaristas.reduce((a, b) => a + Number(b.currently_cleaning), 0)}
                 </div>
               </CardContent>
             </Card>
@@ -359,9 +378,9 @@ export function DetailedPerformanceDashboard() {
                 <tbody className="divide-y">
                   {loading ? (
                     <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Cargando...</td></tr>
-                  ) : camaristas.length === 0 ? (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo</td></tr>
-                  ) : camaristas.map(c => {
+                  ) : filteredCamaristas.length === 0 ? (
+                    <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo para este filtro</td></tr>
+                  ) : filteredCamaristas.map(c => {
                     const avgTime = Number(c.avg_cleaning_time_minutes) || 0;
                     return (
                       <tr key={c.employee_id} className="hover:bg-muted/30 transition-colors">
