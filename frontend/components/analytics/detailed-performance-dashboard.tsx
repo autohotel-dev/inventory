@@ -63,9 +63,9 @@ export function DetailedPerformanceDashboard() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
 
-  const filteredCocheros = cocheros.filter(c => statusFilter === 'all' ? true : statusFilter === 'active' ? c.is_active : !c.is_active);
-  const filteredReceptionists = receptionists.filter(r => statusFilter === 'all' ? true : statusFilter === 'active' ? r.is_active : !r.is_active);
-  const filteredCamaristas = camaristas.filter(c => statusFilter === 'all' ? true : statusFilter === 'active' ? c.is_active : !c.is_active);
+  const filteredCocheros = cocheros.filter(c => statusFilter === 'all' ? true : statusFilter === 'active' ? (c.is_active !== false) : (c.is_active === false));
+  const filteredReceptionists = receptionists.filter(r => statusFilter === 'all' ? true : statusFilter === 'active' ? (r.is_active !== false) : (r.is_active === false));
+  const filteredCamaristas = camaristas.filter(c => statusFilter === 'all' ? true : statusFilter === 'active' ? (c.is_active !== false) : (c.is_active === false));
 
   useEffect(() => {
     const fetchKPIs = async () => {

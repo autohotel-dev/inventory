@@ -93,6 +93,7 @@ RESPONDE SOLO con este JSON (sin markdown, sin explicación):
                 generationConfig: {
                     temperature: 0.1,
                     maxOutputTokens: 256,
+                    responseMimeType: "application/json",
                 },
             }),
         });
@@ -141,9 +142,18 @@ RESPONDE SOLO con este JSON (sin markdown, sin explicación):
         let model = null;
 
         try {
-            // Limpiar posible markdown (```json ... ```)
-            const jsonMatch = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-            const parsed = JSON.parse(jsonMatch);
+            // Extraer solo la parte del JSON entre llaves para evitar errores de parseo por texto adicional
+            let jsonString = rawText;
+            const firstBrace = rawText.indexOf('{');
+            const lastBrace = rawText.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+                jsonString = rawText.substring(firstBrace, lastBrace + 1);
+            } else {
+                // Fallback a limpiar markdown
+                jsonString = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+            }
+            
+            const parsed = JSON.parse(jsonString);
             
             // Extraer placa
             if (parsed.plate && parsed.plate !== "UNKNOWN") {
@@ -167,13 +177,14 @@ RESPONDE SOLO con este JSON (sin markdown, sin explicación):
             }
         } catch (parseErr) {
             console.log("🔍 [OCR] No se pudo parsear JSON, intentando extraer placa del texto:", rawText);
-            const cleanedPlate = rawText
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, "")
-                .trim();
-            if (cleanedPlate.length >= 3 && cleanedPlate.length <= 10 
-                && cleanedPlate !== "NOPLATE" && cleanedPlate !== "UNKNOWN") {
-                plate = cleanedPlate;
+            // Intento desesperado: buscar algo que parezca una placa (ej: UMV-412-C o UMV412C)
+            const plateRegex = /[A-Z]{2,3}-?\d{2,4}-?[A-Z]?/;
+            const match = rawText.toUpperCase().match(plateRegex);
+            if (match) {
+                const cleanedPlate = match[0].replace(/[^A-Z0-9]/g, "");
+                if (cleanedPlate.length >= 3 && cleanedPlate.length <= 10) {
+                    plate = cleanedPlate;
+                }
             }
         }
 

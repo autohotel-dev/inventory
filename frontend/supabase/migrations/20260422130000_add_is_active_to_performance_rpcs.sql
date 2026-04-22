@@ -36,9 +36,10 @@ BEGIN
     (SELECT COUNT(*)::INTEGER FROM employee_movements em WHERE em.employee_id = e.id AND em.movement_type IN ('extra_hour', 'extra_person') AND DATE(em.created_at) BETWEEN p_start_date AND p_end_date) AS total_services,
     (e.deleted_at IS NULL) AS is_active
   FROM employees e
-  LEFT JOIN room_stays rs ON rs.valet_employee_id = e.id OR rs.checkout_valet_employee_id = e.id
-  WHERE e.role IN ('valet', 'Valet', 'cochero') 
-    AND (rs.created_at IS NULL OR DATE(rs.created_at) BETWEEN p_start_date AND p_end_date)
+  LEFT JOIN roles r ON r.id = e.role_id
+  LEFT JOIN room_stays rs ON (rs.valet_employee_id = e.id OR rs.checkout_valet_employee_id = e.id)
+                         AND DATE(rs.created_at) BETWEEN p_start_date AND p_end_date
+  WHERE LOWER(e.role) IN ('valet', 'cochero') OR LOWER(r.name) IN ('valet', 'cochero')
   GROUP BY e.id, e.first_name, e.last_name, e.deleted_at;
 END;
 $$;
@@ -71,7 +72,8 @@ BEGIN
     (SELECT COUNT(*)::INTEGER FROM detect_payment_anomalies() WHERE severity = 'ERROR') AS anomalies_detected,
     (e.deleted_at IS NULL) AS is_active
   FROM employees e
-  WHERE e.role IN ('receptionist', 'recepcionista')
+  LEFT JOIN roles r ON r.id = e.role_id
+  WHERE LOWER(e.role) IN ('receptionist', 'recepcionista') OR LOWER(r.name) IN ('receptionist', 'recepcionista')
   GROUP BY e.id, e.first_name, e.last_name, e.deleted_at;
 END;
 $$;
@@ -104,7 +106,8 @@ BEGIN
     (SELECT COUNT(*)::INTEGER FROM rooms r WHERE r.status = 'LIMPIANDO' AND r.cleaning_by_employee_id = e.id) AS currently_cleaning,
     (e.deleted_at IS NULL) AS is_active
   FROM employees e
-  WHERE e.role IN ('camarista', 'recamarista', 'Camarista', 'Recamarista')
+  LEFT JOIN roles r ON r.id = e.role_id
+  WHERE LOWER(e.role) IN ('camarista', 'recamarista') OR LOWER(r.name) IN ('camarista', 'recamarista')
   GROUP BY e.id, e.first_name, e.last_name, e.deleted_at;
 END;
 $$;
