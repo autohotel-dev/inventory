@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useValetActions } from '../../hooks/use-valet-actions';
 import { useTheme } from '../../contexts/theme-context';
+import { useFeedback } from '../../contexts/feedback-context';
+import { useConfirm } from '../../contexts/confirm-context';
 import { ShoppingBag, CheckCircle2, XCircle, ChevronDown, ChevronUp, Banknote, CreditCard, MessageSquare, X, AlertCircle, Plus, Minus } from 'lucide-react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { MultiPaymentInput } from '../../components/MultiPaymentInput';
@@ -14,6 +16,8 @@ import { Skeleton } from '../../components/Skeleton';
 export default function ServicesScreen() {
     const { employeeId, hasActiveShift, isLoading: roleLoading } = useUserRole();
     const { isDark } = useTheme();
+    const { showFeedback } = useFeedback();
+    const { showConfirm } = useConfirm();
     const [pendingConsumptions, setPendingConsumptions] = useState<any[]>([]);
     const [myConsumptions, setMyConsumptions] = useState<any[]>([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -203,9 +207,10 @@ export default function ServicesScreen() {
         const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
         if (totalPaid < totalAmount) {
-            Alert.alert(
+            showFeedback(
                 "Regla de Oro", 
-                "El pago previo es obligatorio. El monto capturado debe cubrir el total para confirmar la entrega."
+                "El pago previo es obligatorio. El monto capturado debe cubrir el total para confirmar la entrega.",
+                "warning"
             );
             return;
         }
@@ -350,7 +355,7 @@ export default function ServicesScreen() {
                                                                 <Text className="text-[10px] font-black uppercase tracking-wider text-white">Entregar</Text>
                                                             </TouchableOpacity>
                                                         ) : null}
-                                                        <TouchableOpacity onPress={() => Alert.alert('Cancelar', '¿Deseas cancelar?', [{ text: 'No' }, { text: 'Sí', onPress: () => handleCancelConsumption(item.id) }])} className={`p-2 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                                                        <TouchableOpacity onPress={() => showConfirm('Cancelar', '¿Deseas cancelar?', () => handleCancelConsumption(item.id), { type: 'danger' })} className={`p-2 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
                                                             <XCircle color="#ef4444" size={16} />
                                                         </TouchableOpacity>
                                                     </View>

@@ -7,6 +7,7 @@ import { useEntryActions } from '../../hooks/use-entry-actions';
 import { useCheckoutActions } from '../../hooks/use-checkout-actions';
 import { useConsumptionActions } from '../../hooks/use-consumption-actions';
 import { useTheme } from '../../contexts/theme-context';
+import { useFeedback } from '../../contexts/feedback-context';
 import { searchVehicles, VehicleSearchResult } from '../../lib/vehicle-catalog';
 import { AlertCircle, AlertTriangle, Zap } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../components/MultiPaymentInput';
@@ -94,10 +95,12 @@ export default function RoomsScreen() {
     const [checkoutChecklist, setCheckoutChecklist] = useState({
         roomState: false,
         linens: false,
-        glassware: false
+        glassware: false,
+        tvRemote: false
     });
 
     // Verify Extra Modal State
+    const { showFeedback } = useFeedback();
     const [showVerifyExtraModal, setShowVerifyExtraModal] = useState(false);
     const [extraItems, setExtraItems] = useState<SalesOrderItem[]>([]);
 
@@ -174,6 +177,7 @@ export default function RoomsScreen() {
         handleReportDamage,
         handleRegisterExtraHour,
         handleRegisterExtraPerson,
+        handleVerifyAssetPresence,
         loading: checkoutLoading
     } = useCheckoutActions(fetchRooms);
 
@@ -308,7 +312,8 @@ export default function RoomsScreen() {
         setCheckoutChecklist({
             roomState: false,
             linens: false,
-            glassware: false
+            glassware: false,
+            tvRemote: false
         });
 
         setShowCheckoutModal(true);
@@ -530,7 +535,7 @@ export default function RoomsScreen() {
             await fetchRooms(true);
         } catch (error) {
             console.error('Error verifying room change:', error);
-            Alert.alert('Error', 'No se pudo verificar el cambio. Intenta de nuevo.');
+            showFeedback('Error', 'No se pudo verificar el cambio. Intenta de nuevo.', 'error');
         }
     };
 
@@ -545,6 +550,10 @@ export default function RoomsScreen() {
     const submitCheckout = async () => {
         if (!selectedRoom || !employeeId) return;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Registrar la presencia del control (si no está, creará el log de EXTRAVIADO y notificará a recepción)
+        await handleVerifyAssetPresence(selectedRoom.id, 'TV_REMOTE', checkoutChecklist.tvRemote, employeeId);
+        
         const success = await handleConfirmCheckout(
             selectedRoom.stay.id,
             selectedRoom.number,

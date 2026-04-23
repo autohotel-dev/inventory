@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { addOfflineAction, syncOfflineQueue } from '../../lib/offline-queue';
 import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
+import { useFeedback } from '../../contexts/feedback-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_GAP = 10;
@@ -69,6 +70,7 @@ function RoomActionModal({
     isDark: boolean;
     isOffline: boolean;
 }) {
+    const { showFeedback } = useFeedback();
     const [maintenanceNote, setMaintenanceNote] = useState('');
     const [isReportingMaintenance, setIsReportingMaintenance] = useState(false);
     const [maintenanceImage, setMaintenanceImage] = useState<string | null>(null);
@@ -89,7 +91,7 @@ function RoomActionModal({
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permiso denegado', 'Necesitamos acceso a la cámara para tomar fotos de evidencia.');
+            showFeedback('Permiso denegado', 'Necesitamos acceso a la cámara para tomar fotos de evidencia.', 'warning');
             return;
         }
 
@@ -127,7 +129,7 @@ function RoomActionModal({
 
                 if (error) {
                     console.error('Error uploading image:', error);
-                    Alert.alert('Error', 'No se pudo subir la foto de evidencia.');
+                    showFeedback('Error', 'No se pudo subir la foto de evidencia.', 'error');
                     setIsUploading(false);
                     return;
                 }
@@ -593,6 +595,7 @@ export default function CamaristaPanel() {
     const channelRef = useRef<any>(null);
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
+    const { showFeedback } = useFeedback();
 
     const fetchRooms = useCallback(async (quiet = false) => {
         if (!quiet && rooms.length === 0) setLoading(true);
@@ -703,7 +706,7 @@ export default function CamaristaPanel() {
             if (error) throw error;
         } catch (error) {
             console.error("Error updating room status:", error);
-            Alert.alert("Error", "No se pudo actualizar el estado de la habitación.");
+            showFeedback("Error", "No se pudo actualizar el estado de la habitación.", 'error');
             fetchRooms(true);
         }
     };

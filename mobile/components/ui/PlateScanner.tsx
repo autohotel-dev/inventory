@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert } fr
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { X, Camera as CameraIcon, RotateCcw } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
+import { useConfirm } from '../../contexts/confirm-context';
 
 export interface VehicleScanResult {
     plate: string | null;
@@ -18,6 +19,7 @@ interface PlateScannerProps {
 
 export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: PlateScannerProps) {
     const { isDark } = useTheme();
+    const { showConfirm } = useConfirm();
     const [permission, requestPermission] = useCameraPermissions();
     const [facing, setFacing] = useState<CameraType>('back');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -54,13 +56,11 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
             if (!response.ok) {
                 console.error('[OCR] Function error:', data);
                 setStatusText('Error en el servicio');
-                Alert.alert(
+                showConfirm(
                     'Error de OCR',
                     data?.error || 'El servicio de reconocimiento no está disponible.',
-                    [
-                        { text: 'Reintentar', onPress: () => { setIsProcessing(false); setStatusText(''); } },
-                        { text: 'Manual', onPress: () => onClose() },
-                    ]
+                    () => { setIsProcessing(false); setStatusText(''); },
+                    { type: 'danger', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
                 );
                 return;
             }
@@ -82,22 +82,22 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
             } else {
                 console.log('[OCR] No se detectó placa:', data);
                 setStatusText('No se detectó placa');
-                Alert.alert(
+                showConfirm(
                     'Placa no detectada',
                     data?.message || 'Intenta de nuevo acercándote más o con mejor iluminación.',
-                    [
-                        { text: 'Reintentar', onPress: () => { setIsProcessing(false); setStatusText(''); } },
-                        { text: 'Ingresar manual', onPress: () => onClose() },
-                    ]
+                    () => { setIsProcessing(false); setStatusText(''); },
+                    { type: 'warning', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
                 );
             }
         } catch (err: any) {
             console.error('[OCR] Exception:', err?.message || err);
             setStatusText('Error de conexión');
-            Alert.alert('Error de conexión', 'No se pudo conectar con el servicio OCR. Verifica tu conexión a internet.', [
-                { text: 'Reintentar', onPress: () => { setIsProcessing(false); setStatusText(''); } },
-                { text: 'Manual', onPress: () => onClose() },
-            ]);
+            showConfirm(
+                'Error de conexión', 
+                'No se pudo conectar con el servicio OCR. Verifica tu conexión a internet.', 
+                () => { setIsProcessing(false); setStatusText(''); },
+                { type: 'danger', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
+            );
         } finally {
             setIsProcessing(false);
         }

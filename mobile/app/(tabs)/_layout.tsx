@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
-import { Home, LayoutDashboard, UserCircle, ShoppingBag } from 'lucide-react-native';
+import { Home, LayoutDashboard, UserCircle, ShoppingBag, Tv } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
 import { supabase } from '../../lib/supabase';
 import { SyncQueue } from '../../lib/sync-queue';
@@ -152,6 +152,14 @@ export default function TabLayout() {
                         height: 18,
                         lineHeight: 18,
                     },
+                }}
+            />
+            <Tabs.Screen
+                name="assets"
+                options={{
+                    title: 'Controles',
+                    tabBarIcon: ({ color }) => <Tv color={color} size={24} />,
+                    headerTitle: 'Inventario de Controles',
                 }}
             />
             <Tabs.Screen

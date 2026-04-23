@@ -94,7 +94,10 @@ export interface NotificationData {
     [key: string]: unknown;
 }
 
+import { useFeedback } from '../contexts/feedback-context';
+
 export function useNotifications(employeeId: string | null) {
+    const { showFeedback } = useFeedback();
     const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
     const notificationListener = useRef<Notifications.Subscription | null>(null);
     const responseListener = useRef<Notifications.Subscription | null>(null);
@@ -104,7 +107,7 @@ export function useNotifications(employeeId: string | null) {
 
         // Registrar para notificaciones push
         console.log('[Notifications] Iniciando registro con employeeId:', employeeId);
-        registerForPushNotificationsAsync().then(token => {
+        registerForPushNotificationsAsync(showFeedback).then(token => {
             console.log('[Notifications] Token obtenido:', token);
             if (token) {
                 setExpoPushToken(token);
@@ -222,7 +225,7 @@ export function useNotifications(employeeId: string | null) {
     };
 }
 
-async function registerForPushNotificationsAsync(): Promise<string | null> {
+async function registerForPushNotificationsAsync(showFeedback: (title: string, msg: string, type: 'warning') => void): Promise<string | null> {
     let token: string | null = null;
 
     if (Platform.OS === 'android') {
@@ -254,9 +257,10 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
         }
 
         if (finalStatus !== 'granted') {
-            Alert.alert(
+            showFeedback(
                 'Notificaciones deshabilitadas',
-                'Para recibir alertas de solicitudes de vehículos y servicios, habilita las notificaciones en la configuración de tu dispositivo.'
+                'Habilita las notificaciones en la configuración de tu dispositivo.',
+                'warning'
             );
             return null;
         }

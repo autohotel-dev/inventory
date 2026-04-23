@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { ShieldCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useFeedback } from '../contexts/feedback-context';
+import { useConfirm } from '../contexts/confirm-context';
 import * as Updates from 'expo-updates';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
@@ -15,6 +16,7 @@ export default function LoginScreen() {
     const router = useRouter();
     const isDark = useColorScheme() === 'dark';
     const { showFeedback } = useFeedback();
+    const { showConfirm } = useConfirm();
 
     const [isBiometricSupported, setIsBiometricSupported] = useState(false);
     const [hasCredentials, setHasCredentials] = useState(false);
@@ -25,11 +27,11 @@ export default function LoginScreen() {
                 const update = await Updates.checkForUpdateAsync();
                 if (update.isAvailable) {
                     await Updates.fetchUpdateAsync();
-                    Alert.alert(
+                    showConfirm(
                         "Actualización Disponible",
                         "Se descargó una nueva versión. La aplicación se reiniciará.",
-                        [{ text: "OK", onPress: () => Updates.reloadAsync() }],
-                        { cancelable: false }
+                        () => Updates.reloadAsync(),
+                        { type: 'info', confirmText: 'Reiniciar Ahora', cancelText: 'Más tarde' }
                     );
                 }
             } catch (error) {

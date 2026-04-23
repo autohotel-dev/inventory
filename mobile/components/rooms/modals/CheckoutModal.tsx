@@ -43,6 +43,7 @@ export interface CheckoutModalProps {
         roomState: boolean;
         linens: boolean;
         glassware: boolean;
+        tvRemote: boolean;
     };
     setChecklist: (v: any) => void;
 }
@@ -186,11 +187,21 @@ export const CheckoutModal = memo(({
 
                                     <TouchableOpacity 
                                         onPress={() => toggleChecklist('glassware')}
-                                        className="flex-row items-center justify-between py-3"
+                                        className="flex-row items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800"
                                     >
                                         <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Cristalería OK</Text>
                                         <View className={`w-6 h-6 rounded-md border-2 items-center justify-center ${checklist.glassware ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
                                             {checklist.glassware && <X color="white" size={14} />}
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity 
+                                        onPress={() => toggleChecklist('tvRemote')}
+                                        className="flex-row items-center justify-between py-3"
+                                    >
+                                        <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Control de TV Presente</Text>
+                                        <View className={`w-6 h-6 rounded-md border-2 items-center justify-center ${checklist.tvRemote ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                                            {checklist.tvRemote && <X color="white" size={14} />}
                                         </View>
                                     </TouchableOpacity>
                                 </View>
@@ -243,15 +254,15 @@ export const CheckoutModal = memo(({
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                     onPress={onSubmit} 
-                                    disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware}
+                                    disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware || !checklist.tvRemote}
                                     className={`flex-1 h-14 rounded-2xl items-center justify-center ${
-                                        (checklist.roomState && checklist.linens && checklist.glassware) 
+                                        (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote) 
                                         ? 'bg-red-600' 
                                         : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')
                                     }`}
                                 >
                                     <Text className={`font-black text-xs uppercase tracking-widest ${
-                                        (checklist.roomState && checklist.linens && checklist.glassware) 
+                                        (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote) 
                                         ? 'text-white' 
                                         : (isDark ? 'text-zinc-600' : 'text-zinc-400')
                                     }`}>

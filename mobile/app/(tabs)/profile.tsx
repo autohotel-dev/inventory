@@ -4,45 +4,43 @@ import { useUserRole } from '../../hooks/use-user-role';
 import { useTheme } from '../../contexts/theme-context';
 import { supabase } from '../../lib/supabase';
 import { LogOut, User, Mail, Shield, Sun, Moon, Smartphone, RefreshCw, CheckCircle, Wifi } from 'lucide-react-native';
+import { useConfirm } from '../../contexts/confirm-context';
+import { useFeedback } from '../../contexts/feedback-context';
 import * as Updates from 'expo-updates';
 
 export default function ProfileScreen() {
     const { employeeName, userEmail, role, hasActiveShift, employeeId } = useUserRole();
     const { themeMode, setThemeMode, isDark } = useTheme();
+    const { showConfirm } = useConfirm();
 
     const handleLogout = async () => {
-        Alert.alert(
+        showConfirm(
             'Cerrar Sesión',
             '¿Estás seguro que deseas salir?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Salir',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            // Auto-close shift if active
-                            if (hasActiveShift && employeeId) {
-                                await supabase
-                                    .from("shift_sessions")
-                                    .update({
-                                        clock_out_at: new Date().toISOString(),
-                                        status: "pending_closing",
-                                    })
-                                    .eq("employee_id", employeeId)
-                                    .in("status", ["active", "open"])
-                                    .is("clock_out_at", null);
-                            }
-                        } catch (error) {
-                            console.error("Error auto-closing shift:", error);
-                        } finally {
-                            await supabase.auth.signOut();
-                        }
+            async () => {
+                try {
+                    // Auto-close shift if active
+                    if (hasActiveShift && employeeId) {
+                        await supabase
+                            .from("shift_sessions")
+                            .update({
+                                clock_out_at: new Date().toISOString(),
+                                status: "pending_closing",
+                            })
+                            .eq("employee_id", employeeId)
+                            .in("status", ["active", "open"])
+                            .is("clock_out_at", null);
                     }
-                },
-            ]
+                } catch (error) {
+                    console.error("Error auto-closing shift:", error);
+                } finally {
+                    await supabase.auth.signOut();
+                }
+            },
+            { type: 'danger', confirmText: 'Salir', cancelText: 'Cancelar' }
         );
     };
+
 
     return (
         <ScrollView
@@ -143,6 +141,8 @@ export default function ProfileScreen() {
 
 function ManualUpdateCheck({ isDark }: { isDark: boolean }) {
     const [checking, setChecking] = useState(false);
+    const { showConfirm } = useConfirm();
+    const { showFeedback } = useFeedback();
 
     const onCheck = async () => {
         if (checking) return;
@@ -150,30 +150,27 @@ function ManualUpdateCheck({ isDark }: { isDark: boolean }) {
         try {
             const update = await Updates.checkForUpdateAsync();
             if (update.isAvailable) {
-                Alert.alert(
-                    "🚀 Actualización Disponible",
+                showConfirm(
+                    "Actualización Disponible",
                     "Se encontró una nueva versión. ¿Deseas descargarla e instalarla ahora?",
-                    [
-                        { text: "Después", style: 'cancel' },
-                        {
-                            text: "Actualizar", style: 'default', onPress: async () => {
-                                try {
-                                    await Updates.fetchUpdateAsync();
-                                    await Updates.reloadAsync();
-                                } catch (e: any) {
-                                    Alert.alert("Error al descargar", e.message);
-                                }
-                            }
+                    async () => {
+                        try {
+                            await Updates.fetchUpdateAsync();
+                            await Updates.reloadAsync();
+                        } catch (e: any) {
+                            showFeedback("Error al descargar", e.message, 'error');
                         }
-                    ]
+                    },
+                    { type: 'info', confirmText: 'Actualizar', cancelText: 'Después' }
                 );
             } else {
-                Alert.alert("✅ Todo al día", "Ya tienes la última versión instalada.");
+                showFeedback("Todo al día", "Ya tienes la última versión instalada.", 'success');
             }
         } catch (error: any) {
-            Alert.alert(
+            showFeedback(
                 "Error de conexión",
-                `${error.message}\n\nVerifica tu conexión a internet e intenta de nuevo.`
+                `${error.message}\n\nVerifica tu conexión a internet e intenta de nuevo.`,
+                'error'
             );
         } finally {
             setChecking(false);

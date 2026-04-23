@@ -261,9 +261,10 @@ export default function DashboardScreen() {
                 const parts = errorMessage.split("::");
                 const currentRole = parts[1] || "tu rol";
                 const limit = parts[2] || "?";
-                Alert.alert(
+                showFeedback(
                     "Límite de Turnos Alcanzado",
-                    `Ya hay ${limit} ${currentRole}(s) con turno activo.\n\nNo se permiten más turnos simultáneos para este rol.`
+                    `Ya hay ${limit} ${currentRole}(s) con turno activo.\n\nNo se permiten más turnos simultáneos para este rol.`,
+                    'warning'
                 );
             } else {
                 showFeedback('Error', errorMessage || 'No se pudo iniciar el turno', 'error');

@@ -2,9 +2,11 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTheme } from '../../contexts/theme-context';
 import { supabase } from '../../lib/supabase';
-import { TouchableOpacity, Alert, View, Text, Modal, Pressable, ActivityIndicator, ScrollView } from 'react-native';
+import { TouchableOpacity, View, Text, Modal, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { LogOut, UserCircle, RefreshCw, Sun, Moon, Smartphone, Wifi, X } from 'lucide-react-native';
 import { useUserRole } from '../../hooks/use-user-role';
+import { useConfirm } from '../../contexts/confirm-context';
+import { useFeedback } from '../../contexts/feedback-context';
 import * as Updates from 'expo-updates';
 
 export default function CamaristaLayout() {
@@ -13,39 +15,35 @@ export default function CamaristaLayout() {
     const { employeeName, userEmail, role, hasActiveShift, employeeId } = useUserRole();
     const [profileVisible, setProfileVisible] = useState(false);
     const [checking, setChecking] = useState(false);
+    const { showConfirm } = useConfirm();
+    const { showFeedback } = useFeedback();
 
     const handleLogout = () => {
-        Alert.alert(
+        showConfirm(
             "Cerrar Sesión",
             "¿Estás seguro de que deseas salir?",
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Salir",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            if (hasActiveShift && employeeId) {
-                                await supabase
-                                    .from("shift_sessions")
-                                    .update({
-                                        clock_out_at: new Date().toISOString(),
-                                        status: "pending_closing",
-                                    })
-                                    .eq("employee_id", employeeId)
-                                    .in("status", ["active", "open"])
-                                    .is("clock_out_at", null);
-                            }
-                        } catch (error) {
-                            console.error("Error auto-closing shift:", error);
-                        } finally {
-                            setProfileVisible(false);
-                            await supabase.auth.signOut();
-                            router.replace('/login');
-                        }
+            async () => {
+                try {
+                    if (hasActiveShift && employeeId) {
+                        await supabase
+                            .from("shift_sessions")
+                            .update({
+                                clock_out_at: new Date().toISOString(),
+                                status: "pending_closing",
+                            })
+                            .eq("employee_id", employeeId)
+                            .in("status", ["active", "open"])
+                            .is("clock_out_at", null);
                     }
+                } catch (error) {
+                    console.error("Error auto-closing shift:", error);
+                } finally {
+                    setProfileVisible(false);
+                    await supabase.auth.signOut();
+                    router.replace('/login');
                 }
-            ]
+            },
+            { type: 'danger', confirmText: 'Salir', cancelText: 'Cancelar' }
         );
     };
 
@@ -55,28 +53,24 @@ export default function CamaristaLayout() {
         try {
             const update = await Updates.checkForUpdateAsync();
             if (update.isAvailable) {
-                Alert.alert(
-                    "🚀 Actualización Disponible",
+                showConfirm(
+                    "Actualización Disponible",
                     "Se encontró una nueva versión. ¿Deseas instalarla ahora?",
-                    [
-                        { text: "Después", style: 'cancel' },
-                        {
-                            text: "Actualizar", onPress: async () => {
-                                try {
-                                    await Updates.fetchUpdateAsync();
-                                    await Updates.reloadAsync();
-                                } catch (e: any) {
-                                    Alert.alert("Error", e.message);
-                                }
-                            }
+                    async () => {
+                        try {
+                            await Updates.fetchUpdateAsync();
+                            await Updates.reloadAsync();
+                        } catch (e: any) {
+                            showFeedback("Error", e.message, 'error');
                         }
-                    ]
+                    },
+                    { type: 'info', confirmText: 'Actualizar', cancelText: 'Después' }
                 );
             } else {
-                Alert.alert("✅ Todo al día", "Ya tienes la última versión.");
+                showFeedback("Todo al día", "Ya tienes la última versión.", 'success');
             }
         } catch (error: any) {
-            Alert.alert("Error", error.message);
+            showFeedback("Error", error.message, 'error');
         } finally {
             setChecking(false);
         }

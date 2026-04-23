@@ -77,6 +77,12 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
+      let actionByEmployeeId = null;
+      if (session?.user?.id) {
+        const { data: empData } = await supabase.from('employees').select('id').eq('user_id', session.user.id).single();
+        if (empData) actionByEmployeeId = empData.id;
+      }
+      
       const currentStatus = await fetchAssetStatus() || 'NO_EXISTIA';
       
       const { error } = await supabase
@@ -98,7 +104,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
         asset_id: (await supabase.from('room_assets').select('id').eq('room_id', room.id).eq('asset_type', assetType).single()).data?.id,
         previous_status: currentStatus,
         new_status: 'EN_RECEPCION',
-        employee_id: session?.user?.id || null,
+        employee_id: actionByEmployeeId,
         action_type: 'RETURNED_TO_RECEPTION'
       });
 
@@ -122,11 +128,17 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
       // Usar session actual para saber quién hace la acción
       const { data: { session } } = await supabase.auth.getSession();
       
+      let actionByEmployeeId = null;
+      if (session?.user?.id) {
+        const { data: empData } = await supabase.from('employees').select('id').eq('user_id', session.user.id).single();
+        if (empData) actionByEmployeeId = empData.id;
+      }
+      
       const { data, error } = await supabase.rpc('assign_asset_to_employee', {
         p_room_id: room.id,
         p_asset_type: assetType,
         p_employee_id: selectedCochero,
-        p_action_by_employee_id: session?.user?.id || null
+        p_action_by_employee_id: actionByEmployeeId
       });
 
       if (error) throw error;

@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
 import { ThemeProvider, useTheme } from '../contexts/theme-context';
 import { FeedbackProvider } from '../contexts/feedback-context';
+import { ConfirmProvider } from '../contexts/confirm-context';
 import { InAppNotificationProvider } from '../contexts/in-app-notification-context';
 import { useNotifications } from '../hooks/use-notifications';
 import { OfflineBanner } from '../components/OfflineBanner';
@@ -79,10 +80,12 @@ export default function RootLayout() {
             <GlobalErrorBoundary>
                 <ThemeProvider>
                     <FeedbackProvider>
-                        <InAppNotificationProvider>
-                            <OfflineBanner />
-                            <RootLayoutNav />
-                        </InAppNotificationProvider>
+                        <ConfirmProvider>
+                            <InAppNotificationProvider>
+                                <OfflineBanner />
+                                <RootLayoutNav />
+                            </InAppNotificationProvider>
+                        </ConfirmProvider>
                     </FeedbackProvider>
                 </ThemeProvider>
             </GlobalErrorBoundary>
