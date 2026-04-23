@@ -133,7 +133,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             isValetPending={!!valetPending && (status === "OCUPADA" || status === "BLOQUEADA")}
             valetId={activeStay && (status === "OCUPADA" || status === "BLOQUEADA") ? activeStay.valet_employee_id : null}
             onCancelStay={onCancelStay ? () => onCancelStay(room) : undefined}
-            tvRemoteStatus={tvRemote?.status}
+            tvRemoteStatus={tvRemote?.status || 'SIN_REGISTRO'}
             onAssignRemote={onAssignRemote ? () => onAssignRemote(room) : undefined}
           />
         );

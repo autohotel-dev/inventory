@@ -282,7 +282,8 @@ export function RoomCardComponent({
                 tvRemoteStatus === "EN_HABITACION" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
                 tvRemoteStatus === "CON_COCHERO" ? "bg-blue-500/20 border-blue-500/50 text-blue-400" :
                 tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/30 border-red-500/60 text-red-400 animate-pulse" :
-                "bg-amber-500/20 border-amber-500/50 text-amber-400" // EN_RECEPCION
+                tvRemoteStatus === "EN_RECEPCION" ? "bg-amber-500/20 border-amber-500/50 text-amber-400" :
+                "bg-zinc-500/20 border-zinc-500/50 text-zinc-400" // SIN_REGISTRO
               )}
             >
               <Tv className="h-3 w-3" />
