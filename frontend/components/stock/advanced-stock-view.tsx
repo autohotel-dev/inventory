@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,21 +164,38 @@ export function AdvancedStockView() {
     fetchStock();
   }, []);
 
-  const filteredItems = stockItems.filter(item => {
-    const matchesSearch = search === "" ||
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (item.category_name && item.category_name.toLowerCase().includes(search.toLowerCase()));
+  // ⚡ Bolt: Memoize filtered items to prevent redundant array operations on every re-render (e.g. typing in search)
+  const filteredItems = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    return stockItems.filter(item => {
+      const matchesSearch = search === "" ||
+        item.name.toLowerCase().includes(searchLower) ||
+        item.sku.toLowerCase().includes(searchLower) ||
+        (item.category_name && item.category_name.toLowerCase().includes(searchLower));
 
-    const matchesStatus = statusFilter === "" || item.stock_status === statusFilter;
+      const matchesStatus = statusFilter === "" || item.stock_status === statusFilter;
 
-    const matchesWarehouse = warehouseFilter === "" ||
-      (warehouseFilter === "UNASSIGNED"
-        ? item.stock_by_warehouse.length === 0 || item.stock_by_warehouse.every(s => s.qty === 0)
-        : item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0));
+      const matchesWarehouse = warehouseFilter === "" ||
+        (warehouseFilter === "UNASSIGNED"
+          ? item.stock_by_warehouse.length === 0 || item.stock_by_warehouse.every(s => s.qty === 0)
+          : item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0));
 
-    return matchesSearch && matchesStatus && matchesWarehouse;
-  });
+      return matchesSearch && matchesStatus && matchesWarehouse;
+    });
+  }, [stockItems, search, statusFilter, warehouseFilter]);
+
+  // ⚡ Bolt: Consolidate multiple O(N) array passes (filter, length, reduce) into a single O(N) pass, memoized
+  const stats = useMemo(() => {
+    return stockItems.reduce((acc, item) => {
+      acc.totalProducts++;
+      if (item.stock_status === 'critical') acc.criticalStock++;
+      if (item.stock_status === 'low') acc.lowStock++;
+      acc.totalValue += item.stock_value;
+      return acc;
+    }, { totalProducts: 0, criticalStock: 0, lowStock: 0, totalValue: 0 });
+  }, [stockItems]);
+
+  const { totalProducts, criticalStock, lowStock, totalValue } = stats;
 
   const handleViewDetail = (item: StockItem) => {
     setSelectedItem(item);
@@ -192,12 +209,6 @@ export function AdvancedStockView() {
       </div>
     );
   }
-
-  // Estadísticas
-  const totalProducts = stockItems.length;
-  const criticalStock = stockItems.filter(item => item.stock_status === 'critical').length;
-  const lowStock = stockItems.filter(item => item.stock_status === 'low').length;
-  const totalValue = stockItems.reduce((sum, item) => sum + item.stock_value, 0);
 
   return (
     <div className="space-y-6">
