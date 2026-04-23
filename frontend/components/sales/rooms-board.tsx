@@ -398,7 +398,6 @@ function RoomsBoardInternal() {
     // Paso 2 (índice 1): Mostrar la rueda de acciones para habitación ocupada
     if (currentStepIndex === 1 && activeStep?.id === 'action-wheel-occupied') {
       if (showManagePeopleModal) {
-        console.log('🎓 [Training] Cerrando modal de personas y mostrando rueda (navegación hacia atrás)');
         setShowManagePeopleModal(false);
       }
 
