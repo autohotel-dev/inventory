@@ -104,15 +104,42 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
       setDeletingItemId(itemId);
       const supabase = createClient();
       
-      const { data, error } = await supabase.rpc("delete_unpaid_sales_item", {
-        p_item_id: itemId
+      const { data: userSession } = await supabase.auth.getSession();
+      const employeeId = userSession.session?.user?.id || null;
+
+      const { data, error } = await supabase.rpc("cancel_reception_item_v1", {
+        p_item_id: itemId,
+        p_employee_id: employeeId
       });
 
       if (error) throw error;
       if (data && !data.success) {
         throw new Error(data.error || "Error al eliminar el ítem");
       }
-      toast.success("Concepto eliminado");
+      
+      // Notificar a los valets para que sepan que ya no deben cobrar esto
+      if (data && data.stay_id && roomNumber) {
+        try {
+          const item = items.find(i => i.id === itemId);
+          if (item) {
+             const { notifyActiveValets } = await import('@/lib/services/valet-notification-service');
+             await notifyActiveValets(
+                supabase,
+                '🚫 Cargo Cancelado',
+                `Recepción canceló un cobro de $${Number(item.total).toFixed(2)} en Hab. ${roomNumber}.`,
+                {
+                  type: 'CHARGE_CANCELLED',
+                  roomNumber: roomNumber,
+                  stayId: data.stay_id
+                }
+             );
+          }
+        } catch (e) {
+          console.error("Failed to notify valets:", e);
+        }
+      }
+
+      toast.success("Concepto eliminado y tiempo revertido");
       fetchItems();
     } catch (error) {
       console.error("Error deleting item:", error);
