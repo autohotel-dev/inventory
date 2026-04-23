@@ -57,6 +57,62 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
     }
   };
 
+  const fetchAssetStatus = async () => {
+    if (!room) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('room_assets')
+      .select('status')
+      .eq('room_id', room.id)
+      .eq('asset_type', assetType)
+      .maybeSingle();
+      
+    return data?.status;
+  };
+
+  const handleReturnToReception = async () => {
+    if (!room) return;
+    setLoading(true);
+    const supabase = createClient();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const currentStatus = await fetchAssetStatus() || 'NO_EXISTIA';
+      
+      const { error } = await supabase
+        .from('room_assets')
+        .upsert({
+          room_id: room.id,
+          asset_type: assetType,
+          status: 'EN_RECEPCION',
+          assigned_employee_id: null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'room_id, asset_type' })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log the action
+      await supabase.from('room_asset_logs').insert({
+        asset_id: (await supabase.from('room_assets').select('id').eq('room_id', room.id).eq('asset_type', assetType).single()).data?.id,
+        previous_status: currentStatus,
+        new_status: 'EN_RECEPCION',
+        employee_id: session?.user?.id || null,
+        action_type: 'RETURNED_TO_RECEPTION'
+      });
+
+      toast.success("Control devuelto a recepción.");
+      onSuccess?.();
+      onClose();
+    } catch (error) {
+      console.error("Error returning to reception:", error);
+      toast.error("Hubo un error al actualizar.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAssign = async () => {
     if (!room || !selectedCochero) return;
     setLoading(true);
@@ -166,11 +222,19 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
             Cancelar
           </Button>
           <Button 
+            variant="outline"
+            onClick={handleReturnToReception}
+            disabled={loading}
+            className="flex-1 bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 font-bold"
+          >
+            En Recepción
+          </Button>
+          <Button 
             onClick={handleAssign} 
             disabled={!selectedCochero || loading}
-            className="flex-1 bg-primary text-black hover:bg-primary/90 font-black tracking-widest uppercase"
+            className="flex-2 bg-primary text-black hover:bg-primary/90 font-black tracking-widest uppercase"
           >
-            {loading ? "Asignando..." : "Asignar"}
+            {loading ? "..." : "Asignar"}
           </Button>
         </DialogFooter>
       </DialogContent>

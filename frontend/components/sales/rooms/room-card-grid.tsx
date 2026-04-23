@@ -18,6 +18,7 @@ interface RoomCardGridProps {
   setShowInfoModal: (show: boolean) => void;
   setShowTrackingModal: (show: boolean) => void;
   onCancelStay?: (room: Room) => void;
+  onAssignRemote?: (room: Room) => void;
 }
 
 export const RoomCardGrid = memo(function RoomCardGrid({
@@ -31,6 +32,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
   setShowInfoModal,
   setShowTrackingModal,
   onCancelStay,
+  onAssignRemote,
 }: RoomCardGridProps) {
   return (
     <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 min-h-[50vh]">
@@ -94,6 +96,8 @@ export const RoomCardGrid = memo(function RoomCardGrid({
           hasValetPriorityConcept && // <--- Solo bloqueamos si hay conceptos que el valet debe informar
           !hasUnconfirmedValetPayment;
 
+        const tvRemote = room.room_assets?.find(a => a.asset_type === 'TV_REMOTE');
+
         return (
           <RoomCard
             key={room.id}
@@ -129,6 +133,8 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             isValetPending={!!valetPending && (status === "OCUPADA" || status === "BLOQUEADA")}
             valetId={activeStay && (status === "OCUPADA" || status === "BLOQUEADA") ? activeStay.valet_employee_id : null}
             onCancelStay={onCancelStay ? () => onCancelStay(room) : undefined}
+            tvRemoteStatus={tvRemote?.status}
+            onAssignRemote={onAssignRemote ? () => onAssignRemote(room) : undefined}
           />
         );
       })}

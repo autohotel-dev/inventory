@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle, Tv } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
@@ -74,6 +74,8 @@ export interface RoomCardProps {
   onAddProduct?: () => void;
   onViewServices?: () => void;
   onCancelStay?: () => void;
+  tvRemoteStatus?: string; // e.g. EN_RECEPCION, CON_COCHERO, EN_HABITACION, EXTRAVIADO
+  onAssignRemote?: () => void;
 }
 
 import { memo } from "react";
@@ -98,6 +100,8 @@ export function RoomCardComponent({
   onAddProduct,
   onViewServices,
   onCancelStay,
+  tvRemoteStatus,
+  onAssignRemote,
 }: RoomCardProps) {
   /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
@@ -264,7 +268,28 @@ export function RoomCardComponent({
             </div>
           )}
         </div>
-        {statusBadge}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Indicador de Control de TV */}
+          {tvRemoteStatus && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssignRemote?.();
+              }}
+              title={`Control de TV: ${tvRemoteStatus.replace('_', ' ')}`}
+              className={cn(
+                "h-5 w-5 flex items-center justify-center rounded-md border shadow-sm transition-all hover:scale-110",
+                tvRemoteStatus === "EN_HABITACION" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
+                tvRemoteStatus === "CON_COCHERO" ? "bg-blue-500/20 border-blue-500/50 text-blue-400" :
+                tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/30 border-red-500/60 text-red-400 animate-pulse" :
+                "bg-amber-500/20 border-amber-500/50 text-amber-400" // EN_RECEPCION
+              )}
+            >
+              <Tv className="h-3 w-3" />
+            </button>
+          )}
+          {statusBadge}
+        </div>
       </div>
 
       {/* Fila inferior: Tipo + Botones */}
@@ -374,6 +399,7 @@ function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
   if (oldProps.valetId !== newProps.valetId) return false;
   if (oldProps.notes !== newProps.notes) return false;
   if (oldProps.roomTypeName !== newProps.roomTypeName) return false;
+  if (oldProps.tvRemoteStatus !== newProps.tvRemoteStatus) return false;
 
   // Shallow Compare for objects
   const oldSensor = oldProps.sensorStatus;

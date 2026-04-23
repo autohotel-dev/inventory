@@ -100,6 +100,12 @@ export interface Room {
   status: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
   room_types: RoomType | null;
   room_stays?: RoomStay[];
+  room_assets?: {
+    id: string;
+    asset_type: string;
+    status: string;
+    assigned_employee_id: string | null;
+  }[];
   notes?: string | null;
 }
 

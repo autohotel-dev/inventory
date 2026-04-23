@@ -53,6 +53,7 @@ const ValetDashboard = dynamic(() => import("@/components/valet/valet-dashboard"
 const RoomInfoPopover = dynamic(() => import("@/components/sales/room-info-popover").then(m => ({ default: m.RoomInfoPopover })), { ssr: false });
 const RoomActionsWheel = dynamic(() => import("@/components/sales/room-actions-wheel").then(m => ({ default: m.RoomActionsWheel })), { ssr: false });
 const RoomReminderAlert = dynamic(() => import("@/components/sales/room-reminder-alert").then(m => ({ default: m.RoomReminderAlert })), { ssr: false });
+const AssignAssetModal = dynamic(() => import("@/components/rooms/modals/assign-asset-modal").then(m => ({ default: m.AssignAssetModal })), { ssr: false });
 import { AdminBoardControls } from "@/components/sales/admin-board-controls";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 
@@ -90,6 +91,7 @@ function RoomsBoardInternal() {
   );
   const [trackingFilter] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [assignRemoteRoom, setAssignRemoteRoom] = useState<Room | null>(null);
 
   // Sensores y Realtime
   const { sensors } = useSensors();
@@ -578,6 +580,7 @@ function RoomsBoardInternal() {
             setSelectedRoom={modals.setSelectedRoom}
             setShowInfoModal={setShowInfoModalCb}
             setShowTrackingModal={setShowTrackingModalCb}
+            onAssignRemote={(room) => setAssignRemoteRoom(room)}
             onCancelStay={(room) => {
               modals.setSelectedRoom(room);
               modals.openModal("cancelStay");
@@ -585,6 +588,15 @@ function RoomsBoardInternal() {
           />
         </CardContent>
       </Card>
+      
+      <AssignAssetModal 
+        isOpen={!!assignRemoteRoom}
+        onClose={() => setAssignRemoteRoom(null)}
+        room={assignRemoteRoom}
+        assetType="TV_REMOTE"
+        onSuccess={() => fetchRooms(true)}
+      />
+
       <ConnectedStartStayModal
         isOpen={modals.isOpen("startStay") && !!modals.selectedRoom}
         room={modals.selectedRoom}
