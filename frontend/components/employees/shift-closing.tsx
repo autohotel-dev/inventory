@@ -132,28 +132,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
       let payments = initialPayments || [];
 
-      // FIX: Fetch missing siblings of MIXTO orders that were inserted with bad shift_session_id
-      const orderIds = [...new Set(payments.map((p: any) => p.sales_order_id).filter(Boolean))];
-      if (orderIds.length > 0) {
-        const { data: siblingPayments } = await supabase
-          .from("payments")
-          .select(`
-            *,
-            payment_terminals(code, name),
-            sales_orders(id, total, status),
-            collected_by
-          `)
-          .in("sales_order_id", orderIds);
-          
-        if (siblingPayments) {
-          const existingIds = new Set(payments.map((p: any) => p.id));
-          for (const sp of siblingPayments) {
-            if (!existingIds.has(sp.id)) {
-              payments.push(sp);
-            }
-          }
-        }
-      }
+      // Se elimina la busqueda de "siblingPayments" porque provocaba que pagos de diferentes
+      // turnos (ej. el consumo que cobró Jocelyn) se mezclaran en el turno original (ej. Fer)
+      // simplemente por compartir el mismo sales_order_id de la habitación.
 
       let salesOrders: any[] = [];
       const shiftSalesOrderIds = [...new Set(

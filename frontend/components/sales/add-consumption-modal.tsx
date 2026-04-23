@@ -771,12 +771,24 @@ export function AddConsumptionModal({
       // Get the active shift session ID
       const { data: { user } } = await supabase.auth.getUser();
       
-      const { data: activeSession } = await supabase
-        .from('shift_sessions')
-        .select('id')
-        .eq('employee_id', user?.id)
-        .eq('status', 'active')
-        .maybeSingle();
+      let currentSessionId = null;
+      if (user) {
+        const { data: employee } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .single();
+          
+        if (employee) {
+          const { data: activeSession } = await supabase
+            .from('shift_sessions')
+            .select('id')
+            .eq('employee_id', employee.id)
+            .eq('status', 'active')
+            .maybeSingle();
+          currentSessionId = activeSession?.id || null;
+        }
+      }
 
       const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => {
         const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
@@ -791,7 +803,7 @@ export function AddConsumptionModal({
           is_courtesy: is_courtesy || false,
           courtesy_reason: courtesy_reason || null,
           delivery_status: 'PENDING_VALET',
-          shift_session_id: activeSession?.id || null
+          shift_session_id: currentSessionId
         };
       });
 
