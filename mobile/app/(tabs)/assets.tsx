@@ -125,7 +125,7 @@ export default function AssetsScreen() {
         // Optimistic update
         setRooms(prev => prev.map(r => r.id === roomId ? { ...r, tvRemoteStatus: 'EN_HABITACION' } : r));
         
-        const success = await handleDropAssetInRoom(roomId, 'TV_REMOTE', employeeId);
+        const success = await handleDropAssetInRoom(roomId, employeeId, 'TV_REMOTE');
         if (!success) {
             // Revert on failure
             fetchRooms(true);
