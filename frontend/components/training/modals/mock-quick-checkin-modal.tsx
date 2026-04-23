@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RoomType } from "@/components/sales/room-types";
+import { formatDateTime, formatTime } from "@/lib/export-utils";
 import {
     Minus,
     Plus,
@@ -25,23 +26,6 @@ export interface MockQuickCheckinModalProps {
         initialPeople: number;
         actualEntryTime: Date;
     }) => void;
-}
-
-function formatTime(date: Date) {
-    return date.toLocaleTimeString("es-MX", {
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
-
-function formatDateTime(date: Date) {
-    return date.toLocaleString("es-MX", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
 }
 
 export function MockQuickCheckinModal({

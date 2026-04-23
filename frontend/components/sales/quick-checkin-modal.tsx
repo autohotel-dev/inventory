@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RoomType } from "@/components/sales/room-types";
 import { Label } from "@/components/ui/label";
-import { formatDateTime } from "@/lib/export-utils"; // FIX #9: Use centralized date formatter
+import { formatDateTime, formatTime } from "@/lib/export-utils";
 import {
   Minus,
   Plus,
@@ -28,13 +28,6 @@ export interface QuickCheckinModalProps {
     actualEntryTime: Date;
     durationNights: number;
   }) => void;
-}
-
-function formatTime(date: Date) {
-  return date.toLocaleTimeString("es-MX", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 // FIX #9: Removed local formatDateTime - using centralized utility from export-utils
