@@ -332,3 +332,32 @@ li {
 .stagger-1 { animation-delay: 0.1s; }
 .stagger-2 { animation-delay: 0.2s; }
 .stagger-3 { animation-delay: 0.3s; }
+
+/* Screenshots Premium */
+.screenshot-container {
+  margin: 1.5rem 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  transition: all 0.4s ease;
+  background-color: var(--card);
+}
+
+.screenshot-container:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.screenshot-premium {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: calc(var(--radius) - 1px);
+  transition: transform 0.4s ease;
+}
+
+.screenshot-container:hover .screenshot-premium {
+  transform: scale(1.02);
+}
