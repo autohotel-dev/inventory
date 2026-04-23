@@ -18,7 +18,7 @@ export default component$(() => {
         <div class="container">
           <div class="nav" style={{ display: "flex", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", marginRight: "auto" }}>
-              <img src="/luxor-logo.png" alt="Autohotel Luxor" style={{ height: "45px", width: "auto", marginRight: "1rem", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))" }} />
+              <img src="/luxor_manual_icon.png" alt="Autohotel Luxor" style={{ height: "45px", width: "auto", marginRight: "1rem", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))", borderRadius: "10px" }} />
               <h2 style={{ margin: 0, fontSize: "1.5rem" }} class="premium-gradient">Manual Operativo</h2>
             </div>
             {navItems.map((item) => (
