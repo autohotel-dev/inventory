@@ -95,7 +95,6 @@ export function RoomCard({
   onAddProduct,
   onViewServices,
 }: RoomCardProps) {
-  /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
   const showDoorAlert = isDoorOpen && status === "OCUPADA";
 
