@@ -47,6 +47,14 @@ export function useRoomRealtime(
           )
           .on(
             "postgres_changes",
+            { event: "*", schema: "public", table: "room_assets" },
+            () => {
+              if (!isSubscribed) return;
+              fetchRoomsRef.current(true);
+            }
+          )
+          .on(
+            "postgres_changes",
             { event: "*", schema: "public", table: "room_stays" },
             () => {
               if (!isSubscribed) return;
