@@ -759,6 +759,7 @@ function RoomsBoardInternal() {
         room={modals.selectedRoom}
         activeStay={modals.selectedRoom ? getActiveStay(modals.selectedRoom) : null}
         employeeId={employeeId}
+        onCancelCharge={handleCancelPendingCharge}
         onClose={() => {
           modals.closeModal("details");
         }}

@@ -30,6 +30,7 @@ interface IncomeEntry {
     card_last_4?: string;
     terminal_code?: string;
     stay_status?: string;
+    checkout_valet_name?: string;
     payments?: PaymentDetail[];
 }
 
@@ -116,6 +117,11 @@ export function IncomeReport({
           room_id,
           sales_order_id,
           status,
+          checkout_valet_employee_id,
+          checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(
+            first_name,
+            last_name
+          ),
           rooms!inner (
             number
           ),
@@ -366,6 +372,7 @@ export function IncomeReport({
                     card_last_4: cardPayment?.card_last_4,
                     terminal_code: cardPayment?.terminal_code,
                     stay_status: stay.status,
+                    checkout_valet_name: stay.checkout_valet ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim() : "—",
                     payments: payments.map((p: any) => ({
                         payment_method: p.payment_method,
                         amount: p.amount || 0,
@@ -461,6 +468,7 @@ export function IncomeReport({
                 <td style="text-align:center;">${e.time}</td>
                 <td style="text-align:center;text-transform:uppercase;font-size:10px;">${e.vehicle_plate || "—"}</td>
                 <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === "CANCELADA" ? ' <span style="color:#dc2626;font-size:9px;">(CANC)</span>' : e.stay_status === "ACTIVA" ? ' <span style="color:#d97706;font-size:9px;">(ACT)</span>' : ""}</td>
+                <td style="text-align:center;font-size:10px;color:#4b5563;">${e.checkout_valet_name || "—"}</td>
                 <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
                 <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? "$" + Number(e.extra).toFixed(2) : "—"}</td>
                 <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? "$" + Number(e.consumption).toFixed(2) : "—"}</td>
@@ -517,6 +525,7 @@ export function IncomeReport({
                 <th style="width:55px">Hora</th>
                 <th style="width:80px">Placas</th>
                 <th style="width:50px">Hab.</th>
+                <th style="width:60px">Aprobó</th>
                 <th style="width:75px">Precio</th>
                 <th style="width:70px">Extra</th>
                 <th style="width:75px">Consumo</th>
@@ -591,7 +600,7 @@ export function IncomeReport({
         lines.push(""); // blank separator
 
         // Column headers
-        lines.push(["No.", "Horario", "Placas", "Habitación", "Estado", "Precio Hab.", "Extras", "Consumo", "Total", "Forma Pago", "Detalle Pago"].map(h => `"${h}"`).join(","));
+        lines.push(["No.", "Horario", "Placas", "Habitación", "Aprobó Salida", "Estado", "Precio Hab.", "Extras", "Consumo", "Total", "Forma Pago", "Detalle Pago"].map(h => `"${h}"`).join(","));
 
         // Data rows
         entries.forEach(e => {
@@ -611,6 +620,7 @@ export function IncomeReport({
                 e.time,
                 e.vehicle_plate,
                 e.room_number,
+                e.checkout_valet_name || "—",
                 e.stay_status || "",
                 e.room_price.toFixed(2),
                 e.extra.toFixed(2),
@@ -623,7 +633,7 @@ export function IncomeReport({
 
         // Totals row
         lines.push("");
-        lines.push(["", "", "", "", "TOTALES:", totals.roomPrice.toFixed(2), totals.extra.toFixed(2), totals.consumption.toFixed(2), totals.total.toFixed(2), "", ""].map(v => `"${v}"`).join(","));
+        lines.push(["", "", "", "", "", "TOTALES:", totals.roomPrice.toFixed(2), totals.extra.toFixed(2), totals.consumption.toFixed(2), totals.total.toFixed(2), "", ""].map(v => `"${v}"`).join(","));
 
         // Payment breakdown
         const paymentBreakdown: Record<string, number> = {};
@@ -846,6 +856,7 @@ export function IncomeReport({
                                     <th className="border-r border-border p-2 w-20 font-semibold print:border-r-2 print:border-black">Horario</th>
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Placas</th>
                                     <th className="border-r border-border p-2 w-20 font-semibold print:border-r-2 print:border-black">Hab.</th>
+                                    <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Aprobó</th>
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Precio</th>
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Extra</th>
                                     <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Consumo</th>
@@ -874,6 +885,9 @@ export function IncomeReport({
                                                         </Badge>
                                                     )}
                                                 </div>
+                                            </td>
+                                            <td className="border-r border-border p-2 text-center text-[10px] text-muted-foreground print:border-r print:border-black">
+                                                {entry.checkout_valet_name || "—"}
                                             </td>
                                             <td className="border-r border-border p-2 text-right print:border-r print:border-black">
                                                 {entry.room_price > 0 ? <span className="font-mono">{formatCurrency(entry.room_price)}</span> : "-"}
@@ -933,10 +947,9 @@ export function IncomeReport({
                                                 )}
                                             </td>
                                         </tr>
-                                        {/* Fila expandible para detalles de pago mixto */}
                                         {expandedRows.includes(entry.no) && entry.payments && (
                                             <tr className="bg-muted/30 print:hidden animate-in fade-in-0 slide-in-from-top-1">
-                                                <td colSpan={8} className="p-0 border-r border-border"></td>
+                                                <td colSpan={9} className="p-0 border-r border-border"></td>
                                                 <td className="p-2 border-b border-border bg-muted/30 shadow-inner">
                                                     <div className="space-y-1">
                                                         {entry.payments.map((p: any, pIdx: number) => (
@@ -974,7 +987,7 @@ export function IncomeReport({
 
                                 {/* Fila de totales */}
                                 <tr className="border-t-2 border-border font-bold bg-muted print:border-t-2 print:border-black">
-                                    <td colSpan={4} className="border-r border-border p-3 text-right uppercase print:border-r-2 print:border-black">
+                                    <td colSpan={5} className="border-r border-border p-3 text-right uppercase print:border-r-2 print:border-black">
                                         SUMA TOTAL
                                     </td>
                                     <td className="border-r border-border p-3 text-right print:border-r-2 print:border-black">

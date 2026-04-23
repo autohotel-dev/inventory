@@ -409,6 +409,7 @@ export interface UseRoomActionsReturn {
   requestVehicle: (stayId: string) => Promise<boolean>;
   handleAuthorizeValetCheckout: (room: Room) => Promise<boolean>;
   handleCancelValetCheckout: (room: Room) => Promise<boolean>;
+  handleCancelPendingCharge: (paymentId: string, room: Room, concept: string, amount: number) => Promise<boolean>;
 }
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
@@ -1875,6 +1876,73 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     }
   };
 
+  /**
+   * Anti-error: Cancela un cargo PENDIENTE (hora extra, promo, renovación, persona extra)
+   * Llama a un RPC atómico que:
+   * 1. Elimina los items de la orden.
+   * 2. Ajusta el saldo pendiente, total y subtotal.
+   * 3. Ajusta el tiempo de la habitación y número de personas.
+   * 4. Elimina el pago.
+   */
+  const handleCancelPendingCharge = async (paymentId: string, room: Room, concept: string, amount: number): Promise<boolean> => {
+    if (!checkAuthorization("Cancelar Cargo")) return false;
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      const activeStay = getActiveStay(room);
+      if (!activeStay) {
+        toast.error("No hay estancia activa");
+        return false;
+      }
+
+      const currentEmployeeId = await getReceptionEmployeeId(supabase);
+
+      const { data, error } = await supabase.rpc('cancel_reception_charge', {
+        p_payment_id: paymentId,
+        p_employee_id: currentEmployeeId
+      });
+
+      if (error) {
+        logger.error("RPC cancel_reception_charge error:", error);
+        toast.error("Error al cancelar el cargo en la base de datos");
+        return false;
+      }
+
+      if (!data.success) {
+        logger.warn("RPC cancel_reception_charge failed:", data);
+        toast.error(data.error || "No se pudo cancelar el cargo");
+        return false;
+      }
+
+      toast.success("Cargo cancelado correctamente", {
+        description: `Se descontaron $${amount.toFixed(2)} y se ajustaron los detalles.`,
+      });
+
+      // Notificar a los valets para que sepan que ya no deben cobrar esto
+      await notifyActiveValets(
+        supabase,
+        '🚫 Cargo Cancelado',
+        `Recepción canceló un cobro pendiente de $${amount.toFixed(2)} en Hab. ${room.number}.`,
+        {
+          type: 'CHARGE_CANCELLED',
+          roomNumber: room.number,
+          stayId: activeStay.id
+        }
+      );
+
+      await onRefresh();
+      return true;
+
+    } catch (error) {
+      logger.error("Error in handleCancelPendingCharge:", error);
+      toast.error("Ocurrió un error inesperado al cancelar");
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return {
     actionLoading,
     handleAddPerson,
@@ -1891,6 +1959,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     requestVehicle,
     handleAuthorizeValetCheckout,
     handleCancelValetCheckout,
+    handleCancelPendingCharge,
   };
 }
 

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check } from "lucide-react";
+import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export interface RoomDetailsModalProps {
   activeStay: RoomStay | null;
   onClose: () => void;
   employeeId?: string | null;
+  onCancelCharge?: (paymentId: string, room: Room, concept: string, amount: number) => Promise<boolean>;
 }
 
 export function RoomDetailsModal({
@@ -67,6 +69,7 @@ export function RoomDetailsModal({
   activeStay,
   onClose,
   employeeId,
+  onCancelCharge,
 }: RoomDetailsModalProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [items, setItems] = useState<SalesOrderItem[]>([]);
@@ -120,6 +123,20 @@ export function RoomDetailsModal({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelPayment = async (paymentId: string, concept: string, amount: number) => {
+    if (!room || !onCancelCharge || !activeStay?.sales_order_id) return;
+    
+    const confirmed = window.confirm(`¿Estás seguro de cancelar este cargo de $${amount.toFixed(2)}?`);
+    if (!confirmed) return;
+
+    setLoading(true);
+    const success = await onCancelCharge(paymentId, room, concept, amount);
+    if (success) {
+      await fetchDetails(activeStay.sales_order_id);
+    }
+    setLoading(false);
   };
 
   const getPaymentIcon = (method: string) => {
@@ -300,12 +317,25 @@ export function RoomDetailsModal({
                                   <div className="text-2xl font-black tracking-tighter text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
                                     ${Number(payment.amount).toFixed(2)}
                                   </div>
-                                  <Badge className={cn(
-                                    "mt-2 text-[9px] font-black tracking-widest border-0",
-                                    payment.status === "PAGADO" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
-                                  )}>
-                                    {payment.status}
-                                  </Badge>
+                                  <div className="flex flex-col items-end gap-2 mt-2">
+                                    <Badge className={cn(
+                                      "text-[9px] font-black tracking-widest border-0",
+                                      payment.status === "PAGADO" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
+                                    )}>
+                                      {payment.status}
+                                    </Badge>
+                                    
+                                    {payment.status === "PENDIENTE" && onCancelCharge && (
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); handleCancelPayment(payment.id, payment.concept || '', Number(payment.amount)); }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 mt-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors border border-red-500/20"
+                                        title="Cancelar Cargo"
+                                      >
+                                        <Trash2 size={12} />
+                                        <span className="text-[9px] font-black uppercase tracking-widest">Cancelar</span>
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
