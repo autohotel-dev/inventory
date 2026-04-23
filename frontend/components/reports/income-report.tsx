@@ -164,7 +164,6 @@ export function IncomeReport({
                     .eq("id", shiftId)
                     .maybeSingle();
 
-                console.log("🔍 Closing data for shift filter:", { shiftId, closingData, closingError });
 
                 let shift: any = null;
                 let shiftSessionId: string | null = null;
@@ -178,7 +177,6 @@ export function IncomeReport({
                         employee_name: employee ? `${employee.first_name} ${employee.last_name} ` : undefined
                     };
                     shiftSessionId = closingData.shift_session_id;
-                    console.log("📅 Shift period:", { start: shift.shift_start, end: shift.shift_end });
                 }
 
                 // Si no es un cierre, buscar en sesiones activas
@@ -196,7 +194,6 @@ export function IncomeReport({
                         .eq("id", shiftId)
                         .single();
 
-                    console.log("🔍 Session data for shift filter:", { shiftId, session, sessionError });
 
                     if (session) {
                         const employee = (session.employees as any);
@@ -210,7 +207,6 @@ export function IncomeReport({
                             employee_name: employeeName
                         };
                         shiftSessionId = session.id;
-                        console.log("📅 Active shift period:", { start: shift.shift_start, end: "NOW" });
                     }
                 }
 
@@ -225,7 +221,6 @@ export function IncomeReport({
                     } else {
                         query = query.lte("check_in_at", new Date().toISOString());
                     }
-                    console.log("✅ Query filtered by true check-in time for shift");
                 } else {
                     console.warn("⚠️ No shift data found for shiftId:", shiftId);
                 }
