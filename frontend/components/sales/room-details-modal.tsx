@@ -14,6 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AssignAssetModal } from "@/components/rooms/modals/assign-asset-modal";
+import { Tv } from "lucide-react";
 
 interface Payment {
   id: string;
@@ -63,6 +65,13 @@ export interface RoomDetailsModalProps {
   onCancelCharge?: (paymentId: string, room: Room, concept: string, amount: number) => Promise<boolean>;
 }
 
+interface RoomAsset {
+  id: string;
+  asset_type: string;
+  status: string;
+  assigned_employee_id: string | null;
+}
+
 export function RoomDetailsModal({
   isOpen,
   room,
@@ -74,14 +83,35 @@ export function RoomDetailsModal({
   const [payments, setPayments] = useState<Payment[]>([]);
   const [items, setItems] = useState<SalesOrderItem[]>([]);
   const [salesOrder, setSalesOrder] = useState<SalesOrder | null>(null);
+  const [tvRemoteAsset, setTvRemoteAsset] = useState<RoomAsset | null>(null);
+  const [isAssignAssetModalOpen, setIsAssignAssetModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"payments" | "items">("payments");
 
   useEffect(() => {
-    if (isOpen && activeStay?.sales_order_id) {
-      fetchDetails(activeStay.sales_order_id);
+    if (isOpen) {
+      if (activeStay?.sales_order_id) {
+        fetchDetails(activeStay.sales_order_id);
+      }
+      fetchAssetDetails();
     }
   }, [isOpen, activeStay]);
+
+  const fetchAssetDetails = async () => {
+    if (!room) return;
+    const supabase = createClient();
+    try {
+      const { data } = await supabase
+        .from("room_assets")
+        .select("*")
+        .eq("room_id", room.id)
+        .eq("asset_type", "TV_REMOTE")
+        .maybeSingle();
+      setTvRemoteAsset(data);
+    } catch (err) {
+      console.error("Error fetching asset details:", err);
+    }
+  };
 
   const fetchDetails = async (salesOrderId: string) => {
     setLoading(true);
@@ -181,8 +211,23 @@ export function RoomDetailsModal({
 
   if (!isOpen || !room) return null;
 
+  const getAssetStatusColor = (status: string) => {
+    switch(status) {
+      case 'EN_HABITACION': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'CON_COCHERO': return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+      case 'EN_RECEPCION': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+      case 'EXTRAVIADO': return 'text-red-400 bg-red-500/10 border-red-500/20 animate-pulse';
+      default: return 'text-zinc-400 bg-white/5 border-white/10';
+    }
+  };
+
+  const formatAssetStatus = (status: string) => {
+    return status.replace('_', ' ');
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-2xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-[2rem] h-[85vh] flex flex-col">
         {/* Header con glassmorphism */}
         <div className="relative p-8 shrink-0 overflow-hidden border-b border-white/5 bg-zinc-900/50">
@@ -529,6 +574,50 @@ export function RoomDetailsModal({
               </div>
             </div>
 
+            {/* Activos (Controles) */}
+            <div className="space-y-4 pt-4">
+              <div className="text-[11px] font-black uppercase tracking-[0.3em] text-zinc-500 px-2 flex justify-between items-center">
+                <span>Activos de Habitación</span>
+              </div>
+              <div className={cn(
+                "bg-zinc-900/60 border rounded-3xl p-6 relative overflow-hidden group transition-all",
+                tvRemoteAsset?.status === 'EXTRAVIADO' ? 'border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : 'border-white/10'
+              )}>
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className={cn(
+                    "h-12 w-12 rounded-2xl flex items-center justify-center border",
+                    tvRemoteAsset?.status === 'EXTRAVIADO' ? 'bg-red-500/20 border-red-500/30 text-red-500' : 'bg-zinc-800 border-white/10 text-zinc-400'
+                  )}>
+                    <Tv size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-black text-white italic tracking-tighter leading-none mb-1">
+                      Control de TV
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={cn(
+                        "text-[10px] font-black font-mono px-2 py-0.5 rounded border uppercase tracking-widest",
+                        getAssetStatusColor(tvRemoteAsset?.status || 'SIN_REGISTRO')
+                      )}>
+                        {formatAssetStatus(tvRemoteAsset?.status || 'SIN_REGISTRO')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Acciones para el control */}
+                {(!tvRemoteAsset || tvRemoteAsset.status === 'EN_RECEPCION' || tvRemoteAsset.status === 'EXTRAVIADO') && (
+                  <Button
+                    onClick={() => setIsAssignAssetModalOpen(true)}
+                    className="w-full mt-4 bg-primary text-black hover:bg-primary/90 font-black tracking-widest uppercase text-[10px] rounded-xl h-10"
+                    size="sm"
+                  >
+                    Asignar a Cochero
+                  </Button>
+                )}
+              </div>
+            </div>
+
             {/* Vehículo registrado */}
             {activeStay?.vehicle_plate && (
               <div className="space-y-4 pt-4">
@@ -577,5 +666,14 @@ export function RoomDetailsModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    <AssignAssetModal 
+      isOpen={isAssignAssetModalOpen}
+      onClose={() => setIsAssignAssetModalOpen(false)}
+      room={room}
+      assetType="TV_REMOTE"
+      onSuccess={fetchAssetDetails}
+    />
+    </>
   );
 }

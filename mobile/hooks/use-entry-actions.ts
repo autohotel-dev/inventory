@@ -260,9 +260,42 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
+    const handleDropAssetInRoom = useCallback(async (
+        roomId: string,
+        employeeId: string,
+        assetType: string = 'TV_REMOTE'
+    ) => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.rpc('mark_asset_in_room', {
+                p_room_id: roomId,
+                p_asset_type: assetType,
+                p_employee_id: employeeId
+            });
+
+            if (error) throw error;
+            
+            if (data?.success) {
+                showFeedback('Activo Dejado', data.message || 'Control dejado en habitación');
+                await onRefresh();
+                return true;
+            } else {
+                showFeedback('Aviso', data.message || 'No se pudo actualizar el activo', 'warning');
+                return false;
+            }
+        } catch (error: any) {
+            console.error('Error dropping asset in room:', error);
+            showFeedback('Error', 'Hubo un error al marcar el control', 'error');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, [onRefresh, showFeedback]);
+
     return {
         loading,
         handleAcceptEntry,
-        handleRegisterVehicleAndPayment
+        handleRegisterVehicleAndPayment,
+        handleDropAssetInRoom
     };
 }

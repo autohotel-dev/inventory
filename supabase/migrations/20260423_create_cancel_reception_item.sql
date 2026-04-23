@@ -24,7 +24,7 @@ BEGIN
     END IF;
 
     -- 2. Get active stay and room
-    SELECT rs.*, r.room_types_id INTO v_stay 
+    SELECT rs.*, r.room_type_id INTO v_stay 
     FROM public.room_stays rs
     JOIN public.rooms r ON r.id = rs.room_id
     WHERE rs.sales_order_id = v_payment.sales_order_id AND rs.status = 'ACTIVA'
@@ -34,7 +34,7 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'No se encontró estancia activa para esta orden');
     END IF;
 
-    SELECT * INTO v_room_type FROM public.room_types WHERE id = v_stay.room_types_id;
+    SELECT * INTO v_room_type FROM public.room_types WHERE id = v_stay.room_type_id;
 
     -- 3. Determine adjustments based on concept
     IF v_payment.concept = 'PROMO_4H' THEN
@@ -136,7 +136,7 @@ BEGIN
     END IF;
 
     -- 2. Get active stay
-    SELECT rs.*, r.room_types_id INTO v_stay 
+    SELECT rs.*, r.room_type_id INTO v_stay 
     FROM public.room_stays rs
     JOIN public.rooms r ON r.id = rs.room_id
     WHERE rs.sales_order_id = v_item.sales_order_id AND rs.status = 'ACTIVA'
@@ -144,7 +144,7 @@ BEGIN
 
     -- 3. Adjust time/people based on concept
     IF FOUND THEN
-        SELECT * INTO v_room_type FROM public.room_types WHERE id = v_stay.room_types_id;
+        SELECT * INTO v_room_type FROM public.room_types WHERE id = v_stay.room_type_id;
 
         IF v_item.concept_type = 'PROMO_4H' THEN
             v_hours_to_deduct := 4;
@@ -213,4 +213,4 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- RELOAD SCHEMA CACHE (Fixes PGRST202 404 error)
-NOTIFY pgrst, reload_schema;
+NOTIFY pgrst, 'reload schema';

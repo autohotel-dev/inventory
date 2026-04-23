@@ -369,12 +369,75 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
+    const handleVerifyAssetPresence = useCallback(async (
+        roomId: string,
+        employeeId: string,
+        isPresent: boolean,
+        assetType: string = 'TV_REMOTE'
+    ) => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.rpc('verify_asset_presence', {
+                p_room_id: roomId,
+                p_asset_type: assetType,
+                p_is_present: isPresent,
+                p_employee_id: employeeId
+            });
+
+            if (error) throw error;
+            
+            if (data?.success) {
+                // Notificar a recepción si no está
+                if (!isPresent) {
+                    const { data: receptionSessions } = await supabase
+                        .from('shift_sessions')
+                        .select('employees!inner(auth_user_id, role)')
+                        .eq('status', 'active')
+                        .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+
+                    if (receptionSessions && receptionSessions.length > 0) {
+                        const uniqueUserIds = new Set<string>();
+                        receptionSessions.forEach((session: any) => {
+                            if (session.employees?.auth_user_id) {
+                                uniqueUserIds.add(session.employees.auth_user_id);
+                            }
+                        });
+
+                        if (uniqueUserIds.size > 0) {
+                            const notifications = Array.from(uniqueUserIds).map(userId => ({
+                                user_id: userId,
+                                type: 'system_alert',
+                                title: '⚠️ Control Extraviado',
+                                message: `La habitación reporta un control extraviado. Cobre del depósito.`,
+                                data: { type: 'ASSET_MISSING', roomId },
+                                is_read: false,
+                            }));
+                            await supabase.from('notifications').insert(notifications);
+                        }
+                    }
+                }
+                
+                showFeedback(isPresent ? 'Validado' : 'Reportado', data.message || 'Estado del control actualizado', isPresent ? 'success' : 'warning');
+                return true;
+            } else {
+                return false;
+            }
+        } catch (error: any) {
+            console.error('Error verifying asset:', error);
+            showFeedback('Error', 'Hubo un error al verificar el control', 'error');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, [showFeedback]);
+
     return {
         loading,
         handleConfirmCheckout,
         handleProposeCheckout,
         handleReportDamage,
         handleRegisterExtraHour,
-        handleRegisterExtraPerson
+        handleRegisterExtraPerson,
+        handleVerifyAssetPresence
     };
 }

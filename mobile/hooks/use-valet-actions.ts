@@ -15,6 +15,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         // Entry Actions
         handleAcceptEntry: entry.handleAcceptEntry,
         handleRegisterVehicleAndPayment: entry.handleRegisterVehicleAndPayment,
+        handleDropAssetInRoom: entry.handleDropAssetInRoom,
 
         // Checkout & Extra Actions
         handleConfirmCheckout: checkout.handleConfirmCheckout,
@@ -22,6 +23,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         handleReportDamage: checkout.handleReportDamage,
         handleRegisterExtraHour: checkout.handleRegisterExtraHour,
         handleRegisterExtraPerson: checkout.handleRegisterExtraPerson,
+        handleVerifyAssetPresence: checkout.handleVerifyAssetPresence,
 
         // Consumption Actions
         handleAcceptConsumption: consumption.handleAcceptConsumption,
