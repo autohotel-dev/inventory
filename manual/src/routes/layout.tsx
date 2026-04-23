@@ -17,7 +17,10 @@ export default component$(() => {
       <header class="header glass">
         <div class="container">
           <div class="nav" style={{ display: "flex", alignItems: "center" }}>
-            <h2 style={{ margin: 0, marginRight: "auto", fontSize: "1.5rem" }} class="premium-gradient">Manual Operativo</h2>
+            <div style={{ display: "flex", alignItems: "center", marginRight: "auto" }}>
+              <img src="/luxor-logo.png" alt="Autohotel Luxor" style={{ height: "45px", width: "auto", marginRight: "1rem", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))" }} />
+              <h2 style={{ margin: 0, fontSize: "1.5rem" }} class="premium-gradient">Manual Operativo</h2>
+            </div>
             {navItems.map((item) => (
               <Link
                 key={item.href}

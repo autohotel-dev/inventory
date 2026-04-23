@@ -32,6 +32,7 @@ export interface POSConfig {
     maxShiftsReceptionist: number;
     maxShiftsValet: number;
     maxShiftsAdmin: number;
+    autoChargeExtraHours: boolean;
 }
 
 const DEFAULT_CONFIG: POSConfig = {
@@ -50,6 +51,7 @@ const DEFAULT_CONFIG: POSConfig = {
     maxShiftsReceptionist: 1,
     maxShiftsValet: 4,
     maxShiftsAdmin: 2,
+    autoChargeExtraHours: true,
 };
 
 const STORAGE_KEY = 'pos-config';

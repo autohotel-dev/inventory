@@ -103,13 +103,15 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
     try {
       setDeletingItemId(itemId);
       const supabase = createClient();
-      const { error } = await supabase
-        .from("sales_order_items")
-        .delete()
-        .eq("id", itemId)
-        .eq("is_paid", false);
+      
+      const { data, error } = await supabase.rpc("delete_unpaid_sales_item", {
+        p_item_id: itemId
+      });
 
       if (error) throw error;
+      if (data && !data.success) {
+        throw new Error(data.error || "Error al eliminar el ítem");
+      }
       toast.success("Concepto eliminado");
       fetchItems();
     } catch (error) {

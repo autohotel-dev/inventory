@@ -269,6 +269,7 @@ export default function SettingsPage() {
                     maxShiftsReceptionist: systemConfig.maxShiftsReceptionist,
                     maxShiftsValet: systemConfig.maxShiftsValet,
                     maxShiftsAdmin: systemConfig.maxShiftsAdmin,
+                    autoChargeExtraHours: systemConfig.autoChargeExtraHours,
                 });
             }
         }
@@ -296,6 +297,7 @@ export default function SettingsPage() {
                 maxShiftsReceptionist: localConfig.maxShiftsReceptionist,
                 maxShiftsValet: localConfig.maxShiftsValet,
                 maxShiftsAdmin: localConfig.maxShiftsAdmin,
+                autoChargeExtraHours: localConfig.autoChargeExtraHours,
             });
             toast.success("Configuración guardada", { description: "Los cambios se aplicarán en todos los dispositivos" });
         } catch (err) {
@@ -502,6 +504,19 @@ export default function SettingsPage() {
                                                 <strong>Entrada Rápida:</strong> Permite registrar huéspedes sin cobrar de inmediato.
                                                 Este límite previene que se acumulen demasiados cobros pendientes.
                                             </InfoCallout>
+                                        </div>
+                                        <div className="pl-1">
+                                            <SettingRow
+                                                title="Autocobro de hora extra"
+                                                description="Si está activo, el sistema cobrará automáticamente una hora extra cuando termine el tiempo de la habitación."
+                                                disabled={!canEditShared}
+                                            >
+                                                <Switch
+                                                    checked={localConfig.autoChargeExtraHours ?? true}
+                                                    onCheckedChange={(c) => updateLocalConfig('autoChargeExtraHours', c)}
+                                                    disabled={!canEditShared}
+                                                />
+                                            </SettingRow>
                                         </div>
                                     </div>
 
@@ -749,6 +764,7 @@ export default function SettingsPage() {
                                                         { label: "Fondo de caja", value: `$${systemConfig.initialCashFund.toLocaleString()}` },
                                                         { label: "Adelanto cochero", value: `$${systemConfig.valetAdvanceAmount.toLocaleString()}` },
                                                         { label: "Ventas globales", value: systemConfig.includeGlobalSalesInShift ? "Sí" : "No" },
+                                                        { label: "Autocobro h. extra", value: systemConfig.autoChargeExtraHours ? "Sí" : "No" },
                                                         { label: "Límites (R/C/A)", value: `${systemConfig.maxShiftsReceptionist} / ${systemConfig.maxShiftsValet} / ${systemConfig.maxShiftsAdmin}` },
                                                     ]).map((item) => (
                                                         <div key={item.label} className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">

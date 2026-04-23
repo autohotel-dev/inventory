@@ -13,1043 +13,941 @@ export default component$(() => {
 
       <div class="grid animate-in stagger-2" style={{ gridTemplateColumns: "1fr", gap: "3rem" }}>
         
-        {/* SECCIÓN 1: ACCESO Y APERTURA */}
+        {/* SECCIÓN 1: AUTH */}
         <div class="card">
-          <h3>SECCIÓN 1: Acceso, Inicio de Turno y Dashboard</h3>
-          <p style={{marginBottom: "1rem"}}>Flujo estricto para el inicio de tu jornada laboral. El descuadre de caja nace si este paso se hace de forma incorrecta.</p>
+          <h3>SECCIÓN 1: Autenticación e Inicio (001-Auth)</h3>
+          <p style={{marginBottom: "1rem"}}>Flujo estricto para el inicio de tu jornada laboral.</p>
           
           <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/landing-page.png" alt="Landing Page" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/001-Auth/001-landing-page.png" alt="001 Landing Page" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
                 <strong>1. Portal de Acceso</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Asegúrate de estar usando una ventana de Google Chrome.</li>
-                  <li>Teclea la URL oficial del sistema de gestión en la barra superior.</li>
-                  <li>Espera a que cargue completamente la interfaz gráfica.</li>
-                  <li>Verifica que tu conexión a internet sea estable.</li>
+                  <li>Asegúrate de estar usando Google Chrome.</li>
+                  <li>Teclea la URL oficial del sistema de gestión.</li>
+                  <li>Espera a que cargue completamente.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/login.png" alt="Login" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/001-Auth/002-login.png" alt="002 Login" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
                 <strong>2. Autenticación</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en el campo "Correo Electrónico".</li>
-                  <li>Ingresa tu correo institucional sin espacios al final.</li>
-                  <li>Presiona la tecla "Tab" de tu teclado para bajar al campo de contraseña.</li>
-                  <li>Teclea tu contraseña respetando mayúsculas y haz clic en Iniciar Sesión.</li>
+                  <li>Haz clic en el campo Correo Electrónico.</li>
+                  <li>Ingresa tus credenciales oficiales.</li>
+                  <li>Haz clic en Iniciar Sesión.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/inicio-de-turno.png" alt="Apertura de turno" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/001-Auth/003-dashboard-recepcion.png" alt="003 Dashboard Sin Turno" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>3. Apertura de Caja (Obligatorio)</strong>
+                <strong>3. Dashboard (Sin Turno)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Localiza el módulo de "Turnos" en el menú lateral.</li>
-                  <li>Abre físicamente tu cajón y cuenta los billetes y monedas tres veces.</li>
-                  <li>Haz clic en "Abrir Turno".</li>
-                  <li>Teclea exactamente el efectivo contado en el campo "Fondo Inicial" y confirma.</li>
+                  <li>Vista inicial si no hay turno abierto.</li>
+                  <li>El sistema bloqueará operaciones hasta abrir caja.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/dashboard-recepcion.png" alt="Dashboard" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/001-Auth/004-inicio-de-turno.png" alt="004 Inicio de turno" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>4. Dashboard (Sin Turno)</strong>
+                <strong>4. Apertura de Caja</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si intentas operar en este estado, el sistema te bloqueará los cobros.</li>
-                  <li>Los botones de la rueda selectora relacionados a finanzas estarán desactivados.</li>
-                  <li>Debes regresar al paso anterior inmediatamente.</li>
+                  <li>Cuenta tu dinero físico y teclealo en el sistema.</li>
+                  <li>Obligatorio para que los cobros no sean huérfanos.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/dashboard-turno-iniciado.png" alt="Dashboard Turno Iniciado" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/001-Auth/005-dashboard-turno-iniciado.png" alt="005 Dashboard Operativo" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
                 <strong>5. Dashboard Operativo</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Una vez abierto el turno, la vista principal se habilitará.</li>
-                  <li>El sistema comenzará a registrar toda tu actividad bajo tu nombre.</li>
-                  <li>Todas las habitaciones mostrarán sus temporizadores en tiempo real.</li>
+                  <li>El tablero completo y habilitado para ventas.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/dashboard-turno-iniciado-funciones-extra.png" alt="Dashboard Funciones" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/001-Auth/006-dashboard-turno-iniciado-funciones-extra.png" alt="006 Funciones extra" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
                 <strong>6. Funciones Extra del Tablero</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Utiliza la barra de búsqueda para encontrar una habitación por número.</li>
-                  <li>Usa los filtros de estado (ej. "Solo Sucias") para agilizar tu vista.</li>
-                  <li>Si experimentas lentitud, usa el botón de refrescar.</li>
+                  <li>Utiliza los botones superiores para filtrar y buscar.</li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
 
-        {/* SECCIÓN 2: INTERFAZ GENERAL Y PERFIL */}
+        {/* SECCIÓN 2: ENTRADAS */}
         <div class="card">
-          <h3>SECCIÓN 2: Interfaz Global y Herramientas</h3>
-          
-          <div class="grid grid-cols-2" style={{ marginTop: "1rem", gap: "1.5rem" }}>
-            <div class="screenshot-container">
-              <img src="/flujo/reloj-digital.png" alt="Reloj" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Reloj del Sistema</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Revisa la hora mostrada en la esquina del sistema.</li>
-                  <li>Esta hora rige el vencimiento de los tiempos de los cuartos.</li>
-                  <li>Si ves una discrepancia, notifica al gerente de inmediato.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/boton-de-chat.png" alt="Botón Chat" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Botón de Chat Interno</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El icono circular de chat en la barra superior.</li>
-                  <li>Muestra un globo rojo si tienes mensajes sin leer del equipo.</li>
-                  <li>Haz clic izquierdo para desplegar la ventana de conversación.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/chat-global.png" alt="Chat Global" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Ventana de Conversaciones</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Selecciona el canal general o un empleado específico.</li>
-                  <li>Evita el uso de lenguaje no profesional, el chat es monitoreado.</li>
-                  <li>Úsalo para requerir insumos a mantenimiento.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/menu-rapido-perfil.png" alt="Menú Perfil" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Menú Desplegable del Perfil</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en tu foto/avatar en la esquina superior derecha.</li>
-                  <li>Usa este menú para cerrar sesión SIEMPRE al ir al baño.</li>
-                  <li>Selecciona "Mi Perfil" para cambiar configuraciones.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/edicion-perfil.png" alt="Editar Perfil" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Edición de Datos Personales</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Actualiza tu número telefónico o cambia tu contraseña.</li>
-                  <li>Guarda los cambios haciendo clic en el botón de confirmación.</li>
-                  <li>Tu correo de acceso no puede ser modificado aquí.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/seccion-perfil-notificaciones.png" alt="Perfil Notif" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Centro de Notificaciones Históricas</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en la pestaña de notificaciones dentro de tu perfil.</li>
-                  <li>Aquí verás un log de alertas antiguas (si se cerró un portón o se pagó algo).</li>
-                  <li>Útil si borraste una notificación verde por error y necesitas leerla.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/nomenclatura-estados-habitaciones.png" alt="Nomenclatura" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Guía de Nomenclatura (Lectura Visual)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li><strong>Azul:</strong> Habitación libre y lista para venderse.</li>
-                  <li><strong>Rojo:</strong> Ocupada, generando tiempo e ingresos.</li>
-                  <li><strong>Morado:</strong> El huésped se fue, la camarista debe asearla.</li>
-                  <li><strong>Verde:</strong> Mantenimiento, no se puede rentar.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/resumen-habitaciones.png" alt="Resumen Habitaciones" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Panel de Resumen Rápido</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Localizado en la parte superior del tablero de habitaciones.</li>
-                  <li>Lee las métricas de cuántas habitaciones hay disponibles de un vistazo.</li>
-                  <li>Usa esta info cuando un cliente llame para preguntar disponibilidad.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SECCIÓN 3: ESTADOS DE LA HABITACIÓN */}
-        <div class="card">
-          <h3>SECCIÓN 3: Manejo de la Rueda Selectora Interactiva</h3>
-          <p style={{marginBottom: "1rem"}}>La Rueda Selectora es la herramienta principal. Debes memorizar sus botones según cada estado.</p>
+          <h3>SECCIÓN 2: Protocolo de Entradas (002-Entradas)</h3>
           
           <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/habitacion-libre.png" alt="Libre" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/001-tablero-habitaciones-pos.png" alt="001 Tablero POS" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Reconocimiento: Cuarto Libre</strong>
+                <strong>1. Tablero POS Principal</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Fondo azul sólido, indicando disponibilidad.</li>
-                  <li>Haz clic izquierdo sobre el cuadro azul para abrir la rueda selectora.</li>
+                  <li>Monitorea las habitaciones Libres (Azules).</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/rueda-selectora-habitacion-limpia.png" alt="Rueda Limpia" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/002-rueda-selectora-habitacion-limpia.png" alt="002 Rueda Limpia" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Acciones en Cuarto Libre</strong>
+                <strong>2. Selección de Habitación</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en el icono "Relámpago" (Entrada Rápida) para iniciar Check-in.</li>
-                  <li>Haz clic en "Limpieza" si la inspección física indica polvo.</li>
-                  <li>Haz clic en "Mantenimiento" si reportaron una falla.</li>
+                  <li>Abre la rueda y selecciona el Relámpago (Entrada).</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/habitacion-ocupada.png" alt="Ocupada" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/003-modal-desde-rueda-entrada.png" alt="003 Modal Entrada" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Reconocimiento: Cuarto Ocupado</strong>
+                <strong>3. Parámetros de Estancia</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Fondo rojo, temporizador retrocediendo o marcando exceso.</li>
-                  <li>Haz clic para abrir el menú de operaciones avanzadas.</li>
+                  <li>Ajusta ocupantes y tiempo en el modal. Confirma entrada.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/visualizacion-habitacion-ingresada-pendiente-cobro.png" alt="Ocupada Pendiente" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/004-notificacion-entrada-registrada.png" alt="004 Entrada Registrada" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Alerta: Ingreso sin Cobro Efectuado</strong>
+                <strong>4. Entrada Inmediata Registrada</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Aparece si el cochero reporta un auto que ingresó pero tú no has cobrado.</li>
-                  <li>Debes interceptar al cliente, realizar el cobro en el sistema y regularizarlo.</li>
+                  <li>El sistema avisa que el registro inicial se completó.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/rueda-selectora-pago-pendiente.png" alt="Rueda Pago Pendiente" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/005-1-pendiente-de-cobro.png" alt="005-1 Pendiente Cobro" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Acción Forzada: Pago Pendiente</strong>
+                <strong>5-1. Badge: Pendiente de Cobro</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Al hacer clic, el sistema restringirá los botones normales.</li>
-                  <li>Solo te permitirá usar el icono de "Cobrar" (bolsa de dinero).</li>
-                  <li>Haz clic en cobrar y liquida la cuenta en el modal de multipago.</li>
+                  <li>Si la habitación ingresa sin pagar, aparecerá esta alerta permanente.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/pendiente-de-cobro.png" alt="Alerta Pendiente" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/005-2-esperando-registro-auto-cochero.png" alt="005-2 Esperando Auto" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Insignia Visual (Badge)</strong>
+                <strong>5-2. Sincronización OCR</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Presta atención al badge amarillo en la esquina del cuadro de la habitación.</li>
-                  <li>Significa "Deuda Activa". Jamás abras el portón de un cliente con este badge.</li>
+                  <li>Espera a que el cochero escanee la placa desde su móvil.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/habitacion-sucia.png" alt="Sucia" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/006-notificacion-cochero-registra-entrada.png" alt="006 Cochero registra" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Reconocimiento: Cuarto Sucio</strong>
+                <strong>6. Notificación Cochero Inicia</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Fondo morado. Indica que la habitación necesita limpieza urgente.</li>
-                  <li>Este estado se refleja inmediatamente en el móvil de la Camarista.</li>
+                  <li>Alerta de que el portón ha sido abierto y el cochero interviene.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/habitacion-servicio-pendiente.png" alt="Servicio Pendiente" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/007-visualizacion-habitacion-ingresada-pendiente-cobro.png" alt="007 Visualizacion" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Alerta: Camarista Trabajando</strong>
+                <strong>7. Ocupación con Deuda</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Aparece un icono de escoba sobre el estado morado.</li>
-                  <li>Significa que la camarista ya asignó el cuarto y lo está limpiando.</li>
-                  <li>No intervengas, el sistema lo cambiará a Libre automáticamente al terminar.</li>
+                  <li>La habitación está en rojo (temporizador corriendo) pero debe el pago.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/estado-habitacion-bloqueada-o-mant.png" alt="Mantenimiento" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/008-rueda-selectora-pago-pendiente.png" alt="008 Rueda pago pendiente" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Reconocimiento: Mantenimiento</strong>
+                <strong>8. Restricción Operativa</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Fondo verde profundo. Habitación inoperable por daños mayores.</li>
-                  <li>No intentes vender esta habitación bajo ninguna circunstancia.</li>
+                  <li>La rueda oculta otros botones y obliga a cobrar la deuda inicial.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/rueda-selectora-habitacion-bloqueada-o-mant.png" alt="Rueda Bloqueo" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/002-Entradas/009-modal-cobro-habitacion-y-corroborar.png" alt="009 Modal Cobro" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Acción: Liberar Mantenimiento</strong>
+                <strong>9. Pasarela de Pagos</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en la rueda selectora del cuarto verde.</li>
-                  <li>Haz clic en el botón de desbloqueo solo si el ingeniero de mantenimiento lo autoriza.</li>
-                  <li>El cuarto pasará a estado Sucio para que las camaristas lo preparen.</li>
+                  <li>Abre el modal para liquidar. Selecciona efectivo o tarjeta.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/002-Entradas/010-corroborar-pago.png" alt="010 Corroborar" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>10. Corroborar Montos</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Verifica la cantidad antes de dar clic en Confirmar.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/002-Entradas/011-utilizar-datos-de-pago.png" alt="011 Datos Pago" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>11. Captura de Terminal</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Si usas tarjeta, es obligatorio marcar la terminal correcta (BBVA o Santander).</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/002-Entradas/012-notificacion-pago-realizado.png" alt="012 Pago realizado" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>12. Confirmación de Recepción Monetaria</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El sistema avisa que tu caja cuadró con este nuevo cobro.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/002-Entradas/013-habitacion-ocupada.png" alt="013 Ocupada" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>13. Estancia Limpia y Pagada</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El cuarto luce sin alertas. Ya puedes dejar correr su ciclo normal.</li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
 
-        {/* SECCIÓN 4: CHECK-IN Y VEHÍCULOS */}
+        {/* SECCIÓN 3.1: SERVICIOS Y CONSUMOS */}
         <div class="card">
-          <h3>SECCIÓN 4: Protocolo de Check-in y Registro OCR Vehicular</h3>
-          <p style={{marginBottom: "1rem"}}>Flujo estricto para dar ingreso, registrando personas y placas vehiculares.</p>
+          <h3>SECCIÓN 3: Servicios o Consumos (003-1-Servicios o Consumos)</h3>
           
           <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/modal-desde-rueda-entrada.png" alt="Modal Checkin" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/001-registro-consumo.png" alt="001 Registro Consumo" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>1. Configuración de Estancia (Modal)</strong>
+                <strong>1. Modal de Tienda</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Usa los botones de "+" y "-" para definir cuántas personas ingresan.</li>
-                  <li>Observa cómo el precio se ajusta automáticamente si hay personas extra.</li>
-                  <li>Revisa la hora de salida estimada (ej. 12 horas después o al mediodía).</li>
-                  <li>Haz clic en el botón principal para confirmar la apertura.</li>
+                  <li>Revisa los productos dentro del carrito actual.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/esperando-registro-auto-cochero.png" alt="Esperando auto" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/002-adicion-productos-consumo.png" alt="002 Adicion" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>2. Fase de Sincronización Cochero-Recepción</strong>
+                <strong>2. Lector OCR / Láser</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Una vez confirmado, el cuarto mostrará un indicador circular girando.</li>
-                  <li>Indícale al cochero por radio o interfón que pase el auto.</li>
-                  <li>Espera a que el cochero use su celular para escanear la placa. No toques nada.</li>
+                  <li>Dispara el láser al producto. Se agregará solo sin hacer clics.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/informacion-vehiculo.png" alt="Info vehiculo" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/003-notificacion-consumo-registrado.png" alt="003 Notif Consumo" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>3. Revisión de Datos de la IA</strong>
+                <strong>3. Notificación de Ticket Generado</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre el panel de Detalles del Cuarto (Icono 'i').</li>
-                  <li>Verifica que la Inteligencia Artificial haya leído correctamente la Marca, Modelo y Placa.</li>
-                  <li>Si la placa es ilegible (ej. sin placas o tapada), edita el campo manualmente como "SIN PLACAS".</li>
+                  <li>El sistema avisa que la orden de compra fue procesada en base de datos.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/notificacion-coche-registrado.png" alt="Coche registrado" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/004-habitacion-servicio-pendiente.png" alt="004 Servicio Pendiente" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>4. Confirmación del Sistema: Placas Exitosas</strong>
+                <strong>4. Indicador de Logística</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Aparecerá un "toast" (notificación verde) en la esquina superior derecha.</li>
-                  <li>Esto confirma que la imagen subió al servidor y la OCR la extrajo.</li>
-                  <li>Si no aparece después de 1 minuto, solicita al cochero que reintente.</li>
+                  <li>Habitación morada indicando a la camarista/cochero el trabajo en progreso.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/notificacion-cochero-registra-entrada.png" alt="Cochero registra" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/005-paso-1-servicio.png" alt="005 Paso 1" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>5. Alerta de Movimiento Físico</strong>
+                <strong>5. Flujo Operativo - Paso 1</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Esta alerta indica que el cochero acaba de abrir el portón físico del garaje.</li>
-                  <li>El cliente está introduciendo el auto en este momento.</li>
+                  <li>Llamada de recepción de pedido del huésped.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/notificacion-entrada-registrada.png" alt="Entrada Registrada" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/006-paso-2-consumo.png" alt="006 Paso 2" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>6. Confirmación de Cierre y Ocupación Total</strong>
+                <strong>6. Flujo Operativo - Paso 2</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Alerta crítica que confirma que el portón cerró y el cliente está instalado.</li>
-                  <li>A partir de este momento, cualquier requerimiento se considera "Room Service".</li>
+                  <li>Captura de los items solicitados en la caja registradora.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/007-paso-3-consumo.png" alt="007 Paso 3" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>7. Flujo Operativo - Paso 3</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Despacho desde el frigorífico o vitrina.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/008-paso-4-consumo.png" alt="008 Paso 4" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>8. Flujo Operativo - Paso 4</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Impresión de la orden en máquina térmica.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/009-paso-5-consumo.png" alt="009 Paso 5" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>9. Flujo Operativo - Paso 5</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Viaje y entrega por parte del Cochero y confirmación por App Móvil.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/010-cobro-consumo-servicio.png" alt="010 Cobro Consumo" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>10. Proceso de Liquidación (Atajo F2)</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Oprime F2 para llamar directamente al modal de pago.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/011-cobro-consumo-2.png" alt="011 Cobro 2" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>11. Pagos Mixtos (Cuenta Dividida)</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Procesa pagos divididos entre efectivo y tarjeta para un mismo consumo.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/012-cobro-consumo-corroborar.png" alt="012 Corroborar" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>12. Validación Previa</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Corrobora todo y no presiones confirmar hasta estar 100% seguro de la terminal.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/013-cobro-consumo-utilizar-datos-pago.png" alt="013 Reutilizar" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>13. Reutilización de Plástico</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Usa el botón para cargar la tarjeta que el huésped dio en el check-in.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/003-1-Servicios%20o%20Consumos/014-notificacion-pago-registrado.png" alt="014 Pago Registrado" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>14. Recibo Exitoso</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>La transacción de consumo es final y quedó anotada en auditoría.</li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
 
-        {/* SECCIÓN 5: GESTIÓN AVANZADA DE ESTANCIA */}
+        {/* SECCIÓN 3.2: ESTADOS DE HABITACIONES */}
         <div class="card">
-          <h3>SECCIÓN 5: Gestión Avanzada y Resoluciones Específicas</h3>
+          <h3>SECCIÓN 4: Estados Críticos de Habitaciones (003-2-Estados de Habitaciones)</h3>
           
           <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/modal-cambio-habitacion.png" alt="Cambio 1" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/001-modal-habitacion-pasar-bloqueo-o-mant.png" alt="001 Pasar a Mant" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Cambio de Habitación: Paso 1</strong>
+                <strong>1. Forzar a Mantenimiento</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre la rueda de la habitación actual y selecciona el icono de "Intercambio".</li>
-                  <li>Selecciona de la lista la nueva habitación (debe estar en estado Libre).</li>
-                  <li>Asegúrate de que la nueva habitación sea del mismo tipo (ej. Torre a Torre).</li>
+                  <li>Usa este modal si detectas una falla insuperable. Desactiva la habitación del inventario rentable.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-cambio-habitacion-2.png" alt="Cambio 2" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/002-estado-habitacion-bloqueada-o-mant.png" alt="002 Estado Mant" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Cambio de Habitación: Paso 2 (Transferencia)</strong>
+                <strong>2. Cuarto en Mantenimiento Físico</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El sistema te mostrará un resumen de los consumos a transferir.</li>
-                  <li>Si el cliente ya consumió cosas, se irán al nuevo folio.</li>
-                  <li>La habitación anterior pasará automáticamente a estado "Sucia".</li>
+                  <li>Color verde. El ingeniero tiene el control del cuarto.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-cambio-habitacion-reiniciar-tiempo.png" alt="Cambio Reiniciar" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/003-modal-pasar-habitacion-a-sucia.png" alt="003 Pasar Sucia" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Cambio de Habitación: Opción de Tiempo</strong>
+                <strong>3. Transición a Limpieza</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Casilla "Reiniciar Tiempos": Actívala solo si el cambio fue por culpa del hotel (falla de A/C, ruido).</li>
-                  <li>Déjala desmarcada si es un cambio normal, para que conserve su hora de salida original.</li>
-                  <li>Haz clic en "Ejecutar Cambio" para finalizar.</li>
-                </ul>
-              </div>
-            </div>
-            
-            <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-personas.png" alt="Personas Extra" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Panel Principal de Personas Extra</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre la rueda en cuarto Ocupado y selecciona el icono "Personas".</li>
-                  <li>Visualiza la lista de personas actualmente vinculadas al cuarto.</li>
-                  <li>Si el cochero reporta un ingreso sorpresa a pie o en auto, procesalo aquí.</li>
+                  <li>Confirma este modal para notificarle a las camaristas mediante la aplicación que limpien.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-personas-extra-nueva.png" alt="Nueva Persona" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/004-habitacion-sucia.png" alt="004 Sucia" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Añadir Visitante o Persona Extra</strong>
+                <strong>4. Cuarto Sucio (Morado)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en "+ Añadir Persona" en el modal anterior.</li>
-                  <li>El sistema detectará si excede el límite y generará un recargo automáticamente.</li>
-                  <li>Haz clic en guardar. La habitación parpadeará con el badge de pago pendiente.</li>
+                  <li>Habitación esperando turno de aseo por la camarista en turno.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-persona-extra.png" alt="Cobro Persona" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/005-rueda-selectora-habitacion-bloqueada-o-mant.png" alt="005 Rueda Mant" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Ejecución del Cobro de Ingreso Extra</strong>
+                <strong>5. Opciones en Mantenimiento</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre el panel de cobros. Verás el "Cargo por Persona Extra" en la lista de items.</li>
-                  <li>Procesa el pago (Efectivo/Tarjeta) antes de permitir que la persona camine hacia la habitación.</li>
+                  <li>Solo gerencia puede presionar la liberación para que pase a estado Sucio y luego Libre.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-persona-sale.png" alt="Persona Sale" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/006-habitacion-libre.png" alt="006 Libre" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Registro de Retiro Parcial (Salida de Visitante)</strong>
+                <strong>6. Estado Final (Libre/Azul)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si una de las personas abandona el recinto pero el titular se queda.</li>
-                  <li>Vuelve al modal de personas y haz clic en el botón "Marcar Salida" junto al nombre.</li>
-                  <li>Esto ayuda a control de incendios y auditoría de ocupación real.</li>
-                </ul>
-              </div>
-            </div>
-            
-            <div class="screenshot-container">
-              <img src="/flujo/modal-getion-horas-1.png" alt="Horas 1" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Menú: Gestión de Horas y Tiempos</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Desde la rueda selectora, elige el icono del "Reloj de Arena".</li>
-                  <li>Usa este menú exclusivamente si el cliente llama solicitando más tiempo o si detectas una anomalía.</li>
+                  <li>La camarista terminó y el cuarto está perfumado y listo para generar ingresos.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-horas-renovacion.png" alt="Renovacion" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/003-2-Estados%20de%20Habitaciones/bloqueo-salida-pago-pendiente.png" alt="Bloqueo Salida" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Extensión: Renovación de Estancia Corta</strong>
+                <strong>7. Excepción: Salida Bloqueada</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en "Renovar". El sistema agregará otro bloque tarifario completo (ej. +12 hrs).</li>
-                  <li>El sistema generará el cargo a cuenta automáticamente.</li>
-                  <li>Realiza el cobro en el modal de multipago.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-horas-personalizadas.png" alt="Horas Personales" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Ajuste Crítico: Horas Personalizadas</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Pestaña "Custom". Úsala solo en casos excepcionales (ej. compensación de 30 minutos).</li>
-                  <li>Agrega o resta minutos manualmente usando el pad numérico.</li>
-                  <li>Escribe en el campo de "Motivo" la razón obligatoria (ej. "Autorizado por Gte. Carlos").</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-gestion-horas-promo.png" alt="Promo" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Ajuste Crítico: Aplicar Promociones</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Pestaña "Promos". Selecciona la promoción vigente del menú desplegable (ej. Tarjeta Inapam, Promo Jueves).</li>
-                  <li>El sistema recalculará los tiempos y el saldo restante.</li>
-                  <li>No apliques promos sin haber recibido el código o la prueba del cliente.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-registro-daño.png" alt="Daños" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Operación Sancionatoria: Multas por Daños</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si la camarista reporta controles faltantes, humo, o sábanas quemadas antes de que el cliente salga.</li>
-                  <li>Abre el icono de Multas (Martillo) en la rueda.</li>
-                  <li>Selecciona el tipo de daño y genera el cargo. El portón quedará bloqueado hasta que el cliente pague.</li>
+                  <li>Pantalla roja letal. El cuarto tiene una deuda y el portón de salida denegará la apertura automática.</li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
 
-        {/* SECCIÓN 6: CONSUMOS Y ROOM SERVICE */}
+        {/* SECCIÓN 5: CAMBIO DE HABITACION */}
         <div class="card">
-          <h3>SECCIÓN 6: Flujo Completo de Room Service y Tienda</h3>
-          <p style={{marginBottom: "1rem"}}>Cómo capturar alimentos, bebidas, condones, etc., utilizando el lector de código de barras.</p>
-
-          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
-            <div class="screenshot-container">
-              <img src="/flujo/adicion-productos-consumo.png" alt="Adicion" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Modo de Carga Rápida: Lector Láser</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre la sección "Cobrar" > Pestaña "Consumos".</li>
-                  <li>NO tienes que hacer clic en ningún lado. Agarra el producto físico y dispárale con el láser al código de barras.</li>
-                  <li>El producto saltará instantáneamente a la lista de "Cuenta Actual".</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/stock.png" alt="Stock" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Alerta de Prevención: Stock Agotado</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si escaneas un código y escuchas un tono de error, mira la pantalla.</li>
-                  <li>Si ves "Stock Insuficiente (0)", no puedes vender el producto bajo ninguna excusa.</li>
-                  <li>Retira el producto del cliente y notifica posible robo interno/descuadre a gerencia.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/registro-consumo.png" alt="Registro Consumo" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Verificación del Carrito (Lista de Compras)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Revisa la lista a la derecha. Asegúrate que las cantidades coincidan.</li>
-                  <li>Usa el bote de basura rojo si te equivocaste y escaneaste doble.</li>
-                  <li>Pregúntale al cliente el total: "Serían $350 pesos, ¿Mando el pedido?".</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/cobro-consumo-servicio.png" alt="Cobro Consumo" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Ejecución del Flujo de Venta (Atajo F2)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Para mayor velocidad, NO uses el ratón.</li>
-                  <li>Si ya tienes la lista completa, presiona la tecla **F2** en tu teclado.</li>
-                  <li>Se abrirá la pasarela de pagos automáticamente. Procede con el multipago.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <h4 style={{ color: "var(--primary)", marginTop: "2rem" }}>Línea de Tiempo Operativa: Room Service de Principio a Fin</h4>
-          <div class="grid grid-cols-3" style={{ marginTop: "1rem", gap: "1.5rem" }}>
-            <div class="screenshot-container">
-              <img src="/flujo/paso-1-servicio.png" alt="Paso 1" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Paso 1: Llamada del Huésped</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El teléfono suena. Contestas con cortesía.</li>
-                  <li>El cliente te solicita (ej. "Mándame 2 cervezas y unas papas").</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/paso-2-consumo.png" alt="Paso 2" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Paso 2: Captura Láser</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Vas al frigobar/tienda de recepción. Sacas los 3 productos físicos.</li>
-                  <li>Los escaneas rápidamente y verificas el subtotal.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/paso-3-consumo.png" alt="Paso 3" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Paso 3: Cobro o Cuenta</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Realizas el cobro (si manda a pagar con el cochero) o lo dejas en estado "Pendiente" si tiene crédito autorizado.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/paso-4-consumo.png" alt="Paso 4" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Paso 4: Comanda Térmica</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>La impresora térmica saca un ticket de "Orden de Servicio".</li>
-                  <li>Engrapas el ticket a la bolsa con los productos y llamas al cochero.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/paso-5-consumo.png" alt="Paso 5" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Paso 5: Viaje y Entrega</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El cochero corre al cuarto. Mientras va, la habitación muestra el icono de consumo en proceso.</li>
-                  <li>El cochero entrega y toca su app móvil.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/indicador-habitacion-consumo-pendiente.png" alt="Consumo Pendiente" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Indicador de Espera</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Fíjate en este icono (el platito amarillo). Mientras lo veas, significa que el cochero NO ha vuelto.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/notificacion-consumo-registrado.png" alt="Notificacion Consumo" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Confirmación Electrónica</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Alerta visual verde en tu pantalla. El cochero ha confirmado la entrega satisfactoria en su celular. El icono amarillo desaparece.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/ordenes-de-compra.png" alt="Ordenes" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Revisión de Órdenes (Historial)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si un cliente reclama que no pidió algo, ve a "Detalles" > "Órdenes".</li>
-                  <li>Allí verás la hora exacta, el empleado que lo vendió y quién lo entregó. Úsalo para controversias.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SECCIÓN 7: MULTIPAGOS */}
-        <div class="card">
-          <h3>SECCIÓN 7: Pasarela Estricta de Multipagos</h3>
-          <p style={{marginBottom: "1rem"}}>La forma en que el dinero entra a tu caja. Sin excepción, toda venta debe registrar el tipo de valor (Efectivo o Tarjetas específicas).</p>
-
-          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-cobro-habitacion-y-corroborar.png" alt="Modal Cobro" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Modal Principal de Cobro</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Sección izquierda: Opciones de "Efectivo" y "Tarjeta".</li>
-                  <li>Sección derecha: Resumen total de la deuda.</li>
-                  <li>Si el cliente paga en Cash, teclea el monto recibido y haz clic en Pagar.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/utilizar-datos-de-pago.png" alt="Datos Pago" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Protocolo de Tarjeta (Muy Importante)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si eliges Tarjeta, DEBES marcar con qué terminal física le cobraste (BBVA o Getnet Santander).</li>
-                  <li>Si marcas BBVA pero cobraste en Getnet, tu corte de caja final saldrá negativo/descuadrado.</li>
-                  <li>Teclea los últimos 4 dígitos del plástico por seguridad anti-fraudes.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/cobro-consumo-2.png" alt="Cobro Consumo 2" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Estrategia de Cuenta Dividida (Split)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si un consumo cuesta $500 y el cliente da $200 en efectivo y el resto en tarjeta.</li>
-                  <li>Teclea "$200" en la sección de efectivo y da clic en "Añadir Pago".</li>
-                  <li>El sistema dirá "Restan $300". Ve a tarjeta y cobra el resto.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/cobro-consumo-corroborar.png" alt="Corroborar" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Paso Previo Final: Corroborar</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Antes de hacer clic en el botón principal, lee el texto descriptivo.</li>
-                  <li>Confirma que las cantidades sean exactas y la terminal seleccionada coincida con la que tienes en la mano.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/cobro-consumo-utilizar-datos-pago.png" alt="Utilizar Datos" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Atajo: Reutilizar Tarjeta Archivada</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si el cliente pide un room service y ya había pagado la entrada con tarjeta BBVA (***1234).</li>
-                  <li>El sistema te mostrará un botón "Utilizar datos de pago anteriores". Haz clic ahí para no tener que teclearlos de nuevo.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/corroborar-pago.png" alt="Corroborar final" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Verificación Sensorial del Sistema</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>No dejes ir al cliente ni consideres la venta cerrada hasta ver la barra verde con letras "PAGADO" o el ticket impreso.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3" style={{ marginTop: "1rem", gap: "1.5rem" }}>
-            <div class="screenshot-container">
-              <img src="/flujo/bloqueo-salida-pago-pendiente.png" alt="Bloqueo Salida" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Restricción Absoluta de Salida</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si intentas procesar la salida (Check-out) de un cliente con saldo pendiente, verás esta pantalla roja.</li>
-                  <li>El sistema no abrirá el portón eléctrico jamás hasta que liquides el monto en pantalla.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/notificacion-pago-realizado.png" alt="Pago Realizado" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Señal de Transferencia Exitosa</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Notificación verde indicando que el saldo a favor en la cuenta de la habitación fue cubierto exitosamente.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/notificacion-pago-registrado.png" alt="Pago Registrado" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Señal de Ingreso a Caja</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Notificación verde indicando que el dinero (Efectivo o Voucher) está formalmente indexado a tu turno actual. Asegúrate de guardar tu voucher físico.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SECCIÓN 8: SALIDA Y DETALLES */}
-        <div class="card">
-          <h3>SECCIÓN 8: Check-out, Inspección y Liberación</h3>
-          <p style={{marginBottom: "1rem"}}>Flujo riguroso para auditar habitaciones ocupadas y proceder con la salida final de los huéspedes sin pérdida de inventario.</p>
+          <h3>SECCIÓN 5: Cambio de Habitación (004-Cambio de Habitacion)</h3>
           
-          <div class="grid grid-cols-2" style={{ marginTop: "1rem", gap: "1.5rem" }}>
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/detalles-de-habitacion-desde-boton-azul.png" alt="Detalles 1" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/004-Cambio%20de%20Habitacion/001-modal-cambio-habitacion.png" alt="001 Cambio 1" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Acceso al Expediente de Habitación</strong>
+                <strong>1. Modal de Cambio</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre la rueda selectora y localiza el icono azul "i" (Información).</li>
-                  <li>Haz clic para abrir el sumario o ficha principal de la estancia actual.</li>
-                  <li>Es tu herramienta principal de auditoría si el cliente tiene quejas o dudas.</li>
+                  <li>Inicia el proceso para mover a un huésped de cuarto.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/detalles-habitacion-ocupada.png" alt="Detalles Ocupada" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/004-Cambio%20de%20Habitacion/002-1-modal-cambio-habitacion-2.png" alt="002-1 Cambio 2" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Lectura de la Ficha Principal</strong>
+                <strong>2. Selección de Destino</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Lee la sección "Ocupantes": Te dirá si hay personas extra no reportadas.</li>
-                  <li>Lee la sección "Saldo": Mostrará deuda total ($0 significa pagado).</li>
-                  <li>Mira el icono del auto: Muestra en pequeño las placas registradas.</li>
+                  <li>Asegúrate de escoger una habitación Libre y del mismo tipo de paquete.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/detalles-2-habitacion-ocupada.png" alt="Detalles 2" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/004-Cambio%20de%20Habitacion/002-2-modal-cambio-habitacion-reiniciar-tiempo.png" alt="002-2 Cambio Reiniciar" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Cronograma (Historial de Eventos)</strong>
+                <strong>3. Parámetro de Cronómetro</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Revisa la lista secuencial: Hora de entrada, hora en la que se le subió la cerveza, hora en la que pagó, etc.</li>
-                  <li>Útil para desmentir alegatos de "llevo menos tiempo aquí".</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-mas-detalles.png" alt="Modal Más Detalles" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Vista Ampliada del Expediente (Modal Completo)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en "Más Detalles" en la ficha rápida para abrir la vista completa.</li>
-                  <li>Aquí tendrás paneles separados para Pagos, Consumos y Movimientos.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-mas-detalles-2.png" alt="Modal Más Detalles 2" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Auditoría Vehicular Profunda</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Desplázate hacia abajo en el panel ampliado hasta "Vehículos Asociados".</li>
-                  <li>Verifica la foto frontal tomada por el sistema OCR si tienes dudas de qué auto debe salir.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/movimientos.png" alt="Movimientos" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Pestaña Movimientos (Auditoría Anti-Robo)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Revisa el log inmutable. Te dirá qué empleado de recepción hizo qué acción (ej. "Recepción 2 aplicó un descuento del 10%").</li>
-                  <li>No se puede borrar. Los administradores revisan esta pantalla diariamente.</li>
+                  <li>Habilita "Reiniciar Tiempos" solo si es cortesía por quejas operativas.</li>
                 </ul>
               </div>
             </div>
           </div>
+        </div>
 
-          <h4 style={{ color: "var(--primary)", marginTop: "2rem" }}>Flujo Crítico Operativo: Ciclo de Check-out</h4>
-          <div class="grid grid-cols-3" style={{ marginTop: "1rem", gap: "1.5rem" }}>
+        {/* SECCIÓN 6: GESTIONAR HORAS */}
+        <div class="card">
+          <h3>SECCIÓN 6: Gestión de Horas (005-Gestionar Horas)</h3>
+          
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/habitacion-icono-verde-lista-salida.png" alt="Icono Salida" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/005-Gestionar%20Horas/001-modal-getion-horas-1.png" alt="001 Horas" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>1. Iniciador: Solicitud del Huésped</strong>
+                <strong>1. Modal Principal de Horas</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El huésped marca a recepción y dice "Voy a salir, ya abrame".</li>
-                  <li>El sistema puede poner la habitación en verde parpadeante si se venció el tiempo y el cliente llamó.</li>
+                  <li>El panel central para cualquier ajuste en el reloj del cliente.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-solicitud-salida.png" alt="Solicitud Salida" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/005-Gestionar%20Horas/002-modal-gestion-horas-personalizadas.png" alt="002 Custom Horas" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>2. Acción: Disparar Proceso de Salida</strong>
+                <strong>2. Ajuste Manual (Custom)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Abre la rueda selectora y haz clic en "Salida" (Icono de puerta abierta con flecha).</li>
-                  <li>Si hay deuda pendiente, el sistema te forzará a la pasarela de pagos primero. Si todo está en ceros, continuará.</li>
+                  <li>Suma o resta minutos directamente con justificación estricta.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/notificacion-solicitud-salida.png" alt="Notif Solicitud" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/005-Gestionar%20Horas/003-modal-gestion-horas-renovacion.png" alt="003 Renovacion" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>3. Notificación a Personal Terrestre</strong>
+                <strong>3. Renovación Integral</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Aparece esta alerta en tu pantalla. Al mismo tiempo, el celular del cochero suena.</li>
-                  <li>El cochero acude físicamente al cuarto, abre la puerta, e inspecciona visualmente que no se hayan robado toallas, TV o roto nada.</li>
+                  <li>Úsalo si el cliente decide re-contratar un turno entero adicional.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/autorizacion-cancelar.png" alt="Autorizacion Cancelar" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/005-Gestionar%20Horas/004-modal-gestion-horas-promo.png" alt="004 Promos" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>4. Autorización Electrónica</strong>
+                <strong>4. Aplicación de Promociones</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El cochero usa su aplicación para dar la "Aprobación de Integridad".</li>
-                  <li>Si reporta daños, aborta el proceso, cobra la multa y reinicia el flujo de salida.</li>
+                  <li>Selecciona descuentos o promociones activas (Jueves, Día del Padre, etc).</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN 7: GESTIONAR PERSONAS */}
+        <div class="card">
+          <h3>SECCIÓN 7: Gestión de Personas Extra (006-Gestionar Personas)</h3>
+          
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/006-Gestionar%20Personas/001-modal-gestion-personas.png" alt="001 Personas" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. Lista de Ocupantes</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Lista oficial de visitantes vinculados y asegurados a este cuarto.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-confirmar-salida.png" alt="Confirmar Salida" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/006-Gestionar%20Personas/002-modal-gestion-persona-extra.png" alt="002 Cobro Persona" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>5. Ejecución Definitiva</strong>
+                <strong>2. Cobro de Penalidad de Ingreso</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Una vez aprobado, el sistema te presenta la pantalla final con el botón rojo "Finalizar Estancia".</li>
-                  <li>Haz clic firme. El portón eléctrico del estacionamiento se abrirá de forma automatizada por la red interna.</li>
+                  <li>Inmediatamente se te exigirá cobrar el excedente tarifario en caja.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/notificacion-salida-aprobada.png" alt="Notif Aprobada" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/006-Gestionar%20Personas/003-modal-gestion-personas-extra-nueva.png" alt="003 Nueva Persona" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>6. Confirmación de Cierre Físico</strong>
+                <strong>3. Añadir Nuevo Individuo</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Notificación verde indicando que el portón bajó de nuevo y el auto del cliente abandonó el edificio con éxito.</li>
+                  <li>Agrega el registro al sistema para no tener auditorías negativas.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/notificacion-salida-completada.png" alt="Notif Completada" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/006-Gestionar%20Personas/004-modal-gestion-persona-sale.png" alt="004 Persona Sale" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>7. Sello Final de Sistema</strong>
+                <strong>4. Retiro Parcial (Salida Individual)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>La habitación y sus folios han sido empaquetados en la base de datos de tu turno. El cliente ya no figura en la lista activa.</li>
+                  <li>Si una persona extra sale pero el titular se queda, registra el egreso para protección civil.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN 8: DAÑOS */}
+        <div class="card">
+          <h3>SECCIÓN 8: Registro de Multas y Daños (007-Registro de Daño)</h3>
+          
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/007-Registro%20de%20Da%C3%B1o/001-modal-registro-da%C3%B1o.png" alt="001 Daños" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. Multas Sancionatorias</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Levanta la multa basándote en la inspección visual o del cochero.</li>
+                  <li>Bloquea automáticamente la salida hasta que se reciba la compensación.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN 9: CANCELACIONES */}
+        <div class="card">
+          <h3>SECCIÓN 9: Autorizaciones de Aborto (008-Cancelacion)</h3>
+          
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/008-Cancelacion/001-autorizacion-cancelar.png" alt="001 Cancelar" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. Cancelación / Autorización (Cocheros)</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Pantalla del móvil del cochero donde él avala el check-out o rechaza y cancela un flujo problemático.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN 10: SALIDAS */}
+        <div class="card">
+          <h3>SECCIÓN 10: Protocolo Estricto de Salidas (009-Salidas)</h3>
+          
+          <div class="grid grid-cols-3" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/009-Salidas/001-modal-solicitud-salida.png" alt="001 Modal Salida" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. Modal Inicial</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Se dispara cuando el cliente llama para irse o abres la puerta en la rueda selectora.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/modal-portal-desde-rueda-selectora.png" alt="Portal" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/009-Salidas/002-notificacion-solicitud-salida.png" alt="002 Solicitud Salida" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Portal del Cliente</strong>
+                <strong>2. Notificación en Tiempo Real</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El sistema lanza el "Push" a todos los empleados de piso notificando la salida en proceso.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/009-Salidas/003-notificacion-salida-aprobada.png" alt="003 Salida Aprobada" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>3. Aprobación Terrestre</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Cochero u operario confirma físicamente la integridad del cuarto en su App.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/009-Salidas/004-habitacion-icono-verde-lista-salida.png" alt="004 Icono Verde" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>4. Indicador de Semáforo Verde</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Alerta visual indicando que la habitación está liberada por el staff.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/009-Salidas/005-modal-confirmar-salida.png" alt="005 Confirmar Salida" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>5. Confirmación Recepcionista</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Última barrera. Haces clic en "Finalizar Estancia".</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/009-Salidas/006-notificacion-salida-completada.png" alt="006 Salida Completa" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>6. Ejecución del Portón</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El auto abandona el motel y el sistema sella los registros y pasa a Sucio.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN 11: CORTES */}
+        <div class="card">
+          <h3>SECCIÓN 11: Auditoría y Cortes de Caja (010-Cortes)</h3>
+          
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/010-Cortes/001-confirmacion-cierre-turno.png" alt="001 Confirmacion Cierre" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. El Clic Definitivo</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Asegúrate de que todo cuadra. Este paso cerrará tu sesión inmutablemente.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/010-Cortes/002-modal-corte-de-caja.png" alt="002 Modal Corte" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>2. Panel Auditor Visual</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Cruce de terminales vs efectivo físico capturado. Revisa renglón por renglón.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/010-Cortes/003-detalle-final-corte.png" alt="003 Detalle Final" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>3. Pantalla de Éxito de Arqueo</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Mensaje del sistema confirmando el almacenamiento exitoso del turno en BBDD.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/010-Cortes/004-impresion-corte-detallado.png" alt="004 Impresion Detalle" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>4. Ticket Térmico de Entrega</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Saca este papel y grápalo a tu dinero en efectivo y vouchers.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/010-Cortes/005-pantalla-ticket-corte-detallado.png" alt="005 Ticket Pantalla" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>5. Desglose Electrónico Exhaustivo</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El sistema detalla hora por hora cómo entró cada peso para resolver problemas de auditoría.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/010-Cortes/006-ticket-final-corte.png" alt="006 Ticket Final" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>6. Ticket Resumen Digital</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Vista general del ticket condensado enviado a gerencia.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN 12: ELEMENTOS ESENCIALES */}
+        <div class="card">
+          <h3>SECCIÓN 12: Elementos Esenciales y Controles (011-Elementos escenciales)</h3>
+          
+          <div class="grid grid-cols-3" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/001-boton-actualizar-habitaciones.png" alt="001 Boton Refresh" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. Botón Actualizar Servidor</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Fuerza la descarga de la última versión del estado de cuartos desde la BBDD.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/002-reloj-digital.png" alt="002 Reloj" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>2. Reloj Crítico de Servidor</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Reloj inamovible que dicta el vencimiento de tarifas.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/003-resumen-habitaciones.png" alt="003 Resumen" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>3. Ocupación Rápida</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Estadística vital de cuántos cuartos restan por vender.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/004-nomenclatura-estados-habitaciones.png" alt="004 Nomenclatura" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>4. Guía Cromática</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Significado universal de cada color corporativo.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/005-seccion-perfil-notificaciones.png" alt="005 Perfil Notif" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>5. Historial de Alarmas</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Panel lateral para recuperar notificaciones cerradas por error.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/006-menu-rapido-perfil.png" alt="006 Menu Perfil" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>6. Control de Sesión</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Donde debes apretar "Cerrar sesión" cada vez que abandonas la silla.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/007-1-detalles-de-habitacion-desde-boton-azul.png" alt="007-1 Detalles Boton" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>7-1. Botón "i" Detalles</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Acceso primario al expediente del huésped.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/007-2-modal-mas-detalles-2.png" alt="007-2 Mas Detalles 2" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>7-2. Visión Expandida (Vehículo)</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Validación extendida de fotos de la placa y características del auto.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/007-3-modal-mas-detalles.png" alt="007-3 Mas Detalles 3" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>7-3. Visión Expandida General</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El panel completo flotante cubriendo la pantalla para auditoría profunda.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/008-1-detalles-habitacion-ocupada.png" alt="008-1 Ficha Ocupada" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>8-1. Ficha Rápida Ocupada</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Resumen del ticket con el saldo vivo actual del cliente.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/008-2-detalles-2-habitacion-ocupada.png" alt="008-2 Ficha 2" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>8-2. Cronograma de Acción</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Línea de tiempo de todo lo que le ha pasado al cuarto en esta visita.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/009-informacion-vehiculo.png" alt="009 Info Vehiculo" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>9. Base de Datos Vehicular</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Donde la OCR y Gemini Flash inyectan los datos crudos del carro.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/010-boton-cancelar-habitacion.png" alt="010 Cancelar" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>10. Botón de Destrucción de Flujo</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--destructive)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Si abriste el cuarto mal, este botón borra la historia (Requiere NIP gerencial).</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/011-indicador-habitacion-consumo-pendiente.png" alt="011 Consumo Pendiente" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>11. Badge Amarillo de Tensión</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El huésped está enojado esperando su coca cola. Apura al cochero si ves esto.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/011-Elementos%20escenciales/012-modal-portal-desde-rueda-selectora.png" alt="012 Portal Cliente" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>12. Portal del Cliente</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
                   <li>El huésped puede acceder a este portal escaneando el código QR.</li>
                   <li>Le permite recibir notificaciones de su cuenta, estatus de servicios y ofertas especiales.</li>
-                  <li>Promueve este portal para mejorar la experiencia digital del huésped.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/modal-pasar-habitacion-a-sucia.png" alt="Sucia" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>8. Transferencia a Departamento de Limpieza</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Inmediatamente después de salir, el cuarto se torna color morado (Sucio).</li>
-                  <li>El sistema avisa a las camaristas en sus tablets que tienen un nuevo cuarto disponible para hacerle el aseo. Tú ya no tocas el cuarto.</li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
 
-        {/* SECCIÓN 9: CORTE DE CAJA Y AUDITORÍA */}
+        {/* SECCIÓN 13: ADICIONALES */}
         <div class="card">
-          <h3>SECCIÓN 9: Auditoría Financiera y Corte de Caja (Cierre de Turno)</h3>
-          <p style={{marginBottom: "1rem"}}>Este es tu único respaldo legal al terminar la jornada laboral. No cerrar el turno implicará descuentos nominales en caso de descuadre.</p>
+          <h3>SECCIÓN 13: Módulos Adicionales Operativos (012-Secciones Adicionales)</h3>
           
-          <div class="grid grid-cols-2" style={{ marginTop: "1rem", gap: "1.5rem" }}>
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
             <div class="screenshot-container">
-              <img src="/flujo/modal-corte-de-caja.png" alt="Modal Corte" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/001-ordenes-de-compra.png" alt="001 Ordenes" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Paso 1: Auditoría Visual en Pantalla</strong>
+                <strong>1. Log de Órdenes (Comandas)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Ve al menú lateral y haz clic en "Turnos" y luego "Cerrar Turno".</li>
-                  <li>Lee la tarjeta de "Efectivo Neto". Saca tu cajón y cuenta los billetes.</li>
-                  <li>La cantidad física DEBE SER EXACTAMENTE LA MISMA que la pantalla. Si sobra, te equivocaste; si falta, debes reponerlo de tu cartera.</li>
+                  <li>Pantalla administrativa que lista todo lo escaneado y surtido de tienda.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/precorte-de-caja.png" alt="Precorte" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/002-movimientos.png" alt="002 Movimientos" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Paso 2: Emisión del Pre-Corte</strong>
+                <strong>2. Auditoría Interna (Logs)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Haz clic en el botón azul de "Pre-Corte". Esto enviará una orden a la impresora térmica.</li>
-                  <li>Imprimirá un listado con tu dinero sin encriptarlo aún. Úsalo como hoja de ayuda mientras juntas tus monedas y acomodas los billetes en la bolsa de valores.</li>
+                  <li>Control antifraude. Ve aquí si sospechas que un compañero descontó algo.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/corte-de-caja.png" alt="Corte" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/003-stock.png" alt="003 Stock" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Paso 3: Cruce de Vouchers (Terminales)</strong>
+                <strong>3. Visor de Inventario Crítico</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Asegúrate de revisar las tarjetas de BBVA (Azul) y GETNET (Roja).</li>
-                  <li>Imprime el cierre de lote de las terminales físicas (las maquinitas).</li>
-                  <li>Suma los vouchers de BBVA, el total debe ser idéntico a la cantidad azul en pantalla. Repite para GETNET.</li>
+                  <li>Bloqueador nativo de ventas sin existencias físicas.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/confirmacion-cierre-turno.png" alt="Confirmacion" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/004-precorte-de-caja.png" alt="004 Precorte" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Paso 4: El Clic de No Retorno (Firma Digital)</strong>
+                <strong>4. Herramienta de Pre-Corte</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si y solo si, todas las cifras (Efectivo, BBVA, GETNET) cuadran perfecto con tu físico.</li>
-                  <li>Haz clic en el botón verde grande "Cerrar Turno". Aparecerá una advertencia final.</li>
-                  <li>Haz clic en "Sí, Cerrar". El sistema guardará tus números de forma encriptada e inmutable, y cerrará tu sesión operativa.</li>
+                  <li>Ticket simulado antes de encriptar el turno final.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/detalle-final-corte.png" alt="Detalle Corte" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/005-historial-de-cortes.png" alt="005 Historial" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Pantalla de Éxito: Resumen del Turno</strong>
+                <strong>5. Historial Corporativo</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>El sistema te redireccionará a esta pantalla. Felicidades, tu turno terminó limpiamente.</li>
-                  <li>Muestra en un círculo grande y verde la cantidad de Efectivo Neto final auditada.</li>
+                  <li>Turnos antiguos salvaguardados en el servidor remoto.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/ticket-final-corte.png" alt="Ticket 1" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/006-academia.png" alt="006 Academia" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Interpretación del Ticket Electrónico General</strong>
+                <strong>6. Centro de Capacitación (Academia)</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Este ticket virtual lo ve Gerencia desde el panel Administrativo.</li>
-                  <li>Muestra ingresos totales, luego deduce tus gastos pagados (si le pagaste a un proveedor de cocacolas), y arroja el subtotal final que metiste a la tómbola de valores.</li>
+                  <li>Plataforma de estudio para nuevos empleados. Revisa los videos si se te olvida cómo usar la pasarela Getnet.</li>
                 </ul>
               </div>
             </div>
             <div class="screenshot-container">
-              <img src="/flujo/pantalla-ticket-corte-detallado.png" alt="Ticket 2" class="screenshot-premium" loading="lazy" />
+              <img src="/flujo/012-Secciones%20Adicionales/007-edicion-perfil.png" alt="007 Edicion Perfil" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
-                <strong>Lectura del Ticket Detallado (Investigación)</strong>
+                <strong>7. Configuración de Cuenta de Empleado</strong>
                 <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Panel que desglosa renglón por renglón de dónde salió cada peso.</li>
-                  <li>Ejemplo: "10:35 AM | Habitación 402 | $650 | Visa BBVA". Ideal si perdiste un voucher y necesitas saber el folio exacto para hacer una reimpresión en la terminal bancaria.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/impresion-corte-detallado.png" alt="Ticket Impreso" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Impresión del Cierre Legal</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Obligatorio: Imprime este ticket final térmico.</li>
-                  <li>Usa una grapadora y adjunta los cierres de lote de las terminales, y mételos en la bolsa de valores blindada junto con tu efectivo.</li>
-                  <li>Firma la parte trasera del ticket de pre-corte con pluma de tinta azul.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/historial-de-cortes.png" alt="Historial" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Módulo de Historial</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Ve a "Turnos" > "Historial". Aquí se listan todos los días trabajados.</li>
-                  <li>Si auditoría te contacta un martes sobre un cobro del viernes pasado, usa este panel para abrir tu turno viejo y descargar los tickets detallados en PDF para mandar pruebas.</li>
-                </ul>
-              </div>
-            </div>
-            <div class="screenshot-container">
-              <img src="/flujo/academia.png" alt="Academia" class="screenshot-premium" loading="lazy" />
-              <div style={{padding:"1rem"}}>
-                <strong>Academia Interactiva (Ayuda en Vivo)</strong>
-                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                  <li>Si olvidaste cómo aplicar un descuento u operar una tarjeta, abre el módulo "Academia" (birrete universitario en la barra superior).</li>
-                  <li>El sistema te mostrará videos o guías emergentes sin cerrar tu sesión actual.</li>
+                  <li>Mantén tus datos actualizados para que Recursos Humanos y el contador te localicen.</li>
                 </ul>
               </div>
             </div>
           </div>
+        </div>
+
+        {/* SECCIÓN 14: CHAT */}
+        <div class="card">
+          <h3>SECCIÓN 14: Ecosistema de Comunicación (013-Chat)</h3>
           
-          <div style={{marginTop: "3rem", padding: "1.5rem", borderRadius: "12px", border: "1px solid var(--border)", background: "rgba(255, 255, 255, 0.02)"}}>
-            <h4 style={{ color: "var(--primary)", marginBottom: "1.5rem" }}>Acciones Críticas Administrativas de Excepción</h4>
-            <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
-              <div class="screenshot-container">
-                <img src="/flujo/boton-actualizar-habitaciones.png" alt="Boton Actualizar" class="screenshot-premium" loading="lazy" />
-                <div style={{padding:"1rem"}}>
-                  <strong>Botón: Forzar Sincronización Server-Side</strong>
-                  <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                    <li>Ubicación: Arriba del tablero principal.</li>
-                    <li>Uso: Si la red Wi-Fi de recepción sufre microcortes y el tablero se queda "congelado" o un cliente pagó pero la habitación no se puso verde. Haz clic aquí para conectarte directamente al servidor base y forzar la recarga de variables.</li>
-                  </ul>
-                </div>
+          <div class="grid grid-cols-2" style={{ gap: "1.5rem" }}>
+            <div class="screenshot-container">
+              <img src="/flujo/013-Chat/001-boton-de-chat.png" alt="001 Boton Chat" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>1. Icono Persistente</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Botón flotante anclado en la barra de navegación. Siempre visible sin importar en qué cuarto estés.</li>
+                </ul>
               </div>
-              <div class="screenshot-container">
-                <img src="/flujo/boton-cancelar-habitacion.png" alt="Boton Cancelar" class="screenshot-premium" loading="lazy" />
-                <div style={{padding:"1rem"}}>
-                  <strong>Botón: Aborto General de Operación (Cancelar Habitación)</strong>
-                  <ul style={{fontSize:"0.85rem", color:"var(--destructive)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
-                    <li>Ubicación: Dentro de los modales de cobro/salida o menús de administración de cuartos en conflicto.</li>
-                    <li>Uso: Extremadamente peligroso. Cancela TODO el registro de una habitación como si jamás hubiera existido. Elimina folios, cobros y limpia la pantalla.</li>
-                    <li>Requisito: Pedirá un NIP de Gerente. Usar solo si hubo un error crítico de captura (ej. meter a un huésped a la habitación incorrecta).</li>
-                  </ul>
-                </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/013-Chat/002-ventana-principal-chat.png" alt="002 Ventana Chat" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>2. Área de Redacción y Lectura</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>El sistema cuenta con un chat estilo WhatsApp para comunicación encriptada interna.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
+              <img src="/flujo/013-Chat/003-chat-global.png" alt="003 Chat Global" class="screenshot-premium" loading="lazy" />
+              <div style={{padding:"1rem"}}>
+                <strong>3. Transmisiones (Broadcast)</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>Sección "General" para mensajes que todo el staff del hotel (Camaristas, Gerente, Cocheros) deba leer inmediatamente.</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -1061,5 +959,5 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "SOP Visual y Detallado - Recepción",
+  title: "SOP Visual Ordenado por Capítulos - Recepción",
 };

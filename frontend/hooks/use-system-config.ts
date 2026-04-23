@@ -12,6 +12,7 @@ export interface SystemConfig {
     maxShiftsReceptionist: number;    // Máximo de recepcionistas activos
     maxShiftsValet: number;           // Máximo de cocheros activos
     maxShiftsAdmin: number;           // Máximo de administradores activos
+    autoChargeExtraHours: boolean;    // Activar/desactivar el cobro automático de hora extra
 }
 
 // Metadata de auditoría
@@ -28,6 +29,7 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     maxShiftsReceptionist: 1,
     maxShiftsValet: 4,
     maxShiftsAdmin: 2,
+    autoChargeExtraHours: true,
 };
 
 const DEFAULT_META: SystemConfigMeta = { updatedAt: null, updatedBy: null };
@@ -41,7 +43,7 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
     const supabase = createClient();
     const { data, error } = await supabase
         .from('system_config')
-        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, updated_at, updated_by')
+        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, auto_charge_extra_hours, updated_at, updated_by')
         .limit(1)
         .single();
 
@@ -58,6 +60,7 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
         maxShiftsReceptionist: Number(data.max_shifts_receptionist) || DEFAULT_SYSTEM_CONFIG.maxShiftsReceptionist,
         maxShiftsValet: Number(data.max_shifts_valet) || DEFAULT_SYSTEM_CONFIG.maxShiftsValet,
         maxShiftsAdmin: Number(data.max_shifts_admin) || DEFAULT_SYSTEM_CONFIG.maxShiftsAdmin,
+        autoChargeExtraHours: data.auto_charge_extra_hours ?? DEFAULT_SYSTEM_CONFIG.autoChargeExtraHours,
     };
 
     const meta: SystemConfigMeta = {
@@ -144,6 +147,9 @@ export function useSystemConfig() {
             }
             if (newConfig.maxShiftsAdmin !== undefined) {
                 dbUpdate.max_shifts_admin = newConfig.maxShiftsAdmin;
+            }
+            if (newConfig.autoChargeExtraHours !== undefined) {
+                dbUpdate.auto_charge_extra_hours = newConfig.autoChargeExtraHours;
             }
 
             // Update the singleton row (there's only one row)
