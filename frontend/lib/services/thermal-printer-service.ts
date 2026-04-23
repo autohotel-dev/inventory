@@ -2,6 +2,7 @@
 // Compatible con impresoras EPSON, Star, ZJIANG y genéricas
 
 import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
+import { generateSecureRandomNumber } from '../utils';
 
 export interface ConsumptionTicketData {
     roomNumber: string;
@@ -572,7 +573,7 @@ export function generatePrintFolio(): string {
     const year = date.getFullYear().toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const random = generateSecureRandomNumber(0, 9999).toString().padStart(4, '0');
 
     return `COM-${year}${month}${day}-${random}`;
 }

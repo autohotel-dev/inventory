@@ -203,3 +203,45 @@ export function sortBy<T extends Record<string, any>>(
     return 0;
   });
 }
+
+/**
+ * Genera un número aleatorio criptográficamente seguro entre min y max (ambos incluidos)
+ * @param min - Límite inferior
+ * @param max - Límite superior
+ * @returns Número aleatorio seguro
+ */
+export function generateSecureRandomNumber(min: number, max: number): number {
+  const range = max - min + 1;
+  const bytesNeeded = Math.ceil(Math.log2(range) / 8);
+  const maxValidValue = Math.pow(256, bytesNeeded) - (Math.pow(256, bytesNeeded) % range);
+
+  let randomValue: number;
+  const array = new Uint8Array(bytesNeeded);
+
+  do {
+    crypto.getRandomValues(array);
+    randomValue = 0;
+    for (let i = 0; i < bytesNeeded; i++) {
+      randomValue = (randomValue << 8) + array[i];
+    }
+  } while (randomValue >= maxValidValue);
+
+  return min + (randomValue % range);
+}
+
+/**
+ * Genera un string aleatorio criptográficamente seguro
+ * @param length - Longitud del string a generar
+ * @returns String aleatorio seguro
+ */
+export function generateSecureRandomString(length: number): string {
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += charset[array[i] % charset.length];
+  }
+  return result;
+}
