@@ -14,10 +14,10 @@ export default component$(() => {
 
   return (
     <>
-      <header class="header">
+      <header class="header glass">
         <div class="container">
           <div class="nav" style={{ display: "flex", alignItems: "center" }}>
-            <h2 style={{ margin: 0, marginRight: "auto" }} class="premium-gradient">Manual Operativo</h2>
+            <h2 style={{ margin: 0, marginRight: "auto", fontSize: "1.5rem" }} class="premium-gradient">Manual Operativo</h2>
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -33,12 +33,12 @@ export default component$(() => {
           </div>
         </div>
       </header>
-      <main class="container" style={{ padding: "2rem 2rem", minHeight: "80vh" }}>
+      <main class="container animate-in" style={{ padding: "3rem 2rem", minHeight: "80vh" }}>
         <Slot />
       </main>
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "2rem 0", textAlign: "center", color: "var(--muted-foreground)" }}>
+      <footer style={{ borderTop: "1px solid var(--border)", padding: "3rem 0", textAlign: "center", color: "var(--muted-foreground)" }}>
         <div class="container">
-          <p>© 2026 Autohotel Inventory. Todos los derechos reservados.</p>
+          <p style={{ margin: 0, fontSize: "0.9rem" }}>© 2026 Autohotel Inventory. Todos los derechos reservados.</p>
         </div>
       </footer>
     </>

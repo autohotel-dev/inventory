@@ -4,16 +4,16 @@ import type { DocumentHead } from "@builder.io/qwik-city";
 export default component$(() => {
   return (
     <>
-      <div style={{ marginBottom: "2rem" }}>
+      <div class="animate-in stagger-1" style={{ marginBottom: "3rem" }}>
         <h1 class="premium-gradient">Procedimiento Operativo Estándar (SOP): Recepcionistas</h1>
-        <p>
+        <p style={{ fontSize: "1.1rem" }}>
           Este documento constituye la guía definitiva y obligatoria para la operación en Recepción.
           Cada movimiento, clic y validación está descrito a un nivel microscópico para garantizar
           el cero margen de error en auditorías. El seguimiento estricto es de carácter obligatorio.
         </p>
       </div>
 
-      <div class="grid" style={{ gridTemplateColumns: "1fr" }}>
+      <div class="grid animate-in stagger-2" style={{ gridTemplateColumns: "1fr", gap: "2.5rem" }}>
         
         {/* FLUJO 1: INICIO DE TURNO */}
         <div class="card">
