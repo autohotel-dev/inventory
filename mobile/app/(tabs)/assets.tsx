@@ -90,13 +90,33 @@ export default function AssetsScreen() {
     useEffect(() => {
         fetchRoomsRef.current();
 
-        const channel = supabase.channel('assets-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_assets' }, () => fetchRoomsRef.current(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRoomsRef.current(true))
-            .subscribe();
+        let timeout: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fetchRoomsRef.current(true), 800);
+        };
+
+        const channelName = `assets-realtime-${Date.now()}`;
+        const channel = supabase.channel(channelName)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_assets' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, debouncedFetch)
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ [Assets] Realtime conectado');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.warn('⚠️ [Assets] Error en canal, usando polling');
+                }
+            });
+
+        // Polling de respaldo cada 10s
+        const pollInterval = setInterval(() => {
+            fetchRoomsRef.current(true);
+        }, 10000);
 
         return () => {
             supabase.removeChannel(channel);
+            clearTimeout(timeout);
+            clearInterval(pollInterval);
         };
     }, []);
 
