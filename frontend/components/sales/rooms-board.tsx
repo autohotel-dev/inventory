@@ -216,6 +216,7 @@ function RoomsBoardInternal() {
     handleAddDamageCharge,
     handleAuthorizeValetCheckout,
     handleCancelValetCheckout,
+    handleCancelPendingCharge,
   } = useRoomActions(async () => await fetchRooms(true));
 
 

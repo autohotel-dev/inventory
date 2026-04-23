@@ -18,6 +18,17 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
+            const { data: stay } = await supabase
+                .from('room_stays')
+                .select('checkout_valet_employee_id')
+                .eq('id', stayId)
+                .single();
+
+            if (stay?.checkout_valet_employee_id && stay.checkout_valet_employee_id !== valetId) {
+                showFeedback('Ya asignada', 'Esta salida ya fue procesada por otro cochero', 'error');
+                return false;
+            }
+
             const { error } = await supabase
                 .from('room_stays')
                 .update({
@@ -97,6 +108,17 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
+            const { data: stay } = await supabase
+                .from('room_stays')
+                .select('checkout_valet_employee_id')
+                .eq('id', stayId)
+                .single();
+
+            if (stay?.checkout_valet_employee_id && stay.checkout_valet_employee_id !== valetId) {
+                showFeedback('Ya asignada', 'Esta salida ya fue avisada por otro cochero', 'error');
+                return false;
+            }
+
             const { error } = await supabase
                 .from('room_stays')
                 .update({

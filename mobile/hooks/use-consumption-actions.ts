@@ -11,6 +11,17 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
     const handleAcceptConsumption = useCallback(async (consumptionId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         try {
+            const { data: item } = await supabase
+                .from('sales_order_items')
+                .select('delivery_accepted_by')
+                .eq('id', consumptionId)
+                .single();
+
+            if (item?.delivery_accepted_by && item.delivery_accepted_by !== valetId) {
+                showFeedback('Ya asignada', 'Este servicio ya fue aceptado por otro cochero', 'error');
+                return false;
+            }
+
             const { error } = await supabase
                 .from('sales_order_items')
                 .update({
@@ -38,6 +49,18 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         setLoading(true);
         try {
             const itemIds = items.map(item => item.id);
+
+            const { data: existingItems } = await supabase
+                .from('sales_order_items')
+                .select('id, delivery_accepted_by')
+                .in('id', itemIds);
+
+            const alreadyAccepted = existingItems?.find(item => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
+            if (alreadyAccepted) {
+                showFeedback('Ya asignada', 'Uno o más servicios ya fueron aceptados por otro cochero', 'error');
+                return false;
+            }
+
             const { error } = await supabase
                 .from('sales_order_items')
                 .update({
@@ -286,6 +309,18 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         setLoading(true);
         try {
             const itemIds = items.map(item => item.id);
+
+            const { data: existingItems } = await supabase
+                .from('sales_order_items')
+                .select('id, delivery_accepted_by')
+                .in('id', itemIds);
+
+            const alreadyAccepted = existingItems?.find(item => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
+            if (alreadyAccepted) {
+                showFeedback('Ya asignada', 'Esta verificación ya fue aceptada por otro cochero', 'error');
+                return false;
+            }
+
             const { error } = await supabase
                 .from('sales_order_items')
                 .update({
