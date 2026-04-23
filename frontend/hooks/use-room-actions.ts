@@ -72,8 +72,8 @@ export async function getReceptionShiftId(supabase: any): Promise<string | null>
       return receptionSessions[0].id;
     }
 
-    // Si no hay recepcionista activo, retornar null para evitar que se asigne a un cochero
-    return null;
+    // 2. Fallback: Turno actual del usuario si no hay recepción
+    return await getCurrentShiftId(supabase);
   } catch (error) {
     console.error("Error getting reception shift:", error);
     return null;
