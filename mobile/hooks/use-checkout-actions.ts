@@ -112,8 +112,8 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
 
             if (itemError) throw itemError;
 
-            for (const p of payments) {
-                await supabase.from('payments').insert({
+            if (payments.length > 0) {
+                const paymentPayloads = payments.map(p => ({
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -126,7 +126,8 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
-                });
+                }));
+                await supabase.from('payments').insert(paymentPayloads);
             }
 
             showFeedback('✅ Daño Informado', `Hab. ${roomNumber}: Cargo por $${amount.toFixed(2)} generado. Corrobora el cobro en recepción.`);
@@ -173,8 +174,8 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
 
             if (itemError) throw itemError;
 
-            for (const p of payments) {
-                await supabase.from('payments').insert({
+            if (payments.length > 0) {
+                const paymentPayloads = payments.map(p => ({
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -187,7 +188,8 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
-                });
+                }));
+                await supabase.from('payments').insert(paymentPayloads);
             }
 
             showFeedback('✅ Hora Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
@@ -234,8 +236,8 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
 
             if (itemError) throw itemError;
 
-            for (const p of payments) {
-                await supabase.from('payments').insert({
+            if (payments.length > 0) {
+                const paymentPayloads = payments.map(p => ({
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -248,7 +250,8 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
-                });
+                }));
+                await supabase.from('payments').insert(paymentPayloads);
             }
 
             showFeedback('✅ Persona Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
