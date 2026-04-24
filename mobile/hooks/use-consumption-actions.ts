@@ -113,44 +113,60 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             const paymentConcept = getPaymentConcept(itemConceptType);
 
-            for (const p of payments) {
-                // Intentar buscar un pago PENDIENTE de la misma orden y monto
-                const { data: existingPending } = await supabase
-                    .from('payments')
-                    .select('id')
-                    .eq('sales_order_id', salesOrderId)
-                    .eq('status', 'PENDIENTE')
-                    .eq('amount', p.amount)
-                    .maybeSingle();
+            // ⚡ Bolt: Fetch all relevant pending payments in a single query
+            const paymentAmounts = [...new Set(payments.map(p => p.amount))];
+            const { data: existingPendingsDB } = await supabase
+                .from('payments')
+                .select('id, amount')
+                .eq('sales_order_id', salesOrderId)
+                .eq('status', 'PENDIENTE')
+                .in('amount', paymentAmounts);
 
-                if (existingPending) {
-                    await supabase.from('payments').update({
-                        payment_method: p.method,
-                        terminal_code: p.terminal,
-                        card_last_4: p.cardLast4,
-                        card_type: p.cardType,
-                        reference: p.reference || `VALET_ITEM:${consumptionId}`,
-                        status: 'COBRADO_POR_VALET',
-                        collected_by: valetId,
-                        collected_at: new Date().toISOString(),
-                        shift_session_id: session?.id || null,
-                    }).eq('id', existingPending.id);
+            const pendingPayments = existingPendingsDB ? [...existingPendingsDB] : [];
+            const updates: Promise<any>[] = [];
+            const inserts: any[] = [];
+
+            const commonFields = {
+                status: 'COBRADO_POR_VALET',
+                collected_by: valetId,
+                collected_at: new Date().toISOString(),
+                shift_session_id: session?.id || null,
+            };
+
+            for (const p of payments) {
+                const matchIndex = pendingPayments.findIndex(dbP => dbP.amount === p.amount);
+                const paymentData = {
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || `VALET_ITEM:${consumptionId}`,
+                    ...commonFields
+                };
+
+                if (matchIndex !== -1) {
+                    const existingPending = pendingPayments.splice(matchIndex, 1)[0];
+                    updates.push(
+                        (supabase.from('payments').update(paymentData).eq('id', existingPending.id) as unknown as Promise<any>)
+                    );
                 } else {
-                    await supabase.from('payments').insert({
+                    inserts.push({
                         sales_order_id: salesOrderId,
                         amount: p.amount,
-                        payment_method: p.method,
-                        terminal_code: p.terminal,
-                        card_last_4: p.cardLast4,
-                        card_type: p.cardType,
-                        reference: p.reference || `VALET_ITEM:${consumptionId}`,
                         concept: paymentConcept,
-                        status: 'COBRADO_POR_VALET',
-                        collected_by: valetId,
-                        collected_at: new Date().toISOString(),
-                        shift_session_id: session?.id || null,
+                        ...paymentData
                     });
                 }
+            }
+
+            // Execute all updates concurrently
+            if (updates.length > 0) {
+                await Promise.all(updates);
+            }
+
+            // Batch insert all new payments
+            if (inserts.length > 0) {
+                await supabase.from('payments').insert(inserts);
             }
 
             showFeedback('✅ Entrega Informada', `Hab. ${roomNumber}: Lleva el cobro a recepción para corroborar.`);
@@ -202,44 +218,60 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
             // Use the first item's concept to determine the payment concept. Assuming batch is of the same type.
             const paymentConcept = getPaymentConcept(items[0]?.concept_type);
 
-            for (const p of payments) {
-                // Intentar buscar un pago PENDIENTE de la misma orden y monto
-                const { data: existingPending } = await supabase
-                    .from('payments')
-                    .select('id')
-                    .eq('sales_order_id', mainOrderId)
-                    .eq('status', 'PENDIENTE')
-                    .eq('amount', p.amount)
-                    .maybeSingle();
+            // ⚡ Bolt: Fetch all relevant pending payments in a single query
+            const paymentAmounts = [...new Set(payments.map(p => p.amount))];
+            const { data: existingPendingsDB } = await supabase
+                .from('payments')
+                .select('id, amount')
+                .eq('sales_order_id', mainOrderId)
+                .eq('status', 'PENDIENTE')
+                .in('amount', paymentAmounts);
 
-                if (existingPending) {
-                    await supabase.from('payments').update({
-                        payment_method: p.method,
-                        terminal_code: p.terminal,
-                        card_last_4: p.cardLast4,
-                        card_type: p.cardType,
-                        reference: p.reference || itemsRef,
-                        status: 'COBRADO_POR_VALET',
-                        collected_by: valetId,
-                        collected_at: new Date().toISOString(),
-                        shift_session_id: session?.id || null,
-                    }).eq('id', existingPending.id);
+            const pendingPayments = existingPendingsDB ? [...existingPendingsDB] : [];
+            const updates: Promise<any>[] = [];
+            const inserts: any[] = [];
+
+            const commonFields = {
+                status: 'COBRADO_POR_VALET',
+                collected_by: valetId,
+                collected_at: new Date().toISOString(),
+                shift_session_id: session?.id || null,
+            };
+
+            for (const p of payments) {
+                const matchIndex = pendingPayments.findIndex(dbP => dbP.amount === p.amount);
+                const paymentData = {
+                    payment_method: p.method,
+                    terminal_code: p.terminal,
+                    card_last_4: p.cardLast4,
+                    card_type: p.cardType,
+                    reference: p.reference || itemsRef,
+                    ...commonFields
+                };
+
+                if (matchIndex !== -1) {
+                    const existingPending = pendingPayments.splice(matchIndex, 1)[0];
+                    updates.push(
+                        (supabase.from('payments').update(paymentData).eq('id', existingPending.id) as unknown as Promise<any>)
+                    );
                 } else {
-                    await supabase.from('payments').insert({
+                    inserts.push({
                         sales_order_id: mainOrderId,
                         amount: p.amount,
-                        payment_method: p.method,
-                        terminal_code: p.terminal,
-                        card_last_4: p.cardLast4,
-                        card_type: p.cardType,
-                        reference: p.reference || itemsRef,
                         concept: paymentConcept,
-                        status: 'COBRADO_POR_VALET',
-                        collected_by: valetId,
-                        collected_at: new Date().toISOString(),
-                        shift_session_id: session?.id || null,
+                        ...paymentData
                     });
                 }
+            }
+
+            // Execute all updates concurrently
+            if (updates.length > 0) {
+                await Promise.all(updates);
+            }
+
+            // Batch insert all new payments
+            if (inserts.length > 0) {
+                await supabase.from('payments').insert(inserts);
             }
 
             showFeedback('✅ Entregas Informadas', `Hab. ${roomNumber}: ${items.length} servicios informados. Corrobora los cobros en recepción.`);
