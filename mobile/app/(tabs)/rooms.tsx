@@ -302,7 +302,6 @@ export default function RoomsScreen() {
             return;
         }
 
-        console.log('Deep Link Action:', params.action, params);
 
         // Mark this action as processed BEFORE executing to prevent re-runs
         processedDeepLinkRef.current = deepLinkKey;
