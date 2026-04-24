@@ -9,6 +9,16 @@ import { createClient } from "@supabase/supabase-js"; // Usar cliente directo pa
 
 export async function POST(req: NextRequest) {
     try {
+        // Authenticate the webhook source via a shared secret header
+        const secret = req.headers.get("x-webhook-secret");
+        if (!process.env.SENSOR_WEBHOOK_SECRET) {
+            console.error("Missing SENSOR_WEBHOOK_SECRET environment variable");
+            return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+        }
+        if (secret !== process.env.SENSOR_WEBHOOK_SECRET) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         // Cliente Admin para bypass RLS
         const supabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
