@@ -513,14 +513,7 @@ export default function RoomsScreen() {
 
         // Calculate pending extras
         const orders: SalesOrder[] = Array.isArray(stay.sales_orders) ? stay.sales_orders : (stay.sales_orders ? [stay.sales_orders] : []);
-
-        // Debug: Log all items for this room
         const allOrderItems = orders.flatMap(o => o.sales_order_items || []);
-        if (__DEV__) {
-            console.log(`[Room ${room.number}] Total items: ${allOrderItems.length}, concept_types:`,
-                allOrderItems.map(i => i.concept_type)
-            );
-        }
 
         const pendingExtras = allOrderItems.filter(item =>
             (item.concept_type === 'EXTRA_PERSON' || item.concept_type === 'EXTRA_HOUR' || item.concept_type === 'RENEWAL' || item.concept_type === 'PROMO_4H') &&
@@ -528,20 +521,7 @@ export default function RoomsScreen() {
         );
 
         // Calculate pending room change items
-        const allItems = orders.flatMap(o => o.sales_order_items || []);
-        const roomChangeItems = allItems.filter(item => item.concept_type === 'ROOM_CHANGE_ADJUSTMENT');
-
-        // Debug log
-        if (__DEV__ && roomChangeItems.length > 0) {
-            console.log(`[Room ${room.number}] Found ${roomChangeItems.length} ROOM_CHANGE items:`,
-                roomChangeItems.map(i => ({
-                    id: i.id,
-                    concept_type: i.concept_type,
-                    delivery_status: i.delivery_status,
-                    is_paid: i.is_paid
-                }))
-            );
-        }
+        const roomChangeItems = allOrderItems.filter(item => item.concept_type === 'ROOM_CHANGE_ADJUSTMENT');
 
         const pendingRoomChangeItem = roomChangeItems.find(item =>
             !item.delivery_status || item.delivery_status === 'PENDING_VALET'
