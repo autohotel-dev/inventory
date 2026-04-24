@@ -332,7 +332,6 @@ export function ChatWidget() {
                                                     convTitle = otherOnlineUser.email.split('@')[0];
                                                 } else if (otherUserId) {
                                                     convTitle = "Usuario (Desconectado)"; 
-                                                    // TODO: Fetch user email from DB if offline. For now, it shows disconnected.
                                                 }
                                             }
 
