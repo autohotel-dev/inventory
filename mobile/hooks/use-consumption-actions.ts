@@ -113,30 +113,47 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             const paymentConcept = getPaymentConcept(itemConceptType);
 
-            for (const p of payments) {
-                // Intentar buscar un pago PENDIENTE de la misma orden y monto
-                const { data: existingPending } = await supabase
+            const paymentAmounts = payments.map(p => p.amount);
+
+            // Intentar buscar pagos PENDIENTES de la misma orden y montos
+            let pendingPaymentsPool: any[] = [];
+            if (paymentAmounts.length > 0) {
+                const { data: existingPendings } = await supabase
                     .from('payments')
-                    .select('id')
+                    .select('id, amount')
                     .eq('sales_order_id', salesOrderId)
                     .eq('status', 'PENDIENTE')
-                    .eq('amount', p.amount)
-                    .maybeSingle();
+                    .in('amount', paymentAmounts);
+
+                if (existingPendings) {
+                    pendingPaymentsPool = [...existingPendings];
+                }
+            }
+
+            const updates: any[] = [];
+            const inserts: any[] = [];
+            const collectedAt = new Date().toISOString();
+
+            for (const p of payments) {
+                const pendingIndex = pendingPaymentsPool.findIndex(pending => pending.amount === p.amount);
+                const existingPending = pendingIndex >= 0 ? pendingPaymentsPool.splice(pendingIndex, 1)[0] : null;
 
                 if (existingPending) {
-                    await supabase.from('payments').update({
-                        payment_method: p.method,
-                        terminal_code: p.terminal,
-                        card_last_4: p.cardLast4,
-                        card_type: p.cardType,
-                        reference: p.reference || `VALET_ITEM:${consumptionId}`,
-                        status: 'COBRADO_POR_VALET',
-                        collected_by: valetId,
-                        collected_at: new Date().toISOString(),
-                        shift_session_id: session?.id || null,
-                    }).eq('id', existingPending.id);
+                    updates.push(
+                        supabase.from('payments').update({
+                            payment_method: p.method,
+                            terminal_code: p.terminal,
+                            card_last_4: p.cardLast4,
+                            card_type: p.cardType,
+                            reference: p.reference || `VALET_ITEM:${consumptionId}`,
+                            status: 'COBRADO_POR_VALET',
+                            collected_by: valetId,
+                            collected_at: collectedAt,
+                            shift_session_id: session?.id || null,
+                        }).eq('id', existingPending.id)
+                    );
                 } else {
-                    await supabase.from('payments').insert({
+                    inserts.push({
                         sales_order_id: salesOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -147,10 +164,17 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         concept: paymentConcept,
                         status: 'COBRADO_POR_VALET',
                         collected_by: valetId,
-                        collected_at: new Date().toISOString(),
+                        collected_at: collectedAt,
                         shift_session_id: session?.id || null,
                     });
                 }
+            }
+
+            if (updates.length > 0) {
+                await Promise.all(updates);
+            }
+            if (inserts.length > 0) {
+                await supabase.from('payments').insert(inserts);
             }
 
             showFeedback('✅ Entrega Informada', `Hab. ${roomNumber}: Lleva el cobro a recepción para corroborar.`);
@@ -202,30 +226,47 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
             // Use the first item's concept to determine the payment concept. Assuming batch is of the same type.
             const paymentConcept = getPaymentConcept(items[0]?.concept_type);
 
-            for (const p of payments) {
-                // Intentar buscar un pago PENDIENTE de la misma orden y monto
-                const { data: existingPending } = await supabase
+            const paymentAmounts = payments.map(p => p.amount);
+
+            // Intentar buscar pagos PENDIENTES de la misma orden y montos
+            let pendingPaymentsPool: any[] = [];
+            if (paymentAmounts.length > 0) {
+                const { data: existingPendings } = await supabase
                     .from('payments')
-                    .select('id')
+                    .select('id, amount')
                     .eq('sales_order_id', mainOrderId)
                     .eq('status', 'PENDIENTE')
-                    .eq('amount', p.amount)
-                    .maybeSingle();
+                    .in('amount', paymentAmounts);
+
+                if (existingPendings) {
+                    pendingPaymentsPool = [...existingPendings];
+                }
+            }
+
+            const updates: any[] = [];
+            const inserts: any[] = [];
+            const collectedAt = new Date().toISOString();
+
+            for (const p of payments) {
+                const pendingIndex = pendingPaymentsPool.findIndex(pending => pending.amount === p.amount);
+                const existingPending = pendingIndex >= 0 ? pendingPaymentsPool.splice(pendingIndex, 1)[0] : null;
 
                 if (existingPending) {
-                    await supabase.from('payments').update({
-                        payment_method: p.method,
-                        terminal_code: p.terminal,
-                        card_last_4: p.cardLast4,
-                        card_type: p.cardType,
-                        reference: p.reference || itemsRef,
-                        status: 'COBRADO_POR_VALET',
-                        collected_by: valetId,
-                        collected_at: new Date().toISOString(),
-                        shift_session_id: session?.id || null,
-                    }).eq('id', existingPending.id);
+                    updates.push(
+                        supabase.from('payments').update({
+                            payment_method: p.method,
+                            terminal_code: p.terminal,
+                            card_last_4: p.cardLast4,
+                            card_type: p.cardType,
+                            reference: p.reference || itemsRef,
+                            status: 'COBRADO_POR_VALET',
+                            collected_by: valetId,
+                            collected_at: collectedAt,
+                            shift_session_id: session?.id || null,
+                        }).eq('id', existingPending.id)
+                    );
                 } else {
-                    await supabase.from('payments').insert({
+                    inserts.push({
                         sales_order_id: mainOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -236,10 +277,17 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         concept: paymentConcept,
                         status: 'COBRADO_POR_VALET',
                         collected_by: valetId,
-                        collected_at: new Date().toISOString(),
+                        collected_at: collectedAt,
                         shift_session_id: session?.id || null,
                     });
                 }
+            }
+
+            if (updates.length > 0) {
+                await Promise.all(updates);
+            }
+            if (inserts.length > 0) {
+                await supabase.from('payments').insert(inserts);
             }
 
             showFeedback('✅ Entregas Informadas', `Hab. ${roomNumber}: ${items.length} servicios informados. Corrobora los cobros en recepción.`);
