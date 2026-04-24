@@ -40,9 +40,9 @@ const allowedOrigins = [
 app.use((req, res, next) => {
     const origin = req.headers.origin;
 
-    // Verificar si el origen está permitido (incluyendo *.vercel.app)
+    // Verificar si el origen está permitido
     const isAllowed = allowedOrigins.includes(origin) ||
-        (origin && /^https:\/\/.*\.vercel\.app$/.test(origin));
+        (origin && origin === 'https://inventory-luxor.vercel.app');
 
     if (isAllowed) {
         res.setHeader('Access-Control-Allow-Origin', origin);
