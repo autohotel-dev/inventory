@@ -18,9 +18,15 @@ export async function POST(req: Request) {
             process.env.VAPID_PRIVATE_KEY!
         );
 
-        // Authenticate the webhook source (optional, via a shared secret header)
+        // Authenticate the webhook source (mandatory, via a shared secret header)
+        const expectedSecret = process.env.CHAT_WEBHOOK_SECRET;
+        if (!expectedSecret) {
+            console.error('CHAT_WEBHOOK_SECRET is not configured');
+            return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        }
+
         const secret = req.headers.get('x-webhook-secret');
-        if (process.env.CHAT_WEBHOOK_SECRET && secret !== process.env.CHAT_WEBHOOK_SECRET) {
+        if (secret !== expectedSecret) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
