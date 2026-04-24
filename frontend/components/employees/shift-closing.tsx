@@ -203,22 +203,11 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           } else if (terminalCode === "GETNET") {
             total_card_getnet += payment.amount;
           } else {
-            // Debug: Verificar si tiene collected_by
-            console.log('🔍 SHIFT CLOSING DEBUG: Pago tarjeta sin terminal', {
-              id: payment.id?.slice(0, 8),
-              amount: payment.amount,
-              terminal_code: payment.terminal_code,
-              collected_by: payment.collected_by,
-              payment_method: payment.payment_method
-            });
-            
             // Si tiene collected_by, no es "mal asignado", solo falta terminal
             if (payment.collected_by) {
-              console.log('  ✅ Tiene collected_by, asignando a BBVA sin advertencia');
               total_card_bbva += payment.amount;
             } else {
               // Fallback: Si no tiene terminal NI collected_by, registrar advertencia
-              console.log('  ❌ Sin collected_by, marcando como mal asignado');
               unassigned_card_payments.push(payment as EnrichedPayment);
               total_card_bbva += payment.amount;
             }
@@ -355,27 +344,6 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
       const accrual_items = accrualItemsData || [];
       const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
-
-      // Debug logging para pagos mal asignados
-      console.log('=== DEBUG PAGOS MAL ASIGNADOS ===');
-      console.log('Turno:', session.id);
-      console.log('Total pagos procesados:', payments?.length || 0);
-      
-      if (unassigned_card_payments.length > 0) {
-        console.log(`❌ PAGOS CON TARJETA SIN TERMINAL (${unassigned_card_payments.length}):`);
-        unassigned_card_payments.forEach(p => {
-          console.log(`  - ID: ${p.id}, Monto: $${p.amount}, Método: ${p.payment_method}, Terminal: ${p.terminal_code || 'NONE'}`);
-        });
-      }
-      
-      if (unhandled_payment_methods.length > 0) {
-        console.log(`❌ MÉTODOS DE PAGO NO MANEJADOS (${unhandled_payment_methods.length}):`);
-        unhandled_payment_methods.forEach(({payment, method}) => {
-          console.log(`  - ID: ${payment.id}, Monto: $${payment.amount}, Método: ${method}`);
-        });
-      }
-      
-      console.log('=====================================');
 
       setSummary({
         total_cash,
@@ -1095,9 +1063,6 @@ export function ShiftClosingHistory() {
     const employeeId = employeeData?.id;
     const userIsAdmin = employeeData?.role === "admin" || employeeData?.role === "manager";
 
-    // Debug: mostrar en consola el rol del usuario
-    console.log("Usuario actual:", { employeeId, role: employeeData?.role, isAdmin: userIsAdmin });
-
     setCurrentEmployeeId(employeeId);
     setIsAdmin(userIsAdmin);
 
@@ -1226,7 +1191,6 @@ export function ShiftClosingHistory() {
 
   // Abrir modal de detalle
   const openDetail = async (closing: ShiftClosing) => {
-    console.log("Abriendo detalle:", { closingId: closing.id, status: closing.status, isAdmin });
     setSelectedClosing(closing);
     await Promise.all([
       loadClosingDetails(closing.id, closing.period_start, closing.period_end),
