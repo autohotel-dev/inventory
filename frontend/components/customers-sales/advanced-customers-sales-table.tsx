@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,26 +201,58 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         }
     };
 
-    const filteredCustomerSales = customerSales.filter(customerSale => {
-        // Usar nombre real del cliente (de la vista o del campo name)
-        const customerSaleOrderNumber = customerSale.order_number || "";
-        const customerSaleStatus = customerSale.status || "";
+    // Bolt Optimization: Calculate stats once across all data instead of 6 filter/reduce passes.
+    // Memoized independently from filters to avoid recalculating stats during user search input.
+    const {
+        completedCustomerSales,
+        endedCustomerSales,
+        pendingCustomerSales,
+        totalRevenue,
+        totalPending,
+        totalEstimated
+    } = useMemo(() => {
+        const stats = {
+            completedCustomerSales: 0,
+            endedCustomerSales: 0,
+            pendingCustomerSales: 0,
+            totalRevenue: 0,
+            totalPending: 0,
+            totalEstimated: 0
+        };
 
-        const matchesSearch = search === "" ||
-            customerSaleOrderNumber.toLowerCase().includes(search.toLowerCase()) ||
-            customerSaleStatus.toLowerCase().includes(search.toLowerCase());
+        for (const c of customerSales) {
+            if (c.status === 'COMPLETED') stats.completedCustomerSales++;
+            if (c.status === 'ENDED') stats.endedCustomerSales++;
+            if (c.status === 'PARTIAL') stats.pendingCustomerSales++;
+            stats.totalRevenue += (c.paid_amount || 0);
+            stats.totalPending += (c.remaining_amount || 0);
+            stats.totalEstimated += (c.total || 0);
+        }
+        return stats;
+    }, [customerSales]);
 
-        const matchesStatus = statusFilter === "" ||
-            (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
-            (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
-            (statusFilter === "PARTIAL" && customerSale.status === "PARTIAL") ||
-            (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
-            (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
+    // Bolt Optimization: Extract search.toLowerCase() from loop and memoize filtered array
+    // to prevent recalculating O(N) operations unnecessarily on unrelated state changes (like modal opens).
+    const filteredCustomerSales = useMemo(() => {
+        const result = [] as typeof customerSales;
+        const searchLower = search.toLowerCase();
 
-        const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
+        for (const c of customerSales) {
+            let matchesSearch = searchLower === "";
+            if (!matchesSearch) {
+                matchesSearch = (c.order_number || "").toLowerCase().includes(searchLower) ||
+                                (c.status || "").toLowerCase().includes(searchLower);
+            }
 
-        return matchesSearch && matchesStatus && matchesWarehouse;
-    });
+            const matchesStatus = statusFilter === "" || c.status === statusFilter;
+            const matchesWarehouse = warehouseFilter === "" || c.warehouse_id === warehouseFilter;
+
+            if (matchesSearch && matchesStatus && matchesWarehouse) {
+                result.push(c);
+            }
+        }
+        return result;
+    }, [customerSales, search, statusFilter, warehouseFilter]);
 
     if (loading) {
         return (
@@ -231,12 +263,6 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
     }
 
     const totalCustomerSales = customerSales.length;
-    const completedCustomerSales = customerSales.filter(c => c.status === 'COMPLETED').length;
-    const endedCustomerSales = customerSales.filter(c => c.status === 'ENDED').length;
-    const pendingCustomerSales = customerSales.filter(c => c.status === 'PARTIAL').length;
-    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.paid_amount || 0), 0);
-    const totalPending = customerSales.reduce((sum, c) => sum + (c.remaining_amount || 0), 0);
-    const totalEstimated = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
 
     return (
         <div className="space-y-6">
