@@ -21,7 +21,7 @@ import {
   Zap,
   Shield
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format, subMinutes, isAfter } from "date-fns";
 import { es } from "date-fns/locale";
@@ -253,9 +253,29 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
     setAlerts(prev => prev.filter(alert => alert.id !== alertId));
   };
 
-  const filteredAlerts = alerts.filter(alert => 
-    filter === "all" || alert.type === filter
-  );
+  const { criticalCount, warningCount, acknowledgedCount } = useMemo(() => {
+    let critical = 0;
+    let warning = 0;
+    let acknowledged = 0;
+
+    alerts.forEach(alert => {
+      if (alert.type === "critical") critical++;
+      if (alert.type === "warning") warning++;
+      if (alert.acknowledged) acknowledged++;
+    });
+
+    return {
+      criticalCount: critical,
+      warningCount: warning,
+      acknowledgedCount: acknowledged
+    };
+  }, [alerts]);
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter(alert =>
+      filter === "all" || alert.type === filter
+    );
+  }, [alerts, filter]);
 
   const getAlertColor = (type: string) => {
     switch (type) {
@@ -469,7 +489,7 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
                     ? "bg-white/20 text-white border-0" 
                     : "bg-red-500/20 text-red-600 border-0"
                 }`}>
-                  {alerts.filter(a => a.type === "critical").length}
+                  {criticalCount}
                 </Badge>
               </div>
               {filter === "critical" && (
@@ -496,7 +516,7 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
                     ? "bg-white/20 text-white border-0" 
                     : "bg-yellow-500/20 text-yellow-600 border-0"
                 }`}>
-                  {alerts.filter(a => a.type === "warning").length}
+                  {warningCount}
                 </Badge>
               </div>
               {filter === "warning" && (
@@ -549,7 +569,7 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
             </div>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">{alerts.filter(a => a.type === "critical").length}</div>
+            <div className="text-3xl font-bold bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">{criticalCount}</div>
             <p className="text-xs text-muted-foreground pt-2">
               Requieren acción inmediata
             </p>
@@ -568,7 +588,7 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
             </div>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">{alerts.filter(a => a.type === "warning").length}</div>
+            <div className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">{warningCount}</div>
             <p className="text-xs text-muted-foreground pt-2">
               Necesitan atención
             </p>
@@ -587,7 +607,7 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
             </div>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-3xl font-bold bg-gradient-to-r from-green-400 to-green-600 bg-clip-text text-transparent">{alerts.filter(a => a.acknowledged).length}</div>
+            <div className="text-3xl font-bold bg-gradient-to-r from-green-400 to-green-600 bg-clip-text text-transparent">{acknowledgedCount}</div>
             <p className="text-xs text-muted-foreground pt-2">
               Alertas atendidas
             </p>
