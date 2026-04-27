@@ -7,7 +7,7 @@
 import * as net from 'net';
 
 // Configuración de la impresora
-const PRINTER_IP = process.env.PRINTER_IP || '169.254.79.120';
+const PRINTER_IP = process.env.PRINTER_IP || '192.168.0.106';
 const PRINTER_PORT = parseInt(process.env.PRINTER_PORT || '9100');
 const PRINTER_TIMEOUT = 5000; // 5 segundos
 

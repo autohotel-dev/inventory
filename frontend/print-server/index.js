@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Configuración de impresora de red
-const PRINTER_IP = process.env.PRINTER_IP || '192.168.0.104';
+const PRINTER_IP = process.env.PRINTER_IP || '192.168.0.106';
 const PRINTER_PORT = parseInt(process.env.PRINTER_PORT || '9100');
 const PRINTER_TIMEOUT = 5000;
 
