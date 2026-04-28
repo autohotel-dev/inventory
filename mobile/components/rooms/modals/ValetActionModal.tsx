@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Pressable, ActivityIndicator } from 'react-native';
 import { Car, CheckCircle2, LogOut, AlertTriangle, ArrowRightLeft, X } from 'lucide-react-native';
 import { SalesOrderItem } from '../../../lib/types';
 import * as Haptics from 'expo-haptics';
+import { ProcessingOverlay } from '../../ui/ProcessingOverlay';
 
 export interface ValetActionModalProps {
     visible: boolean;
@@ -141,8 +142,11 @@ export const ValetActionModal = ({
                         </TouchableOpacity>
                     </View>
 
+                    {/* Processing overlay */}
+                    <ProcessingOverlay visible={actionLoading} message="Procesando..." />
+
                     {/* Botones de acción */}
-                    <View className="px-6 pt-5 gap-3">
+                    <View className="px-6 pt-5 gap-3" style={{ opacity: actionLoading ? 0.5 : 1 }}>
                         {isUrgent && (
                             <View className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-4 rounded-xl mb-2 flex-row items-center">
                                 <AlertTriangle color="#ef4444" size={24} />

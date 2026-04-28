@@ -552,7 +552,7 @@ export default function RoomsScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         // Registrar la presencia del control (si no está, creará el log de EXTRAVIADO y notificará a recepción)
-        await handleVerifyAssetPresence(selectedRoom.id, 'TV_REMOTE', checkoutChecklist.tvRemote, employeeId);
+        await handleVerifyAssetPresence(selectedRoom.id, employeeId, checkoutChecklist.tvRemote, 'TV_REMOTE');
         
         const success = await handleConfirmCheckout(
             selectedRoom.stay.id,

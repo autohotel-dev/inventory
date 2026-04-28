@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator } from 'react-native';
 import { X, Car, Camera, Minus, Plus } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../MultiPaymentInput';
 import { PlateScanner } from '../../ui/PlateScanner';
@@ -7,6 +7,7 @@ import { VehicleSearchResult } from '../../../lib/vehicle-catalog';
 import { PaymentEntry } from '../../../lib/payment-types';
 import { Room } from '../../../lib/types';
 import { cn } from '../../../lib/utils';
+import { ProcessingOverlay } from '../../ui/ProcessingOverlay';
 
 export interface EntryModalProps {
     visible: boolean;
@@ -210,25 +211,31 @@ export const EntryModal = memo(({
                                 <MultiPaymentInput totalAmount={amount} payments={payments} onPaymentsChange={setPayments} disabled={actionLoading} />
                             </View>
                             <View className="flex-row gap-3 pb-12">
-                                <TouchableOpacity onPress={onClose} className="flex-1 h-14 rounded-2xl items-center justify-center border-2 border-zinc-200 dark:border-zinc-800">
+                                <TouchableOpacity onPress={onClose} disabled={actionLoading} className="flex-1 h-14 rounded-2xl items-center justify-center border-2 border-zinc-200 dark:border-zinc-800" style={{ opacity: actionLoading ? 0.5 : 1 }}>
                                     <Text className="font-black uppercase tracking-widest text-xs text-zinc-400 dark:text-zinc-500">Cancelar</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={onSubmit}
                                     disabled={actionLoading || !plate.trim() || !brand.trim() || !model.trim()}
-                                    className={`flex-1 h-14 rounded-2xl items-center justify-center ${(plate.trim() && brand.trim() && model.trim())
+                                    className={`flex-1 h-14 rounded-2xl items-center justify-center flex-row ${(plate.trim() && brand.trim() && model.trim() && !actionLoading)
                                             ? 'bg-blue-600'
                                             : 'bg-zinc-200 dark:bg-zinc-800'
                                         }`}
+                                    style={{ opacity: actionLoading ? 0.5 : 1 }}
                                 >
-                                    <Text className={`font-black uppercase tracking-widest text-xs ${(plate.trim() && brand.trim() && model.trim())
-                                            ? 'text-white'
-                                            : 'text-zinc-400 dark:text-zinc-600'
-                                        }`}>
-                                        Registrar Entrada
-                                    </Text>
+                                    {actionLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text className={`font-black uppercase tracking-widest text-xs ${(plate.trim() && brand.trim() && model.trim())
+                                                ? 'text-white'
+                                                : 'text-zinc-400 dark:text-zinc-600'
+                                            }`}>
+                                            Registrar Entrada
+                                        </Text>
+                                    )}
                                 </TouchableOpacity>
                             </View>
+                            <ProcessingOverlay visible={actionLoading} message="Registrando entrada..." />
                         </ScrollView>
                     </View>
                 </View>

@@ -1,8 +1,9 @@
 import React, { memo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { X, Clock, Users, Hammer } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../MultiPaymentInput';
 import { PaymentEntry } from '../../../lib/payment-types';
+import { ProcessingOverlay } from '../../ui/ProcessingOverlay';
 // import { Room } from '../../../lib/types'; // Room prop is mixed with stay info often using & { stay: ... } logic in parent
 
 export interface CheckoutModalProps {
@@ -137,8 +138,8 @@ export const CheckoutModal = memo(({
                                         className="p-4 border-2 rounded-xl mb-4 font-bold bg-white border-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white"
                                     />
                                     <MultiPaymentInput totalAmount={parseFloat(extraHourAmount) || 0} payments={extraHourPayments} onPaymentsChange={setExtraHourPayments} disabled={actionLoading} />
-                                    <TouchableOpacity onPress={handleExtraHourSubmit} className="mt-8 h-14 bg-blue-600 rounded-xl items-center justify-center shadow-lg">
-                                        <Text className="text-white font-black text-xs uppercase tracking-widest">Informar Hora Extra</Text>
+                                    <TouchableOpacity onPress={handleExtraHourSubmit} disabled={actionLoading} className="mt-8 h-14 bg-blue-600 rounded-xl items-center justify-center shadow-lg flex-row" style={{ opacity: actionLoading ? 0.5 : 1 }}>
+                                        {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white font-black text-xs uppercase tracking-widest">Informar Hora Extra</Text>}
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -154,8 +155,8 @@ export const CheckoutModal = memo(({
                                         className="p-4 border-2 rounded-xl mb-4 font-bold bg-white border-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white"
                                     />
                                     <MultiPaymentInput totalAmount={parseFloat(extraPersonAmount) || 0} payments={extraPersonPayments} onPaymentsChange={setExtraPersonPayments} disabled={actionLoading} />
-                                    <TouchableOpacity onPress={handleExtraPersonSubmit} className="mt-8 h-14 bg-emerald-600 rounded-xl items-center justify-center shadow-lg">
-                                        <Text className="text-white font-black text-xs uppercase tracking-widest">Informar Pers. Extra</Text>
+                                    <TouchableOpacity onPress={handleExtraPersonSubmit} disabled={actionLoading} className="mt-8 h-14 bg-emerald-600 rounded-xl items-center justify-center shadow-lg flex-row" style={{ opacity: actionLoading ? 0.5 : 1 }}>
+                                        {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white font-black text-xs uppercase tracking-widest">Informar Pers. Extra</Text>}
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -242,34 +243,40 @@ export const CheckoutModal = memo(({
                                         className="p-4 border-2 rounded-xl mb-4 font-bold bg-white border-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white"
                                     />
                                     <MultiPaymentInput totalAmount={parseFloat(damageAmount) || 0} payments={damagePayments} onPaymentsChange={setDamagePayments} disabled={actionLoading} />
-                                    <TouchableOpacity onPress={handleReportDamageSubmit} className="mt-8 h-14 bg-red-600 rounded-xl items-center justify-center shadow-lg">
-                                        <Text className="text-white font-black text-xs uppercase tracking-widest">Registrar Daño</Text>
+                                    <TouchableOpacity onPress={handleReportDamageSubmit} disabled={actionLoading} className="mt-8 h-14 bg-red-600 rounded-xl items-center justify-center shadow-lg flex-row" style={{ opacity: actionLoading ? 0.5 : 1 }}>
+                                        {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white font-black text-xs uppercase tracking-widest">Registrar Daño</Text>}
                                     </TouchableOpacity>
                                 </View>
                             )}
 
                             <View className="flex-row gap-3 pb-12">
-                                <TouchableOpacity onPress={onClose} className="flex-1 h-14 border-2 rounded-2xl items-center justify-center border-zinc-200 dark:border-zinc-800">
+                                <TouchableOpacity onPress={onClose} disabled={actionLoading} className="flex-1 h-14 border-2 rounded-2xl items-center justify-center border-zinc-200 dark:border-zinc-800" style={{ opacity: actionLoading ? 0.5 : 1 }}>
                                     <Text className="font-black text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Cancelar</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                     onPress={onSubmit} 
                                     disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware || !checklist.tvRemote}
-                                    className={`flex-1 h-14 rounded-2xl items-center justify-center ${
-                                        (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote) 
+                                    className={`flex-1 h-14 rounded-2xl items-center justify-center flex-row ${
+                                        (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote && !actionLoading) 
                                         ? 'bg-red-600' 
                                         : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')
                                     }`}
+                                    style={{ opacity: actionLoading ? 0.5 : 1 }}
                                 >
-                                    <Text className={`font-black text-xs uppercase tracking-widest ${
-                                        (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote) 
-                                        ? 'text-white' 
-                                        : (isDark ? 'text-zinc-600' : 'text-zinc-400')
-                                    }`}>
-                                        Confirmar Salida
-                                    </Text>
+                                    {actionLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text className={`font-black text-xs uppercase tracking-widest ${
+                                            (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote) 
+                                            ? 'text-white' 
+                                            : (isDark ? 'text-zinc-600' : 'text-zinc-400')
+                                        }`}>
+                                            Confirmar Salida
+                                        </Text>
+                                    )}
                                 </TouchableOpacity>
                             </View>
+                            <ProcessingOverlay visible={actionLoading} message="Procesando salida..." />
                         </ScrollView>
                     </View>
                 </View>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, Dimensions, Vibration, Platform } from 'react-native';
-import { Bell, X, Car, ShoppingCart, UserPlus, Clock, AlertTriangle, RefreshCcw } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, Animated, Dimensions, Vibration, Platform, Modal, StatusBar } from 'react-native';
+import { Bell, X, Car, ShoppingCart, UserPlus, Clock, AlertTriangle, RefreshCcw, Megaphone, CheckCircle2 } from 'lucide-react-native';
 import { notificationEventEmitter } from '../hooks/use-notifications';
 import { useTheme } from './theme-context';
 
@@ -14,6 +14,7 @@ export type InAppNotificationType =
     | 'ROOM_CHANGE'
     | 'DAMAGE_REPORT'
     | 'PROMO_4H'
+    | 'STAFF_BROADCAST'
     | 'GENERAL';
 
 export interface InAppNotification {
@@ -45,18 +46,215 @@ const getNotificationConfig = (isDark: boolean): Record<InAppNotificationType, {
     ROOM_CHANGE: { icon: RefreshCcw, color: '#06b6d4', bgColor: isDark ? '#1c1917' : '#ecfeff', textColor: isDark ? '#fafafa' : '#18181b', subtitleColor: isDark ? '#a1a1aa' : '#71717a' },
     DAMAGE_REPORT: { icon: AlertTriangle, color: '#ef4444', bgColor: isDark ? '#1c1917' : '#fef2f2', textColor: isDark ? '#fafafa' : '#18181b', subtitleColor: isDark ? '#a1a1aa' : '#71717a' },
     PROMO_4H: { icon: Clock, color: '#eab308', bgColor: isDark ? '#1c1917' : '#fefce8', textColor: isDark ? '#fafafa' : '#18181b', subtitleColor: isDark ? '#a1a1aa' : '#71717a' },
+    STAFF_BROADCAST: { icon: Megaphone, color: '#8b5cf6', bgColor: isDark ? '#1c1917' : '#f5f3ff', textColor: isDark ? '#fafafa' : '#18181b', subtitleColor: isDark ? '#a1a1aa' : '#71717a' },
     GENERAL: { icon: Bell, color: '#6b7280', bgColor: isDark ? '#1c1917' : '#f9fafb', textColor: isDark ? '#fafafa' : '#18181b', subtitleColor: isDark ? '#a1a1aa' : '#71717a' },
 });
+
+// Colores por tipo de comunicado staff
+const STAFF_BROADCAST_COLORS: Record<string, { gradient: string[]; accent: string; emoji: string; label: string }> = {
+    comunicado: { gradient: ['#3b82f6', '#2563eb'], accent: '#60a5fa', emoji: '📢', label: 'Comunicado' },
+    warning: { gradient: ['#f59e0b', '#d97706'], accent: '#fbbf24', emoji: '⚠️', label: 'Llamada de Atención' },
+    urgent: { gradient: ['#ef4444', '#dc2626'], accent: '#f87171', emoji: '🚨', label: 'URGENTE' },
+    instruction: { gradient: ['#06b6d4', '#0891b2'], accent: '#22d3ee', emoji: '📋', label: 'Instrucción' },
+    recognition: { gradient: ['#22c55e', '#16a34a'], accent: '#4ade80', emoji: '🎉', label: 'Reconocimiento' },
+};
+
+// Modal de comunicado staff — solo se cierra con OK
+function StaffBroadcastModal({
+    notification,
+    visible,
+    onClose,
+    isDark,
+}: {
+    notification: InAppNotification | null;
+    visible: boolean;
+    onClose: () => void;
+    isDark: boolean;
+}) {
+    const scaleAnim = useRef(new Animated.Value(0.8)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        if (visible) {
+            Animated.parallel([
+                Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+                Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+            ]).start();
+            // Pulso en el icono
+            const pulse = Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.15, duration: 1000, useNativeDriver: true }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+                ])
+            );
+            pulse.start();
+            return () => pulse.stop();
+        } else {
+            scaleAnim.setValue(0.8);
+            opacityAnim.setValue(0);
+        }
+    }, [visible]);
+
+    if (!notification) return null;
+
+    const subType = notification.data?.notificationType || 'comunicado';
+    const colors = STAFF_BROADCAST_COLORS[subType] || STAFF_BROADCAST_COLORS.comunicado;
+    const senderName = notification.data?.senderName || 'Administración';
+    // Strip emoji prefix from title for cleaner display
+    const cleanTitle = notification.title?.replace(/^[\p{Emoji}\s]+/u, '').trim() || notification.title;
+
+    return (
+        <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
+            <View style={{
+                flex: 1,
+                backgroundColor: 'rgba(0,0,0,0.85)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: 24,
+            }}>
+                <Animated.View style={{
+                    transform: [{ scale: scaleAnim }],
+                    opacity: opacityAnim,
+                    width: '100%',
+                    maxWidth: 380,
+                    borderRadius: 28,
+                    overflow: 'hidden',
+                    backgroundColor: isDark ? '#18181b' : '#ffffff',
+                    shadowColor: colors.gradient[0],
+                    shadowOffset: { width: 0, height: 16 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 32,
+                    elevation: 24,
+                }}>
+                    {/* Colored Header */}
+                    <View style={{
+                        backgroundColor: colors.gradient[0],
+                        paddingTop: 32,
+                        paddingBottom: 40,
+                        alignItems: 'center',
+                    }}>
+                        {/* Badge */}
+                        <View style={{
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            paddingHorizontal: 14,
+                            paddingVertical: 4,
+                            borderRadius: 20,
+                            marginBottom: 16,
+                        }}>
+                            <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', letterSpacing: 1 }}>
+                                {colors.label.toUpperCase()}
+                            </Text>
+                        </View>
+                        {/* Animated Icon */}
+                        <Animated.View style={{
+                            width: 80,
+                            height: 80,
+                            borderRadius: 40,
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transform: [{ scale: pulseAnim }],
+                        }}>
+                            <View style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 28,
+                                backgroundColor: 'rgba(255,255,255,0.3)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}>
+                                <Megaphone color="#ffffff" size={28} strokeWidth={2.5} />
+                            </View>
+                        </Animated.View>
+                    </View>
+
+                    {/* Content */}
+                    <View style={{ padding: 24, paddingTop: 20, alignItems: 'center' }}>
+                        <Text style={{
+                            fontSize: 20,
+                            fontWeight: '800',
+                            color: isDark ? '#fafafa' : '#09090b',
+                            textAlign: 'center',
+                            marginBottom: 12,
+                            lineHeight: 26,
+                        }}>
+                            {cleanTitle}
+                        </Text>
+                        <Text style={{
+                            fontSize: 15,
+                            color: isDark ? '#a1a1aa' : '#52525b',
+                            textAlign: 'center',
+                            lineHeight: 22,
+                            marginBottom: 20,
+                        }}>
+                            {notification.message}
+                        </Text>
+
+                        {/* Sender info */}
+                        <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            marginBottom: 24,
+                            opacity: 0.5,
+                        }}>
+                            <Text style={{
+                                fontSize: 12,
+                                color: isDark ? '#71717a' : '#a1a1aa',
+                            }}>
+                                Enviado por: {senderName}
+                            </Text>
+                        </View>
+
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            onPress={onClose}
+                            activeOpacity={0.8}
+                            style={{
+                                width: '100%',
+                                backgroundColor: colors.gradient[0],
+                                paddingVertical: 16,
+                                borderRadius: 16,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                shadowColor: colors.gradient[0],
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 8,
+                                elevation: 6,
+                            }}
+                        >
+                            <CheckCircle2 color="#ffffff" size={20} strokeWidth={2.5} />
+                            <Text style={{
+                                color: '#ffffff',
+                                fontSize: 16,
+                                fontWeight: '700',
+                                letterSpacing: 0.5,
+                            }}>
+                                Enterado
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </Animated.View>
+            </View>
+        </Modal>
+    );
+}
 
 // Componente individual de notificación
 function NotificationToast({
     notification,
     onDismiss,
+    onOpenModal,
     index,
     isDark
 }: {
     notification: InAppNotification;
     onDismiss: () => void;
+    onOpenModal?: (notification: InAppNotification) => void;
     index: number;
     isDark: boolean;
 }) {
@@ -143,7 +341,12 @@ function NotificationToast({
         >
             <TouchableOpacity
                 activeOpacity={0.95}
-                onPress={handleDismiss}
+                onPress={() => {
+                    if (notification.type === 'STAFF_BROADCAST' && onOpenModal) {
+                        onOpenModal(notification);
+                    }
+                    handleDismiss();
+                }}
                 style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -260,7 +463,16 @@ function NotificationToast({
 
 export function InAppNotificationProvider({ children }: { children: ReactNode }) {
     const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+    const [broadcastModal, setBroadcastModal] = useState<InAppNotification | null>(null);
     const { isDark } = useTheme();
+
+    const openBroadcastModal = useCallback((notification: InAppNotification) => {
+        setBroadcastModal(notification);
+    }, []);
+
+    const closeBroadcastModal = useCallback(() => {
+        setBroadcastModal(null);
+    }, []);
 
     const playNotificationAlert = async () => {
         try {
@@ -289,6 +501,11 @@ export function InAppNotificationProvider({ children }: { children: ReactNode })
 
         // Vibrar para alertar
         playNotificationAlert();
+
+        // Si es STAFF_BROADCAST, abrir modal automáticamente
+        if (notification.type === 'STAFF_BROADCAST') {
+            setBroadcastModal(newNotification);
+        }
 
         setNotifications(prev => {
             // Limitar a máximo 3 notificaciones visibles
@@ -345,9 +562,17 @@ export function InAppNotificationProvider({ children }: { children: ReactNode })
                         index={index}
                         isDark={isDark}
                         onDismiss={() => dismissNotification(notification.id)}
+                        onOpenModal={openBroadcastModal}
                     />
                 ))}
             </View>
+            {/* Modal de comunicado staff */}
+            <StaffBroadcastModal
+                notification={broadcastModal}
+                visible={!!broadcastModal}
+                onClose={closeBroadcastModal}
+                isDark={isDark}
+            />
         </InAppNotificationContext.Provider>
     );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, TextInput, Modal, Alert, Switch } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, TextInput, Modal, Alert, Switch, Animated } from 'react-native';
+import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useValetActions } from '../../hooks/use-valet-actions';
@@ -276,32 +277,49 @@ export default function ServicesScreen() {
 
     return (
         <View className={`flex-1 ${isDark ? 'bg-zinc-950' : 'bg-zinc-50'}`}>
-            <ScrollView
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#52525b' : '#a1a1aa'} />}
-                className="p-4"
-            >
-                {/* Mis Entregas */}
-                <View className="mb-8">
-                    <View className="flex-row items-center justify-between mb-4">
-                        <View className="flex-row items-center">
-                            <View className={`w-8 h-8 rounded-xl items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-50'}`}>
-                                <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={18} />
-                            </View>
-                            <Text className={`text-base font-black ml-2.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Mis Entregas</Text>
-                        </View>
+            {/* Premium Header */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: isDark ? '#27272a' : '#f4f4f5' }}>
+                <View className="flex-row items-center justify-between">
+                    <View>
+                        <Text style={{ fontSize: 9, fontWeight: '900', letterSpacing: 3, textTransform: 'uppercase', color: isDark ? '#a1a1aa' : '#71717a' }}>Panel de</Text>
+                        <Text style={{ fontSize: 26, fontWeight: '900', color: isDark ? '#fff' : '#09090b', marginTop: 2 }}>Servicios</Text>
+                    </View>
+                    <View className="flex-row items-center gap-3">
                         {myConsumptions.length > 0 && (
-                            <View className={`px-2.5 py-1 rounded-full ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
-                                <Text className={`text-xs font-black ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{myConsumptions.length}</Text>
+                            <View style={{ backgroundColor: isDark ? 'rgba(251,191,36,0.15)' : '#fef3c7', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#f59e0b' }} />
+                                <Text style={{ fontSize: 12, fontWeight: '900', color: '#f59e0b' }}>{myConsumptions.length} activa{myConsumptions.length > 1 ? 's' : ''}</Text>
+                            </View>
+                        )}
+                        {pendingConsumptions.length > 0 && (
+                            <View style={{ backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#dbeafe', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3b82f6' }} />
+                                <Text style={{ fontSize: 12, fontWeight: '900', color: '#3b82f6' }}>{pendingConsumptions.length} nueva{pendingConsumptions.length > 1 ? 's' : ''}</Text>
                             </View>
                         )}
                     </View>
+                </View>
+            </View>
+
+            <ScrollView
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#52525b' : '#a1a1aa'} />}
+                contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+            >
+                {/* Mis Entregas */}
+                <View className="mb-8">
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                        <View style={{ width: 3, height: 20, borderRadius: 2, backgroundColor: '#f59e0b', marginRight: 10 }} />
+                        <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={16} />
+                        <Text style={{ fontSize: 13, fontWeight: '900', marginLeft: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: isDark ? '#fbbf24' : '#92400e' }}>Mis Entregas</Text>
+                    </View>
 
                     {myConsumptions.length === 0 && (
-                        <View className={`p-8 rounded-2xl border-2 border-dashed items-center ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                            <ShoppingBag color={isDark ? '#27272a' : '#e4e4e7'} size={32} />
-                            <Text className={`font-black uppercase tracking-widest text-[10px] mt-3 ${isDark ? 'text-zinc-700' : 'text-zinc-400'}`}>
-                                No tienes entregas activas
-                            </Text>
+                        <View style={{ padding: 32, borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: isDark ? '#27272a' : '#e4e4e7', alignItems: 'center', backgroundColor: isDark ? '#0a0a0a' : '#fafafa' }}>
+                            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: isDark ? '#18181b' : '#f4f4f5', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <ShoppingBag color={isDark ? '#3f3f46' : '#d4d4d8'} size={24} />
+                            </View>
+                            <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', color: isDark ? '#3f3f46' : '#a1a1aa' }}>Sin entregas activas</Text>
+                            <Text style={{ fontSize: 11, color: isDark ? '#27272a' : '#d4d4d8', marginTop: 4 }}>Acepta servicios pendientes abajo</Text>
                         </View>
                     )}
 
@@ -310,27 +328,27 @@ export default function ServicesScreen() {
                         const roomTotal = items.reduce((sum: number, i: any) => sum + Number(i.total || 0), 0);
 
                         return (
-                            <View key={roomNum} className={`rounded-2xl border mb-3 overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
+                            <View key={roomNum} style={{ borderRadius: 20, marginBottom: 12, overflow: 'hidden', backgroundColor: isDark ? '#18181b' : '#fff', borderWidth: 1, borderColor: isDark ? '#27272a' : '#f4f4f5', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.3 : 0.06, shadowRadius: 8, elevation: 3 }}>
                                 <TouchableOpacity
                                     onPress={() => toggleExpand(`my-${roomNum}`)}
-                                    className={`flex-row justify-between items-center p-4 ${isDark ? 'bg-zinc-800/30' : 'bg-zinc-50'}`}
+                                    style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: expandedRooms.has(`my-${roomNum}`) ? 1 : 0, borderBottomColor: isDark ? '#27272a' : '#f4f4f5' }}
                                 >
-                                    <View className="flex-row items-center">
-                                        <View className={`w-10 h-10 rounded-xl items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-50'}`}>
-                                            <Text className={`text-sm font-black ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{roomNum}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: isDark ? 'rgba(251,191,36,0.12)' : '#fef3c7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: isDark ? 'rgba(251,191,36,0.2)' : '#fde68a' }}>
+                                            <Text style={{ fontSize: 15, fontWeight: '900', color: isDark ? '#fbbf24' : '#92400e' }}>{roomNum}</Text>
                                         </View>
-                                        <View className="ml-3">
-                                            <Text className={`text-base font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>Hab. {roomNum}</Text>
-                                            <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{items.length} producto{items.length > 1 ? 's' : ''} • ${roomTotal.toFixed(2)}</Text>
+                                        <View style={{ marginLeft: 12 }}>
+                                            <Text style={{ fontSize: 15, fontWeight: '900', color: isDark ? '#fff' : '#09090b' }}>Hab. {roomNum}</Text>
+                                            <Text style={{ fontSize: 11, color: isDark ? '#52525b' : '#a1a1aa', marginTop: 2 }}>{items.length} producto{items.length > 1 ? 's' : ''} • ${roomTotal.toFixed(2)}</Text>
                                         </View>
                                     </View>
-                                    <View className="flex-row items-center gap-2">
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                         {inTransitItems.length > 1 && (
                                             <TouchableOpacity
                                                 onPress={() => openConfirmModal(inTransitItems)}
-                                                className="px-3.5 py-2 rounded-xl bg-emerald-600"
+                                                style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: '#059669' }}
                                             >
-                                                <Text className="text-[10px] font-black uppercase tracking-wider text-white">Entregar Todo</Text>
+                                                <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', color: '#fff' }}>Entregar Todo</Text>
                                             </TouchableOpacity>
                                         )}
                                         {expandedRooms.has(`my-${roomNum}`) ? <ChevronUp size={18} color={isDark ? '#52525b' : '#a1a1aa'} /> : <ChevronDown size={18} color={isDark ? '#52525b' : '#a1a1aa'} />}
@@ -371,61 +389,59 @@ export default function ServicesScreen() {
 
                 {/* Pendientes Generales */}
                 <View className="mb-20">
-                    <View className="flex-row items-center justify-between mb-4">
-                        <View className="flex-row items-center">
-                            <View className={`w-8 h-8 rounded-xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                                <ShoppingBag color={isDark ? '#71717a' : '#a1a1aa'} size={18} />
-                            </View>
-                            <Text className={`text-base font-black ml-2.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Pendientes</Text>
-                        </View>
-                        {pendingConsumptions.length > 0 && (
-                            <View className={`px-2.5 py-1 rounded-full ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
-                                <Text className={`text-xs font-black ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{pendingConsumptions.length}</Text>
-                            </View>
-                        )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                        <View style={{ width: 3, height: 20, borderRadius: 2, backgroundColor: '#3b82f6', marginRight: 10 }} />
+                        <AlertCircle color={isDark ? '#60a5fa' : '#2563eb'} size={16} />
+                        <Text style={{ fontSize: 13, fontWeight: '900', marginLeft: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: isDark ? '#60a5fa' : '#1e40af' }}>Pendientes</Text>
                     </View>
 
                     {pendingConsumptions.length === 0 && (
-                        <View className={`p-8 rounded-2xl border-2 border-dashed items-center ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                            <CheckCircle2 color={isDark ? '#27272a' : '#e4e4e7'} size={32} />
-                            <Text className={`font-black uppercase tracking-widest text-[10px] mt-3 ${isDark ? 'text-zinc-700' : 'text-zinc-400'}`}>
-                                Todo al día
-                            </Text>
+                        <View style={{ padding: 32, borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: isDark ? '#27272a' : '#e4e4e7', alignItems: 'center', backgroundColor: isDark ? '#0a0a0a' : '#fafafa' }}>
+                            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: isDark ? '#052e16' : '#dcfce7', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <CheckCircle2 color={isDark ? '#22c55e' : '#16a34a'} size={24} />
+                            </View>
+                            <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', color: isDark ? '#22c55e' : '#16a34a' }}>Todo al día</Text>
+                            <Text style={{ fontSize: 11, color: isDark ? '#27272a' : '#d4d4d8', marginTop: 4 }}>No hay servicios pendientes</Text>
                         </View>
                     )}
 
                     {Object.entries(groupedPending).map(([roomNum, items]: [string, any]) => {
                         const roomTotal = items.reduce((sum: number, i: any) => sum + Number(i.total || 0), 0);
                         return (
-                        <View key={roomNum} className={`rounded-2xl border mb-3 overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-                            <View className={`p-4 flex-row justify-between items-center ${isDark ? 'bg-zinc-800/30' : 'bg-zinc-50'}`}>
-                                <View className="flex-row items-center">
-                                    <View className={`w-10 h-10 rounded-xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                                        <Text className={`text-sm font-black ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{roomNum}</Text>
+                        <View key={roomNum} style={{ borderRadius: 20, marginBottom: 12, overflow: 'hidden', backgroundColor: isDark ? '#18181b' : '#fff', borderWidth: 1, borderColor: isDark ? '#27272a' : '#f4f4f5', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.3 : 0.06, shadowRadius: 8, elevation: 3 }}>
+                            <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: isDark ? 'rgba(59,130,246,0.12)' : '#dbeafe', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: isDark ? 'rgba(59,130,246,0.2)' : '#93c5fd' }}>
+                                        <Text style={{ fontSize: 15, fontWeight: '900', color: isDark ? '#60a5fa' : '#1e40af' }}>{roomNum}</Text>
                                     </View>
-                                    <View className="ml-3">
-                                        <Text className={`text-base font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>Hab. {roomNum}</Text>
-                                        <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{items.length} producto{items.length > 1 ? 's' : ''} • ${roomTotal.toFixed(2)}</Text>
+                                    <View style={{ marginLeft: 12 }}>
+                                        <Text style={{ fontSize: 15, fontWeight: '900', color: isDark ? '#fff' : '#09090b' }}>Hab. {roomNum}</Text>
+                                        <Text style={{ fontSize: 11, color: isDark ? '#52525b' : '#a1a1aa', marginTop: 2 }}>{items.length} producto{items.length > 1 ? 's' : ''} • ${roomTotal.toFixed(2)}</Text>
                                     </View>
                                 </View>
                                 {items.length > 1 && (
                                     <TouchableOpacity
                                         onPress={() => handleAcceptAllConsumptions(items, roomNum, employeeId!)}
-                                        className={`px-3.5 py-2 rounded-xl ${isDark ? 'bg-zinc-700' : 'bg-zinc-900'}`}
+                                        disabled={actionLoading}
+                                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: isDark ? '#27272a' : '#18181b', opacity: actionLoading ? 0.5 : 1 }}
                                     >
-                                        <Text className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-zinc-100' : 'text-white'}`}>Aceptar Todo</Text>
+                                        <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', color: '#fff' }}>Aceptar Todo</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
-                            <View className="p-3">
+                            <View style={{ padding: 12 }}>
                                 {items.map((item: any) => (
-                                    <View key={item.id} className={`flex-row justify-between items-center p-3 rounded-xl mb-1.5 ${isDark ? 'bg-zinc-800/50' : 'bg-zinc-50'}`}>
-                                        <View className="flex-1 mr-3">
-                                            <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>{item.qty}x {item.products?.name}</Text>
-                                            <Text className={`text-sm font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>${Number(item.total || 0).toFixed(2)}</Text>
+                                    <View key={item.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 14, marginBottom: 6, backgroundColor: isDark ? '#09090b' : '#fafafa' }}>
+                                        <View style={{ flex: 1, marginRight: 12 }}>
+                                            <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#09090b' }}>{item.qty}x {item.products?.name}</Text>
+                                            <Text style={{ fontSize: 13, fontWeight: '900', color: '#10b981', marginTop: 2 }}>${Number(item.total || 0).toFixed(2)}</Text>
                                         </View>
-                                        <TouchableOpacity onPress={() => handleAcceptConsumption(item.id, roomNum, employeeId!)} className={`px-3.5 py-2 rounded-xl ${isDark ? 'bg-zinc-700' : 'bg-zinc-900'}`}>
-                                            <Text className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-zinc-100' : 'text-white'}`}>Aceptar</Text>
+                                        <TouchableOpacity
+                                            onPress={() => handleAcceptConsumption(item.id, roomNum, employeeId!)}
+                                            disabled={actionLoading}
+                                            style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: isDark ? '#27272a' : '#18181b', opacity: actionLoading ? 0.5 : 1 }}
+                                        >
+                                            <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', color: '#fff' }}>Aceptar</Text>
                                         </TouchableOpacity>
                                     </View>
                                 ))}
@@ -488,27 +504,33 @@ export default function ServicesScreen() {
                             />
 
                             <View className="flex-row gap-3 py-10">
-                                <TouchableOpacity onPress={() => setShowDeliveryModal(false)} className={`flex-1 h-14 rounded-2xl items-center justify-center border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                                <TouchableOpacity onPress={() => setShowDeliveryModal(false)} disabled={actionLoading} className={`flex-1 h-14 rounded-2xl items-center justify-center border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`} style={{ opacity: actionLoading ? 0.5 : 1 }}>
                                     <Text className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Cancelar</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                     onPress={submitConfirmation} 
-                                    className={`flex-1 h-14 rounded-2xl items-center justify-center ${
-                                        (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
+                                    className={`flex-1 h-14 rounded-2xl items-center justify-center flex-row ${
+                                        (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0)) && !actionLoading
                                         ? 'bg-emerald-600'
                                         : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')
                                     }`}
                                     disabled={actionLoading || payments.reduce((sum, p) => sum + p.amount, 0) < selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0)}
+                                    style={{ opacity: actionLoading ? 0.5 : 1 }}
                                 >
-                                    <Text className={`font-black uppercase tracking-widest text-xs ${
-                                        (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
-                                        ? 'text-white'
-                                        : (isDark ? 'text-zinc-600' : 'text-zinc-400')
-                                    }`}>
-                                        Confirmar Entrega
-                                    </Text>
+                                    {actionLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text className={`font-black uppercase tracking-widest text-xs ${
+                                            (payments.reduce((sum, p) => sum + p.amount, 0) >= selectedItems.reduce((sum, i) => sum + Number(i.total || 0), 0))
+                                            ? 'text-white'
+                                            : (isDark ? 'text-zinc-600' : 'text-zinc-400')
+                                        }`}>
+                                            Confirmar Entrega
+                                        </Text>
+                                    )}
                                 </TouchableOpacity>
                             </View>
+                            <ProcessingOverlay visible={actionLoading} message="Confirmando entrega..." />
                         </ScrollView>
                     </View>
                 </View>

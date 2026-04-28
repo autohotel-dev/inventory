@@ -1,9 +1,10 @@
 import React, { memo, useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Modal, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { X } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../MultiPaymentInput';
 import { PaymentEntry } from '../../../lib/payment-types';
 import { SalesOrderItem } from '../../../lib/types';
+import { ProcessingOverlay } from '../../ui/ProcessingOverlay';
 
 export interface VerifyExtraModalProps {
     visible: boolean;
@@ -79,13 +80,14 @@ export const VerifyExtraModal = memo(({
                             </View>
 
                             <View className="flex-row gap-4 pb-12">
-                                <TouchableOpacity onPress={onClose} className="flex-1 h-16 rounded-2xl items-center justify-center border-2 border-zinc-100 dark:border-zinc-800">
+                                <TouchableOpacity onPress={onClose} disabled={actionLoading} className="flex-1 h-16 rounded-2xl items-center justify-center border-2 border-zinc-100 dark:border-zinc-800" style={{ opacity: actionLoading ? 0.5 : 1 }}>
                                     <Text className="font-black uppercase tracking-widest text-xs text-zinc-400 dark:text-zinc-500">Cancelar</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => onSubmit(payments)} disabled={actionLoading} className="flex-1 h-16 rounded-2xl items-center justify-center shadow-lg bg-zinc-900 dark:bg-white">
-                                    <Text className="font-black uppercase tracking-widest text-xs text-white dark:text-black">Cobrar y Confirmar</Text>
+                                <TouchableOpacity onPress={() => onSubmit(payments)} disabled={actionLoading} className="flex-1 h-16 rounded-2xl items-center justify-center shadow-lg bg-zinc-900 dark:bg-white flex-row" style={{ opacity: actionLoading ? 0.5 : 1 }}>
+                                    {actionLoading ? <ActivityIndicator size="small" color="#3b82f6" /> : <Text className="font-black uppercase tracking-widest text-xs text-white dark:text-black">Cobrar y Confirmar</Text>}
                                 </TouchableOpacity>
                             </View>
+                            <ProcessingOverlay visible={actionLoading} message="Verificando extras..." />
                         </ScrollView>
                     </View>
                 </View>

@@ -83,7 +83,7 @@ Notifications.setNotificationHandler({
 
 export interface NotificationData {
     type?: 'VEHICLE_REQUEST' | 'NEW_CONSUMPTION' | 'NEW_ENTRY' | 'CHECKOUT_REQUEST' | 'GENERAL' | 'REGULAR_CONSUMPTION' | 'NEW_EXTRA'
-    | 'ROOM_CHANGE' | 'DAMAGE_REPORT' | 'PROMO_4H' | 'ROOM_DIRTY';
+    | 'ROOM_CHANGE' | 'DAMAGE_REPORT' | 'PROMO_4H' | 'ROOM_DIRTY' | 'STAFF_BROADCAST';
     roomNumber?: string;
     stayId?: string;
     consumptionId?: string;
@@ -392,6 +392,15 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
         router.push({
             pathname: '/(tabs)/camarista',
             params: { roomNumber: data.roomNumber }
+        });
+    } else if (data.type === 'STAFF_BROADCAST') {
+        // Emitir evento para que el modal se abra al entrar a la app
+        const content = response.notification.request.content;
+        notificationEventEmitter.emit('inAppNotification', {
+            type: 'STAFF_BROADCAST',
+            title: content.title || 'Comunicado',
+            message: content.body || '',
+            data: data,
         });
     }
 }

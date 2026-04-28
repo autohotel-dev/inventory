@@ -134,6 +134,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/settings/permissions", label: "Permisos de Roles", icon: "settings", permissionId: "settings.permissions", adminOnly: true },
   { href: "/settings/media", label: "Biblioteca de Medios", icon: "image", permissionId: "settings.media", adminOnly: true },
   { href: "/notifications-admin", label: "Notificaciones", icon: "bell", permissionId: "notifications-admin", adminOnly: true },
+  { href: "/staff-notifications", label: "Comunicados Staff", icon: "bell", permissionId: "staff-notifications", adminOnly: true },
 ] as const;
 
 const MobileHeader = React.memo(({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) => (
