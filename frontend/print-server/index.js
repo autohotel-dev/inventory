@@ -1,14 +1,48 @@
 const express = require('express');
 const cors = require('cors');
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Configuración de impresora de red
-const PRINTER_IP = process.env.PRINTER_IP || '192.168.0.106';
-const PRINTER_PORT = parseInt(process.env.PRINTER_PORT || '9100');
+// ─── Dynamic Printer Config ──────────────────────────────────────────
+// Persisted in a local JSON file so the IP survives restarts/power outages.
+const CONFIG_FILE = path.join(__dirname, 'printer-config.json');
+
+function loadConfig() {
+    try {
+        if (fs.existsSync(CONFIG_FILE)) {
+            const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
+            return JSON.parse(raw);
+        }
+    } catch (err) {
+        console.error('[CONFIG] Error reading config file:', err.message);
+    }
+    // Defaults
+    return { printerIP: '192.168.0.106', printerPort: 9100, hpPrinterIP: '192.168.0.108', hpPrinterPort: 9100 };
+}
+
+function saveConfig(config) {
+    try {
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+        console.log(`[CONFIG] Saved: ${config.printerIP}:${config.printerPort}`);
+    } catch (err) {
+        console.error('[CONFIG] Error saving config file:', err.message);
+    }
+}
+
+// Load initial config (env vars override saved config)
+const savedConfig = loadConfig();
+let PRINTER_IP = process.env.PRINTER_IP || savedConfig.printerIP;
+let PRINTER_PORT = parseInt(process.env.PRINTER_PORT || String(savedConfig.printerPort));
+let HP_PRINTER_IP = process.env.HP_PRINTER_IP || savedConfig.hpPrinterIP || '192.168.0.108';
+let HP_PRINTER_PORT = parseInt(process.env.HP_PRINTER_PORT || String(savedConfig.hpPrinterPort || 9100));
 const PRINTER_TIMEOUT = 5000;
+
+// Save initial config (in case it's the first run)
+saveConfig({ printerIP: PRINTER_IP, printerPort: PRINTER_PORT, hpPrinterIP: HP_PRINTER_IP, hpPrinterPort: HP_PRINTER_PORT });
 
 // ESC/POS Commands
 const ESC = '\x1B';
@@ -133,6 +167,46 @@ function sendToPrinter(data) {
         });
 
         socket.connect(PRINTER_PORT, PRINTER_IP);
+    });
+}
+
+// Enviar a impresora HP por TCP (PCL)
+function sendToHPPrinter(data) {
+    return new Promise((resolve, reject) => {
+        const socket = new net.Socket();
+        let resolved = false;
+
+        socket.setTimeout(PRINTER_TIMEOUT);
+
+        socket.on('connect', () => {
+            console.log(`[HP] Conectado a ${HP_PRINTER_IP}:${HP_PRINTER_PORT}`);
+            const writeData = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf-8');
+            socket.write(writeData, (err) => {
+                if (err) {
+                    console.error('[HP] Error al escribir:', err);
+                    if (!resolved) { resolved = true; socket.destroy(); reject(err); }
+                } else {
+                    setTimeout(() => {
+                        if (!resolved) { resolved = true; socket.end(); resolve(true); }
+                    }, 1000); // HP needs a bit more time than thermal
+                }
+            });
+        });
+
+        socket.on('error', (err) => {
+            console.error('[HP] Error de socket:', err);
+            if (!resolved) { resolved = true; reject(new Error(`Error HP: ${err.message}`)); }
+        });
+
+        socket.on('timeout', () => {
+            if (!resolved) { resolved = true; socket.destroy(); reject(new Error('Timeout: HP no responde')); }
+        });
+
+        socket.on('close', () => {
+            console.log('[HP] Conexión cerrada');
+        });
+
+        socket.connect(HP_PRINTER_PORT, HP_PRINTER_IP);
     });
 }
 
@@ -593,10 +667,66 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         service: 'thermal-print-server',
-        version: '2.1.0',
+        version: '2.2.0',
         printerIP: PRINTER_IP,
         printerPort: PRINTER_PORT,
         timestamp: new Date().toISOString()
+    });
+});
+
+// ─── Config Endpoints (dynamic IP management) ───────────────────────
+
+// GET /config — Returns current printer configuration
+app.get('/config', (req, res) => {
+    res.json({
+        printerIP: PRINTER_IP,
+        printerPort: PRINTER_PORT,
+        hpPrinterIP: HP_PRINTER_IP,
+        hpPrinterPort: HP_PRINTER_PORT,
+        configFile: CONFIG_FILE,
+    });
+});
+
+// POST /config — Update printer IP/port at runtime (persisted to disk)
+app.post('/config', (req, res) => {
+    const { printerIP, printerPort, hpPrinterIP, hpPrinterPort } = req.body;
+
+    const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+    if (printerIP && typeof printerIP === 'string') {
+        if (!ipRegex.test(printerIP)) {
+            return res.status(400).json({ error: 'Formato de IP inválido para impresora de tickets' });
+        }
+        PRINTER_IP = printerIP;
+        console.log(`[CONFIG] Ticket printer IP updated to: ${PRINTER_IP}`);
+    }
+
+    if (printerPort && !isNaN(parseInt(printerPort))) {
+        PRINTER_PORT = parseInt(printerPort);
+    }
+
+    if (hpPrinterIP && typeof hpPrinterIP === 'string') {
+        if (!ipRegex.test(hpPrinterIP)) {
+            return res.status(400).json({ error: 'Formato de IP inválido para impresora HP' });
+        }
+        HP_PRINTER_IP = hpPrinterIP;
+        console.log(`[CONFIG] HP printer IP updated to: ${HP_PRINTER_IP}`);
+    }
+
+    if (hpPrinterPort && !isNaN(parseInt(hpPrinterPort))) {
+        HP_PRINTER_PORT = parseInt(hpPrinterPort);
+    }
+
+    // Persist to disk
+    saveConfig({ printerIP: PRINTER_IP, printerPort: PRINTER_PORT, hpPrinterIP: HP_PRINTER_IP, hpPrinterPort: HP_PRINTER_PORT });
+
+    res.json({
+        success: true,
+        message: `Config actualizada — Tickets: ${PRINTER_IP}:${PRINTER_PORT}, HP: ${HP_PRINTER_IP}:${HP_PRINTER_PORT}`,
+        printerIP: PRINTER_IP,
+        printerPort: PRINTER_PORT,
+        hpPrinterIP: HP_PRINTER_IP,
+        hpPrinterPort: HP_PRINTER_PORT,
     });
 });
 
@@ -648,7 +778,7 @@ app.post('/print', async (req, res) => {
     }
 });
 
-// Endpoint de prueba de impresión
+// Endpoint de prueba de impresión (Thermal)
 app.post('/print/test', async (req, res) => {
     try {
         let t = CMD.INIT;
@@ -673,6 +803,207 @@ app.post('/print/test', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// HP PRINTER — PCL-based printing for letter-size reports
+// ═══════════════════════════════════════════════════════════════════════
+
+function formatLinePCL(left, right, width = 80) {
+    const spaces = Math.max(1, width - left.length - right.length);
+    return left + ' '.repeat(spaces) + right;
+}
+
+function buildHPClosingReport(data) {
+    const { dateStr: startDate, timeStr: startTime } = formatDateTime(data.periodStart);
+    const { dateStr: endDate, timeStr: endTime } = formatDateTime(data.periodEnd);
+
+    const LINE = '='.repeat(72);
+    const DASH = '-'.repeat(72);
+    const NL = '\r\n';
+
+    // PCL reset + set font (Courier 10pt for monospaced alignment)
+    let doc = '\x1B%-12345X'; // UEL (Universal Exit Language)
+    doc += '\x1BE';           // PCL Reset
+    doc += '\x1B&l0O';        // Portrait
+    doc += '\x1B&l2A';        // Letter size
+    doc += '\x1B&l6D';        // 6 lines per inch
+    doc += '\x1B&l4E';        // Top margin 4 lines
+    doc += '\x1B(s0P';        // Fixed pitch
+    doc += '\x1B(s12H';       // 12 characters per inch
+    doc += '\x1B(s0S';        // Upright style
+    doc += '\x1B(s3T';        // Courier font
+
+    // ═══ HEADER ═══
+    doc += NL;
+    doc += '                         CORTE DE CAJA' + NL;
+    doc += '                       Auto Hotel Luxor' + NL;
+    doc += LINE + NL;
+    doc += NL;
+    doc += `  Empleado:   ${data.employeeName}` + NL;
+    doc += `  Turno:      ${data.shiftName}` + NL;
+    doc += `  Periodo:    ${startDate} ${startTime}  -->  ${endDate} ${endTime}` + NL;
+    doc += LINE + NL;
+
+    // ═══ RESUMEN DE VENTAS ═══
+    doc += NL;
+    doc += '  RESUMEN DE VENTAS' + NL;
+    doc += DASH + NL;
+    doc += formatLinePCL('    Efectivo:', formatMoney(data.totalCash), 72) + NL;
+    doc += formatLinePCL('    Tarjeta BBVA:', formatMoney(data.totalCardBBVA), 72) + NL;
+    doc += formatLinePCL('    Tarjeta GETNET:', formatMoney(data.totalCardGetnet), 72) + NL;
+    doc += DASH + NL;
+    doc += formatLinePCL('    TOTAL VENTAS:', formatMoney(data.totalSales), 72) + NL;
+    doc += formatLinePCL('    Transacciones:', String(data.totalTransactions), 72) + NL;
+    doc += NL;
+
+    // ═══ EFECTIVO ═══
+    doc += '  EFECTIVO' + NL;
+    doc += DASH + NL;
+    doc += formatLinePCL('    Efectivo cobrado:', formatMoney(data.totalCash), 72) + NL;
+    if (data.totalExpenses && data.totalExpenses > 0) {
+        doc += formatLinePCL('    (-) Gastos:', '-' + formatMoney(data.totalExpenses), 72) + NL;
+    }
+    const netCash = data.totalCash - (data.totalExpenses || 0);
+    doc += DASH + NL;
+    doc += formatLinePCL('    EFECTIVO NETO A ENTREGAR:', formatMoney(netCash), 72) + NL;
+    doc += NL;
+
+    // ═══ DETALLE DE GASTOS ═══
+    if (data.expenses && data.expenses.length > 0) {
+        doc += '  DETALLE DE GASTOS' + NL;
+        doc += DASH + NL;
+        doc += formatLinePCL('    Hora    Descripcion', 'Monto', 72) + NL;
+        doc += DASH + NL;
+        data.expenses.forEach(exp => {
+            const time = formatDateTime(exp.created_at || exp.createdAt).timeStr;
+            const desc = (exp.description || '').substring(0, 40);
+            doc += formatLinePCL(`    ${time}   ${desc}`, '-' + formatMoney(Number(exp.amount)), 72) + NL;
+        });
+        doc += NL;
+    }
+
+    // ═══ DETALLE DE TRANSACCIONES ═══
+    if (data.transactions && data.transactions.length > 0) {
+        doc += '  DETALLE DE TRANSACCIONES' + NL;
+        doc += DASH + NL;
+
+        const cashTx = data.transactions.filter(tx => tx.paymentMethod === 'EFECTIVO');
+        const bbvaTx = data.transactions.filter(tx => tx.paymentMethod === 'TARJETA_BBVA' || (tx.paymentMethod === 'TARJETA' && tx.terminalCode === 'BBVA'));
+        const getnetTx = data.transactions.filter(tx => tx.paymentMethod === 'TARJETA_GETNET' || (tx.paymentMethod === 'TARJETA' && tx.terminalCode === 'GETNET'));
+
+        if (cashTx.length > 0) {
+            doc += NL + `    EFECTIVO (${cashTx.length} pagos)` + NL;
+            doc += '    ' + '-'.repeat(64) + NL;
+            cashTx.forEach((tx, i) => {
+                doc += formatLinePCL(`    ${i + 1}. ${tx.time}  ${tx.concept || ''}`, formatMoney(tx.amount), 72) + NL;
+                if (tx.items && tx.items.length > 0) {
+                    tx.items.forEach(item => {
+                        doc += `       ${item.qty}x ${item.name}` + NL;
+                    });
+                }
+            });
+        }
+
+        if (bbvaTx.length > 0) {
+            doc += NL + `    TARJETA BBVA (${bbvaTx.length} pagos)` + NL;
+            doc += '    ' + '-'.repeat(64) + NL;
+            bbvaTx.forEach((tx, i) => {
+                doc += formatLinePCL(`    ${i + 1}. ${tx.time}  ${tx.concept || ''}`, formatMoney(tx.amount), 72) + NL;
+            });
+        }
+
+        if (getnetTx.length > 0) {
+            doc += NL + `    TARJETA GETNET (${getnetTx.length} pagos)` + NL;
+            doc += '    ' + '-'.repeat(64) + NL;
+            getnetTx.forEach((tx, i) => {
+                doc += formatLinePCL(`    ${i + 1}. ${tx.time}  ${tx.concept || ''}`, formatMoney(tx.amount), 72) + NL;
+            });
+        }
+        doc += NL;
+    }
+
+    // ═══ NOTAS ═══
+    if (data.notes && data.notes.trim()) {
+        doc += '  OBSERVACIONES' + NL;
+        doc += DASH + NL;
+        doc += `    ${data.notes.trim()}` + NL;
+        doc += NL;
+    }
+
+    // ═══ FIRMAS ═══
+    doc += NL + NL + NL;
+    doc += LINE + NL;
+    doc += NL;
+    doc += '    _____________________________          _____________________________' + NL;
+    doc += `    Entrega: ${(data.employeeName || '').substring(0, 20).padEnd(20)}          Recibe:` + NL;
+    doc += NL;
+    doc += LINE + NL;
+
+    // ═══ PIE ═══
+    doc += NL;
+    doc += `    Impreso: ${new Date().toLocaleString('es-MX')}` + NL;
+    doc += NL;
+
+    // Form feed (eject page) + PCL Reset
+    doc += '\x0C';    // Form feed
+    doc += '\x1BE';   // PCL Reset
+    doc += '\x1B%-12345X'; // UEL
+
+    return doc;
+}
+
+// POST /print/hp — Print closing report on HP (letter-size)
+app.post('/print/hp', async (req, res) => {
+    try {
+        const { type, data } = req.body;
+        console.log(`📄 [HP] Recibiendo trabajo: ${type}`);
+
+        let document;
+        switch (type) {
+            case 'closing':
+                document = buildHPClosingReport(data);
+                break;
+            default:
+                return res.status(400).json({ error: 'Tipo no soportado para HP. Usa: closing' });
+        }
+
+        await sendToHPPrinter(document);
+        console.log(`✅ [HP] Reporte ${type} impreso correctamente`);
+        res.json({ success: true, message: 'Reporte impreso en HP' });
+
+    } catch (error) {
+        console.error('❌ [HP] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST /print/hp/test — Test HP printer connectivity
+app.post('/print/hp/test', async (req, res) => {
+    try {
+        let doc = '\x1B%-12345X\x1BE';  // UEL + Reset
+        doc += '\x1B&l2A';               // Letter size
+        doc += '\x1B(s0P\x1B(s12H\x1B(s3T'; // Courier 12cpi
+        doc += '\r\n\r\n';
+        doc += '         ====================================\r\n';
+        doc += '              PRUEBA DE IMPRESION HP\r\n';
+        doc += '         ====================================\r\n';
+        doc += '\r\n';
+        doc += `         Fecha: ${new Date().toLocaleDateString('es-MX')}\r\n`;
+        doc += `         Hora:  ${new Date().toLocaleTimeString('es-MX')}\r\n`;
+        doc += `         IP:    ${HP_PRINTER_IP}:${HP_PRINTER_PORT}\r\n`;
+        doc += '\r\n';
+        doc += '         Impresora HP OK\r\n';
+        doc += '\r\n';
+        doc += '\x0C\x1BE\x1B%-12345X'; // FF + Reset + UEL
+        await sendToHPPrinter(doc);
+        console.log('✅ [HP] Prueba completada');
+        res.json({ success: true, message: 'Prueba HP completada' });
+    } catch (error) {
+        console.error('❌ [HP] Error en prueba:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 // Mantener endpoint legacy para cortes
 app.post('/print-closing', async (req, res) => {

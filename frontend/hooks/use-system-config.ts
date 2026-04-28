@@ -13,6 +13,11 @@ export interface SystemConfig {
     maxShiftsValet: number;           // Máximo de cocheros activos
     maxShiftsAdmin: number;           // Máximo de administradores activos
     autoChargeExtraHours: boolean;    // Activar/desactivar el cobro automático de hora extra
+    // Printer configuration
+    thermalPrinterIP: string;         // IP de la impresora de tickets
+    thermalPrinterPort: number;       // Puerto de la impresora de tickets
+    hpPrinterIP: string;              // IP de la impresora HP
+    hpPrinterPort: number;            // Puerto de la impresora HP
 }
 
 // Metadata de auditoría
@@ -30,6 +35,10 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     maxShiftsValet: 4,
     maxShiftsAdmin: 2,
     autoChargeExtraHours: true,
+    thermalPrinterIP: '192.168.0.106',
+    thermalPrinterPort: 9100,
+    hpPrinterIP: '192.168.0.108',
+    hpPrinterPort: 9100,
 };
 
 const DEFAULT_META: SystemConfigMeta = { updatedAt: null, updatedBy: null };
@@ -43,7 +52,7 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
     const supabase = createClient();
     const { data, error } = await supabase
         .from('system_config')
-        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, auto_charge_extra_hours, updated_at, updated_by')
+        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, auto_charge_extra_hours, thermal_printer_ip, thermal_printer_port, hp_printer_ip, hp_printer_port, updated_at, updated_by')
         .limit(1)
         .single();
 
@@ -61,6 +70,10 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
         maxShiftsValet: Number(data.max_shifts_valet) || DEFAULT_SYSTEM_CONFIG.maxShiftsValet,
         maxShiftsAdmin: Number(data.max_shifts_admin) || DEFAULT_SYSTEM_CONFIG.maxShiftsAdmin,
         autoChargeExtraHours: data.auto_charge_extra_hours ?? DEFAULT_SYSTEM_CONFIG.autoChargeExtraHours,
+        thermalPrinterIP: data.thermal_printer_ip || DEFAULT_SYSTEM_CONFIG.thermalPrinterIP,
+        thermalPrinterPort: Number(data.thermal_printer_port) || DEFAULT_SYSTEM_CONFIG.thermalPrinterPort,
+        hpPrinterIP: data.hp_printer_ip || DEFAULT_SYSTEM_CONFIG.hpPrinterIP,
+        hpPrinterPort: Number(data.hp_printer_port) || DEFAULT_SYSTEM_CONFIG.hpPrinterPort,
     };
 
     const meta: SystemConfigMeta = {
@@ -150,6 +163,18 @@ export function useSystemConfig() {
             }
             if (newConfig.autoChargeExtraHours !== undefined) {
                 dbUpdate.auto_charge_extra_hours = newConfig.autoChargeExtraHours;
+            }
+            if (newConfig.thermalPrinterIP !== undefined) {
+                dbUpdate.thermal_printer_ip = newConfig.thermalPrinterIP;
+            }
+            if (newConfig.thermalPrinterPort !== undefined) {
+                dbUpdate.thermal_printer_port = newConfig.thermalPrinterPort;
+            }
+            if (newConfig.hpPrinterIP !== undefined) {
+                dbUpdate.hp_printer_ip = newConfig.hpPrinterIP;
+            }
+            if (newConfig.hpPrinterPort !== undefined) {
+                dbUpdate.hp_printer_port = newConfig.hpPrinterPort;
             }
 
             // Update the singleton row (there's only one row)

@@ -236,7 +236,14 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       if (sessionError) throw sessionError;
 
       success("Corte completado", "El corte de caja se ha registrado correctamente");
-      window.open(`/reports/closing/thermal?shiftId=${closing.id}`, '_blank');
+
+      // Print both reports (fire-and-forget, non-blocking)
+      // 1. Thermal ticket (ESC/POS via print server)
+      handlePrintClosing();
+
+      // 2. HP letter-size report (PCL via print server)
+      handlePrintHP();
+
       onComplete();
     } catch (err: any) {
       console.error("Error saving closing:", err);
@@ -290,6 +297,47 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       await printClosing(printData);
     } catch (error) {
       console.error('Error preparing print data:', error);
+    }
+  };
+
+  // ─── Print HP (letter-size via print server) ───────────────────────
+
+  const handlePrintHP = async () => {
+    if (!summary) return;
+    try {
+      const printData = {
+        employeeName: `${session.employees?.first_name} ${session.employees?.last_name}`,
+        shiftName: session.shift_definitions?.name || 'Turno',
+        periodStart: session.clock_in_at,
+        periodEnd: session.clock_out_at || new Date().toISOString(),
+        totalCash: summary.total_cash, totalCardBBVA: summary.total_card_bbva,
+        totalCardGetnet: summary.total_card_getnet, totalSales: summary.total_sales,
+        totalTransactions: summary.total_transactions,
+        totalExpenses: summary.total_expenses || 0,
+        expenses: summary.expenses || [],
+        notes: notes.trim() || undefined,
+        transactions: summary.payments.map((payment: any) => ({
+          time: new Date(payment.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          amount: payment.amount, paymentMethod: payment.payment_method || 'N/A',
+          terminalCode: payment.payment_terminals?.code || payment.terminal_code,
+          concept: payment.itemsDescription || payment.concept || undefined,
+          items: payment.itemsRaw || undefined
+        }))
+      };
+
+      const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+      const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'closing', data: printData })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        console.error('HP print error:', err);
+      }
+    } catch (error) {
+      console.error('Error printing to HP:', error);
     }
   };
 

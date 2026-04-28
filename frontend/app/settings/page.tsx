@@ -38,6 +38,7 @@ import {
     Cpu,
     ShoppingBag,
     Wrench,
+    Wifi,
 } from "lucide-react";
 import { usePOSConfig, type POSConfig } from "@/hooks/use-pos-config";
 import { useSystemConfig } from "@/hooks/use-system-config";
@@ -270,6 +271,10 @@ export default function SettingsPage() {
                     maxShiftsValet: systemConfig.maxShiftsValet,
                     maxShiftsAdmin: systemConfig.maxShiftsAdmin,
                     autoChargeExtraHours: systemConfig.autoChargeExtraHours,
+                    thermalPrinterIP: systemConfig.thermalPrinterIP,
+                    thermalPrinterPort: systemConfig.thermalPrinterPort,
+                    hpPrinterIP: systemConfig.hpPrinterIP,
+                    hpPrinterPort: systemConfig.hpPrinterPort,
                 });
             }
         }
@@ -298,7 +303,30 @@ export default function SettingsPage() {
                 maxShiftsValet: localConfig.maxShiftsValet,
                 maxShiftsAdmin: localConfig.maxShiftsAdmin,
                 autoChargeExtraHours: localConfig.autoChargeExtraHours,
+                thermalPrinterIP: localConfig.thermalPrinterIP,
+                thermalPrinterPort: localConfig.thermalPrinterPort,
+                hpPrinterIP: localConfig.hpPrinterIP,
+                hpPrinterPort: localConfig.hpPrinterPort,
             });
+
+            // Sync printer IPs to the print server
+            try {
+                const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+                await fetch(`${printServerUrl}/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        printerIP: localConfig.thermalPrinterIP,
+                        printerPort: localConfig.thermalPrinterPort,
+                        hpPrinterIP: localConfig.hpPrinterIP,
+                        hpPrinterPort: localConfig.hpPrinterPort,
+                    }),
+                });
+            } catch {
+                // Print server might not be running — not critical
+                console.warn('Could not sync to print server (may not be running)');
+            }
+
             toast.success("Configuración guardada", { description: "Los cambios se aplicarán en todos los dispositivos" });
         } catch (err) {
             console.error('Error saving system config:', err);
@@ -634,6 +662,84 @@ export default function SettingsPage() {
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* ── Divider ── */}
+                                    <div className="my-7 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+
+                                    {/* ── Sub: Red de Impresoras ── */}
+                                    <div className="space-y-4">
+                                        <SubsectionHeader
+                                            icon={<Wifi className="h-4 w-4 text-foreground/60" />}
+                                            title="Red de Impresoras"
+                                            gradient=""
+                                            scope="shared"
+                                        />
+
+                                        {!canEditShared && <ReadOnlyNotice />}
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pl-1">
+                                            {/* Thermal Printer */}
+                                            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1.5 rounded-lg bg-orange-500/10">
+                                                        <Printer className="h-3.5 w-3.5 text-orange-400" />
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-foreground/80">Impresora de Tickets</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-muted-foreground/60">Dirección IP</Label>
+                                                    <Input
+                                                        value={localConfig.thermalPrinterIP || ''}
+                                                        onChange={(e) => updateLocalConfig('thermalPrinterIP' as any, e.target.value as any)}
+                                                        placeholder="192.168.0.106"
+                                                        className="bg-white/[0.04] border-white/10 font-mono text-sm focus:bg-white/[0.08]"
+                                                        disabled={!canEditShared}
+                                                    />
+                                                    <Label className="text-xs text-muted-foreground/60">Puerto</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={localConfig.thermalPrinterPort || 9100}
+                                                        onChange={(e) => updateLocalConfig('thermalPrinterPort' as any, parseInt(e.target.value) || 9100)}
+                                                        className="bg-white/[0.04] border-white/10 font-mono text-sm focus:bg-white/[0.08]"
+                                                        disabled={!canEditShared}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* HP Printer */}
+                                            <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1.5 rounded-lg bg-blue-500/10">
+                                                        <Printer className="h-3.5 w-3.5 text-blue-400" />
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-foreground/80">Impresora HP (Hojas)</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-muted-foreground/60">Dirección IP</Label>
+                                                    <Input
+                                                        value={localConfig.hpPrinterIP || ''}
+                                                        onChange={(e) => updateLocalConfig('hpPrinterIP' as any, e.target.value as any)}
+                                                        placeholder="192.168.0.108"
+                                                        className="bg-white/[0.04] border-white/10 font-mono text-sm focus:bg-white/[0.08]"
+                                                        disabled={!canEditShared}
+                                                    />
+                                                    <Label className="text-xs text-muted-foreground/60">Puerto</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={localConfig.hpPrinterPort || 9100}
+                                                        onChange={(e) => updateLocalConfig('hpPrinterPort' as any, parseInt(e.target.value) || 9100)}
+                                                        className="bg-white/[0.04] border-white/10 font-mono text-sm focus:bg-white/[0.08]"
+                                                        disabled={!canEditShared}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <InfoCallout color="blue">
+                                            <strong>Nota:</strong> Al guardar, las IPs se sincronizan automáticamente con el print server.
+                                            Para encontrar la IP de una impresora, imprima una hoja de configuración de red desde el panel de la impresora.
+                                        </InfoCallout>
                                     </div>
 
                                     {/* ── Divider ── */}

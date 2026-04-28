@@ -33,6 +33,12 @@ export interface POSConfig {
     maxShiftsValet: number;
     maxShiftsAdmin: number;
     autoChargeExtraHours: boolean;
+
+    // Printer network configuration
+    thermalPrinterIP: string;
+    thermalPrinterPort: number;
+    hpPrinterIP: string;
+    hpPrinterPort: number;
 }
 
 const DEFAULT_CONFIG: POSConfig = {
@@ -52,6 +58,10 @@ const DEFAULT_CONFIG: POSConfig = {
     maxShiftsValet: 4,
     maxShiftsAdmin: 2,
     autoChargeExtraHours: true,
+    thermalPrinterIP: '192.168.0.106',
+    thermalPrinterPort: 9100,
+    hpPrinterIP: '192.168.0.108',
+    hpPrinterPort: 9100,
 };
 
 const STORAGE_KEY = 'pos-config';

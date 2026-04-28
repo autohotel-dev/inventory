@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-// URL del print-server local
-const PRINT_SERVER_URL = 'http://localhost:3001';
+// URL del print-server (env var for Vercel, fallback to localhost for dev)
+const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
 
 interface ClosingTicketData {
     employeeName: string;
