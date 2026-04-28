@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2 } from "lucide-react";
+import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { AssignAssetModal } from "@/components/rooms/modals/assign-asset-modal";
 import { Tv } from "lucide-react";
+import { CancelItemModal } from "@/components/sales/cancel-item-modal";
 
 interface Payment {
   id: string;
@@ -43,6 +44,10 @@ interface SalesOrderItem {
   courtesy_reason?: string | null;
   concept_type?: string;
   delivery_status?: string;
+  is_paid?: boolean;
+  is_cancelled?: boolean;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
 }
 
 interface SalesOrder {
@@ -63,6 +68,7 @@ export interface RoomDetailsModalProps {
   onClose: () => void;
   employeeId?: string | null;
   onCancelCharge?: (paymentId: string, room: Room, concept: string, amount: number) => Promise<boolean>;
+  onCancelItem?: (itemId: string, room: Room, reason: string) => Promise<boolean>;
 }
 
 interface RoomAsset {
@@ -79,6 +85,7 @@ export function RoomDetailsModal({
   onClose,
   employeeId,
   onCancelCharge,
+  onCancelItem,
 }: RoomDetailsModalProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [items, setItems] = useState<SalesOrderItem[]>([]);
@@ -87,6 +94,7 @@ export function RoomDetailsModal({
   const [isAssignAssetModalOpen, setIsAssignAssetModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"payments" | "items">("payments");
+  const [cancelItemTarget, setCancelItemTarget] = useState<SalesOrderItem | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -134,6 +142,10 @@ export function RoomDetailsModal({
           unit_price,
           concept_type,
           delivery_status,
+          is_paid,
+          is_cancelled,
+          cancellation_reason,
+          cancelled_at,
           products (name, sku)
         `)
         .eq("sales_order_id", salesOrderId);
@@ -207,7 +219,10 @@ export function RoomDetailsModal({
   const totalPayments = payments
     .filter(p => !p.parent_payment_id)
     .reduce((sum, p) => sum + Number(p.amount), 0);
-  const totalItems = items.reduce((sum, i) => sum + (i.qty * Number(i.unit_price)), 0);
+  const totalItems = items
+    .filter(i => !i.is_cancelled)
+    .reduce((sum, i) => sum + (i.qty * Number(i.unit_price)), 0);
+  const cancelledCount = items.filter(i => i.is_cancelled).length;
 
   if (!isOpen || !room) return null;
 
@@ -426,40 +441,93 @@ export function RoomDetailsModal({
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-center">CANT.</th>
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-right">PRECIO</th>
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-right">TOTAL</th>
+                            {onCancelItem && <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-center w-16"></th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                          {items.map((item) => (
-                            <tr key={item.id} className="group hover:bg-white/5 transition-colors">
+                          {items.map((item) => {
+                            const isCancelled = item.is_cancelled === true;
+                            return (
+                            <tr key={item.id} className={cn(
+                              "group transition-colors",
+                              isCancelled ? "opacity-50" : "hover:bg-white/5"
+                            )}>
                               <td className="px-6 py-5">
                                 <div className="flex items-center gap-4">
-                                  <div className="h-10 w-10 bg-zinc-900 rounded-2xl flex items-center justify-center border border-white/5 text-zinc-400 group-hover:border-primary/30 group-hover:text-primary transition-all duration-300">
-                                    {item.concept_type === 'CONSUMPTION' ? <Package size={18} /> : <Receipt size={18} />}
+                                  <div className={cn(
+                                    "h-10 w-10 rounded-2xl flex items-center justify-center border transition-all duration-300",
+                                    isCancelled 
+                                      ? "bg-red-900/20 border-red-500/20 text-red-500/50" 
+                                      : "bg-zinc-900 border-white/5 text-zinc-400 group-hover:border-primary/30 group-hover:text-primary"
+                                  )}>
+                                    {isCancelled ? <XCircle size={18} /> : item.concept_type === 'CONSUMPTION' ? <Package size={18} /> : <Receipt size={18} />}
                                   </div>
                                   <div>
-                                    <div className="text-sm font-bold text-white tracking-tight">{item.products?.name || getConceptLabel(item.concept_type || "Producto")}</div>
-                                    <div className="text-[10px] font-black font-mono text-zinc-500 uppercase tracking-widest mt-0.5">{item.products?.sku || "SVC"}</div>
+                                    <div className={cn(
+                                      "text-sm font-bold tracking-tight",
+                                      isCancelled ? "text-zinc-500 line-through" : "text-white"
+                                    )}>
+                                      {item.products?.name || getConceptLabel(item.concept_type || "Producto")}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[10px] font-black font-mono text-zinc-500 uppercase tracking-widest">{item.products?.sku || "SVC"}</span>
+                                      {isCancelled && (
+                                        <Badge className="text-[8px] font-black tracking-widest bg-red-500/10 text-red-400 border-red-500/20 px-1.5 py-0">
+                                          CANCELADO
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {isCancelled && item.cancellation_reason && (
+                                      <p className="text-[9px] text-red-400/60 italic mt-1 truncate max-w-[200px]" title={item.cancellation_reason}>
+                                        "{item.cancellation_reason}"
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                               </td>
                               <td className="px-6 py-5 text-center">
-                                <span className="bg-zinc-900 text-zinc-300 px-3 py-1 rounded-lg text-xs font-black font-mono border border-white/5">
+                                <span className={cn(
+                                  "px-3 py-1 rounded-lg text-xs font-black font-mono border",
+                                  isCancelled ? "bg-zinc-900/50 text-zinc-600 border-white/5" : "bg-zinc-900 text-zinc-300 border-white/5"
+                                )}>
                                   x{item.qty}
                                 </span>
                               </td>
-                              <td className="px-6 py-5 text-right font-mono text-zinc-400 text-sm">
+                              <td className={cn(
+                                "px-6 py-5 text-right font-mono text-sm",
+                                isCancelled ? "text-zinc-600 line-through" : "text-zinc-400"
+                              )}>
                                 ${Number(item.unit_price).toFixed(2)}
                               </td>
-                              <td className="px-6 py-5 text-right font-black text-white text-sm">
+                              <td className={cn(
+                                "px-6 py-5 text-right font-black text-sm",
+                                isCancelled ? "text-zinc-600 line-through" : "text-white"
+                              )}>
                                 ${(item.qty * Number(item.unit_price)).toFixed(2)}
                               </td>
+                              {onCancelItem && (
+                                <td className="px-4 py-5 text-center">
+                                  {!isCancelled && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setCancelItemTarget(item); }}
+                                      className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors border border-red-500/20 opacity-0 group-hover:opacity-100"
+                                      title="Cancelar item"
+                                    >
+                                      <XCircle size={14} />
+                                    </button>
+                                  )}
+                                </td>
+                              )}
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className="bg-white/5">
-                            <td colSpan={3} className="px-6 py-6 text-right">
-                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Subtotal de Consumos</span>
+                            <td colSpan={onCancelItem ? 4 : 3} className="px-6 py-6 text-right">
+                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">
+                                Subtotal Activo{cancelledCount > 0 && ` (${cancelledCount} cancelado${cancelledCount > 1 ? 's' : ''})`}
+                              </span>
                             </td>
                             <td className="px-6 py-6 text-right">
                               <span className="text-xl font-black text-white">${totalItems.toFixed(2)}</span>
@@ -674,6 +742,28 @@ export function RoomDetailsModal({
       assetType="TV_REMOTE"
       onSuccess={fetchAssetDetails}
     />
+
+    {/* Cancel Item Modal */}
+    {cancelItemTarget && (
+      <CancelItemModal
+        isOpen={!!cancelItemTarget}
+        itemName={cancelItemTarget.products?.name || getConceptLabel(cancelItemTarget.concept_type || "Producto")}
+        itemQty={cancelItemTarget.qty}
+        itemPrice={Number(cancelItemTarget.unit_price)}
+        itemTotal={cancelItemTarget.qty * Number(cancelItemTarget.unit_price)}
+        isPaid={cancelItemTarget.is_paid === true}
+        conceptType={cancelItemTarget.concept_type}
+        onClose={() => setCancelItemTarget(null)}
+        onConfirm={async (reason) => {
+          if (!room || !onCancelItem || !activeStay?.sales_order_id) return;
+          const success = await onCancelItem(cancelItemTarget.id, room, reason);
+          if (success) {
+            setCancelItemTarget(null);
+            await fetchDetails(activeStay.sales_order_id);
+          }
+        }}
+      />
+    )}
     </>
   );
 }

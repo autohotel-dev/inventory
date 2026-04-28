@@ -219,6 +219,7 @@ function RoomsBoardInternal() {
     handleAuthorizeValetCheckout,
     handleCancelValetCheckout,
     handleCancelPendingCharge,
+    handleCancelItem,
   } = useRoomActions(async () => await fetchRooms(true));
 
 
@@ -773,6 +774,7 @@ function RoomsBoardInternal() {
         activeStay={modals.selectedRoom ? getActiveStay(modals.selectedRoom) : null}
         employeeId={employeeId}
         onCancelCharge={handleCancelPendingCharge}
+        onCancelItem={handleCancelItem}
         onClose={() => {
           modals.closeModal("details");
         }}

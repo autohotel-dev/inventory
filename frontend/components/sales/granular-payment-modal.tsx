@@ -48,7 +48,8 @@ export function GranularPaymentModal({
       onComplete?.();
       onClose();
     },
-    employeeId
+    employeeId,
+    roomNumber
   });
 
   const {

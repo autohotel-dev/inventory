@@ -309,13 +309,125 @@ function buildClosingTicket(data) {
     return t;
 }
 
+function buildEntryTicket(data) {
+    const { dateStr, timeStr } = formatDateTime(data.date);
+    const checkoutStr = data.expectedCheckout
+        ? formatDateTime(data.expectedCheckout)
+        : null;
+
+    let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
+    t += 'ENTRADA' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE + CMD.BOLD_ON + 'REGISTRO DE ESTANCIA' + CMD.BOLD_OFF + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+
+    t += CMD.ALIGN_LEFT;
+    t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
+    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += `Tipo: ${data.roomTypeName || 'N/A'}` + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+
+    // Personas
+    t += CMD.BOLD_ON + `Personas: ${data.people || 1}` + CMD.BOLD_OFF + CMD.NEW_LINE;
+
+    // Vehículo
+    if (data.vehiclePlate) {
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + 'VEHICULO:' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += `  Placa: ${data.vehiclePlate}` + CMD.NEW_LINE;
+        if (data.vehicleBrand) t += `  Marca: ${data.vehicleBrand}` + CMD.NEW_LINE;
+        if (data.vehicleModel) t += `  Modelo: ${data.vehicleModel}` + CMD.NEW_LINE;
+    }
+
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+
+    // Desglose de precio
+    t += CMD.BOLD_ON + 'COBRO:' + CMD.NEW_LINE + CMD.BOLD_OFF;
+    t += formatLine('Habitacion:', formatMoney(data.basePrice || 0)) + CMD.NEW_LINE;
+    if (data.extraPeopleCost && data.extraPeopleCost > 0) {
+        t += formatLine(`Personas extra (${data.extraPeopleCount || 0}):`, formatMoney(data.extraPeopleCost)) + CMD.NEW_LINE;
+    }
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + formatLine('TOTAL:', formatMoney(data.totalPrice || 0)) + CMD.BOLD_OFF + CMD.NEW_LINE;
+
+    // Método de pago
+    if (data.paymentMethod) {
+        t += `Pago: ${data.paymentMethod}` + CMD.NEW_LINE;
+    }
+
+    // Checkout esperado
+    if (checkoutStr) {
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + `Salida: ${checkoutStr.dateStr} ${checkoutStr.timeStr}` + CMD.BOLD_OFF + CMD.NEW_LINE;
+    }
+
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
+
+    return t;
+}
+
+function buildPaymentTicket(data) {
+    const { dateStr, timeStr } = formatDateTime(data.date || new Date());
+
+    let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_HEIGHT;
+    t += 'COMPROBANTE DE PAGO' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+
+    t += CMD.ALIGN_LEFT;
+    t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
+    if (data.roomNumber) {
+        t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    }
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+
+    // Items/conceptos cobrados
+    if (data.items && data.items.length > 0) {
+        t += CMD.BOLD_ON + 'CONCEPTOS:' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        data.items.forEach(item => {
+            const itemLine = `${item.qty || 1}x ${item.name}`;
+            const priceLine = formatMoney(item.total || 0);
+            t += formatLine(itemLine, priceLine) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    }
+
+    // Total
+    t += CMD.BOLD_ON + formatLine('TOTAL COBRADO:', formatMoney(data.total || 0)) + CMD.BOLD_OFF + CMD.NEW_LINE;
+
+    // Método de pago
+    if (data.paymentMethod) {
+        t += `Metodo: ${data.paymentMethod}` + CMD.NEW_LINE;
+    }
+
+    // Saldo restante
+    if (data.remainingAmount !== undefined && data.remainingAmount !== null) {
+        t += formatLine('Saldo restante:', formatMoney(data.remainingAmount)) + CMD.NEW_LINE;
+    }
+
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER;
+    t += 'Gracias por su preferencia' + CMD.NEW_LINE;
+    // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
+
+    return t;
+}
+
 // === ENDPOINTS ===
 
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         service: 'thermal-print-server',
-        version: '2.0.0',
+        version: '2.1.0',
         printerIP: PRINTER_IP,
         printerPort: PRINTER_PORT,
         timestamp: new Date().toISOString()
@@ -339,6 +451,12 @@ app.post('/print', async (req, res) => {
                 break;
             case 'closing':
                 ticket = buildClosingTicket(data);
+                break;
+            case 'entry':
+                ticket = buildEntryTicket(data);
+                break;
+            case 'payment':
+                ticket = buildPaymentTicket(data);
                 break;
             default:
                 return res.status(400).json({ error: 'Tipo de impresión inválido' });

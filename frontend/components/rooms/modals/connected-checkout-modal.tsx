@@ -8,7 +8,8 @@ import { getActiveStay } from "@/hooks/use-room-actions";
 import { useRoomActions } from "@/hooks/use-room-actions";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
-import { ConsumptionTicketData } from "@/hooks/use-thermal-printer";
+import { useThermalPrinter } from "@/hooks/use-thermal-printer";
+import type { ConsumptionTicketData } from "@/hooks/use-thermal-printer";
 
 interface ConnectedCheckoutModalProps {
   room: Room | null;
@@ -24,6 +25,7 @@ export function ConnectedCheckoutModal({
   onSuccess,
 }: ConnectedCheckoutModalProps) {
   const { prepareCheckout, processCheckout, actionLoading, requestVehicle } = useRoomActions(async () => onSuccess());
+  const { printConsumptionTickets } = useThermalPrinter();
   const [checkoutAmount, setCheckoutAmount] = useState<number>(0);
   const [checkoutInfo, setCheckoutInfo] = useState<{
     salesOrderId: string;
@@ -169,7 +171,7 @@ export function ConnectedCheckoutModal({
           entranceValet: activeStay?.vehicle_plate ? "Solicitado" : undefined,
           exitValet: data.checkoutValetName,
         };
-        // printConsumptionTickets(printData);
+        printConsumptionTickets(printData);
       } catch (e) {
         console.error("Error printing exit ticket", e);
       }

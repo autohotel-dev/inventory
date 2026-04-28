@@ -9,7 +9,7 @@ import {
   VehicleInfo,
   RoomStartStayModal,
 } from "@/components/sales/room-start-stay-modal";
-import { ConsumptionTicketData } from "@/hooks/use-thermal-printer";
+import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import {
   useRoomActions,
   getReceptionShiftId,
@@ -84,6 +84,7 @@ export function ConnectedStartStayModal({
   onSuccess,
 }: ConnectedStartStayModalProps) {
   const [startStayLoading, setStartStayLoading] = useState(false);
+  const { printEntryTicket } = useThermalPrinter();
 
   const handleStartStay = async (
     initialPeople: number,
@@ -391,6 +392,28 @@ export function ConnectedStartStayModal({
           extraPeopleCost > 0 ? ` - Total: $${totalPrice.toFixed(2)}` : ""
         }`,
       });
+
+      // Imprimir ticket de entrada
+      try {
+        const methodsSummaryLabel = payments.map((p) => p.method).join(", ");
+        await printEntryTicket({
+          roomNumber: room.number,
+          roomTypeName: roomType.name,
+          date: now,
+          people: initialPeople,
+          vehiclePlate: vehicle.plate || undefined,
+          vehicleBrand: vehicle.brand || undefined,
+          vehicleModel: vehicle.model || undefined,
+          basePrice: basePrice,
+          extraPeopleCount: extraPeopleCount > 0 ? extraPeopleCount : undefined,
+          extraPeopleCost: extraPeopleCost > 0 ? extraPeopleCost : undefined,
+          totalPrice: totalPrice,
+          paymentMethod: methodsSummaryLabel || 'EFECTIVO',
+          expectedCheckout: expectedCheckout,
+        });
+      } catch (printError) {
+        console.error("Error printing entry ticket:", printError);
+      }
 
       onSuccess();
       onClose();

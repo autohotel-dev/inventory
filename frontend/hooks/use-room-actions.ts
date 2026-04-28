@@ -410,6 +410,7 @@ export interface UseRoomActionsReturn {
   handleAuthorizeValetCheckout: (room: Room) => Promise<boolean>;
   handleCancelValetCheckout: (room: Room) => Promise<boolean>;
   handleCancelPendingCharge: (paymentId: string, room: Room, concept: string, amount: number) => Promise<boolean>;
+  handleCancelItem: (itemId: string, room: Room, reason: string) => Promise<boolean>;
 }
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
@@ -1943,6 +1944,74 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     }
   };
 
+  /**
+   * Cancelar un item individual (consumo, servicio, hora extra, etc.)
+   * Soporta items pendientes y pagados (con reembolso).
+   * Requiere autorización de supervisor (manejada en el modal).
+   */
+  const handleCancelItem = async (itemId: string, room: Room, reason: string): Promise<boolean> => {
+    setActionLoading(true);
+    const supabase = createClient();
+
+    try {
+      const activeStay = getActiveStay(room);
+      const currentEmployeeId = await getReceptionEmployeeId(supabase);
+
+      const { data, error } = await supabase.rpc('cancel_item_with_refund', {
+        p_item_id: itemId,
+        p_employee_id: currentEmployeeId,
+        p_reason: reason
+      });
+
+      if (error) {
+        logger.error("RPC cancel_item_with_refund error:", error);
+        toast.error("Error al cancelar el item en la base de datos");
+        return false;
+      }
+
+      if (!data.success) {
+        logger.warn("RPC cancel_item_with_refund failed:", data);
+        toast.error(data.error || "No se pudo cancelar el item");
+        return false;
+      }
+
+      // Build descriptive message
+      const parts: string[] = [];
+      if (data.refund_created) parts.push(`Reembolso de $${Number(data.amount).toFixed(2)}`);
+      if (data.hours_deducted > 0) parts.push(`-${data.hours_deducted}h de tiempo`);
+      if (data.people_deducted > 0) parts.push(`-${data.people_deducted} persona(s)`);
+      if (data.inventory_returned) parts.push(`Stock devuelto`);
+
+      toast.success("Item cancelado correctamente", {
+        description: parts.length > 0 ? parts.join(' | ') : `$${Number(data.amount).toFixed(2)} descontados`,
+      });
+
+      // Notify valets
+      if (activeStay) {
+        await notifyActiveValets(
+          supabase,
+          '🚫 Item Cancelado',
+          `Recepción canceló un cargo de $${Number(data.amount).toFixed(2)} en Hab. ${room.number}. Motivo: ${reason}`,
+          {
+            type: 'CHARGE_CANCELLED',
+            roomNumber: room.number,
+            stayId: activeStay.id
+          }
+        );
+      }
+
+      await onRefresh();
+      return true;
+
+    } catch (error) {
+      logger.error("Error in handleCancelItem:", error);
+      toast.error("Ocurrió un error inesperado al cancelar");
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return {
     actionLoading,
     handleAddPerson,
@@ -1960,6 +2029,7 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     handleAuthorizeValetCheckout,
     handleCancelValetCheckout,
     handleCancelPendingCharge,
+    handleCancelItem,
   };
 }
 

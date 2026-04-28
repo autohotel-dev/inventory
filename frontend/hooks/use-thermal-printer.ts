@@ -24,10 +24,41 @@ interface ConsumptionTicketData {
     exitValet?: string;
 }
 
+interface EntryTicketData {
+    roomNumber: string;
+    roomTypeName: string;
+    date: Date;
+    people: number;
+    vehiclePlate?: string;
+    vehicleBrand?: string;
+    vehicleModel?: string;
+    basePrice: number;
+    extraPeopleCount?: number;
+    extraPeopleCost?: number;
+    totalPrice: number;
+    paymentMethod: string;
+    expectedCheckout: Date;
+}
+
+interface PaymentTicketData {
+    roomNumber?: string;
+    date: Date;
+    items: Array<{
+        name: string;
+        qty: number;
+        total: number;
+    }>;
+    total: number;
+    paymentMethod: string;
+    remainingAmount?: number;
+}
+
 interface UseThermalPrinterReturn {
     isPrinting: boolean;
     printStatus: 'idle' | 'printing_reception' | 'printing_client' | 'success' | 'error';
     printConsumptionTickets: (data: ConsumptionTicketData) => Promise<boolean>;
+    printEntryTicket: (data: EntryTicketData) => Promise<boolean>;
+    printPaymentTicket: (data: PaymentTicketData) => Promise<boolean>;
     printTestTicket: () => Promise<boolean>;
     error: string | null;
 }
@@ -105,6 +136,84 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         }
     }, []);
 
+    const printEntryTicket = useCallback(async (data: EntryTicketData): Promise<boolean> => {
+        setIsPrinting(true);
+        setError(null);
+        setPrintStatus('printing_reception');
+
+        try {
+            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'entry', data })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al imprimir ticket de entrada');
+            }
+
+            setPrintStatus('success');
+            toast.success('Ticket de entrada impreso', {
+                description: `✓ Hab. ${data.roomNumber}`
+            });
+
+            return true;
+        } catch (err) {
+            console.error('Entry print error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
+            setError(errorMessage);
+            setPrintStatus('error');
+
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                toast.error('Print-server no disponible', {
+                    description: 'Verifica que el print-server esté corriendo',
+                    duration: 8000
+                });
+            } else {
+                toast.error('Error al imprimir entrada', {
+                    description: errorMessage,
+                    duration: 5000
+                });
+            }
+
+            return false;
+        } finally {
+            setIsPrinting(false);
+        }
+    }, []);
+
+    const printPaymentTicket = useCallback(async (data: PaymentTicketData): Promise<boolean> => {
+        setIsPrinting(true);
+        setError(null);
+        setPrintStatus('printing_reception');
+
+        try {
+            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'payment', data })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al imprimir comprobante de pago');
+            }
+
+            setPrintStatus('success');
+            return true;
+        } catch (err) {
+            console.error('Payment print error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
+            setError(errorMessage);
+            setPrintStatus('error');
+            // No mostrar toast para pagos - es fire-and-forget
+            return false;
+        } finally {
+            setIsPrinting(false);
+        }
+    }, []);
+
     const printTestTicket = useCallback(async (): Promise<boolean> => {
         setIsPrinting(true);
         setError(null);
@@ -154,10 +263,13 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         isPrinting,
         printStatus,
         printConsumptionTickets,
+        printEntryTicket,
+        printPaymentTicket,
         printTestTicket,
         error
     };
 }
 
-// Re-exportar el tipo para uso en otros lugares
-export type { ConsumptionTicketData };
+// Re-exportar los tipos para uso en otros lugares
+export type { ConsumptionTicketData, EntryTicketData, PaymentTicketData };
+

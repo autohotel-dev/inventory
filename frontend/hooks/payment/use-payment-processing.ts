@@ -13,6 +13,7 @@ interface UsePaymentProcessingProps {
   discounts: Record<string, number>;
   onComplete?: () => void;
   onRefreshItems: () => void;
+  roomNumber?: string;
 }
 
 export function usePaymentProcessing({
@@ -21,7 +22,8 @@ export function usePaymentProcessing({
   selectedItems,
   discounts,
   onComplete,
-  onRefreshItems
+  onRefreshItems,
+  roomNumber
 }: UsePaymentProcessingProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>(createInitialPayment(0));
   const [tipAmount, setTipAmount] = useState(0);
@@ -315,6 +317,42 @@ export function usePaymentProcessing({
       }
 
       toast.success("Pago procesado correctamente");
+
+      // Imprimir comprobante de pago (fire-and-forget)
+      try {
+        const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+        const conceptLabels: Record<string, string> = {
+          ROOM_BASE: 'Habitación', EXTRA_HOUR: 'Hora Extra', EXTRA_PERSON: 'Persona Extra',
+          CONSUMPTION: 'Consumo', PRODUCT: 'Producto', RENEWAL: 'Renovación',
+        };
+        const paidItems = items
+          .filter(i => selectedItems.has(i.id) && !i.is_paid)
+          .map(i => ({
+            name: i.products?.name || conceptLabels[i.concept_type] || i.concept_type,
+            qty: i.qty || 1,
+            total: i.total - (discounts[i.id] || 0)
+          }));
+        const methodsSummary = validPayments.map(p => p.method).join(', ');
+
+        fetch(`${PRINT_SERVER_URL}/print`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'payment',
+            data: {
+              roomNumber: roomNumber || undefined,
+              date: new Date(),
+              items: paidItems,
+              total: selectedTotal,
+              paymentMethod: methodsSummary,
+              remainingAmount: order ? Math.max(0, Number(order.total || 0) - (Number(order.paid_amount || 0) + selectedTotal)) : undefined
+            }
+          })
+        }).catch(err => console.error('Print payment ticket error (non-blocking):', err));
+      } catch (printErr) {
+        console.error('Error preparing payment print:', printErr);
+      }
+
       setPayments(createInitialPayment(0));
       setTipAmount(0);
       onRefreshItems();
