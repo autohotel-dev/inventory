@@ -9,6 +9,7 @@ import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/compone
 import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
 interface PendingItem {
   concept_type: string;
@@ -119,7 +120,18 @@ export function RoomCheckoutModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+      <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Processing overlay */}
+        <ProcessingOverlay
+          isVisible={actionLoading}
+          title="Procesando checkout"
+          steps={[
+            { label: "Procesando pagos...", icon: "payment" },
+            { label: "Liberando habitación...", icon: "room" },
+            { label: "Imprimiendo ticket...", icon: "printer" },
+          ]}
+          autoCycleMs={2000}
+        />
         <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
           <h2 className="text-lg font-semibold">Cobrar / Check-out</h2>
           <Button

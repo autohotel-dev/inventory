@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   DollarSign,
 } from "lucide-react";
+import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
 export interface QuickCheckinModalProps {
   isOpen: boolean;
@@ -144,8 +145,19 @@ export function QuickCheckinModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
         id="tour-quick-checkin-modal"
-        className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] flex flex-col"
+        className="relative bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] flex flex-col overflow-hidden"
       >
+        {/* Processing overlay */}
+        <ProcessingOverlay
+          isVisible={actionLoading}
+          title="Registrando entrada"
+          steps={[
+            { label: "Creando orden...", icon: "payment" },
+            { label: "Registrando estancia...", icon: "room" },
+            { label: "Imprimiendo tickets...", icon: "printer" },
+          ]}
+          autoCycleMs={1800}
+        />
         <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-amber-500" />

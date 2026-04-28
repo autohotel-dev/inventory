@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Room } from "@/components/sales/room-types";
 
@@ -423,13 +423,25 @@ export function RoomActionsWheel({
             height: (innerRadius - 10) * 2,
           }}
         >
-          <div className="text-[10px] text-muted-foreground leading-none mb-1">Hab.</div>
-          <div className="text-2xl font-bold leading-none mb-1 truncate max-w-[5rem]">
-            {room.number}
-          </div>
-          <div className="mt-1 scale-90">
-            {statusBadge}
-          </div>
+          {actionLoading ? (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" style={{ animationDuration: "2s" }} />
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              </div>
+              <p className="text-[10px] text-white/60 mt-2 font-medium">Procesando...</p>
+            </>
+          ) : (
+            <>
+              <div className="text-[10px] text-muted-foreground leading-none mb-1">Hab.</div>
+              <div className="text-2xl font-bold leading-none mb-1 truncate max-w-[5rem]">
+                {room.number}
+              </div>
+              <div className="mt-1 scale-90">
+                {statusBadge}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Botón de cierre */}

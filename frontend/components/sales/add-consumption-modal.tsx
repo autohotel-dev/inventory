@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SelectPackageDrinksModal } from "./select-package-drinks-modal";
 import { useConsumptionCart } from "@/hooks/use-consumption-cart";
+import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
 interface AddConsumptionModalProps {
   isOpen: boolean;
@@ -85,9 +86,19 @@ export function AddConsumptionModal({
       onClick={ensureFocus}
     >
       <div
-        className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
+        className="relative bg-background border border-border rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Processing overlay */}
+        <ProcessingOverlay
+          isVisible={processing || isPrinting}
+          title="Registrando consumo"
+          steps={[
+            { label: "Guardando consumo...", icon: "payment" },
+            { label: "Imprimiendo comanda...", icon: "printer" },
+          ]}
+          autoCycleMs={2500}
+        />
         {isPackageModalOpen && pendingBottle && activePackageRule && (
           <SelectPackageDrinksModal
             isOpen={isPackageModalOpen}

@@ -11,6 +11,7 @@ import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/compone
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
 import { formatDateTime } from "@/lib/export-utils"; // FIX #9: Use centralized date formatter
+import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
 export interface VehicleInfo {
   plate: string;
@@ -89,7 +90,19 @@ export function RoomStartStayModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+      <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Processing overlay */}
+        <ProcessingOverlay
+          isVisible={actionLoading}
+          title="Registrando estancia"
+          steps={[
+            { label: "Creando orden...", icon: "payment" },
+            { label: "Procesando pago...", icon: "payment" },
+            { label: "Registrando estancia...", icon: "room" },
+            { label: "Imprimiendo tickets...", icon: "printer" },
+          ]}
+          autoCycleMs={1500}
+        />
         <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
           <h2 className="text-lg font-semibold">Iniciar estancia</h2>
           <Button

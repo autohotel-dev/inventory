@@ -24,6 +24,7 @@ import {
 import { ShiftExpense, EXPENSE_TYPE_LABELS, EXPENSE_TYPE_ICONS } from "@/types/expenses";
 import { useShiftClosing, formatCurrency } from "@/hooks/use-shift-closing";
 import type { EnrichedPayment, PaymentSummary } from "@/hooks/use-shift-closing";
+import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
 interface ShiftClosingProps {
   session: ShiftSession;
@@ -42,7 +43,18 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl w-full max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background border-0 shadow-2xl">
+      <DialogContent className="relative max-w-2xl w-full max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background border-0 shadow-2xl">
+        {/* Processing overlay */}
+        <ProcessingOverlay
+          isVisible={saving || isPrintingClosing}
+          title={saving ? "Guardando corte" : "Imprimiendo"}
+          steps={[
+            { label: "Registrando corte...", icon: "payment" },
+            { label: "Guardando detalles...", icon: "loader" },
+            { label: "Imprimiendo ticket...", icon: "printer" },
+          ]}
+          autoCycleMs={2000}
+        />
 
         {/* ═══ HEADER ═══ */}
         <div className="relative px-6 pt-6 pb-5 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
