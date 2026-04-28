@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,26 +201,29 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         }
     };
 
-    const filteredCustomerSales = customerSales.filter(customerSale => {
-        // Usar nombre real del cliente (de la vista o del campo name)
-        const customerSaleOrderNumber = customerSale.order_number || "";
-        const customerSaleStatus = customerSale.status || "";
+    // ⚡ Bolt Optimization: Memoize the filtered array to prevent re-filtering on every render
+    const filteredCustomerSales = useMemo(() => {
+        return customerSales.filter(customerSale => {
+            // Usar nombre real del cliente (de la vista o del campo name)
+            const customerSaleOrderNumber = customerSale.order_number || "";
+            const customerSaleStatus = customerSale.status || "";
 
-        const matchesSearch = search === "" ||
-            customerSaleOrderNumber.toLowerCase().includes(search.toLowerCase()) ||
-            customerSaleStatus.toLowerCase().includes(search.toLowerCase());
+            const matchesSearch = search === "" ||
+                customerSaleOrderNumber.toLowerCase().includes(search.toLowerCase()) ||
+                customerSaleStatus.toLowerCase().includes(search.toLowerCase());
 
-        const matchesStatus = statusFilter === "" ||
-            (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
-            (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
-            (statusFilter === "PARTIAL" && customerSale.status === "PARTIAL") ||
-            (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
-            (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
+            const matchesStatus = statusFilter === "" ||
+                (statusFilter === "OPEN" && customerSale.status === "OPEN") ||
+                (statusFilter === "COMPLETED" && customerSale.status === "COMPLETED") ||
+                (statusFilter === "PARTIAL" && customerSale.status === "PARTIAL") ||
+                (statusFilter === "ENDED" && customerSale.status === "ENDED") ||
+                (statusFilter === "CANCELLED" && customerSale.status === "CANCELLED");
 
-        const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
+            const matchesWarehouse = warehouseFilter === "" || customerSale.warehouse_id === warehouseFilter;
 
-        return matchesSearch && matchesStatus && matchesWarehouse;
-    });
+            return matchesSearch && matchesStatus && matchesWarehouse;
+        });
+    }, [customerSales, search, statusFilter, warehouseFilter]);
 
     if (loading) {
         return (
@@ -230,13 +233,32 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         );
     }
 
+    // ⚡ Bolt Optimization: Consolidate 6 separate O(n) array traversals (.filter, .reduce)
+    // into a single O(n) reduce pass, and memoize the result.
+    const stats = useMemo(() => {
+        return customerSales.reduce(
+            (acc, c) => {
+                if (c.status === 'COMPLETED') acc.completed++;
+                else if (c.status === 'ENDED') acc.ended++;
+                else if (c.status === 'PARTIAL') acc.pending++;
+
+                acc.revenue += (c.paid_amount || 0);
+                acc.pendingAmount += (c.remaining_amount || 0);
+                acc.estimated += (c.total || 0);
+
+                return acc;
+            },
+            { completed: 0, ended: 0, pending: 0, revenue: 0, pendingAmount: 0, estimated: 0 }
+        );
+    }, [customerSales]);
+
     const totalCustomerSales = customerSales.length;
-    const completedCustomerSales = customerSales.filter(c => c.status === 'COMPLETED').length;
-    const endedCustomerSales = customerSales.filter(c => c.status === 'ENDED').length;
-    const pendingCustomerSales = customerSales.filter(c => c.status === 'PARTIAL').length;
-    const totalRevenue = customerSales.reduce((sum, c) => sum + (c.paid_amount || 0), 0);
-    const totalPending = customerSales.reduce((sum, c) => sum + (c.remaining_amount || 0), 0);
-    const totalEstimated = customerSales.reduce((sum, c) => sum + (c.total || 0), 0);
+    const completedCustomerSales = stats.completed;
+    const endedCustomerSales = stats.ended;
+    const pendingCustomerSales = stats.pending;
+    const totalRevenue = stats.revenue;
+    const totalPending = stats.pendingAmount;
+    const totalEstimated = stats.estimated;
 
     return (
         <div className="space-y-6">
