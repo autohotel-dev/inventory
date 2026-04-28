@@ -151,7 +151,7 @@ function buildReceptionTicket(data) {
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
-    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + `Hab:  ${data.roomNumber}` + CMD.BOLD_OFF + CMD.NEW_LINE;
     t += `Folio: ${data.folio}` + CMD.NEW_LINE;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
@@ -190,7 +190,7 @@ function buildClientTicket(data) {
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
-    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + `Hab:  ${data.roomNumber}` + CMD.BOLD_OFF + CMD.NEW_LINE;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
     // Imprimir items
@@ -326,7 +326,7 @@ function buildEntryTicket(data) {
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
-    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + `Hab:  ${data.roomNumber}` + CMD.BOLD_OFF + CMD.NEW_LINE;
     t += `Tipo: ${data.roomTypeName || 'N/A'}` + CMD.NEW_LINE;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
@@ -385,7 +385,7 @@ function buildPaymentTicket(data) {
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
     if (data.roomNumber) {
-        t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + `Hab:  ${data.roomNumber}` + CMD.BOLD_OFF + CMD.NEW_LINE;
     }
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
@@ -435,7 +435,7 @@ function buildCheckoutTicket(data) {
 
     t += CMD.ALIGN_LEFT;
     t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
-    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + `Hab:  ${data.roomNumber}` + CMD.BOLD_OFF + CMD.NEW_LINE;
     if (data.folio) t += `Folio: ${data.folio}` + CMD.NEW_LINE;
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
 
@@ -465,6 +465,62 @@ function buildCheckoutTicket(data) {
     t += CMD.ALIGN_CENTER;
     t += CMD.BOLD_ON + 'Habitacion liberada' + CMD.BOLD_OFF + CMD.NEW_LINE;
     // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
+
+    return t;
+}
+
+function buildToleranceTicket(data) {
+    // data: { roomNumber, exitTime, returnDeadline, people, toleranceType }
+    const exitDate = new Date(data.exitTime || new Date());
+    const deadlineDate = new Date(data.returnDeadline || new Date(Date.now() + 3600000));
+    const { dateStr, timeStr: exitTimeStr } = formatDateTime(exitDate);
+    const { timeStr: deadlineTimeStr } = formatDateTime(deadlineDate);
+    const toleranceType = data.toleranceType || 'PERSON_LEFT';
+
+    let t = CMD.INIT;
+    t += CMD.MARGIN;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
+    t += 'SALIDA TEMPORAL' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE + CMD.BOLD_ON;
+    t += (toleranceType === 'ROOM_EMPTY' ? 'HABITACION VACIA' : 'PERSONA SALE') + CMD.NEW_LINE;
+    t += CMD.BOLD_OFF;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+
+    t += CMD.ALIGN_LEFT;
+    t += `Fecha: ${dateStr}` + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + `Hab:  ${data.roomNumber}` + CMD.BOLD_OFF + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+
+    t += CMD.BOLD_ON + 'HORA DE SALIDA:' + CMD.BOLD_OFF + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
+    t += exitTimeStr + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE;
+    t += CMD.ALIGN_LEFT + CMD.NEW_LINE;
+
+    t += CMD.BOLD_ON + 'DEBE REGRESAR ANTES DE:' + CMD.BOLD_OFF + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
+    t += deadlineTimeStr + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE;
+    t += CMD.ALIGN_LEFT + CMD.NEW_LINE;
+
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    t += `Personas en hab: ${data.people ?? 0}` + CMD.NEW_LINE;
+    t += `Tolerancia: 1 HORA` + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+
+    t += CMD.ALIGN_CENTER;
+    t += CMD.BOLD_ON + 'SI NO REGRESA A TIEMPO' + CMD.NEW_LINE;
+    if (toleranceType === 'ROOM_EMPTY') {
+        t += 'SE COBRARA HABITACION' + CMD.NEW_LINE;
+        t += 'COMPLETA ADICIONAL' + CMD.NEW_LINE;
+    } else {
+        t += 'SE COBRARA PERSONA' + CMD.NEW_LINE;
+        t += 'EXTRA ADICIONAL' + CMD.NEW_LINE;
+    }
+    t += CMD.BOLD_OFF;
+
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
 
     return t;
@@ -573,6 +629,9 @@ app.post('/print', async (req, res) => {
                 break;
             case 'qr':
                 ticket = buildQRTicket(data);
+                break;
+            case 'tolerance':
+                ticket = buildToleranceTicket(data);
                 break;
             default:
                 return res.status(400).json({ error: 'Tipo de impresión inválido' });

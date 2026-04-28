@@ -220,7 +220,9 @@ export function createPeopleActions(ctx: RoomActionContext) {
         tolerance_type: toleranceType,
       }).eq("id", activeStay.id);
 
-      const expiryTime = new Date(Date.now() + 3600000).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+      const exitTime = new Date();
+      const returnDeadline = new Date(Date.now() + 3600000);
+      const expiryTime = returnDeadline.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
       if (newCurrentPeople === 0) {
         toast.warning("⏱️ Tolerancia iniciada - Habitación vacía", {
@@ -233,6 +235,23 @@ export function createPeopleActions(ctx: RoomActionContext) {
           duration: 5000,
         });
       }
+
+      // Imprimir ticket de tolerancia (fire-and-forget)
+      const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+      fetch(`${PRINT_SERVER_URL}/print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'tolerance',
+          data: {
+            roomNumber: room.number,
+            exitTime: exitTime.toISOString(),
+            returnDeadline: returnDeadline.toISOString(),
+            people: newCurrentPeople,
+            toleranceType,
+          }
+        })
+      }).catch(err => logger.warn('No se pudo imprimir ticket de tolerancia', err));
 
       await notifyActiveValets(supabase, '⏱️ Tolerancia Iniciada',
         `Habitación ${room.number}: Salió una persona con derecho a regreso (1h).`,

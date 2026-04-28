@@ -59,6 +59,14 @@ interface QRTicketData {
     title?: string;
 }
 
+interface ToleranceTicketData {
+    roomNumber: string;
+    exitTime: Date;
+    returnDeadline: Date;
+    people: number;
+    toleranceType: 'ROOM_EMPTY' | 'PERSON_LEFT';
+}
+
 interface UseThermalPrinterReturn {
     isPrinting: boolean;
     printStatus: 'idle' | 'printing_reception' | 'printing_client' | 'success' | 'error';
@@ -67,6 +75,7 @@ interface UseThermalPrinterReturn {
     printEntryTicket: (data: EntryTicketData) => Promise<boolean>;
     printPaymentTicket: (data: PaymentTicketData) => Promise<boolean>;
     printQRTicket: (data: QRTicketData) => Promise<boolean>;
+    printToleranceTicket: (data: ToleranceTicketData) => Promise<boolean>;
     printTestTicket: () => Promise<boolean>;
     error: string | null;
 }
@@ -351,6 +360,44 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         }
     }, []);
 
+    // Tolerance: ticket de salida temporal con hora de regreso
+    const printToleranceTicket = useCallback(async (data: ToleranceTicketData): Promise<boolean> => {
+        setIsPrinting(true);
+        setError(null);
+        setPrintStatus('printing_reception');
+
+        try {
+            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'tolerance', data })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al imprimir ticket de tolerancia');
+            }
+
+            setPrintStatus('success');
+            return true;
+        } catch (err) {
+            console.error('Tolerance print error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
+            setError(errorMessage);
+            setPrintStatus('error');
+
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                toast.error('Print-server no disponible', {
+                    description: 'Verifica que el print-server esté corriendo',
+                    duration: 8000
+                });
+            }
+            return false;
+        } finally {
+            setIsPrinting(false);
+        }
+    }, []);
+
     return {
         isPrinting,
         printStatus,
@@ -359,11 +406,12 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         printEntryTicket,
         printPaymentTicket,
         printQRTicket,
+        printToleranceTicket,
         printTestTicket,
         error
     };
 }
 
 // Re-exportar los tipos para uso en otros lugares
-export type { ConsumptionTicketData, EntryTicketData, PaymentTicketData, QRTicketData };
+export type { ConsumptionTicketData, EntryTicketData, PaymentTicketData, QRTicketData, ToleranceTicketData };
 
