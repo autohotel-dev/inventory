@@ -421,6 +421,54 @@ function buildPaymentTicket(data) {
     return t;
 }
 
+function buildCheckoutTicket(data) {
+    const { dateStr, timeStr } = formatDateTime(data.date || new Date());
+
+    let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
+    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE;
+    t += 'SALIDA' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE + CMD.BOLD_ON + 'CHECKOUT' + CMD.BOLD_OFF + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+
+    t += CMD.ALIGN_LEFT;
+    t += `Fecha: ${dateStr} - ${timeStr}` + CMD.NEW_LINE;
+    t += CMD.DOUBLE_HEIGHT + `Hab: ${data.roomNumber}` + CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    if (data.folio) t += `Folio: ${data.folio}` + CMD.NEW_LINE;
+    t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+
+    // Conceptos cobrados en la salida
+    if (data.items && data.items.length > 0) {
+        t += CMD.BOLD_ON + 'CONCEPTOS COBRADOS:' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        data.items.forEach(item => {
+            const itemLine = `${item.qty}x ${item.name}`;
+            const priceLine = formatMoney(item.total);
+            t += formatLine(itemLine, priceLine) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    }
+
+    // Total
+    t += CMD.BOLD_ON + formatLine('TOTAL COBRADO:', formatMoney(data.total || 0)) + CMD.BOLD_OFF + CMD.NEW_LINE;
+
+    // Cocheros
+    if (data.entranceValet || data.exitValet) {
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + 'VALETS:' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        if (data.entranceValet) t += `  Entrada: ${data.entranceValet}` + CMD.NEW_LINE;
+        if (data.exitValet) t += `  Salida:  ${data.exitValet}` + CMD.NEW_LINE;
+    }
+
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER;
+    t += CMD.BOLD_ON + 'Habitacion liberada' + CMD.BOLD_OFF + CMD.NEW_LINE;
+    // Margen inferior
+    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
+
+    return t;
+}
+
 // === ENDPOINTS ===
 
 app.get('/health', (req, res) => {
@@ -457,6 +505,9 @@ app.post('/print', async (req, res) => {
                 break;
             case 'payment':
                 ticket = buildPaymentTicket(data);
+                break;
+            case 'checkout':
+                ticket = buildCheckoutTicket(data);
                 break;
             default:
                 return res.status(400).json({ error: 'Tipo de impresión inválido' });

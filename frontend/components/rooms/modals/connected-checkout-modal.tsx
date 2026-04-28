@@ -25,7 +25,7 @@ export function ConnectedCheckoutModal({
   onSuccess,
 }: ConnectedCheckoutModalProps) {
   const { prepareCheckout, processCheckout, actionLoading, requestVehicle } = useRoomActions(async () => onSuccess());
-  const { printConsumptionTickets } = useThermalPrinter();
+  const { printCheckoutTicket } = useThermalPrinter();
   const [checkoutAmount, setCheckoutAmount] = useState<number>(0);
   const [checkoutInfo, setCheckoutInfo] = useState<{
     salesOrderId: string;
@@ -143,7 +143,7 @@ export function ConnectedCheckoutModal({
           entranceValet: activeStay?.vehicle_plate ? "Solicitado" : undefined,
           exitValet: data.checkoutValetName,
         };
-        printConsumptionTickets(printData);
+        printCheckoutTicket(printData);
       } catch (e) {
         console.error("Error printing exit ticket", e);
       }

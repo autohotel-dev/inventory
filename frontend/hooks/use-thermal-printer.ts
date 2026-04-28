@@ -57,6 +57,7 @@ interface UseThermalPrinterReturn {
     isPrinting: boolean;
     printStatus: 'idle' | 'printing_reception' | 'printing_client' | 'success' | 'error';
     printConsumptionTickets: (data: ConsumptionTicketData) => Promise<boolean>;
+    printCheckoutTicket: (data: ConsumptionTicketData) => Promise<boolean>;
     printEntryTicket: (data: EntryTicketData) => Promise<boolean>;
     printPaymentTicket: (data: PaymentTicketData) => Promise<boolean>;
     printTestTicket: () => Promise<boolean>;
@@ -130,6 +131,52 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
                 });
             }
 
+            return false;
+        } finally {
+            setIsPrinting(false);
+        }
+    }, []);
+
+    // Checkout: imprime 1 solo ticket de SALIDA (solo para recepción)
+    const printCheckoutTicket = useCallback(async (data: ConsumptionTicketData): Promise<boolean> => {
+        setIsPrinting(true);
+        setError(null);
+        setPrintStatus('printing_reception');
+
+        try {
+            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'checkout', data })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al imprimir ticket de salida');
+            }
+
+            setPrintStatus('success');
+            toast.success('Ticket de salida impreso', {
+                description: `✓ Hab. ${data.roomNumber}`
+            });
+            return true;
+        } catch (err) {
+            console.error('Checkout print error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
+            setError(errorMessage);
+            setPrintStatus('error');
+
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                toast.error('Print-server no disponible', {
+                    description: 'Verifica que el print-server esté corriendo',
+                    duration: 8000
+                });
+            } else {
+                toast.error('Error al imprimir salida', {
+                    description: errorMessage,
+                    duration: 5000
+                });
+            }
             return false;
         } finally {
             setIsPrinting(false);
@@ -263,6 +310,7 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         isPrinting,
         printStatus,
         printConsumptionTickets,
+        printCheckoutTicket,
         printEntryTicket,
         printPaymentTicket,
         printTestTicket,

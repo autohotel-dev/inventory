@@ -1,4 +1,4 @@
-import { ShiftClosingHistory } from "@/components/employees/shift-closing";
+import { ShiftClosingHistory } from "@/components/employees/shift-closing-history";
 import { PendingClosingsIndicator } from "@/components/employees/pending-closings-indicator";
 
 export default function ClosingsPage() {
