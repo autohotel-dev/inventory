@@ -123,7 +123,7 @@ BEGIN
         ) VALUES (
             v_item.sales_order_id,
             v_item_total,
-            'REEMBOLSO',
+            'EFECTIVO',
             'REF-' || substr(md5(random()::text), 1, 8),
             'REFUND',
             'CANCELADO',
@@ -136,7 +136,8 @@ BEGIN
         UPDATE public.sales_orders
         SET subtotal = GREATEST(0, subtotal - v_item_total),
             total = GREATEST(0, total - v_item_total),
-            paid_amount = GREATEST(0, paid_amount - v_item_total)
+            paid_amount = GREATEST(0, paid_amount - v_item_total),
+            remaining_amount = GREATEST(0, GREATEST(0, total - v_item_total) - GREATEST(0, paid_amount - v_item_total))
         WHERE id = v_item.sales_order_id;
 
     ELSE
@@ -167,10 +168,11 @@ BEGIN
             END IF;
         END IF;
 
-        -- Adjust order: reduce subtotal and total
+        -- Adjust order: reduce subtotal, total, and remaining_amount
         UPDATE public.sales_orders
         SET subtotal = GREATEST(0, subtotal - v_item_total),
-            total = GREATEST(0, total - v_item_total)
+            total = GREATEST(0, total - v_item_total),
+            remaining_amount = GREATEST(0, GREATEST(0, total - v_item_total) - paid_amount)
         WHERE id = v_item.sales_order_id;
     END IF;
 

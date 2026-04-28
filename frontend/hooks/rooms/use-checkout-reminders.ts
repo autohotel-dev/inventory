@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import type { Room } from "@/components/sales/room-types";
 
 interface ReminderAlert {

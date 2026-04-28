@@ -9,8 +9,11 @@ import {
   getReceptionShiftId,
   getReceptionEmployeeId,
   generatePaymentReference,
-} from "@/hooks/use-room-actions";
+} from "@/hooks/room-actions";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
+import { useThermalPrinter } from "@/hooks/use-thermal-printer";
+import { generateGuestPortalQR } from "@/lib/utils/guest-portal-qr";
+import { printHTML } from "@/lib/utils/print-helper";
 
 interface ConnectedQuickCheckinModalProps {
   isOpen: boolean;
@@ -29,6 +32,7 @@ export function ConnectedQuickCheckinModal({
 }: ConnectedQuickCheckinModalProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const systemConfig = useSystemConfigRead();
+  const { printEntryTicket } = useThermalPrinter();
   const MAX_PENDING_QUICK_CHECKINS = systemConfig.maxPendingQuickCheckins;
 
   const handleQuickCheckin = async (data: {
@@ -206,6 +210,9 @@ export function ConnectedQuickCheckinModal({
          console.error("Error inserting payment:", paymentError);
       }
 
+      // Generar token de acceso al portal de huéspedes
+      const guestToken = crypto.randomUUID();
+
       // Registrar la estancia con la hora REAL de entrada
       const { data: stayData, error: stayError } = await supabase
         .from("room_stays")
@@ -221,6 +228,7 @@ export function ConnectedQuickCheckinModal({
           vehicle_model: null,
           valet_employee_id: null,
           shift_session_id: currentShiftId,
+          guest_access_token: guestToken,
         })
         .select()
         .single();
@@ -249,6 +257,58 @@ export function ConnectedQuickCheckinModal({
           2
         )}`,
       });
+
+      // Imprimir ticket de entrada (fire-and-forget)
+      try {
+        await printEntryTicket({
+          roomNumber: selectedRoom.number,
+          roomTypeName: roomType.name,
+          date: entryTime,
+          people: data.initialPeople,
+          basePrice,
+          extraPeopleCount: extraPeopleCount > 0 ? extraPeopleCount : undefined,
+          extraPeopleCost: extraPeopleCost > 0 ? extraPeopleCost : undefined,
+          totalPrice,
+          paymentMethod: 'PENDIENTE',
+          expectedCheckout,
+        });
+      } catch (printErr) {
+        console.error('Error printing entry ticket (non-blocking):', printErr);
+      }
+
+      // Imprimir ticket QR del portal de huéspedes
+      try {
+        const qrDataURL = await generateGuestPortalQR(selectedRoom.number, guestToken);
+        const qrHTML = `
+          <html>
+            <head>
+              <title>Portal Huésped - Habitación ${selectedRoom.number}</title>
+              <style>
+                @page { size: 80mm auto; margin: 0; }
+                body { width: 80mm; max-width: 100%; margin: 0; padding: 10px 0; font-family: system-ui, -apple-system, sans-serif; text-align: center; color: #000; }
+                h1 { font-size: 16px; margin: 0 0 5px 0; font-weight: bold; text-transform: uppercase; }
+                .room { font-size: 24px; font-weight: bold; margin: 5px 0 10px 0; }
+                .qr-container { display: flex; justify-content: center; margin: 0; padding: 0; }
+                img { width: 65mm; height: auto; display: block; }
+                .footer { margin-top: 10px; font-size: 12px; line-height: 1.2; font-weight: bold; }
+              </style>
+            </head>
+            <body>
+              <h1>Portal de Huéspedes</h1>
+              <div class="room">Habitación ${selectedRoom.number}</div>
+              <div class="qr-container">
+                <img src="${qrDataURL}" alt="QR Code" />
+              </div>
+              <div class="footer">
+                <p>ESCANEA PARA ACCEDER<br>A TU HABITACIÓN</p>
+              </div>
+            </body>
+          </html>
+        `;
+        await printHTML(qrHTML);
+      } catch (qrErr) {
+        console.error('Error printing QR portal ticket (non-blocking):', qrErr);
+      }
 
       onClose();
       onSuccess();

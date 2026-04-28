@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import type { Room } from "@/components/sales/room-types";
 
 /**

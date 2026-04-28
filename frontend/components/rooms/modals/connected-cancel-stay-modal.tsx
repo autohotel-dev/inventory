@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { AuthorizationGate } from "@/components/auth/authorization-gate";
 

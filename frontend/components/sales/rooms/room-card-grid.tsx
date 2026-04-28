@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { RoomCard } from "@/components/sales/room-card";
 import { Room } from "@/components/sales/room-types";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import { toast } from "sonner";
 import { ROOM_STATUS_BG, ROOM_STATUS_ACCENT } from "@/components/sales/room-types";
 

@@ -14,10 +14,8 @@ import {
 import { logger } from "@/lib/utils/logger";
 import { logAudit } from "@/lib/audit-logger";
 
-/**
- * Entrada de pago para multipagos
- */
-export interface PaymentEntry {
+/** Minimal payment entry for service-layer multi-payment creation */
+interface ServicePaymentEntry {
     amount: number;
     method: string;
     reference?: string;
@@ -101,7 +99,7 @@ export async function createPayment(
  */
 export async function createMultiPayment(
     salesOrderId: string,
-    payments: PaymentEntry[],
+    payments: ServicePaymentEntry[],
     concept: PaymentConcept
 ): Promise<Result<string>> {
     const supabase = createClient();

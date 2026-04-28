@@ -14,7 +14,7 @@ import { Room, STATUS_CONFIG } from "@/components/sales/room-types";
 import { RoomMetricsBanner } from "@/components/sales/rooms/room-metrics-banner";
 import { RoomCardGrid } from "@/components/sales/rooms/room-card-grid";
 import { useRoomsQuery } from "@/hooks/use-rooms-query";
-import { useRoomActions, getCurrentEmployeeId } from "@/hooks/use-room-actions";
+import { useRoomActions, getCurrentEmployeeId } from "@/hooks/room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSystemConfigRead } from "@/hooks/use-system-config";

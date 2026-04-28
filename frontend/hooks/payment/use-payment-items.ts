@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { VALET_CONCEPTS, SERVICE_CONCEPTS, CONCEPT_LABELS, OrderItem } from "@/components/sales/payment/payment-constants";
+import { getActiveItems } from "@/lib/utils/order-utils";
 
 interface UsePaymentItemsProps {
   salesOrderId: string;
@@ -36,10 +37,11 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
 
       if (itemsError) throw itemsError;
 
-      const mappedItems: OrderItem[] = (orderItems || []).map((item: any) => ({
-        ...item,
-        total: Number(item.unit_price) * (Number(item.qty) || 1),
-      }));
+      const mappedItems: OrderItem[] = getActiveItems(orderItems || [])
+        .map((item: any) => ({
+          ...item,
+          total: Number(item.unit_price) * (Number(item.qty) || 1),
+        }));
 
       setItems(mappedItems);
 
@@ -79,7 +81,7 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
   };
 
   const selectAllPending = () => {
-    setSelectedItems(new Set(items.filter(i => !i.is_paid).map(i => i.id)));
+    setSelectedItems(new Set(items.filter(i => !i.is_paid && !i.is_cancelled).map(i => i.id)));
   };
 
   const deselectAll = () => setSelectedItems(new Set());

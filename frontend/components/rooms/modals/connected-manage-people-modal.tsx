@@ -2,8 +2,8 @@
 
 import { Room } from "@/components/sales/room-types";
 import { ManagePeopleModal } from "@/components/sales/manage-people-modal";
-import { useRoomActions } from "@/hooks/use-room-actions";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { useRoomActions } from "@/hooks/room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import { useState } from "react";
 
 interface ConnectedManagePeopleModalProps {

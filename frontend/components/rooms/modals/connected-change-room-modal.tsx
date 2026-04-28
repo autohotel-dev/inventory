@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { ChangeRoomModal } from "@/components/sales/change-room-modal";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { calculateExpectedCheckout } from "@/components/rooms/modals/connected-start-stay-modal";
 

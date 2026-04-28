@@ -31,6 +31,7 @@ export interface OrderItem {
     sku?: string;
   };
   delivery_status?: string;
+  is_cancelled?: boolean;
 }
 
 /**

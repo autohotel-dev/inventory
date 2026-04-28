@@ -3,19 +3,20 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Room } from '@/components/sales/room-types';
 
-interface VehicleData {
-    plate: string;
-    brand: string;
-    model: string;
-}
-
-interface PaymentEntry {
+/** Lightweight payment entry for valet operations (no id needed) */
+interface ValetPaymentEntry {
     amount: number;
     method: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
     terminal?: string;
     cardLast4?: string;
     cardType?: string;
     reference?: string;
+}
+
+interface VehicleData {
+    plate: string;
+    brand: string;
+    model: string;
 }
 
 export function useValetActions(onRefresh: () => Promise<void>) {
@@ -33,7 +34,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleRegisterVehicleAndPayment = useCallback(async (
         room: Room,
         vehicleData: VehicleData,
-        payments: PaymentEntry[],
+        payments: ValetPaymentEntry[],
         valetId: string,
         personCount: number
     ) => {
@@ -354,7 +355,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleConfirmDelivery = useCallback(async (
         consumptionId: string,
         roomNumber: string,
-        payments: PaymentEntry[],
+        payments: ValetPaymentEntry[],
         notes: string | undefined,
         valetId: string,
         tipAmount?: number,
@@ -438,7 +439,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleConfirmAllDeliveries = useCallback(async (
         items: any[],
         roomNumber: string,
-        payments: PaymentEntry[],
+        payments: ValetPaymentEntry[],
         notes: string | undefined,
         valetId: string
     ) => {
@@ -536,7 +537,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         roomNumber: string,
         description: string,
         amount: number,
-        payments: PaymentEntry[],
+        payments: ValetPaymentEntry[],
         valetId: string
     ) => {
         setLoading(true);
@@ -603,7 +604,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         salesOrderId: string,
         roomNumber: string,
         amount: number,
-        payments: PaymentEntry[],
+        payments: ValetPaymentEntry[],
         valetId: string
     ) => {
         setLoading(true);
@@ -667,7 +668,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         salesOrderId: string,
         roomNumber: string,
         amount: number,
-        payments: PaymentEntry[],
+        payments: ValetPaymentEntry[],
         valetId: string
     ) => {
         setLoading(true);

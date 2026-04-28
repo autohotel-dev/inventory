@@ -6,23 +6,7 @@ import { Result, success, failure } from "@/lib/types/api";
 import { ROOM_STATUS, STAY_STATUS, RoomStatus, StayStatus } from "@/lib/constants/room-constants";
 import { logger } from "@/lib/utils/logger";
 import { logAudit } from "@/lib/audit-logger";
-
-/**
- * Tipo para estancia de habitación
- */
-export interface RoomStay {
-    id: string;
-    room_id: string;
-    sales_order_id: string;
-    status: StayStatus;
-    current_people: number;
-    total_people: number;
-    tolerance_started_at: string | null;
-    tolerance_type: string | null;
-    expected_check_out_at: string | null;
-    actual_check_out_at: string | null;
-    created_at: string;
-}
+import { RoomStay } from "@/components/sales/room-types";
 
 /**
  * Actualiza el estado de una habitación

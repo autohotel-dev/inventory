@@ -16,7 +16,7 @@ import {
   getReceptionEmployeeId,
   generatePaymentReference,
   getActiveStay,
-} from "@/hooks/use-room-actions";
+} from "@/hooks/room-actions";
 
 export const calculateExpectedCheckout = (
   roomType: RoomType,

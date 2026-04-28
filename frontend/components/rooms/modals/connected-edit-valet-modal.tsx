@@ -2,7 +2,7 @@
 
 import { Room } from "@/components/sales/room-types";
 import { EditValetModal } from "@/components/sales/edit-valet-modal";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 import { toast } from "sonner";
 
 interface ConnectedEditValetModalProps {

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
-import { getActiveStay } from "@/hooks/use-room-actions";
+import { getActiveStay } from "@/hooks/room-actions";
 
 interface ConnectedEditVehicleModalProps {
   room: Room | null;

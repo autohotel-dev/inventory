@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
-import { OrderItem } from "../use-granular-payment";
+import { OrderItem } from "@/components/sales/payment/payment-constants";
 
 interface UsePaymentProcessingProps {
   salesOrderId: string;
@@ -334,6 +334,16 @@ export function usePaymentProcessing({
           }));
         const methodsSummary = validPayments.map(p => p.method).join(', ');
 
+        // Desglose detallado de pagos para el ticket
+        const paymentDetails = validPayments.map(p => ({
+          method: p.method,
+          amount: p.amount,
+          terminal: p.terminal || undefined,
+          cardLast4: p.cardLast4 || undefined,
+          cardType: p.cardType || undefined,
+          reference: p.reference || undefined,
+        }));
+
         fetch(`${PRINT_SERVER_URL}/print`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -345,6 +355,8 @@ export function usePaymentProcessing({
               items: paidItems,
               total: selectedTotal,
               paymentMethod: methodsSummary,
+              paymentDetails,
+              tipAmount: tipAmount > 0 ? tipAmount : undefined,
               remainingAmount: order ? Math.max(0, Number(order.total || 0) - (Number(order.paid_amount || 0) + selectedTotal)) : undefined
             }
           })

@@ -1,12 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2, XCircle, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -16,50 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { AssignAssetModal } from "@/components/rooms/modals/assign-asset-modal";
 import { Tv } from "lucide-react";
-
-
-interface Payment {
-  id: string;
-  payment_number: string | null;
-  amount: number;
-  payment_method: string;
-  reference: string | null;
-  concept: string | null;
-  status: string;
-  payment_type: string;
-  parent_payment_id: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
-interface SalesOrderItem {
-  id: string;
-  qty: number;
-  unit_price: number;
-  products: {
-    name: string;
-    sku: string;
-  } | null;
-  is_courtesy?: boolean;
-  courtesy_reason?: string | null;
-  concept_type?: string;
-  delivery_status?: string;
-  is_paid?: boolean;
-  is_cancelled?: boolean;
-  cancellation_reason?: string | null;
-  cancelled_at?: string | null;
-}
-
-interface SalesOrder {
-  id: string;
-  notes: string | null;
-  subtotal: number;
-  total: number;
-  paid_amount: number;
-  remaining_amount: number;
-  status: string;
-  created_at: string;
-}
+import { useRoomDetails } from "@/hooks/use-room-details";
 
 export interface RoomDetailsModalProps {
   isOpen: boolean;
@@ -71,13 +26,6 @@ export interface RoomDetailsModalProps {
   onCancelItem?: (itemId: string, room: Room, reason: string) => Promise<boolean>;
 }
 
-interface RoomAsset {
-  id: string;
-  asset_type: string;
-  status: string;
-  assigned_employee_id: string | null;
-}
-
 export function RoomDetailsModal({
   isOpen,
   room,
@@ -87,159 +35,32 @@ export function RoomDetailsModal({
   onCancelCharge,
   onCancelItem,
 }: RoomDetailsModalProps) {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [items, setItems] = useState<SalesOrderItem[]>([]);
-  const [salesOrder, setSalesOrder] = useState<SalesOrder | null>(null);
-  const [tvRemoteAsset, setTvRemoteAsset] = useState<RoomAsset | null>(null);
-  const [isAssignAssetModalOpen, setIsAssignAssetModalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"payments" | "items">("payments");
-  const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancellingLoading, setCancellingLoading] = useState(false);
+  const {
+    payments, items, salesOrder, tvRemoteAsset, loading, activeTab,
+    cancellingItemId, cancelReason, cancellingLoading,
+    bulkSelectMode, selectedForCancel, bulkCancelReason, bulkCancelLoading,
+    isAssignAssetModalOpen,
+    totalPayments, totalItems, cancelledCount, cancellableItems,
+    selectedCancelCount, selectedCancelTotal,
+    setActiveTab, setCancellingItemId, setCancelReason,
+    setBulkSelectMode, setBulkCancelReason,
+    setIsAssignAssetModalOpen,
+    handleCancelPayment, handleSingleCancel, handleBulkCancel,
+    toggleBulkSelect, selectAllCancellable, deselectAllCancel,
+    fetchAssetDetails,
+    getConceptLabel, formatDateTime, getAssetStatusColor, formatAssetStatus,
+  } = useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCancelItem });
 
-  useEffect(() => {
-    if (isOpen) {
-      if (activeStay?.sales_order_id) {
-        fetchDetails(activeStay.sales_order_id);
-      }
-      fetchAssetDetails();
-    }
-  }, [isOpen, activeStay]);
+  if (!isOpen || !room) return null;
 
-  const fetchAssetDetails = async () => {
-    if (!room) return;
-    const supabase = createClient();
-    try {
-      const { data } = await supabase
-        .from("room_assets")
-        .select("*")
-        .eq("room_id", room.id)
-        .eq("asset_type", "TV_REMOTE")
-        .maybeSingle();
-      setTvRemoteAsset(data);
-    } catch (err) {
-      console.error("Error fetching asset details:", err);
-    }
-  };
-
-  const fetchDetails = async (salesOrderId: string) => {
-    setLoading(true);
-    const supabase = createClient();
-
-    try {
-      // Fetch payments
-      const { data: paymentsData } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("sales_order_id", salesOrderId)
-        .order("created_at", { ascending: false });
-
-      // Fetch items
-      const { data: itemsData } = await supabase
-        .from("sales_order_items")
-        .select(`
-          id,
-          qty,
-          unit_price,
-          concept_type,
-          delivery_status,
-          is_paid,
-          is_cancelled,
-          cancellation_reason,
-          cancelled_at,
-          products (name, sku)
-        `)
-        .eq("sales_order_id", salesOrderId);
-
-      // Fetch sales order
-      const { data: orderData } = await supabase
-        .from("sales_orders")
-        .select("id, notes, subtotal, total, paid_amount, remaining_amount, status, created_at")
-        .eq("id", salesOrderId)
-        .single();
-
-      if (paymentsData) setPayments(paymentsData);
-      if (itemsData) setItems(itemsData as unknown as SalesOrderItem[]);
-      if (orderData) setSalesOrder(orderData);
-    } catch (err) {
-      console.error("Error fetching room details:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancelPayment = async (paymentId: string, concept: string, amount: number) => {
-    if (!room || !onCancelCharge || !activeStay?.sales_order_id) return;
-    
-    const confirmed = window.confirm(`¿Estás seguro de cancelar este cargo de $${amount.toFixed(2)}?`);
-    if (!confirmed) return;
-
-    setLoading(true);
-    const success = await onCancelCharge(paymentId, room, concept, amount);
-    if (success) {
-      await fetchDetails(activeStay.sales_order_id);
-    }
-    setLoading(false);
-  };
-
-  const getPaymentIcon = (method: string) => {
+  // Map payment icon strings to JSX elements for render
+  const renderPaymentIcon = (method: string) => {
     switch (method) {
       case "EFECTIVO": return <Banknote className="h-4 w-4 text-emerald-400" />;
       case "TARJETA": return <CreditCard className="h-4 w-4 text-sky-400" />;
       case "TRANSFERENCIA": return <Building2 className="h-4 w-4 text-violet-400" />;
       default: return <Receipt className="h-4 w-4 text-zinc-400" />;
     }
-  };
-
-  const getConceptLabel = (concept: string | null) => {
-    switch (concept) {
-      case "ESTANCIA": return "Estancia";
-      case "HORA_EXTRA": return "Hora extra";
-      case "PERSONA_EXTRA": return "Persona extra";
-      case "CONSUMO": return "Consumo";
-      case "CHECKOUT": return "Checkout";
-      case "PAGO_EXTRA": return "Pago extra";
-      case "ABONO": return "Abono";
-      case "VENTA": return "Venta";
-      case "ABONO_CLIENTE": return "Abono cliente";
-      case "TOLERANCIA_EXPIRADA": return "Tolerancia expirada";
-      default: return concept || "—";
-    }
-  };
-
-  const formatDateTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleString("es-MX", {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  };
-
-  const totalPayments = payments
-    .filter(p => !p.parent_payment_id)
-    .reduce((sum, p) => sum + Number(p.amount), 0);
-  const totalItems = items
-    .filter(i => !i.is_cancelled)
-    .reduce((sum, i) => sum + (i.qty * Number(i.unit_price)), 0);
-  const cancelledCount = items.filter(i => i.is_cancelled).length;
-
-  if (!isOpen || !room) return null;
-
-  const getAssetStatusColor = (status: string) => {
-    switch(status) {
-      case 'EN_HABITACION': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-      case 'CON_COCHERO': return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-      case 'EN_RECEPCION': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-      case 'EXTRAVIADO': return 'text-red-400 bg-red-500/10 border-red-500/20 animate-pulse';
-      default: return 'text-zinc-400 bg-white/5 border-white/10';
-    }
-  };
-
-  const formatAssetStatus = (status: string) => {
-    return status.replace('_', ' ');
   };
 
   return (
@@ -341,7 +162,7 @@ export function RoomDetailsModal({
                           return (
                             <div key={payment.id} className="group relative bg-zinc-900/40 border border-white/5 rounded-3xl p-5 hover:bg-zinc-900/60 hover:border-white/10 transition-all duration-500 overflow-hidden">
                               <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
-                                {getPaymentIcon(payment.payment_method)}
+                                {renderPaymentIcon(payment.payment_method)}
                               </div>
                               
                               <div className="flex items-start justify-between relative z-10">
@@ -358,7 +179,7 @@ export function RoomDetailsModal({
                                   <div className="flex items-center gap-3">
                                     {!hasSubpayments && (
                                       <div className="flex items-center gap-2 p-1.5 bg-white/5 rounded-xl border border-white/5">
-                                        {getPaymentIcon(payment.payment_method)}
+                                        {renderPaymentIcon(payment.payment_method)}
                                         <span className="text-[10px] font-black text-zinc-300 tracking-wider pr-2">{payment.payment_method}</span>
                                       </div>
                                     )}
@@ -408,7 +229,7 @@ export function RoomDetailsModal({
                                     <div key={sub.id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl border border-white/5 group/sub hover:bg-white/10 transition-colors">
                                       <div className="flex items-center gap-3">
                                         <div className="h-8 w-8 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center shadow-inner">
-                                          {getPaymentIcon(sub.payment_method)}
+                                          {renderPaymentIcon(sub.payment_method)}
                                         </div>
                                         <div>
                                           <div className="text-[10px] font-black text-white tracking-widest">{sub.payment_method}</div>
@@ -435,15 +256,61 @@ export function RoomDetailsModal({
                       <p className="text-lg font-black uppercase tracking-widest text-zinc-500">Sin Cargos</p>
                     </div>
                   ) : (
+                    <>
                     <div className="bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden overflow-x-auto">
+                      {/* Bulk cancel toolbar */}
+                      {onCancelItem && (
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-zinc-900/60">
+                          {bulkSelectMode ? (
+                            <div className="flex items-center gap-3 w-full">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={selectedCancelCount === cancellableItems.length ? deselectAllCancel : selectAllCancellable}
+                                  className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 transition-colors"
+                                >
+                                  {selectedCancelCount === cancellableItems.length ? 'Deseleccionar' : 'Seleccionar Todos'}
+                                </button>
+                                {selectedCancelCount > 0 && (
+                                  <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] font-black">
+                                    {selectedCancelCount} seleccionado{selectedCancelCount > 1 ? 's' : ''} · ${selectedCancelTotal.toFixed(2)}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex-1" />
+                              <button
+                                onClick={() => { setBulkSelectMode(false); deselectAllCancel(); setBulkCancelReason(""); }}
+                                className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-white/10 transition-colors"
+                              >
+                                Cancelar Selección
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                                {cancellableItems.length} concepto{cancellableItems.length !== 1 ? 's' : ''} activo{cancellableItems.length !== 1 ? 's' : ''}
+                              </span>
+                              {cancellableItems.length > 1 && (
+                                <button
+                                  onClick={() => setBulkSelectMode(true)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors"
+                                >
+                                  <XCircle size={12} />
+                                  Cancelar Varios
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                       <table className="w-full text-left min-w-0">
                         <thead>
                           <tr className="bg-white/5">
+                            {bulkSelectMode && <th className="px-2 py-3 w-10"></th>}
                             <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">CONCEPTO / PRODUCTO</th>
                             <th className="px-2 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 text-center">CANT.</th>
                             <th className="px-3 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 text-right">PRECIO</th>
                             <th className="px-3 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 text-right">TOTAL</th>
-                            {onCancelItem && <th className="px-2 py-3 w-10"></th>}
+                            {onCancelItem && !bulkSelectMode && <th className="px-2 py-3 w-10"></th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -451,12 +318,31 @@ export function RoomDetailsModal({
                             const isCancelled = item.is_cancelled === true;
                             const isCancelMode = cancellingItemId === item.id;
                             const itemTotal = item.qty * Number(item.unit_price);
+                            const isSelectedForBulk = selectedForCancel.has(item.id);
                             return (
                             <React.Fragment key={item.id}>
-                            <tr className={cn(
-                              "group transition-all duration-300",
-                              isCancelled ? "opacity-50" : isCancelMode ? "bg-red-500/5" : "hover:bg-white/5"
-                            )}>
+                            <tr
+                              className={cn(
+                                "group transition-all duration-300",
+                                isCancelled ? "opacity-50" : isCancelMode ? "bg-red-500/5" : isSelectedForBulk ? "bg-red-500/10" : "hover:bg-white/5"
+                              )}
+                              onClick={bulkSelectMode && !isCancelled ? () => toggleBulkSelect(item.id) : undefined}
+                              style={bulkSelectMode && !isCancelled ? { cursor: 'pointer' } : undefined}
+                            >
+                              {bulkSelectMode && (
+                                <td className="px-2 py-4 text-center">
+                                  {!isCancelled && (
+                                    <div className={cn(
+                                      "h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all mx-auto",
+                                      isSelectedForBulk
+                                        ? "bg-red-500 border-red-500 text-white"
+                                        : "border-zinc-600 hover:border-red-400"
+                                    )}>
+                                      {isSelectedForBulk && <Check size={12} />}
+                                    </div>
+                                  )}
+                                </td>
+                              )}
                               <td className="px-4 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className={cn(
@@ -512,7 +398,7 @@ export function RoomDetailsModal({
                               )}>
                                 ${itemTotal.toFixed(2)}
                               </td>
-                              {onCancelItem && (
+                              {onCancelItem && !bulkSelectMode && (
                                 <td className="px-2 py-4 text-center">
                                   {!isCancelled && !isCancelMode && (
                                     <button
@@ -533,7 +419,7 @@ export function RoomDetailsModal({
                             {/* Inline cancel panel */}
                             {isCancelMode && (
                               <tr>
-                                <td colSpan={onCancelItem ? 5 : 4} className="p-0">
+                                <td colSpan={(onCancelItem && !bulkSelectMode ? 5 : bulkSelectMode ? 5 : 4)} className="p-0">
                                   <div className="bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent border-t border-b border-red-500/20 px-4 py-3 animate-in slide-in-from-top-2 fade-in duration-300">
                                     <div className="flex items-center gap-2 mb-2">
                                       <AlertTriangle size={12} className="text-red-400 shrink-0" />
@@ -566,22 +452,7 @@ export function RoomDetailsModal({
                                       </button>
                                       <button
                                         disabled={!cancelReason.trim() || cancellingLoading}
-                                        onClick={async () => {
-                                          if (!room || !onCancelItem || !cancelReason.trim()) return;
-                                          setCancellingLoading(true);
-                                          try {
-                                            const success = await onCancelItem(item.id, room, cancelReason.trim());
-                                            if (success) {
-                                              setCancellingItemId(null);
-                                              setCancelReason("");
-                                              if (activeStay?.sales_order_id) {
-                                                await fetchDetails(activeStay.sales_order_id);
-                                              }
-                                            }
-                                          } finally {
-                                            setCancellingLoading(false);
-                                          }
-                                        }}
+                                        onClick={handleSingleCancel}
                                         className={cn(
                                           "px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all",
                                           cancelReason.trim() && !cancellingLoading
@@ -602,7 +473,7 @@ export function RoomDetailsModal({
                         </tbody>
                         <tfoot>
                           <tr className="bg-white/5">
-                            <td colSpan={onCancelItem ? 4 : 3} className="px-4 py-4 text-right">
+                            <td colSpan={(onCancelItem && !bulkSelectMode ? 4 : bulkSelectMode ? 4 : 3)} className="px-4 py-4 text-right">
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
                                 Subtotal Activo{cancelledCount > 0 && ` (${cancelledCount} cancelado${cancelledCount > 1 ? 's' : ''})`}
                               </span>
@@ -614,6 +485,52 @@ export function RoomDetailsModal({
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Bulk cancel confirmation panel */}
+                    {bulkSelectMode && selectedCancelCount > 0 && (
+                      <div className="mt-4 bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent border border-red-500/20 rounded-2xl p-5 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                        <div className="flex items-center gap-2 mb-3">
+                          <AlertTriangle size={14} className="text-red-400" />
+                          <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                            Cancelar {selectedCancelCount} item{selectedCancelCount > 1 ? 's' : ''} — ${selectedCancelTotal.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={bulkCancelReason}
+                            onChange={(e) => setBulkCancelReason(e.target.value)}
+                            placeholder="Motivo de cancelación (obligatorio)..."
+                            className="flex-1 bg-zinc-900/80 border border-red-500/20 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-red-500/40"
+                            disabled={bulkCancelLoading}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                setBulkSelectMode(false);
+                                deselectAllCancel();
+                                setBulkCancelReason("");
+                              }
+                              if (e.key === 'Enter' && bulkCancelReason.trim()) {
+                                handleBulkCancel();
+                              }
+                            }}
+                          />
+                          <button
+                            disabled={!bulkCancelReason.trim() || bulkCancelLoading}
+                            onClick={handleBulkCancel}
+                            className={cn(
+                              "px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all whitespace-nowrap",
+                              bulkCancelReason.trim() && !bulkCancelLoading
+                                ? "bg-red-600 hover:bg-red-700 text-white border-red-500/50 shadow-lg shadow-red-500/20"
+                                : "bg-zinc-800 text-zinc-600 border-white/5 cursor-not-allowed"
+                            )}
+                          >
+                            {bulkCancelLoading ? `Cancelando...` : `Cancelar ${selectedCancelCount}`}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   )}
                 </div>
               )}

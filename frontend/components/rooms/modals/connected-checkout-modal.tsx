@@ -4,12 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
-import { getActiveStay } from "@/hooks/use-room-actions";
-import { useRoomActions } from "@/hooks/use-room-actions";
+import { getActiveStay, useRoomActions } from "@/hooks/room-actions";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import type { ConsumptionTicketData } from "@/hooks/use-thermal-printer";
+import { summarizePendingItems, hasBlockingDeliveries } from "@/lib/utils/order-utils";
 
 interface ConnectedCheckoutModalProps {
   room: Room | null;
@@ -98,40 +98,12 @@ export function ConnectedCheckoutModal({
     const supabase = createClient();
     const { data: itemsData } = await supabase
       .from("sales_order_items")
-      .select("concept_type, total, is_paid, delivery_status")
+      .select("concept_type, total, is_paid, delivery_status, is_cancelled")
       .eq("sales_order_id", info.salesOrderId);
 
-    const pendingByType: Record<string, { total: number; count: number }> = {};
-    let hasUndeliveredItems = false;
-
-    if (itemsData) {
-      itemsData.forEach((item: any) => {
-        if (!item.is_paid) {
-          const type = item.concept_type || "PRODUCT";
-          if (!pendingByType[type]) {
-            pendingByType[type] = { total: 0, count: 0 };
-          }
-          pendingByType[type].total += item.total || 0;
-          pendingByType[type].count += 1;
-
-          if (
-            item.delivery_status &&
-            item.delivery_status !== "DELIVERED" &&
-            item.delivery_status !== "COMPLETED"
-          ) {
-            hasUndeliveredItems = true;
-          }
-        }
-      });
-    }
-
-    const pendingItems = Object.entries(pendingByType).map(
-      ([concept_type, data]) => ({
-        concept_type,
-        total: data.total,
-        count: data.count,
-      })
-    );
+    const items = itemsData || [];
+    const { pendingItems } = summarizePendingItems(items);
+    const hasUndeliveredItems = hasBlockingDeliveries(items);
 
     setCheckoutInfo({ ...info, pendingItems, hasUndeliveredItems });
     setCheckoutAmount(info.remainingAmount);

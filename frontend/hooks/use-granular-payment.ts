@@ -4,22 +4,7 @@ import { useState, useEffect } from "react";
 import { usePaymentItems } from "./payment/use-payment-items";
 import { useValetInteraction } from "./payment/use-valet-interaction";
 import { usePaymentProcessing } from "./payment/use-payment-processing";
-
-export interface OrderItem {
-  id: string;
-  concept_type: string;
-  total: number;
-  is_paid: boolean;
-  paid_at?: string;
-  payment_method?: string;
-  product_id?: string;
-  qty?: number;
-  products?: {
-    name: string;
-    sku?: string;
-  };
-  delivery_status?: string;
-}
+import { OrderItem } from "@/components/sales/payment/payment-constants";
 
 interface UseGranularPaymentProps {
   salesOrderId: string;
