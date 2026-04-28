@@ -12,8 +12,7 @@ import {
 } from "@/hooks/room-actions";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
-import { generateGuestPortalQR } from "@/lib/utils/guest-portal-qr";
-import { printHTML } from "@/lib/utils/print-helper";
+import { getGuestPortalURL } from "@/lib/utils/guest-portal-qr";
 
 interface ConnectedQuickCheckinModalProps {
   isOpen: boolean;
@@ -32,7 +31,7 @@ export function ConnectedQuickCheckinModal({
 }: ConnectedQuickCheckinModalProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const systemConfig = useSystemConfigRead();
-  const { printEntryTicket } = useThermalPrinter();
+  const { printEntryTicket, printQRTicket } = useThermalPrinter();
   const MAX_PENDING_QUICK_CHECKINS = systemConfig.maxPendingQuickCheckins;
 
   const handleQuickCheckin = async (data: {
@@ -276,36 +275,13 @@ export function ConnectedQuickCheckinModal({
         console.error('Error printing entry ticket (non-blocking):', printErr);
       }
 
-      // Imprimir ticket QR del portal de huéspedes
+      // Imprimir ticket QR del portal de huéspedes (silencioso via print-server)
       try {
-        const qrDataURL = await generateGuestPortalQR(selectedRoom.number, guestToken);
-        const qrHTML = `
-          <html>
-            <head>
-              <title>Portal Huésped - Habitación ${selectedRoom.number}</title>
-              <style>
-                @page { size: 80mm auto; margin: 0; }
-                body { width: 80mm; max-width: 100%; margin: 0; padding: 10px 0; font-family: system-ui, -apple-system, sans-serif; text-align: center; color: #000; }
-                h1 { font-size: 16px; margin: 0 0 5px 0; font-weight: bold; text-transform: uppercase; }
-                .room { font-size: 24px; font-weight: bold; margin: 5px 0 10px 0; }
-                .qr-container { display: flex; justify-content: center; margin: 0; padding: 0; }
-                img { width: 65mm; height: auto; display: block; }
-                .footer { margin-top: 10px; font-size: 12px; line-height: 1.2; font-weight: bold; }
-              </style>
-            </head>
-            <body>
-              <h1>Portal de Huéspedes</h1>
-              <div class="room">Habitación ${selectedRoom.number}</div>
-              <div class="qr-container">
-                <img src="${qrDataURL}" alt="QR Code" />
-              </div>
-              <div class="footer">
-                <p>ESCANEA PARA ACCEDER<br>A TU HABITACIÓN</p>
-              </div>
-            </body>
-          </html>
-        `;
-        await printHTML(qrHTML);
+        const portalURL = getGuestPortalURL(selectedRoom.number, guestToken);
+        await printQRTicket({
+          roomNumber: selectedRoom.number,
+          url: portalURL,
+        });
       } catch (qrErr) {
         console.error('Error printing QR portal ticket (non-blocking):', qrErr);
       }

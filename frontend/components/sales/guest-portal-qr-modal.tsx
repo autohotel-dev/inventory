@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { X, Copy, Check, Download, Printer } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { generateGuestPortalQR, getGuestPortalURL } from '@/lib/utils/guest-portal-qr';
-import { printHTML } from '@/lib/utils/print-helper';
+import { useThermalPrinter } from '@/hooks/use-thermal-printer';
 import {
     Dialog,
     DialogContent,
@@ -37,6 +37,7 @@ export function GuestPortalQRModal({
     const [isCopied, setIsCopied] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const { printQRTicket } = useThermalPrinter();
 
     useEffect(() => {
         if (isOpen && roomStayId) {
@@ -102,70 +103,11 @@ export function GuestPortalQRModal({
     }
 
     async function handlePrintQR() {
-        // Generate the HTML content
-        const htmlContent = `
-        <html>
-          <head>
-            <title>Portal Huésped - Habitación ${roomNumber}</title>
-            <style>
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                width: 80mm; /* Force full 80mm width */
-                max-width: 100%;
-                margin: 0;
-                padding: 10px 0;
-                font-family: system-ui, -apple-system, sans-serif;
-                text-align: center;
-                color: #000;
-              }
-              h1 { 
-                font-size: 16px; 
-                margin: 0 0 5px 0;
-                font-weight: bold;
-                text-transform: uppercase;
-              }
-              .room { 
-                font-size: 24px; 
-                font-weight: bold; 
-                margin: 5px 0 10px 0;
-              }
-              .qr-container {
-                display: flex;
-                justify-content: center;
-                margin: 0;
-                padding: 0;
-              }
-              img { 
-                width: 65mm; /* Specific width for 80mm paper to avoid overflow but max size */
-                height: auto;
-                display: block;
-              }
-              .footer { 
-                margin-top: 10px; 
-                font-size: 12px; 
-                line-height: 1.2;
-                font-weight: bold;
-              }
-            </style>
-          </head>
-          <body>
-            <h1>Portal de Huéspedes</h1>
-            <div class="room">Habitación ${roomNumber}</div>
-            <div class="qr-container">
-              <img src="${qrCodeDataURL}" alt="QR Code" />
-            </div>
-            <div class="footer">
-              <p>ESCANEA PARA ACCEDER<br>A TU HABITACIÓN</p>
-            </div>
-          </body>
-        </html>
-      `;
-
         try {
-            await printHTML(htmlContent);
+            await printQRTicket({
+                roomNumber,
+                url: portalURL,
+            });
         } catch (error) {
             console.error("Failed to print:", error);
         }

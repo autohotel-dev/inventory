@@ -205,8 +205,82 @@ export function useShiftClosingHistory() {
 
   // ─── Print/Export (via print-server API, silencioso) ───────────────
 
+  const CONCEPT_LABELS: Record<string, string> = {
+    ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
+    CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
+  };
+
   const exportClosing = async (closing: ShiftClosing) => {
     try {
+      // Cargar todos los detalles del corte con pagos e items
+      const { data: details } = await supabase
+        .from("shift_closing_details")
+        .select("*, payments(id, amount, payment_method, reference, concept, terminal_code, created_at, sales_order_id, payment_terminals(code, name))")
+        .eq("shift_closing_id", closing.id)
+        .order("created_at", { ascending: true });
+
+      // Obtener IDs de órdenes para buscar items
+      const salesOrderIds = [...new Set(
+        (details || []).filter((d: any) => d.sales_order_id).map((d: any) => d.sales_order_id)
+      )];
+
+      let allItems: any[] = [];
+      if (salesOrderIds.length > 0) {
+        const { data } = await supabase
+          .from("sales_order_items")
+          .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, sales_order_id, products(name, sku)")
+          .in("sales_order_id", salesOrderIds)
+          .eq("is_paid", true)
+          .not("paid_at", "is", null);
+        allItems = data || [];
+      }
+
+      // Agrupar items por orden
+      const itemsBySalesOrder = allItems.reduce((acc: any, item: any) => {
+        if (!acc[item.sales_order_id]) acc[item.sales_order_id] = [];
+        acc[item.sales_order_id].push(item);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Construir transacciones detalladas (mismo formato que el corte original)
+      const transactions = (details || []).map((detail: any) => {
+        const payment = detail.payments;
+        if (!payment) return null;
+
+        // Buscar items relacionados a este pago por timestamp
+        let items: any[] = [];
+        if (payment.sales_order_id && itemsBySalesOrder[payment.sales_order_id]) {
+          const paymentTime = new Date(payment.created_at).getTime();
+          const relatedItems = itemsBySalesOrder[payment.sales_order_id].filter((item: any) => {
+            if (!item.paid_at) return false;
+            return Math.abs(paymentTime - new Date(item.paid_at).getTime()) / 1000 / 60 <= 5;
+          });
+          items = relatedItems.map((item: any) => {
+            const product = Array.isArray(item.products) ? item.products[0] : item.products;
+            return {
+              name: product?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"] || "Item",
+              qty: item.qty,
+              unitPrice: item.unit_price,
+              total: item.qty * item.unit_price,
+            };
+          });
+        }
+
+        const concept = items.length > 0
+          ? items.map((i: any) => i.qty > 1 ? `${i.qty}x ${i.name}` : i.name).join(", ")
+          : payment.concept || undefined;
+
+        return {
+          time: new Date(payment.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          amount: payment.amount,
+          paymentMethod: detail.payment_method || payment.payment_method || 'N/A',
+          terminalCode: detail.terminal_code || payment.payment_terminals?.code || payment.terminal_code,
+          reference: payment.reference || undefined,
+          concept,
+          items: items.length > 0 ? items : undefined,
+        };
+      }).filter(Boolean);
+
       await printClosing({
         employeeName: `${closing.employees?.first_name || ''} ${closing.employees?.last_name || ''}`,
         shiftName: closing.shift_definitions?.name || 'Turno',
@@ -220,7 +294,7 @@ export function useShiftClosingHistory() {
         countedCash: closing.counted_cash || 0,
         cashDifference: closing.cash_difference || 0,
         notes: closing.notes || undefined,
-        transactions: [],
+        transactions,
       });
     } catch (err) {
       console.error("Error al imprimir:", err);

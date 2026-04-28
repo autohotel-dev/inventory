@@ -53,6 +53,12 @@ interface PaymentTicketData {
     remainingAmount?: number;
 }
 
+interface QRTicketData {
+    roomNumber: string;
+    url: string;
+    title?: string;
+}
+
 interface UseThermalPrinterReturn {
     isPrinting: boolean;
     printStatus: 'idle' | 'printing_reception' | 'printing_client' | 'success' | 'error';
@@ -60,6 +66,7 @@ interface UseThermalPrinterReturn {
     printCheckoutTicket: (data: ConsumptionTicketData) => Promise<boolean>;
     printEntryTicket: (data: EntryTicketData) => Promise<boolean>;
     printPaymentTicket: (data: PaymentTicketData) => Promise<boolean>;
+    printQRTicket: (data: QRTicketData) => Promise<boolean>;
     printTestTicket: () => Promise<boolean>;
     error: string | null;
 }
@@ -306,6 +313,44 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         }
     }, []);
 
+    // QR: imprime ticket con QR nativo ESC/POS
+    const printQRTicket = useCallback(async (data: QRTicketData): Promise<boolean> => {
+        setIsPrinting(true);
+        setError(null);
+        setPrintStatus('printing_reception');
+
+        try {
+            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'qr', data })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al imprimir QR');
+            }
+
+            setPrintStatus('success');
+            return true;
+        } catch (err) {
+            console.error('QR print error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
+            setError(errorMessage);
+            setPrintStatus('error');
+
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                toast.error('Print-server no disponible', {
+                    description: 'Verifica que el print-server esté corriendo',
+                    duration: 8000
+                });
+            }
+            return false;
+        } finally {
+            setIsPrinting(false);
+        }
+    }, []);
+
     return {
         isPrinting,
         printStatus,
@@ -313,11 +358,12 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         printCheckoutTicket,
         printEntryTicket,
         printPaymentTicket,
+        printQRTicket,
         printTestTicket,
         error
     };
 }
 
 // Re-exportar los tipos para uso en otros lugares
-export type { ConsumptionTicketData, EntryTicketData, PaymentTicketData };
+export type { ConsumptionTicketData, EntryTicketData, PaymentTicketData, QRTicketData };
 

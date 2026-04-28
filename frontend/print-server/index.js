@@ -91,7 +91,8 @@ function sendToPrinter(data) {
 
         socket.on('connect', () => {
             console.log(`[PRINTER] Conectado a ${PRINTER_IP}:${PRINTER_PORT}`);
-            socket.write(data, 'binary', (err) => {
+            const writeData = Buffer.isBuffer(data) ? data : Buffer.from(data, 'binary');
+            socket.write(writeData, (err) => {
                 if (err) {
                     console.error('[PRINTER] Error al escribir:', err);
                     if (!resolved) {
@@ -469,6 +470,67 @@ function buildCheckoutTicket(data) {
     return t;
 }
 
+function buildQRTicket(data) {
+    // data: { roomNumber, url, title? }
+    const url = data.url || '';
+    const roomNumber = data.roomNumber || '';
+    const title = data.title || 'PORTAL DE HUESPEDES';
+
+    let t = CMD.INIT;
+    // Margen superior
+    t += CMD.MARGIN;
+
+    // Header
+    t += CMD.ALIGN_CENTER;
+    t += CMD.BOLD_ON + CMD.DOUBLE_HEIGHT;
+    t += title + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE;
+    t += CMD.BOLD_ON;
+    t += `Habitacion ${roomNumber}` + CMD.NEW_LINE;
+    t += CMD.BOLD_OFF;
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    t += CMD.NEW_LINE;
+
+    // QR Code nativo ESC/POS usando GS ( k
+    // Función 165: Modelo QR = Modelo 2
+    const model = Buffer.from([0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]);
+    // Función 167: Tamaño del módulo (8 = grande para 80mm)
+    const size = Buffer.from([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x08]);
+    // Función 169: Error correction level = L (48=L, 49=M, 50=Q, 51=H)
+    const errorCorr = Buffer.from([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31]);
+    // Función 180: Almacenar datos
+    const urlBytes = Buffer.from(url, 'utf-8');
+    const storeLen = urlBytes.length + 3;
+    const pL = storeLen & 0xFF;
+    const pH = (storeLen >> 8) & 0xFF;
+    const storeData = Buffer.concat([
+        Buffer.from([0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30]),
+        urlBytes
+    ]);
+    // Función 181: Imprimir QR
+    const printQR = Buffer.from([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]);
+
+    // Convertir texto previo a buffer
+    const textBefore = Buffer.from(t, 'binary');
+
+    // Texto posterior
+    let after = '';
+    after += CMD.NEW_LINE;
+    after += CMD.BOLD_ON;
+    after += 'ESCANEA PARA ACCEDER' + CMD.NEW_LINE;
+    after += 'A TU HABITACION' + CMD.NEW_LINE;
+    after += CMD.BOLD_OFF;
+    after += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+
+    // Margen inferior
+    after += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
+
+    const textAfter = Buffer.from(after, 'binary');
+
+    // Concatenar todo como Buffer
+    return Buffer.concat([textBefore, model, size, errorCorr, storeData, printQR, textAfter]);
+}
+
 // === ENDPOINTS ===
 
 app.get('/health', (req, res) => {
@@ -508,6 +570,9 @@ app.post('/print', async (req, res) => {
                 break;
             case 'checkout':
                 ticket = buildCheckoutTicket(data);
+                break;
+            case 'qr':
+                ticket = buildQRTicket(data);
                 break;
             default:
                 return res.status(400).json({ error: 'Tipo de impresión inválido' });
