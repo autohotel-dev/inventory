@@ -528,7 +528,7 @@ export function useConsumptionCart({
         return;
       }
 
-      // Get shift session
+      // Get shift session — must always resolve to the ACTIVE shift, never a closed one
       const { data: { user } } = await supabase.auth.getUser();
       let currentSessionId = null;
       if (user) {
@@ -536,8 +536,26 @@ export function useConsumptionCart({
           .from('employees').select('id').eq('auth_user_id', user.id).single();
         if (employee) {
           const { data: activeSession } = await supabase
-            .from('shift_sessions').select('id').eq('employee_id', employee.id).eq('status', 'active').maybeSingle();
+            .from('shift_sessions').select('id')
+            .eq('employee_id', employee.id)
+            .in('status', ['active', 'open'])
+            .maybeSingle();
           currentSessionId = activeSession?.id || null;
+
+          // Fallback: if current user has no active shift, find any active reception shift.
+          // This prevents items from being inserted with shift_session_id = null
+          // when the user's shift is in 'pending_closing' state.
+          if (!currentSessionId) {
+            const { data: receptionSession } = await supabase
+              .from('shift_sessions')
+              .select('id, employees!inner(role)')
+              .in('status', ['active', 'open'])
+              .or('role.eq.receptionist,role.eq.admin,role.eq.manager', { foreignTable: 'employees' })
+              .order('clock_in_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            currentSessionId = receptionSession?.id || null;
+          }
         }
       }
 

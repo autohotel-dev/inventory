@@ -94,9 +94,23 @@ export function usePaymentProcessing({
           )
         `)
         .eq('employee_id', employee.id)
-        .eq('status', 'active')
+        .in('status', ['active', 'open'])
         .in('employees.role', ['receptionist', 'admin', 'manager'])
         .maybeSingle();
+
+      // Fallback: if current user has no active shift, find any active reception shift
+      let resolvedSession = session;
+      if (!resolvedSession) {
+        const { data: receptionSession } = await supabase
+          .from('shift_sessions')
+          .select('id, employees!inner(role)')
+          .in('status', ['active', 'open'])
+          .or('role.eq.receptionist,role.eq.admin,role.eq.manager', { foreignTable: 'employees' })
+          .order('clock_in_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        resolvedSession = receptionSession;
+      }
       
       // LOG DE AUDITORÍA: Inicio de proceso de pago
       await supabase.rpc('log_audit', {
@@ -109,7 +123,7 @@ export function usePaymentProcessing({
           payment_count: payments.length,
           total_amount: payments.reduce((sum, p) => sum + p.amount, 0),
           employee_id: employee.id,
-          session_id: session?.id
+          session_id: resolvedSession?.id
         },
         p_severity: 'INFO'
       });
@@ -152,7 +166,7 @@ export function usePaymentProcessing({
             status: "PAGADO",
             confirmed_at: new Date().toISOString(),
             confirmed_by: employee.id,
-            shift_session_id: session?.id || null,
+            shift_session_id: resolvedSession?.id || null,
             collected_at: new Date().toISOString(),
             terminal_code: p.terminal || null,
             reference: p.reference || existingPayment.id, // Preservar referencia si no hay nueva
@@ -183,7 +197,7 @@ export function usePaymentProcessing({
                 original_collected_by: existingPayment.collected_by,
                 corrected_by: employee.id,
                 old_session: existingPayment.shift_session_id,
-                new_session: session?.id
+                new_session: resolvedSession?.id
               },
               p_severity: 'INFO'
             });
@@ -205,7 +219,7 @@ export function usePaymentProcessing({
             status: "PAGADO",
             payment_type: validPayments.length > 1 ? "PARCIAL" : "COMPLETO",
             created_by: user.id,
-            shift_session_id: session?.id || null,
+            shift_session_id: resolvedSession?.id || null,
             collected_at: new Date().toISOString(),
             collected_by: p.collected_by || null
           };
@@ -227,7 +241,7 @@ export function usePaymentProcessing({
               status: "PAGADO",
               confirmed_at: new Date().toISOString(),
               confirmed_by: employee.id,
-              shift_session_id: session?.id || null
+              shift_session_id: resolvedSession?.id || null
             })
             .eq("id", remaining.id);
           
@@ -247,7 +261,7 @@ export function usePaymentProcessing({
             concept: "PROPINA",
             status: "PAGADO",
             created_by: user.id,
-            shift_session_id: session?.id || null,
+            shift_session_id: resolvedSession?.id || null,
             collected_at: new Date().toISOString()
          });
       }
