@@ -347,7 +347,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
     // Setters
     setNotes, setShowExpenses,
     // Actions
-    handleSaveClosing, handlePrintClosing,
+    handleSaveClosing, handlePrintClosing, handlePrintHP,
     // Computed
     netCash, shiftStart, shiftEnd, durationHours, durationMinutes,
     // Helpers

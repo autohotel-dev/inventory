@@ -10,13 +10,16 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
   DollarSign, CreditCard, Receipt, Calculator, CheckCircle, XCircle,
   AlertTriangle, Loader2, FileText, Clock, TrendingUp, TrendingDown,
-  Minus, History, Printer, ArrowDownCircle, Filter, ShoppingBag,
+  Minus, History, Printer, ArrowDownCircle, Filter, ShoppingBag, ChevronDown,
 } from "lucide-react";
 import {
   Employee, ShiftDefinition, ShiftSession, ShiftClosing, SHIFT_COLORS, CashBreakdown,
@@ -36,7 +39,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
   const {
     loading, saving, summary, notes, showExpenses, isPrintingClosing,
     setNotes, setShowExpenses,
-    handleSaveClosing, handlePrintClosing,
+    handleSaveClosing, handlePrintClosing, handlePrintHP,
     netCash, shiftStart, shiftEnd, durationHours, durationMinutes,
     formatCurrency: fc,
   } = useShiftClosing({ session, onComplete });
@@ -228,10 +231,25 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
             Cancelar
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handlePrintClosing} disabled={loading || !summary} size="sm">
-              <Printer className="h-4 w-4 mr-2" />
-              Pre-Corte
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={loading || !summary} size="sm">
+                  <Printer className="h-4 w-4 mr-2" />
+                  Pre-Corte
+                  <ChevronDown className="h-3 w-3 ml-1.5 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={handlePrintClosing} className="cursor-pointer">
+                  <Receipt className="h-4 w-4 mr-2 text-orange-500" />
+                  Ticket (térmica)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handlePrintHP} className="cursor-pointer">
+                  <FileText className="h-4 w-4 mr-2 text-blue-500" />
+                  Hoja completa (HP)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               onClick={handleSaveClosing}
               disabled={saving || loading || !summary}
