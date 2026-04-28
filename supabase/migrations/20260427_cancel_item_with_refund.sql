@@ -70,14 +70,14 @@ BEGIN
     END IF;
 
     -- 3. Get active stay (may not exist for non-room sales)
-    SELECT rs.*, r.room_types_id INTO v_stay 
+    SELECT rs.*, r.room_type_id INTO v_stay 
     FROM public.room_stays rs
     JOIN public.rooms r ON r.id = rs.room_id
     WHERE rs.sales_order_id = v_item.sales_order_id AND rs.status = 'ACTIVA'
     FOR UPDATE;
 
     IF FOUND THEN
-        SELECT * INTO v_room_type FROM public.room_types WHERE id = v_stay.room_types_id;
+        SELECT * INTO v_room_type FROM public.room_types WHERE id = v_stay.room_type_id;
     END IF;
 
     -- 4. Determine time/people adjustments based on concept_type
@@ -132,7 +132,7 @@ BEGIN
         );
         v_refund_created := true;
 
-        -- Adjust order: reduce paid_amount, subtotal, and total (NOT remaining)
+        -- Adjust order: reduce paid_amount, subtotal, and total
         UPDATE public.sales_orders
         SET subtotal = GREATEST(0, subtotal - v_item_total),
             total = GREATEST(0, total - v_item_total),
@@ -141,6 +141,7 @@ BEGIN
 
     ELSE
         -- Item was PENDING → Find and remove/reduce the corresponding PENDIENTE payment
+        -- Try exact concept match first (uses the same values as the frontend)
         SELECT * INTO v_payment 
         FROM public.payments 
         WHERE sales_order_id = v_item.sales_order_id 
@@ -148,8 +149,11 @@ BEGIN
           AND concept = CASE 
               WHEN v_item.concept_type = 'EXTRA_PERSON' THEN 'PERSONA_EXTRA'
               WHEN v_item.concept_type = 'DAMAGE' THEN 'DAMAGE_CHARGE'
-              WHEN v_item.concept_type = 'CONSUMPTION' THEN 'CONSUMO'
-              ELSE COALESCE(v_item.concept_type, 'CONSUMO')
+              WHEN v_item.concept_type = 'CONSUMPTION' THEN 'CONSUMPTION'
+              WHEN v_item.concept_type = 'EXTRA_HOUR' THEN 'EXTRA_HOUR'
+              WHEN v_item.concept_type = 'PROMO_4H' THEN 'PROMO_4H'
+              WHEN v_item.concept_type = 'RENEWAL' THEN 'RENEWAL'
+              ELSE COALESCE(v_item.concept_type, 'CONSUMPTION')
           END
         ORDER BY created_at DESC
         LIMIT 1 FOR UPDATE;
@@ -163,13 +167,14 @@ BEGIN
             END IF;
         END IF;
 
-        -- Adjust order: reduce subtotal, total, and remaining
+        -- Adjust order: reduce subtotal and total
         UPDATE public.sales_orders
         SET subtotal = GREATEST(0, subtotal - v_item_total),
-            total = GREATEST(0, total - v_item_total),
-            remaining_amount = GREATEST(0, remaining_amount - v_item_total)
+            total = GREATEST(0, total - v_item_total)
         WHERE id = v_item.sales_order_id;
     END IF;
+
+    -- remaining_amount is auto-recalculated by trigger trg_sync_sales_order_totals
 
     -- 7. Return inventory for physical products (CONSUMPTION items with product_id)
     IF v_item.product_id IS NOT NULL AND v_item.concept_type = 'CONSUMPTION' THEN
@@ -189,7 +194,7 @@ BEGIN
             v_order.warehouse_id,
             v_item.qty,
             'IN',
-            7,  -- Assuming reason_id 7 = CANCELLATION (or use existing)
+            7,
             'CANCELLATION',
             'Devolución por cancelación: ' || p_reason,
             'sales_order_items',
@@ -199,12 +204,13 @@ BEGIN
         v_inventory_returned := true;
     END IF;
 
-    -- 8. Soft-delete: Mark item as cancelled (keep for audit)
+    -- 8. Soft-delete: Mark item as cancelled + set delivery_status CANCELLED
     UPDATE public.sales_order_items
     SET is_cancelled = true,
         cancellation_reason = p_reason,
         cancelled_at = now(),
-        cancelled_by = p_employee_id
+        cancelled_by = p_employee_id,
+        delivery_status = 'CANCELLED'
     WHERE id = p_item_id;
 
     RETURN jsonb_build_object(

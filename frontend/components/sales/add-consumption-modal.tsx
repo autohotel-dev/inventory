@@ -848,14 +848,13 @@ export function AddConsumptionModal({
       if (orderData) {
         const newSubtotal = (orderData.subtotal || 0) + totalAmount;
         const newTotal = (orderData.total || 0) + totalAmount;
-        const newRemaining = (orderData.remaining_amount || 0) + totalAmount;
+        // remaining_amount is auto-calculated by the DB trigger (trg_sync_sales_order_totals)
 
         await supabase
           .from("sales_orders")
           .update({
             subtotal: newSubtotal,
             total: newTotal,
-            remaining_amount: newRemaining,
             status: "PARTIAL",
           })
           .eq("id", salesOrderId);
@@ -870,7 +869,7 @@ export function AddConsumptionModal({
           await notifyActiveValets(
             supabase,
             '🛒 Nuevo Consumo Registrado',
-            `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Saldo pendiente: $${newRemaining.toFixed(2)} MXN.`,
+            `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Nuevo cargo: $${totalAmount.toFixed(2)} MXN.`,
             {
               type: 'REGULAR_CONSUMPTION',
               salesOrderId: salesOrderId,

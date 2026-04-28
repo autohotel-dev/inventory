@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -72,10 +73,10 @@ export function CancelItemModal({
     }
   };
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
+        <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden pointer-events-auto" onClick={(e) => e.stopPropagation()}>
           {/* Accent bar */}
           <div className="h-1 bg-gradient-to-r from-red-500 via-orange-500 to-amber-500" />
 
@@ -243,6 +244,7 @@ export function CancelItemModal({
         variant="danger"
         requireReason={false}
       />
-    </>
+    </>,
+    document.body
   );
 }

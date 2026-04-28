@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2, XCircle } from "lucide-react";
+import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2, XCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { AssignAssetModal } from "@/components/rooms/modals/assign-asset-modal";
 import { Tv } from "lucide-react";
-import { CancelItemModal } from "@/components/sales/cancel-item-modal";
+
 
 interface Payment {
   id: string;
@@ -94,7 +94,9 @@ export function RoomDetailsModal({
   const [isAssignAssetModalOpen, setIsAssignAssetModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"payments" | "items">("payments");
-  const [cancelItemTarget, setCancelItemTarget] = useState<SalesOrderItem | null>(null);
+  const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancellingLoading, setCancellingLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -243,7 +245,7 @@ export function RoomDetailsModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-2xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-[2rem] h-[85vh] flex flex-col">
+      <DialogContent className="max-w-6xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-2xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-[2rem] h-[90vh] flex flex-col">
         {/* Header con glassmorphism */}
         <div className="relative p-8 shrink-0 overflow-hidden border-b border-white/5 bg-zinc-900/50">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
@@ -433,104 +435,180 @@ export function RoomDetailsModal({
                       <p className="text-lg font-black uppercase tracking-widest text-zinc-500">Sin Cargos</p>
                     </div>
                   ) : (
-                    <div className="bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden">
-                      <table className="w-full text-left">
+                    <div className="bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden overflow-x-auto">
+                      <table className="w-full text-left min-w-0">
                         <thead>
                           <tr className="bg-white/5">
-                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">CONCEPTO / PRODUCTO</th>
-                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-center">CANT.</th>
-                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-right">PRECIO</th>
-                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-right">TOTAL</th>
-                            {onCancelItem && <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 text-center w-16"></th>}
+                            <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">CONCEPTO / PRODUCTO</th>
+                            <th className="px-2 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 text-center">CANT.</th>
+                            <th className="px-3 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 text-right">PRECIO</th>
+                            <th className="px-3 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 text-right">TOTAL</th>
+                            {onCancelItem && <th className="px-2 py-3 w-10"></th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {items.map((item) => {
                             const isCancelled = item.is_cancelled === true;
+                            const isCancelMode = cancellingItemId === item.id;
+                            const itemTotal = item.qty * Number(item.unit_price);
                             return (
-                            <tr key={item.id} className={cn(
-                              "group transition-colors",
-                              isCancelled ? "opacity-50" : "hover:bg-white/5"
+                            <React.Fragment key={item.id}>
+                            <tr className={cn(
+                              "group transition-all duration-300",
+                              isCancelled ? "opacity-50" : isCancelMode ? "bg-red-500/5" : "hover:bg-white/5"
                             )}>
-                              <td className="px-6 py-5">
-                                <div className="flex items-center gap-4">
+                              <td className="px-4 py-4">
+                                <div className="flex items-center gap-3">
                                   <div className={cn(
-                                    "h-10 w-10 rounded-2xl flex items-center justify-center border transition-all duration-300",
+                                    "h-8 w-8 shrink-0 rounded-xl flex items-center justify-center border transition-all duration-300",
                                     isCancelled 
                                       ? "bg-red-900/20 border-red-500/20 text-red-500/50" 
+                                      : isCancelMode
+                                      ? "bg-red-500/20 border-red-500/30 text-red-400 animate-pulse"
                                       : "bg-zinc-900 border-white/5 text-zinc-400 group-hover:border-primary/30 group-hover:text-primary"
                                   )}>
-                                    {isCancelled ? <XCircle size={18} /> : item.concept_type === 'CONSUMPTION' ? <Package size={18} /> : <Receipt size={18} />}
+                                    {isCancelled ? <XCircle size={14} /> : isCancelMode ? <XCircle size={14} /> : item.concept_type === 'CONSUMPTION' ? <Package size={14} /> : <Receipt size={14} />}
                                   </div>
-                                  <div>
+                                  <div className="min-w-0">
                                     <div className={cn(
-                                      "text-sm font-bold tracking-tight",
-                                      isCancelled ? "text-zinc-500 line-through" : "text-white"
+                                      "text-xs font-bold tracking-tight truncate",
+                                      isCancelled ? "text-zinc-500 line-through" : isCancelMode ? "text-red-300" : "text-white"
                                     )}>
                                       {item.products?.name || getConceptLabel(item.concept_type || "Producto")}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[10px] font-black font-mono text-zinc-500 uppercase tracking-widest">{item.products?.sku || "SVC"}</span>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-[9px] font-black font-mono text-zinc-500 uppercase tracking-wider">{item.products?.sku || "SVC"}</span>
                                       {isCancelled && (
-                                        <Badge className="text-[8px] font-black tracking-widest bg-red-500/10 text-red-400 border-red-500/20 px-1.5 py-0">
+                                        <Badge className="text-[7px] font-black tracking-widest bg-red-500/10 text-red-400 border-red-500/20 px-1 py-0">
                                           CANCELADO
                                         </Badge>
                                       )}
                                     </div>
                                     {isCancelled && item.cancellation_reason && (
-                                      <p className="text-[9px] text-red-400/60 italic mt-1 truncate max-w-[200px]" title={item.cancellation_reason}>
+                                      <p className="text-[8px] text-red-400/60 italic mt-0.5 truncate max-w-[160px]" title={item.cancellation_reason}>
                                         "{item.cancellation_reason}"
                                       </p>
                                     )}
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-5 text-center">
+                              <td className="px-2 py-4 text-center">
                                 <span className={cn(
-                                  "px-3 py-1 rounded-lg text-xs font-black font-mono border",
+                                  "px-2 py-0.5 rounded-md text-[10px] font-black font-mono border",
                                   isCancelled ? "bg-zinc-900/50 text-zinc-600 border-white/5" : "bg-zinc-900 text-zinc-300 border-white/5"
                                 )}>
                                   x{item.qty}
                                 </span>
                               </td>
                               <td className={cn(
-                                "px-6 py-5 text-right font-mono text-sm",
+                                "px-3 py-4 text-right font-mono text-xs",
                                 isCancelled ? "text-zinc-600 line-through" : "text-zinc-400"
                               )}>
                                 ${Number(item.unit_price).toFixed(2)}
                               </td>
                               <td className={cn(
-                                "px-6 py-5 text-right font-black text-sm",
-                                isCancelled ? "text-zinc-600 line-through" : "text-white"
+                                "px-3 py-4 text-right font-black text-xs",
+                                isCancelled ? "text-zinc-600 line-through" : isCancelMode ? "text-red-400" : "text-white"
                               )}>
-                                ${(item.qty * Number(item.unit_price)).toFixed(2)}
+                                ${itemTotal.toFixed(2)}
                               </td>
                               {onCancelItem && (
-                                <td className="px-4 py-5 text-center">
-                                  {!isCancelled && (
+                                <td className="px-2 py-4 text-center">
+                                  {!isCancelled && !isCancelMode && (
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setCancelItemTarget(item); }}
-                                      className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors border border-red-500/20 opacity-0 group-hover:opacity-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCancellingItemId(item.id);
+                                        setCancelReason("");
+                                      }}
+                                      className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors border border-red-500/20 opacity-0 group-hover:opacity-100"
                                       title="Cancelar item"
                                     >
-                                      <XCircle size={14} />
+                                      <XCircle size={12} />
                                     </button>
                                   )}
                                 </td>
                               )}
                             </tr>
+                            {/* Inline cancel panel */}
+                            {isCancelMode && (
+                              <tr>
+                                <td colSpan={onCancelItem ? 5 : 4} className="p-0">
+                                  <div className="bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent border-t border-b border-red-500/20 px-4 py-3 animate-in slide-in-from-top-2 fade-in duration-300">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <AlertTriangle size={12} className="text-red-400 shrink-0" />
+                                      <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                                        Cancelar — ${itemTotal.toFixed(2)} {item.is_paid ? '(REEMBOLSO)' : '(PENDIENTE)'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={cancelReason}
+                                        onChange={(e) => setCancelReason(e.target.value)}
+                                        placeholder="Motivo de cancelación..."
+                                        className="flex-1 bg-zinc-900/80 border border-red-500/20 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-red-500/40"
+                                        disabled={cancellingLoading}
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Escape') {
+                                            setCancellingItemId(null);
+                                            setCancelReason("");
+                                          }
+                                        }}
+                                      />
+                                      <button
+                                        onClick={() => { setCancellingItemId(null); setCancelReason(""); }}
+                                        className="px-3 py-2 rounded-lg text-[10px] font-bold text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-white/10 transition-colors"
+                                        disabled={cancellingLoading}
+                                      >
+                                        No
+                                      </button>
+                                      <button
+                                        disabled={!cancelReason.trim() || cancellingLoading}
+                                        onClick={async () => {
+                                          if (!room || !onCancelItem || !cancelReason.trim()) return;
+                                          setCancellingLoading(true);
+                                          try {
+                                            const success = await onCancelItem(item.id, room, cancelReason.trim());
+                                            if (success) {
+                                              setCancellingItemId(null);
+                                              setCancelReason("");
+                                              if (activeStay?.sales_order_id) {
+                                                await fetchDetails(activeStay.sales_order_id);
+                                              }
+                                            }
+                                          } finally {
+                                            setCancellingLoading(false);
+                                          }
+                                        }}
+                                        className={cn(
+                                          "px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all",
+                                          cancelReason.trim() && !cancellingLoading
+                                            ? "bg-red-600 hover:bg-red-700 text-white border-red-500/50"
+                                            : "bg-zinc-800 text-zinc-600 border-white/5 cursor-not-allowed"
+                                        )}
+                                      >
+                                        {cancellingLoading ? "..." : "Cancelar"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            </React.Fragment>
                             );
                           })}
                         </tbody>
                         <tfoot>
                           <tr className="bg-white/5">
-                            <td colSpan={onCancelItem ? 4 : 3} className="px-6 py-6 text-right">
-                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">
+                            <td colSpan={onCancelItem ? 4 : 3} className="px-4 py-4 text-right">
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
                                 Subtotal Activo{cancelledCount > 0 && ` (${cancelledCount} cancelado${cancelledCount > 1 ? 's' : ''})`}
                               </span>
                             </td>
-                            <td className="px-6 py-6 text-right">
-                              <span className="text-xl font-black text-white">${totalItems.toFixed(2)}</span>
+                            <td className="px-3 py-4 text-right">
+                              <span className="text-lg font-black text-white">${totalItems.toFixed(2)}</span>
                             </td>
                           </tr>
                         </tfoot>
@@ -744,26 +822,7 @@ export function RoomDetailsModal({
     />
 
     {/* Cancel Item Modal */}
-    {cancelItemTarget && (
-      <CancelItemModal
-        isOpen={!!cancelItemTarget}
-        itemName={cancelItemTarget.products?.name || getConceptLabel(cancelItemTarget.concept_type || "Producto")}
-        itemQty={cancelItemTarget.qty}
-        itemPrice={Number(cancelItemTarget.unit_price)}
-        itemTotal={cancelItemTarget.qty * Number(cancelItemTarget.unit_price)}
-        isPaid={cancelItemTarget.is_paid === true}
-        conceptType={cancelItemTarget.concept_type}
-        onClose={() => setCancelItemTarget(null)}
-        onConfirm={async (reason) => {
-          if (!room || !onCancelItem || !activeStay?.sales_order_id) return;
-          const success = await onCancelItem(cancelItemTarget.id, room, reason);
-          if (success) {
-            setCancelItemTarget(null);
-            await fetchDetails(activeStay.sales_order_id);
-          }
-        }}
-      />
-    )}
+
     </>
   );
 }
