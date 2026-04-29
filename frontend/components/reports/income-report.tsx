@@ -4,9 +4,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, ChevronDown, ChevronUp, ChartBar } from "lucide-react";
+import { Download, Printer, ChevronDown, ChevronUp, ChartBar, FileText, Receipt } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface PaymentDetail {
     payment_method: string;
@@ -574,6 +577,62 @@ export function IncomeReport({
         }
     };
 
+    const handlePrintHP = async () => {
+        let receptionistName = "N/A";
+        if (shiftInfo?.employee_name) {
+            receptionistName = shiftInfo.employee_name;
+        } else if (currentShift?.employee_name) {
+            receptionistName = currentShift.employee_name;
+        }
+
+        // Payment breakdown for the summary section
+        const paymentBreakdown: Record<string, number> = {};
+        entries.forEach(entry => {
+            if (entry.payments && entry.payments.length > 0) {
+                entry.payments.forEach(p => {
+                    const key = p.payment_method === "TARJETA"
+                        ? `TARJETA ${p.terminal_code || ""} ${p.card_type || ""}`.trim()
+                        : p.payment_method;
+                    paymentBreakdown[key] = (paymentBreakdown[key] || 0) + p.amount;
+                });
+            } else if (entry.payment_method && entry.payment_method !== "PENDIENTE") {
+                paymentBreakdown[entry.payment_method] = (paymentBreakdown[entry.payment_method] || 0) + entry.total;
+            }
+        });
+
+        const printData = {
+            employeeName: receptionistName,
+            periodStart: shiftInfo?.shift_start || startDate?.toISOString() || new Date().toISOString(),
+            periodEnd: shiftInfo?.shift_end || endDate?.toISOString() || new Date().toISOString(),
+            paymentBreakdown,
+            entries: entries.map(e => ({
+                time: e.time,
+                vehicle_plate: e.vehicle_plate,
+                room_number: e.room_number,
+                checkout_valet_name: e.checkout_valet_name,
+                room_price: e.room_price,
+                extra: e.extra,
+                consumption: e.consumption,
+                total: e.total,
+                payment_method: e.payment_method,
+            })),
+        };
+
+        try {
+            const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+            const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'income', data: printData }),
+            });
+            if (!response.ok) {
+                console.error('HP print error:', await response.json());
+            }
+        } catch (error) {
+            console.error('Error printing to HP:', error);
+        }
+    };
+
     const handleExport = () => {
         const totals = calculateTotals();
 
@@ -702,10 +761,25 @@ export function IncomeReport({
                         <Download className="h-4 w-4 mr-2" />
                         Exportar
                     </Button>
-                    <Button onClick={handlePrint} size="sm">
-                        <Printer className="h-4 w-4 mr-2" />
-                        Imprimir
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button size="sm">
+                                <Printer className="h-4 w-4 mr-2" />
+                                Imprimir
+                                <ChevronDown className="h-3 w-3 ml-1.5 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuItem onClick={handlePrintHP} className="cursor-pointer">
+                                <FileText className="h-4 w-4 mr-2 text-blue-500" />
+                                Hoja HP (directo)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                                <Receipt className="h-4 w-4 mr-2 text-orange-500" />
+                                Vista previa (navegador)
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 

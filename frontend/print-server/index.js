@@ -952,6 +952,114 @@ function buildHPClosingReport(data) {
     return doc;
 }
 
+// ─── HP Income Report Builder (tabular format matching the Income page) ──────
+function buildHPIncomeReport(data) {
+    const NL = '\r\n';
+    const LINE = '='.repeat(96);
+    const DASH = '-'.repeat(96);
+
+    // PCL reset + Courier 15cpi compressed for wide table
+    let doc = '\x1B%-12345X'; // UEL
+    doc += '\x1BE';           // PCL Reset
+    doc += '\x1B&l0O';        // Portrait
+    doc += '\x1B&l2A';        // Letter size
+    doc += '\x1B&l6D';        // 6 lines per inch
+    doc += '\x1B&l3E';        // Top margin 3 lines
+    doc += '\x1B(s0P';        // Fixed pitch
+    doc += '\x1B(s15H';       // 15 characters per inch (compressed for wide table)
+    doc += '\x1B(s0S';        // Upright style
+    doc += '\x1B(s3T';        // Courier font
+
+    // ═══ HEADER ═══
+    doc += NL;
+    doc += '                                    LUXOR AUTO HOTEL' + NL;
+    doc += '                     INGRESOS DE HOSPEDAJE Y CONSUMO PUBLICO EN GENERAL' + NL;
+    doc += LINE + NL;
+
+    // Meta info
+    const { dateStr: startDate, timeStr: startTime } = formatDateTime(data.periodStart);
+    const { dateStr: endDate, timeStr: endTime } = formatDateTime(data.periodEnd);
+    doc += `  Recepcionista: ${data.employeeName || 'N/A'}` + NL;
+    doc += `  Periodo:       ${startDate} ${startTime}  -->  ${endDate} ${endTime}` + NL;
+    doc += `  Fecha:         ${new Date().toLocaleDateString('es-MX')}` + NL;
+    doc += `  Registros:     ${(data.entries || []).length}` + NL;
+    doc += LINE + NL;
+    doc += NL;
+
+    // ═══ TABLE HEADER ═══
+    const hdr = 'No.  Hora   Placas       Hab.  Aprobo            Precio     Extra    Consumo      Total  Forma Pago';
+    doc += hdr + NL;
+    doc += DASH + NL;
+
+    // ═══ TABLE ROWS ═══
+    const entries = data.entries || [];
+    let sumPrice = 0, sumExtra = 0, sumConsumption = 0, sumTotal = 0;
+
+    entries.forEach((e, idx) => {
+        const no = String(idx + 1).padStart(3);
+        const time = (e.time || '').padEnd(6).substring(0, 6);
+        const plate = (e.vehicle_plate || '-').toUpperCase().padEnd(12).substring(0, 12);
+        const room = (e.room_number || '').padEnd(5).substring(0, 5);
+        const valet = (e.checkout_valet_name || '-').padEnd(18).substring(0, 18);
+        const price = formatMoney(e.room_price || 0).padStart(10);
+        const extra = (e.extra || 0) > 0 ? formatMoney(e.extra).padStart(8) : '       -';
+        const consumption = (e.consumption || 0) > 0 ? formatMoney(e.consumption).padStart(10) : '         -';
+        const total = formatMoney(e.total || 0).padStart(10);
+        const pay = (e.payment_method || '-').substring(0, 14);
+
+        doc += `${no}  ${time} ${plate} ${room} ${valet} ${price} ${extra} ${consumption} ${total}  ${pay}` + NL;
+
+        sumPrice += Number(e.room_price) || 0;
+        sumExtra += Number(e.extra) || 0;
+        sumConsumption += Number(e.consumption) || 0;
+        sumTotal += Number(e.total) || 0;
+    });
+
+    // ═══ TOTALS ROW ═══
+    doc += DASH + NL;
+    const totLabel = '                                    SUMA TOTAL:  ';
+    const totPrice = formatMoney(sumPrice).padStart(10);
+    const totExtra = formatMoney(sumExtra).padStart(8);
+    const totCons = formatMoney(sumConsumption).padStart(10);
+    const totTotal = formatMoney(sumTotal).padStart(10);
+    doc += `${totLabel}${totPrice} ${totExtra} ${totCons} ${totTotal}` + NL;
+    doc += LINE + NL;
+
+    // ═══ PAYMENT BREAKDOWN ═══
+    if (data.paymentBreakdown && Object.keys(data.paymentBreakdown).length > 0) {
+        doc += NL;
+        doc += '  DESGLOSE POR METODO DE PAGO' + NL;
+        doc += DASH + NL;
+        Object.entries(data.paymentBreakdown).forEach(([method, amount]) => {
+            doc += formatLinePCL(`    ${method}`, formatMoney(Number(amount)), 72) + NL;
+        });
+        doc += DASH + NL;
+        const totalPay = Object.values(data.paymentBreakdown).reduce((s, v) => s + Number(v), 0);
+        doc += formatLinePCL('    TOTAL:', formatMoney(totalPay), 72) + NL;
+    }
+
+    // ═══ SIGNATURES ═══
+    doc += NL + NL + NL;
+    doc += LINE + NL;
+    doc += NL;
+    doc += '    _____________________________          _____________________________' + NL;
+    doc += '    Recepcionista                          Supervisor / Gerente' + NL;
+    doc += NL;
+    doc += LINE + NL;
+
+    // ═══ FOOTER ═══
+    doc += NL;
+    doc += `    Impreso: ${new Date().toLocaleString('es-MX')}` + NL;
+    doc += NL;
+
+    // Form feed + reset
+    doc += '\x0C';
+    doc += '\x1BE';
+    doc += '\x1B%-12345X';
+
+    return doc;
+}
+
 // POST /print/hp — Print closing report on HP (letter-size)
 app.post('/print/hp', async (req, res) => {
     try {
@@ -963,8 +1071,11 @@ app.post('/print/hp', async (req, res) => {
             case 'closing':
                 document = buildHPClosingReport(data);
                 break;
+            case 'income':
+                document = buildHPIncomeReport(data);
+                break;
             default:
-                return res.status(400).json({ error: 'Tipo no soportado para HP. Usa: closing' });
+                return res.status(400).json({ error: 'Tipo no soportado para HP. Usa: closing, income' });
         }
 
         await sendToHPPrinter(document);
