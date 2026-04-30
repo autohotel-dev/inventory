@@ -485,7 +485,7 @@ export default function RoomsScreen() {
             extraItems,
             selectedRoom.number,
             payments,
-            "Cobro de Extra verificado por Valet", // notes
+            "Cobro de Extra verificado por Cochero", // notes
             employeeId
         );
 

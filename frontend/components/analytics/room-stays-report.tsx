@@ -167,8 +167,8 @@ export function RoomStaysReport() {
                 { header: 'Ingreso', key: 'check_in', width: 22 },
                 { header: 'Salida', key: 'check_out', width: 22 },
                 { header: 'Duración (m)', key: 'duration_minutes', width: 12 },
-                { header: 'Valet Entrada', key: 'entrance_valet', width: 20 },
-                { header: 'Valet Salida', key: 'exit_valet', width: 20 },
+                { header: 'Cochero Entrada', key: 'entrance_valet', width: 20 },
+                { header: 'Cochero Salida', key: 'exit_valet', width: 20 },
                 { header: 'Placa', key: 'vehicle_plate', width: 15 },
                 { header: 'Modelo', key: 'vehicle_model', width: 20 },
                 { header: 'Total', key: 'total_amount', width: 15 },
@@ -187,7 +187,7 @@ export function RoomStaysReport() {
                 { header: 'Hab', key: 'room_name' },
                 { header: 'Entrada', key: 'check_in' },
                 { header: 'Salida', key: 'check_out' },
-                { header: 'Valet', key: 'entrance_valet' },
+                { header: 'Cochero', key: 'entrance_valet' },
                 { header: 'Vehículo', key: 'vehicle_plate' },
                 { header: 'Total', key: 'total_amount' }
             ],
@@ -293,7 +293,7 @@ export function RoomStaysReport() {
                     <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Buscar hab, placa o valet..."
+                            placeholder="Buscar hab, placa o cochero..."
                             className="pl-9 bg-background border-input"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -324,7 +324,7 @@ export function RoomStaysReport() {
                                     <th className="px-6 py-4 font-semibold w-[100px]">Habitación</th>
                                     <th className="px-6 py-4 font-semibold">Vehículo</th>
                                     <th className="px-6 py-4 font-semibold">Tiempos</th>
-                                    <th className="px-6 py-4 font-semibold">Staff (Valet)</th>
+                                    <th className="px-6 py-4 font-semibold">Staff (Cochero)</th>
                                     <th className="px-6 py-4 font-semibold text-right">Detalles Pago</th>
                                     <th className="px-6 py-4 font-semibold text-center w-[120px]">Estado</th>
                                 </tr>

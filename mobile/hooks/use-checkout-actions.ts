@@ -266,7 +266,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .insert({
                     sales_order_id: salesOrderId,
                     concept_type: 'EXTRA_HOUR',
-                    description: 'HORA EXTRA (VALET)',
+                    description: 'HORA EXTRA (COCHERO)',
                     unit_price: amount,
                     qty: 1,
                     total: amount,
@@ -328,7 +328,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .insert({
                     sales_order_id: salesOrderId,
                     concept_type: 'EXTRA_PERSON',
-                    description: 'PERSONA EXTRA (VALET)',
+                    description: 'PERSONA EXTRA (COCHERO)',
                     unit_price: amount,
                     qty: 1,
                     total: amount,

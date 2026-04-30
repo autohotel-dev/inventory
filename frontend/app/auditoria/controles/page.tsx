@@ -64,6 +64,17 @@ const formatTimestamp = (ts: string) =>
     hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 
+const STATUS_LABELS: Record<string, string> = {
+  EN_HABITACION: "En Habitación",
+  PENDIENTE_ENCENDIDO: "Pendiente Encendido",
+  TV_ENCENDIDA: "TV Encendida",
+  EXTRAVIADO: "Extraviado",
+  SIN_REGISTRO: "Sin Registro",
+};
+
+const translateStatus = (s: string | null) =>
+  s ? (STATUS_LABELS[s] || s.replace(/_/g, " ")) : "—";
+
 // ─── Page ────────────────────────────────────────────────────────────
 
 export default function ControlesAuditoriaPage() {
@@ -437,9 +448,9 @@ export default function ControlesAuditoriaPage() {
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1 text-[10px] font-mono text-zinc-500">
-                            <span>{log.previous_status?.replace(/_/g, " ") || "—"}</span>
+                            <span>{translateStatus(log.previous_status)}</span>
                             <ArrowRight size={10} className="text-zinc-700" />
-                            <span className="font-bold text-zinc-300">{log.new_status.replace(/_/g, " ")}</span>
+                            <span className="font-bold text-zinc-300">{translateStatus(log.new_status)}</span>
                           </div>
                         </td>
                         <td className="py-3 px-3">

@@ -705,9 +705,25 @@ export function RoomDetailsModal({
                     ) : assetAuditLogs.length === 0 ? (
                       <div className="py-4 text-zinc-600 text-xs text-center">Sin registros de auditoría</div>
                     ) : (
-                      assetAuditLogs.map((log) => {
-                        const isAssign = log.action_type === 'ASSIGNED_TO_COCHERO_FOR_TV';
-                        const isConfirm = log.action_type === 'CONFIRMED_TV_ON';
+                           assetAuditLogs.map((log) => {
+                        const ACTION_MAP: Record<string, { label: string; color: string; dotClass: string }> = {
+                          ASSIGNED_TO_COCHERO_FOR_TV: { label: 'Asignación', color: 'text-amber-400', dotClass: 'bg-amber-500 border-amber-600' },
+                          ASSIGNED_TO_COCHERO: { label: 'Asignación', color: 'text-amber-400', dotClass: 'bg-amber-500 border-amber-600' },
+                          CONFIRMED_TV_ON: { label: 'TV Confirmada', color: 'text-emerald-400', dotClass: 'bg-emerald-500 border-emerald-600' },
+                          DROPPED_IN_ROOM: { label: 'Dejado en Habitación', color: 'text-blue-400', dotClass: 'bg-blue-500 border-blue-600' },
+                          VERIFIED_IN_ROOM: { label: 'Verificado en Habitación', color: 'text-emerald-400', dotClass: 'bg-emerald-500 border-emerald-600' },
+                          MARKED_MISSING: { label: 'Extraviado', color: 'text-red-400', dotClass: 'bg-red-500 border-red-600' },
+                        };
+                        const STATUS_MAP: Record<string, string> = {
+                          EN_HABITACION: 'En Habitación',
+                          PENDIENTE_ENCENDIDO: 'Pendiente Encendido',
+                          TV_ENCENDIDA: 'TV Encendida',
+                          EXTRAVIADO: 'Extraviado',
+                          SIN_REGISTRO: 'Sin Registro',
+                        };
+                        const actionMeta = ACTION_MAP[log.action_type] || { label: log.action_type.replace(/_/g, ' '), color: 'text-zinc-400', dotClass: 'bg-zinc-500 border-zinc-600' };
+                        const isAssign = log.action_type.startsWith('ASSIGNED');
+                        const isConfirm = log.action_type === 'CONFIRMED_TV_ON' || log.action_type === 'VERIFIED_IN_ROOM';
                         const isMissing = log.action_type === 'MARKED_MISSING';
                         return (
                           <div key={log.log_id} className="relative pb-4 last:pb-0">
@@ -716,7 +732,7 @@ export function RoomDetailsModal({
                               isAssign ? "bg-amber-500 border-amber-600" :
                               isConfirm ? "bg-emerald-500 border-emerald-600" :
                               isMissing ? "bg-red-500 border-red-600" :
-                              "bg-zinc-600 border-zinc-700"
+                              actionMeta.dotClass
                             )} />
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5">
@@ -725,15 +741,9 @@ export function RoomDetailsModal({
                                 {isMissing && <AlertTriangle size={10} className="text-red-400" />}
                                 <span className={cn(
                                   "text-[10px] font-black uppercase tracking-wider",
-                                  isAssign ? "text-amber-400" :
-                                  isConfirm ? "text-emerald-400" :
-                                  isMissing ? "text-red-400" :
-                                  "text-zinc-400"
+                                  actionMeta.color
                                 )}>
-                                  {isAssign ? 'Asignación' :
-                                   isConfirm ? 'TV Confirmada' :
-                                   isMissing ? 'Extraviado' :
-                                   log.action_type.replace(/_/g, ' ')}
+                                  {actionMeta.label}
                                 </span>
                               </div>
                               <div className="text-[9px] text-zinc-500 font-mono">
@@ -759,9 +769,9 @@ export function RoomDetailsModal({
                                 )}
                               </div>
                               <div className="text-[9px] text-zinc-600 flex items-center gap-1 mt-0.5">
-                                <span className="font-mono">{log.previous_status?.replace(/_/g, ' ') || '—'}</span>
+                                <span className="font-mono">{log.previous_status ? (STATUS_MAP[log.previous_status] || log.previous_status.replace(/_/g, ' ')) : '—'}</span>
                                 <ArrowRight size={8} />
-                                <span className="font-mono font-bold">{log.new_status.replace(/_/g, ' ')}</span>
+                                <span className="font-mono font-bold">{STATUS_MAP[log.new_status] || log.new_status.replace(/_/g, ' ')}</span>
                               </div>
                             </div>
                           </div>

@@ -305,11 +305,20 @@ export default function AssetsScreen() {
                             </View>
                         ) : (
                             auditLogs.map((log, idx) => {
-                                const isAssign = log.action_type === 'ASSIGNED_TO_COCHERO_FOR_TV';
-                                const isConfirm = log.action_type === 'CONFIRMED_TV_ON';
+                                const ACTION_LABELS: Record<string, { label: string; color: string; bg: string; bgDark: string }> = {
+                                    'ASSIGNED_TO_COCHERO_FOR_TV': { label: 'Asignación', color: '#f59e0b', bg: '#fef3c7', bgDark: '#451a03' },
+                                    'ASSIGNED_TO_COCHERO': { label: 'Asignación', color: '#f59e0b', bg: '#fef3c7', bgDark: '#451a03' },
+                                    'CONFIRMED_TV_ON': { label: 'TV Confirmada', color: '#10b981', bg: '#ecfdf5', bgDark: '#052e16' },
+                                    'DROPPED_IN_ROOM': { label: 'Dejado en Habitación', color: '#3b82f6', bg: '#dbeafe', bgDark: '#172554' },
+                                    'VERIFIED_IN_ROOM': { label: 'Verificado en Habitación', color: '#10b981', bg: '#ecfdf5', bgDark: '#052e16' },
+                                    'MARKED_MISSING': { label: 'Extraviado', color: '#ef4444', bg: '#fee2e2', bgDark: '#450a0a' },
+                                };
+                                const actionInfo = ACTION_LABELS[log.action_type] || { label: log.action_type.replace(/_/g, ' '), color: '#71717a', bg: '#f4f4f5', bgDark: '#27272a' };
+                                const isAssign = log.action_type.startsWith('ASSIGNED');
+                                const isConfirm = log.action_type === 'CONFIRMED_TV_ON' || log.action_type === 'VERIFIED_IN_ROOM';
                                 const isMissing = log.action_type === 'MARKED_MISSING';
-                                const dotColor = isAssign ? '#f59e0b' : isConfirm ? '#10b981' : isMissing ? '#ef4444' : '#71717a';
-                                const bgColor = isAssign ? (isDark ? '#451a03' : '#fef3c7') : isConfirm ? (isDark ? '#052e16' : '#ecfdf5') : isMissing ? (isDark ? '#450a0a' : '#fee2e2') : (isDark ? '#27272a' : '#f4f4f5');
+                                const dotColor = actionInfo.color;
+                                const bgColor = isDark ? actionInfo.bgDark : actionInfo.bg;
                                 const ts = new Date(log.created_at);
                                 const timeStr = ts.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -324,11 +333,12 @@ export default function AssetsScreen() {
                                         <View style={{ flex: 1, marginLeft: 8, marginBottom: 12, backgroundColor: bgColor, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: isDark ? '#27272a' : '#e4e4e7' }}>
                                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                    {isAssign && <Zap size={12} color='#f59e0b' />}
-                                                    {isConfirm && <CheckCircle2 size={12} color='#10b981' />}
-                                                    {isMissing && <AlertTriangle size={12} color='#ef4444' />}
+                                                    {isAssign && <Zap size={12} color={dotColor} />}
+                                                    {isConfirm && <CheckCircle2 size={12} color={dotColor} />}
+                                                    {isMissing && <AlertTriangle size={12} color={dotColor} />}
+                                                    {!isAssign && !isConfirm && !isMissing && <Clock size={12} color={dotColor} />}
                                                     <Text style={{ fontSize: 11, fontWeight: '900', color: dotColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                                        {isAssign ? 'Asignación' : isConfirm ? 'TV Confirmada' : isMissing ? 'Extraviado' : log.action_type.replace(/_/g, ' ')}
+                                                        {actionInfo.label}
                                                     </Text>
                                                 </View>
                                                 <View style={{ backgroundColor: isDark ? '#18181b' : '#ffffff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
@@ -345,9 +355,22 @@ export default function AssetsScreen() {
                                                 )}
                                             </View>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                <Text style={{ fontSize: 9, color: isDark ? '#52525b' : '#a1a1aa', fontFamily: 'monospace' }}>{(log.previous_status || '—').replace(/_/g, ' ')}</Text>
-                                                <ArrowRight size={8} color={isDark ? '#52525b' : '#a1a1aa'} />
-                                                <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#a1a1aa' : '#71717a', fontFamily: 'monospace' }}>{log.new_status.replace(/_/g, ' ')}</Text>
+                                                {(() => {
+                                                    const STATUS_LABELS: Record<string, string> = {
+                                                        'EN_HABITACION': 'En Habitación',
+                                                        'PENDIENTE_ENCENDIDO': 'Pendiente Encendido',
+                                                        'TV_ENCENDIDA': 'TV Encendida',
+                                                        'EXTRAVIADO': 'Extraviado',
+                                                        'SIN_REGISTRO': 'Sin Registro',
+                                                    };
+                                                    const prev = log.previous_status ? (STATUS_LABELS[log.previous_status] || log.previous_status.replace(/_/g, ' ')) : '—';
+                                                    const next = STATUS_LABELS[log.new_status] || log.new_status.replace(/_/g, ' ');
+                                                    return (<>
+                                                        <Text style={{ fontSize: 9, color: isDark ? '#52525b' : '#a1a1aa', fontFamily: 'monospace' }}>{prev}</Text>
+                                                        <ArrowRight size={8} color={isDark ? '#52525b' : '#a1a1aa'} />
+                                                        <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#a1a1aa' : '#71717a', fontFamily: 'monospace' }}>{next}</Text>
+                                                    </>);
+                                                })()}
                                             </View>
                                         </View>
                                     </View>

@@ -103,7 +103,7 @@ export default function LoginScreen() {
 
     const handleBiometricLogin = async () => {
         const result = await LocalAuthentication.authenticateAsync({
-            promptMessage: 'Entrar a Luxor Valet',
+            promptMessage: 'Entrar a Luxor Cocheros',
             cancelLabel: 'Cancelar',
             disableDeviceFallback: false,
         });

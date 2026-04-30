@@ -77,7 +77,7 @@ export const EntryModal = memo(({
                     <View className="rounded-t-3xl max-h-[90%] bg-white dark:bg-zinc-950">
                         <View className="flex-row justify-between items-center p-6 border-b border-zinc-100 dark:border-zinc-800">
                             <View>
-                                <Text className="text-[10px] font-black uppercase tracking-widest mb-1 text-blue-500 dark:text-blue-400">Check-in Valet</Text>
+                                <Text className="text-[10px] font-black uppercase tracking-widest mb-1 text-blue-500 dark:text-blue-400">Check-in Cochero</Text>
                                 <Text className="text-xl font-black text-zinc-900 dark:text-white">Hab. {room?.number}</Text>
                             </View>
                             <TouchableOpacity onPress={onClose} className={`w-10 h-10 rounded-full items-center justify-center ${isDark ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
