@@ -10,7 +10,8 @@ export default function TabLayout() {
     const { isDark } = useTheme();
     const [pendingServiceCount, setPendingServiceCount] = useState(0);
     const [pendingEntryCount, setPendingEntryCount] = useState(0);
-    const { role } = useUserRole();
+    const [pendingTvCount, setPendingTvCount] = useState(0);
+    const { role, employeeId } = useUserRole();
     const router = useRouter();
 
     // Redirección de seguridad (Race-condition breaker)
@@ -58,7 +59,18 @@ export default function TabLayout() {
                 (stay.vehicle_requested_at || stay.valet_checkout_requested_at);
         }).length;
         setPendingEntryCount(entries + urgentCheckouts);
-    }, []);
+
+        // TVs pendientes
+        if (employeeId) {
+            const { count: tvCount } = await supabase
+                .from('room_assets')
+                .select('id', { count: 'exact', head: true })
+                .eq('asset_type', 'TV_REMOTE')
+                .eq('status', 'PENDIENTE_ENCENDIDO')
+                .eq('assigned_employee_id', employeeId);
+            setPendingTvCount(tvCount || 0);
+        }
+    }, [employeeId]);
 
     // Ref estable
     const fetchRef = useRef(fetchPendingCount);
@@ -76,6 +88,7 @@ export default function TabLayout() {
         const channel = supabase.channel('tab-badge-counts')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_assets' }, debouncedFetch)
             .subscribe();
 
         // Limpiar la cola offline cada que vuelva la conexión
@@ -160,6 +173,15 @@ export default function TabLayout() {
                     title: 'Controles',
                     tabBarIcon: ({ color }) => <Tv color={color} size={24} />,
                     headerTitle: 'Inventario de Controles',
+                    tabBarBadge: pendingTvCount > 0 ? pendingTvCount : undefined,
+                    tabBarBadgeStyle: {
+                        backgroundColor: '#f59e0b',
+                        fontSize: 10,
+                        fontWeight: '800',
+                        minWidth: 18,
+                        height: 18,
+                        lineHeight: 18,
+                    },
                 }}
             />
             <Tabs.Screen

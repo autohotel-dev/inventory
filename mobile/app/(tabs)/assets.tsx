@@ -32,7 +32,7 @@ export default function AssetsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterState, setFilterState] = useState<'TODOS' | 'MIS_CONTROLES' | 'SIN_CONTROL' | 'EN_HABITACION' | 'EXTRAVIADOS'>('TODOS');
+    const [filterState, setFilterState] = useState<'TODOS' | 'MIS_ASIGNACIONES' | 'PENDIENTES' | 'TV_ENCENDIDA' | 'EXTRAVIADOS'>('TODOS');
     
     // Modal states
     const [feedback, setFeedback] = useState<{ visible: boolean; title: string; message: string; type: FeedbackType }>({
@@ -43,7 +43,7 @@ export default function AssetsScreen() {
     });
     
     // We only need the generic fetchRooms to re-fetch after action, but we will write our own optimized fetch
-    const { handleDropAssetInRoom } = useValetActions(() => fetchRooms(true));
+    const { handleConfirmTvOn } = useValetActions(() => fetchRooms(true));
 
     const fetchRooms = useCallback(async (quiet = false) => {
         if (!quiet) setLoading(true);
@@ -143,9 +143,9 @@ export default function AssetsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         
         // Optimistic update
-        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, tvRemoteStatus: 'EN_HABITACION' } : r));
+        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, tvRemoteStatus: 'TV_ENCENDIDA' } : r));
         
-        const success = await handleDropAssetInRoom(roomId, employeeId, 'TV_REMOTE');
+        const success = await handleConfirmTvOn(roomId, employeeId);
         if (!success) {
             // Revert on failure
             fetchRooms(true);
@@ -166,14 +166,14 @@ export default function AssetsScreen() {
         }
 
         switch (filterState) {
-            case 'MIS_CONTROLES':
-                result = result.filter(r => r.tvRemoteStatus === 'CON_COCHERO' && r.assignedEmployeeId === employeeId);
+            case 'MIS_ASIGNACIONES':
+                result = result.filter(r => r.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' && r.assignedEmployeeId === employeeId);
                 break;
-            case 'SIN_CONTROL':
-                result = result.filter(r => r.tvRemoteStatus === 'EN_RECEPCION' || r.tvRemoteStatus === 'SIN_REGISTRO' || (r.tvRemoteStatus === 'CON_COCHERO' && r.assignedEmployeeId !== employeeId));
+            case 'PENDIENTES':
+                result = result.filter(r => r.tvRemoteStatus === 'PENDIENTE_ENCENDIDO');
                 break;
-            case 'EN_HABITACION':
-                result = result.filter(r => r.tvRemoteStatus === 'EN_HABITACION');
+            case 'TV_ENCENDIDA':
+                result = result.filter(r => r.tvRemoteStatus === 'TV_ENCENDIDA');
                 break;
             case 'EXTRAVIADOS':
                 result = result.filter(r => r.tvRemoteStatus === 'EXTRAVIADO');
@@ -185,9 +185,9 @@ export default function AssetsScreen() {
 
     const getStatusStyle = (status: string) => {
         switch (status) {
-            case 'EN_HABITACION': return { bg: isDark ? '#064e3b' : '#d1fae5', border: isDark ? '#047857' : '#10b981', text: isDark ? '#34d399' : '#047857', iconColor: isDark ? '#34d399' : '#059669', label: 'En Cuarto' };
-            case 'CON_COCHERO': return { bg: isDark ? '#1e3a8a' : '#dbeafe', border: isDark ? '#1d4ed8' : '#3b82f6', text: isDark ? '#60a5fa' : '#1d4ed8', iconColor: isDark ? '#60a5fa' : '#2563eb', label: 'Con Cochero' };
-            case 'EN_RECEPCION': return { bg: isDark ? '#451a03' : '#fef3c7', border: isDark ? '#b45309' : '#f59e0b', text: isDark ? '#fbbf24' : '#b45309', iconColor: isDark ? '#fbbf24' : '#d97706', label: 'En Recep.' };
+            case 'TV_ENCENDIDA': return { bg: isDark ? '#064e3b' : '#d1fae5', border: isDark ? '#047857' : '#10b981', text: isDark ? '#34d399' : '#047857', iconColor: isDark ? '#34d399' : '#059669', label: 'TV Encend.' };
+            case 'PENDIENTE_ENCENDIDO': return { bg: isDark ? '#451a03' : '#fef3c7', border: isDark ? '#b45309' : '#f59e0b', text: isDark ? '#fbbf24' : '#b45309', iconColor: isDark ? '#fbbf24' : '#d97706', label: 'Pendiente' };
+            case 'EN_HABITACION': return { bg: isDark ? '#27272a' : '#f4f4f5', border: isDark ? '#3f3f46' : '#d4d4d8', text: isDark ? '#a1a1aa' : '#71717a', iconColor: isDark ? '#a1a1aa' : '#71717a', label: 'Sin Tarea' };
             case 'EXTRAVIADO': return { bg: isDark ? '#450a0a' : '#fee2e2', border: isDark ? '#b91c1c' : '#ef4444', text: isDark ? '#f87171' : '#b91c1c', iconColor: isDark ? '#f87171' : '#dc2626', label: 'Falta' };
             default: return { bg: isDark ? '#27272a' : '#f4f4f5', border: isDark ? '#3f3f46' : '#d4d4d8', text: isDark ? '#a1a1aa' : '#71717a', iconColor: isDark ? '#a1a1aa' : '#71717a', label: 'Sin Reg.' };
         }
@@ -222,9 +222,9 @@ export default function AssetsScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                     {[
                         { id: 'TODOS', label: `Todos (${rooms.length})` },
-                        { id: 'MIS_CONTROLES', label: 'Mis Controles' },
-                        { id: 'SIN_CONTROL', label: 'Sin Control' },
-                        { id: 'EN_HABITACION', label: 'En Cuarto' },
+                        { id: 'MIS_ASIGNACIONES', label: 'Mis Asignaciones' },
+                        { id: 'PENDIENTES', label: 'Pendientes' },
+                        { id: 'TV_ENCENDIDA', label: 'TV Encendida' },
                         { id: 'EXTRAVIADOS', label: 'Extraviados' }
                     ].map(f => (
                         <TouchableOpacity
@@ -252,8 +252,8 @@ export default function AssetsScreen() {
             >
                 <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
                     {filteredRooms.map(room => {
-                        const isMine = room.tvRemoteStatus === 'CON_COCHERO' && room.assignedEmployeeId === employeeId;
-                        const canDrop = room.tvRemoteStatus !== 'EN_HABITACION' && hasActiveShift;
+                        const isMine = room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' && room.assignedEmployeeId === employeeId;
+                        const canDrop = isMine && hasActiveShift;
                         const style = getStatusStyle(room.tvRemoteStatus);
 
                         return (
@@ -264,7 +264,7 @@ export default function AssetsScreen() {
                                     backgroundColor: isDark ? '#18181b' : '#ffffff',
                                     borderRadius: 16,
                                     borderWidth: 1,
-                                    borderColor: isMine ? '#3b82f6' : (isDark ? '#27272a' : '#e4e4e7'),
+                                    borderColor: isMine ? '#f59e0b' : (isDark ? '#27272a' : '#e4e4e7'),
                                     overflow: 'hidden',
                                 }}
                             >
@@ -296,7 +296,7 @@ export default function AssetsScreen() {
                                     <TouchableOpacity
                                         onPress={() => confirmDrop(room.id, room.number)}
                                         style={{
-                                            backgroundColor: isMine ? '#3b82f6' : (isDark ? '#27272a' : '#f4f4f5'),
+                                            backgroundColor: isMine ? '#f59e0b' : (isDark ? '#27272a' : '#f4f4f5'),
                                             paddingVertical: 10,
                                             alignItems: 'center',
                                             justifyContent: 'center',
@@ -306,14 +306,14 @@ export default function AssetsScreen() {
                                         }}
                                     >
                                         <Text style={{ 
-                                            color: isMine ? '#ffffff' : (isDark ? '#a1a1aa' : '#52525b'), 
+                                            color: isMine ? '#000000' : (isDark ? '#a1a1aa' : '#52525b'), 
                                             fontSize: 10, 
                                             fontWeight: '800', 
                                             textTransform: 'uppercase' 
                                         }}>
-                                            Dejar
+                                            Confirmar
                                         </Text>
-                                        <ArrowRight size={12} color={isMine ? '#ffffff' : (isDark ? '#a1a1aa' : '#52525b')} style={{ marginLeft: 4 }} />
+                                        <ArrowRight size={12} color={isMine ? '#000000' : (isDark ? '#a1a1aa' : '#52525b')} style={{ marginLeft: 4 }} />
                                     </TouchableOpacity>
                                 ) : (
                                     <View
@@ -355,9 +355,9 @@ export default function AssetsScreen() {
 
             <ConfirmModal
                 visible={confirm.visible}
-                title="Confirmar Entrega"
-                message={`¿Confirmas que dejaste el Control de TV en la Habitación ${confirm.roomNumber}?`}
-                confirmText="Dejar Control"
+                title="Confirmar TV Encendida"
+                message={`¿Confirmas que has encendido la Televisión en la Habitación ${confirm.roomNumber}?`}
+                confirmText="Confirmar"
                 cancelText="Cancelar"
                 onConfirm={() => handleDropAction(confirm.roomId)}
                 onCancel={() => setConfirm({ visible: false, roomId: '', roomNumber: '' })}

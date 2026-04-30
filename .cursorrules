@@ -1,0 +1,30 @@
+# Auto Hotel Luxor - AI Developer Instructions
+
+You are an AI programming assistant working on the Auto Hotel Luxor project, an advanced inventory, reservation, and room management system.
+
+## 1. Project Architecture & Tech Stack
+- **Frontend / Fullstack:** Next.js (App Router, Server Actions) with Tailwind CSS, Radix UI, and Shadcn/UI.
+- **Backend / Database:** Supabase (PostgreSQL, Row Level Security, Supabase Auth, Edge Functions, Realtime).
+- **Mobile Application:** React Native with Expo (specifically for Valets/Cocheros).
+- **Hardware Integration:**
+  - `node-thermal-printer` (NodeJS Express print-server for EPSON/ESC-POS tickets & HP full-page reports).
+  - Tuya API for IoT sensors (door/motion) tracking room cleaning status.
+
+## 2. General Rules & Conventions
+- **Language:** Code comments and commits can be in English, but user-facing text, variable names related to business logic (when applicable), and project documentation should prefer Spanish due to the target audience (e.g., "cocheros", "recepcionistas").
+- **Next.js Patterns:** 
+  - Prefer Server Actions over traditional API Routes (`/api/...`) for form submissions and mutations.
+  - Use `useQuery` and `useMutation` (TanStack React Query) on client components for fetching and caching state.
+- **Supabase Patterns:**
+  - ALL direct database access from the client MUST respect Row Level Security (RLS). 
+  - If a task requires bypassing RLS (e.g., automated scripts, cross-user actions), use a secure Supabase RPC function (PostgreSQL) or a server-side action using the Supabase Admin Service Key with its own rigorous permission checks.
+- **Mobile Development:** The `mobile/` directory contains an Expo app using Expo Router. Use `NativeWind` for styling. Ensure all critical actions (like checkouts) use loading overlays (`ProcessingOverlay`) to prevent double-tap submissions.
+
+## 3. Project Context & Current State
+Before proposing new architectural changes, always check the `.jules/project_context.md` file for the latest historical decisions and workflow definitions.
+
+## 4. Hardware/IoT Safety
+- Do NOT alter `print-server` endpoint structures without ensuring compatibility with the Next.js frontend calls. 
+- The printing system relies heavily on atomic transactions. Do not introduce race conditions between database updates and print commands.
+
+Follow these rules rigorously for all file modifications.

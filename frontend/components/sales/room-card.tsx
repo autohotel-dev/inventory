@@ -74,7 +74,7 @@ export interface RoomCardProps {
   onAddProduct?: () => void;
   onViewServices?: () => void;
   onCancelStay?: () => void;
-  tvRemoteStatus?: string; // e.g. EN_RECEPCION, CON_COCHERO, EN_HABITACION, EXTRAVIADO
+  tvRemoteStatus?: string; // e.g. PENDIENTE_ENCENDIDO, TV_ENCENDIDA, EN_HABITACION, EXTRAVIADO
   onAssignRemote?: () => void;
 }
 
@@ -276,14 +276,18 @@ export function RoomCardComponent({
                 e.stopPropagation();
                 onAssignRemote?.();
               }}
-              title={`Control de TV: ${tvRemoteStatus.replace('_', ' ')}`}
+              title={
+                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "TV: Esperando encendido por cochero" :
+                tvRemoteStatus === "TV_ENCENDIDA" ? "TV: Encendida" :
+                tvRemoteStatus === "EXTRAVIADO" ? "TV: Control extraviado" :
+                "TV: Control en habitación"
+              }
               className={cn(
                 "h-5 w-5 flex items-center justify-center rounded-md border shadow-sm transition-all hover:scale-110",
-                tvRemoteStatus === "EN_HABITACION" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
-                tvRemoteStatus === "CON_COCHERO" ? "bg-blue-500/20 border-blue-500/50 text-blue-400" :
+                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/20 border-orange-500/50 text-orange-400 animate-pulse" :
+                tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
                 tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/30 border-red-500/60 text-red-400 animate-pulse" :
-                tvRemoteStatus === "EN_RECEPCION" ? "bg-amber-500/20 border-amber-500/50 text-amber-400" :
-                "bg-zinc-500/20 border-zinc-500/50 text-zinc-400" // SIN_REGISTRO
+                "bg-zinc-500/20 border-zinc-500/50 text-zinc-400" // EN_HABITACION / SIN_REGISTRO
               )}
             >
               <Tv className="h-3 w-3" />

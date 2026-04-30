@@ -11,6 +11,12 @@ Sistema integral de gestión de reservas, habitaciones, inventarios, y cobros pa
 - **Impresión Térmica:** `node-thermal-printer`, ESC/POS Commands
 - **IoT / Sensores:** Tuya API integration (`tuyapi`, `@tuya/tuya-connector-nodejs`)
 
+## Contexto para Agentes de IA
+
+Si eres un asistente de IA o un nuevo desarrollador integrándose al proyecto, por favor lee:
+1. `.cursorrules`: Archivo de configuración global con las directrices de arquitectura y estándares de código del proyecto.
+2. `.jules/project_context.md`: Documento de memoria histórica con reglas de negocio y flujos de trabajo clave.
+
 ## Instalación y Despliegue Local
 
 1. **Clonar el repositorio y entrar a la carpeta frontend:**

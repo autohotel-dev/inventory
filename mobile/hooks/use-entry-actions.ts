@@ -260,23 +260,21 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
-    const handleDropAssetInRoom = useCallback(async (
+    const handleConfirmTvOn = useCallback(async (
         roomId: string,
-        employeeId: string,
-        assetType: string = 'TV_REMOTE'
+        employeeId: string
     ) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase.rpc('mark_asset_in_room', {
+            const { data, error } = await supabase.rpc('confirm_tv_on', {
                 p_room_id: roomId,
-                p_asset_type: assetType,
                 p_employee_id: employeeId
             });
 
             if (error) throw error;
             
             if (data?.success) {
-                showFeedback('Activo Dejado', data.message || 'Control dejado en habitación');
+                showFeedback('TV Encendida', data.message || 'Televisión confirmada como encendida');
                 await onRefresh();
                 return true;
             } else {
@@ -296,6 +294,6 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         loading,
         handleAcceptEntry,
         handleRegisterVehicleAndPayment,
-        handleDropAssetInRoom
+        handleConfirmTvOn
     };
 }

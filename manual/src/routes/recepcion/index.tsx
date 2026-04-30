@@ -808,6 +808,16 @@ export default component$(() => {
               </div>
             </div>
             <div class="screenshot-container">
+              <div style={{padding:"1rem", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center"}}>
+                <strong>8-3. Asignación de Encendido de TV</strong>
+                <ul style={{fontSize:"0.85rem", color:"var(--muted-foreground)", marginTop:"0.5rem", paddingLeft:"1.2rem"}}>
+                  <li>En el modal de detalles de la habitación, ubica la sección "Activos de Habitación".</li>
+                  <li>Presiona "Asignar Cochero para Encender TV" y selecciona al cochero en turno.</li>
+                  <li>Esto enviará una notificación a la app móvil del cochero para que acuda a la habitación a encender la pantalla.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="screenshot-container">
               <img src="/flujo/011-Elementos%20escenciales/009-informacion-vehiculo.png" alt="009 Info Vehiculo" class="screenshot-premium" loading="lazy" />
               <div style={{padding:"1rem"}}>
                 <strong>9. Base de Datos Vehicular</strong>

@@ -173,6 +173,44 @@ export default component$(() => {
           </div>
         </div>
 
+        {/* FLUJO 4: CONTROLES TV */}
+        <div class="card" style={{ marginTop: "2rem" }}>
+          <h3>SECCIÓN 4: Pestaña "Controles" (Verificación de TV)</h3>
+          <p>Tú eres el responsable de asegurar que el huésped entre a la habitación con la televisión ya encendida y el control en su lugar.</p>
+          
+          <div style={{ marginLeft: "1rem", marginTop: "1rem" }}>
+            <h4 style={{ color: "var(--primary)", marginBottom: "0.5rem" }}>Fase 4.1: Recepción de Tarea de TV</h4>
+            <div class="step-card">
+              <span class="step-number">4.1.1</span>
+              <strong>Alerta Visual:</strong> Al entrar un nuevo cliente, Recepción te asignará la tarea de encender la TV de la habitación. Verás un número de notificación rojo sobre el ícono de la pestaña <em>"Controles"</em>.
+            </div>
+            <div class="step-card">
+              <span class="step-number">4.1.2</span>
+              <strong>Filtro "Mis Asignaciones":</strong> En la pestaña Controles, la lista te mostrará las tarjetas de las habitaciones que tienes asignadas con el estado en naranja "Pendiente".
+            </div>
+
+            <h4 style={{ color: "var(--primary)", marginTop: "1.5rem", marginBottom: "0.5rem" }}>Fase 4.2: Ejecución Física</h4>
+            <div class="step-card">
+              <span class="step-number">4.2.1</span>
+              <strong>Traslado a la Habitación:</strong> Dirígete a la habitación indicada ANTES o durante el ingreso del cliente (si es posible).
+            </div>
+            <div class="step-card">
+              <span class="step-number">4.2.2</span>
+              <strong>Verificación Física:</strong> Localiza el control remoto (que NUNCA sale de la habitación). Presiona el botón de encendido y asegúrate de que la televisión prenda y muestre señal correctamente. Déjalo en un lugar visible (sobre la mesa o la cama).
+            </div>
+
+            <h4 style={{ color: "var(--primary)", marginTop: "1.5rem", marginBottom: "0.5rem" }}>Fase 4.3: Confirmación en Sistema</h4>
+            <div class="step-card">
+              <span class="step-number">4.3.1</span>
+              <strong>Cierre de Tarea:</strong> Toma tu celular, busca la tarjeta de la habitación en la pestaña "Controles" y presiona el botón amarillo fuerte que dice <em>"Confirmar"</em>.
+            </div>
+            <div class="step-card">
+              <span class="step-number">4.3.2</span>
+              <strong>Feedback Visual:</strong> La tarjeta desaparecerá de tus tareas pendientes y el sistema cambiará el estatus a "TV Encendida" en el tablero general de Recepción.
+            </div>
+          </div>
+        </div>
+
       </div>
     </>
   );

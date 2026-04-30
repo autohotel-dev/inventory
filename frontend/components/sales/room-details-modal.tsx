@@ -669,13 +669,13 @@ export function RoomDetailsModal({
                 </div>
                 
                 {/* Acciones para el control */}
-                {(!tvRemoteAsset || tvRemoteAsset.status === 'EN_RECEPCION' || tvRemoteAsset.status === 'EXTRAVIADO') && (
+                {(!tvRemoteAsset || tvRemoteAsset.status !== 'EXTRAVIADO') && (
                   <Button
                     onClick={() => setIsAssignAssetModalOpen(true)}
                     className="w-full mt-4 bg-primary text-black hover:bg-primary/90 font-black tracking-widest uppercase text-[10px] rounded-xl h-10"
                     size="sm"
                   >
-                    Asignar a Cochero
+                    Asignar Cochero para Encender TV
                   </Button>
                 )}
               </div>

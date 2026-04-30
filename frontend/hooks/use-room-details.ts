@@ -278,9 +278,9 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
 
   const getAssetStatusColor = (status: string) => {
     switch(status) {
-      case 'EN_HABITACION': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-      case 'CON_COCHERO': return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-      case 'EN_RECEPCION': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+      case 'TV_ENCENDIDA': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'PENDIENTE_ENCENDIDO': return 'text-orange-400 bg-orange-500/10 border-orange-500/20 animate-pulse';
+      case 'EN_HABITACION': return 'text-zinc-400 bg-white/5 border-white/10';
       case 'EXTRAVIADO': return 'text-red-400 bg-red-500/10 border-red-500/20 animate-pulse';
       default: return 'text-zinc-400 bg-white/5 border-white/10';
     }

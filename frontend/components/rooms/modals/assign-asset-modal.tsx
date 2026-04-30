@@ -143,7 +143,11 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
       if (error) throw error;
       
-      toast.success("Control asignado al cochero correctamente.");
+      if (assetType === 'TV_REMOTE') {
+        toast.success("Cochero asignado para encender TV.");
+      } else {
+        toast.success("Control asignado al cochero correctamente.");
+      }
       onSuccess?.();
       onClose();
     } catch (error) {
@@ -165,7 +169,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
   const getAssetName = () => {
     switch (assetType) {
-      case 'TV_REMOTE': return 'Control de TV';
+      case 'TV_REMOTE': return 'Cochero para TV';
       case 'AC_REMOTE': return 'Control de A/C';
       case 'KEY': return 'Llave';
       default: return 'Activo';
@@ -185,7 +189,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
             Asignar {getAssetName()}
           </DialogTitle>
           <DialogDescription className="text-center text-zinc-400">
-            Habitación {room.number}
+            {assetType === 'TV_REMOTE' ? 'Selecciona al cochero que irá a encender la TV en la' : 'Habitación'} {room.number}
           </DialogDescription>
         </DialogHeader>
 
@@ -233,14 +237,16 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
           >
             Cancelar
           </Button>
-          <Button 
-            variant="outline"
-            onClick={handleReturnToReception}
-            disabled={loading}
-            className="flex-1 bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 font-bold"
-          >
-            En Recepción
-          </Button>
+          {assetType !== 'TV_REMOTE' && (
+            <Button 
+              variant="outline"
+              onClick={handleReturnToReception}
+              disabled={loading}
+              className="flex-1 bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 font-bold"
+            >
+              En Recepción
+            </Button>
+          )}
           <Button 
             onClick={handleAssign} 
             disabled={!selectedCochero || loading}
