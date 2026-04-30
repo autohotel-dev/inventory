@@ -229,7 +229,7 @@ export function ConsumptionTrackingModal({
             } catch { /* noop */ }
 
             const channel = supabase
-                .channel(`tracking-${salesOrderId}-${Date.now()}`)
+                .channel(`tracking-${salesOrderId}`)
                 .on(
                     'postgres_changes',
                     {
@@ -260,14 +260,8 @@ export function ConsumptionTrackingModal({
         let channelRef: ReturnType<typeof supabase.channel> | null = null;
         setup().then(ch => { channelRef = ch; });
 
-        // Fallback: polling cada 8s por si el websocket falla
-        const pollInterval = setInterval(() => {
-            if (isSubscribed) fetchConsumptions(true);
-        }, 8000);
-
         return () => {
             isSubscribed = false;
-            clearInterval(pollInterval);
             if (channelRef) supabase.removeChannel(channelRef);
         };
     }, [isOpen, salesOrderId, fetchConsumptions]);

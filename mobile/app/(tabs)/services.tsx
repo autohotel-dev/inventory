@@ -98,7 +98,7 @@ export default function ServicesScreen() {
             timeout = setTimeout(() => fetchDataRef.current(), 800);
         };
 
-        const channelName = `valet-services-${employeeId}-${Date.now()}`;
+        const channelName = `valet-services-${employeeId}`;
         const channel = supabase.channel(channelName)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, debouncedFetch)

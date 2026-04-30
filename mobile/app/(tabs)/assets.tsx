@@ -127,7 +127,7 @@ export default function AssetsScreen() {
             timeout = setTimeout(() => fetchRoomsRef.current(true), 800);
         };
 
-        const channelName = `assets-realtime-${Date.now()}`;
+        const channelName = `assets-realtime`;
         const channel = supabase.channel(channelName)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'room_assets' }, debouncedFetch)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, debouncedFetch)
