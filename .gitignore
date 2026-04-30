@@ -48,3 +48,6 @@ Thumbs.db
 *.swp
 *.swo
 *.temp
+
+# Documentación auto-generada
+docs/api/

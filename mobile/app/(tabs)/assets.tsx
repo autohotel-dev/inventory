@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, RefreshControl, ScrollView, Dimensions, A
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useTheme } from '../../contexts/theme-context';
-import { Tv, Search, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react-native';
+import { Tv, Search, CheckCircle2, AlertTriangle, ArrowRight, Clock, Zap, ChevronRight, User } from 'lucide-react-native';
 import { Skeleton } from '../../components/Skeleton';
 import * as Haptics from 'expo-haptics';
 import { useValetActions } from '../../hooks/use-valet-actions';
@@ -25,6 +25,17 @@ interface RoomAssetData {
     assignedEmployeeId?: string;
 }
 
+interface AuditLogEntry {
+    log_id: string;
+    created_at: string;
+    room_number: string;
+    action_type: string;
+    previous_status: string | null;
+    new_status: string;
+    action_by_name: string;
+    assigned_to_name: string;
+}
+
 export default function AssetsScreen() {
     const { employeeId, hasActiveShift, isLoading: roleLoading } = useUserRole();
     const { isDark } = useTheme();
@@ -32,7 +43,9 @@ export default function AssetsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterState, setFilterState] = useState<'TODOS' | 'MIS_ASIGNACIONES' | 'PENDIENTES' | 'TV_ENCENDIDA' | 'EXTRAVIADOS'>('TODOS');
+    const [filterState, setFilterState] = useState<'TODOS' | 'MIS_ASIGNACIONES' | 'PENDIENTES' | 'TV_ENCENDIDA' | 'EXTRAVIADOS' | 'MI_HISTORIAL'>('TODOS');
+    const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+    const [auditLoading, setAuditLoading] = useState(false);
     
     // Modal states
     const [feedback, setFeedback] = useState<{ visible: boolean; title: string; message: string; type: FeedbackType }>({
@@ -44,6 +57,24 @@ export default function AssetsScreen() {
     
     // We only need the generic fetchRooms to re-fetch after action, but we will write our own optimized fetch
     const { handleConfirmTvOn } = useValetActions(() => fetchRooms(true));
+
+    const fetchAuditHistory = useCallback(async () => {
+        if (!employeeId) return;
+        setAuditLoading(true);
+        try {
+            const { data, error } = await supabase.rpc('get_tv_audit_trail', {
+                p_employee_id: employeeId,
+                p_limit: 50,
+                p_offset: 0,
+            });
+            if (error) throw error;
+            setAuditLogs(data || []);
+        } catch (err) {
+            console.error('Error fetching audit history:', err);
+        } finally {
+            setAuditLoading(false);
+        }
+    }, [employeeId]);
 
     const fetchRooms = useCallback(async (quiet = false) => {
         if (!quiet) setLoading(true);
@@ -225,11 +256,15 @@ export default function AssetsScreen() {
                         { id: 'MIS_ASIGNACIONES', label: 'Mis Asignaciones' },
                         { id: 'PENDIENTES', label: 'Pendientes' },
                         { id: 'TV_ENCENDIDA', label: 'TV Encendida' },
-                        { id: 'EXTRAVIADOS', label: 'Extraviados' }
+                        { id: 'EXTRAVIADOS', label: 'Extraviados' },
+                        { id: 'MI_HISTORIAL', label: '📋 Mi Historial' }
                     ].map(f => (
                         <TouchableOpacity
                             key={f.id}
-                            onPress={() => setFilterState(f.id as any)}
+                            onPress={() => {
+                                setFilterState(f.id as any);
+                                if (f.id === 'MI_HISTORIAL') fetchAuditHistory();
+                            }}
                             className={`px-4 py-2 rounded-full border ${filterState === f.id 
                                 ? (isDark ? 'bg-zinc-100 border-zinc-100' : 'bg-zinc-900 border-zinc-900')
                                 : (isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-100 border-zinc-200')
@@ -248,124 +283,115 @@ export default function AssetsScreen() {
 
             <ScrollView
                 contentContainerStyle={{ padding: PADDING, paddingBottom: 100 }}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#94a3b8' : '#64748b'} />}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { onRefresh(); if (filterState === 'MI_HISTORIAL') fetchAuditHistory(); }} tintColor={isDark ? '#94a3b8' : '#64748b'} />}
             >
-                <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
-                    {filteredRooms.map(room => {
-                        const isMine = room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' && room.assignedEmployeeId === employeeId;
-                        const canDrop = isMine && hasActiveShift;
-                        const style = getStatusStyle(room.tvRemoteStatus);
-
-                        return (
-                            <View
-                                key={room.id}
-                                style={{
-                                    width: CARD_SIZE,
-                                    backgroundColor: isDark ? '#18181b' : '#ffffff',
-                                    borderRadius: 16,
-                                    borderWidth: 1,
-                                    borderColor: isMine ? '#f59e0b' : (isDark ? '#27272a' : '#e4e4e7'),
-                                    overflow: 'hidden',
-                                }}
-                            >
-                                <View style={{ padding: 12, alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 24, fontWeight: '900', color: isDark ? '#ffffff' : '#000000' }}>
-                                        {room.number}
-                                    </Text>
-                                    
-                                    <View style={{ 
-                                        marginTop: 8, 
-                                        paddingHorizontal: 8, 
-                                        paddingVertical: 4, 
-                                        backgroundColor: style.bg, 
-                                        borderRadius: 8,
-                                        borderWidth: 1,
-                                        borderColor: style.border,
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 4
-                                    }}>
-                                        <Tv size={12} color={style.iconColor} />
-                                        <Text style={{ fontSize: 9, fontWeight: '800', color: style.text, textTransform: 'uppercase' }}>
-                                            {style.label}
-                                        </Text>
-                                    </View>
-                                </View>
-                                
-                                {canDrop ? (
-                                    <TouchableOpacity
-                                        onPress={() => confirmDrop(room.id, room.number)}
-                                        style={{
-                                            backgroundColor: '#f59e0b',
-                                            paddingVertical: 10,
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexDirection: 'row',
-                                            borderTopWidth: 1,
-                                            borderTopColor: isDark ? '#3f3f46' : '#e4e4e7',
-                                        }}
-                                    >
-                                        <Text style={{ 
-                                            color: '#000000', 
-                                            fontSize: 10, 
-                                            fontWeight: '800', 
-                                            textTransform: 'uppercase' 
-                                        }}>
-                                            Confirmar
-                                        </Text>
-                                        <ArrowRight size={12} color={'#000000'} style={{ marginLeft: 4 }} />
-                                    </TouchableOpacity>
-                                ) : room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' ? (
-                                    <View
-                                        style={{
-                                            backgroundColor: isDark ? '#27272a' : '#f4f4f5',
-                                            paddingVertical: 10,
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexDirection: 'row',
-                                            borderTopWidth: 1,
-                                            borderTopColor: isDark ? '#3f3f46' : '#e4e4e7',
-                                        }}
-                                    >
-                                        <AlertTriangle size={12} color={isDark ? '#fbbf24' : '#d97706'} />
-                                        <Text style={{ 
-                                            color: isDark ? '#fbbf24' : '#d97706', 
-                                            fontSize: 10, 
-                                            fontWeight: '800', 
-                                            textTransform: 'uppercase',
-                                            marginLeft: 4
-                                        }}>
-                                            Otro Cochero
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    <View
-                                        style={{
-                                            backgroundColor: isDark ? '#052e16' : '#ecfdf5',
-                                            paddingVertical: 10,
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexDirection: 'row',
-                                            borderTopWidth: 1,
-                                            borderTopColor: isDark ? '#064e3b' : '#a7f3d0',
-                                        }}
-                                    >
-                                        <CheckCircle2 size={12} color={isDark ? '#34d399' : '#059669'} />
-                                        <Text style={{ 
-                                            color: isDark ? '#34d399' : '#059669', 
-                                            fontSize: 10, 
-                                            fontWeight: '800', 
-                                            textTransform: 'uppercase',
-                                            marginLeft: 4
-                                        }}>
-                                            Listo
-                                        </Text>
-                                    </View>
-                                )}
+                {filterState === 'MI_HISTORIAL' ? (
+                    /* ─── AUDIT HISTORY TIMELINE ─── */
+                    <View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                            <Clock size={16} color={isDark ? '#a78bfa' : '#7c3aed'} />
+                            <Text style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#ffffff' : '#000000', textTransform: 'uppercase', letterSpacing: 1 }}>
+                                Mi Historial de Controles
+                            </Text>
+                        </View>
+                        {auditLoading ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <Text style={{ color: isDark ? '#71717a' : '#a1a1aa', fontSize: 12 }}>Cargando historial...</Text>
                             </View>
-                        );
-                    })}
-                </View>
+                        ) : auditLogs.length === 0 ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <Clock size={40} color={isDark ? '#3f3f46' : '#d4d4d8'} />
+                                <Text style={{ color: isDark ? '#52525b' : '#a1a1aa', fontSize: 13, fontWeight: '700', marginTop: 12 }}>Sin registros aún</Text>
+                            </View>
+                        ) : (
+                            auditLogs.map((log, idx) => {
+                                const isAssign = log.action_type === 'ASSIGNED_TO_COCHERO_FOR_TV';
+                                const isConfirm = log.action_type === 'CONFIRMED_TV_ON';
+                                const isMissing = log.action_type === 'MARKED_MISSING';
+                                const dotColor = isAssign ? '#f59e0b' : isConfirm ? '#10b981' : isMissing ? '#ef4444' : '#71717a';
+                                const bgColor = isAssign ? (isDark ? '#451a03' : '#fef3c7') : isConfirm ? (isDark ? '#052e16' : '#ecfdf5') : isMissing ? (isDark ? '#450a0a' : '#fee2e2') : (isDark ? '#27272a' : '#f4f4f5');
+                                const ts = new Date(log.created_at);
+                                const timeStr = ts.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+                                return (
+                                    <View key={log.log_id} style={{ flexDirection: 'row', marginBottom: 2 }}>
+                                        {/* Timeline line + dot */}
+                                        <View style={{ width: 24, alignItems: 'center' }}>
+                                            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dotColor, marginTop: 6, borderWidth: 2, borderColor: isDark ? '#18181b' : '#ffffff' }} />
+                                            {idx < auditLogs.length - 1 && <View style={{ width: 2, flex: 1, backgroundColor: isDark ? '#27272a' : '#e4e4e7' }} />}
+                                        </View>
+                                        {/* Content card */}
+                                        <View style={{ flex: 1, marginLeft: 8, marginBottom: 12, backgroundColor: bgColor, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: isDark ? '#27272a' : '#e4e4e7' }}>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                    {isAssign && <Zap size={12} color='#f59e0b' />}
+                                                    {isConfirm && <CheckCircle2 size={12} color='#10b981' />}
+                                                    {isMissing && <AlertTriangle size={12} color='#ef4444' />}
+                                                    <Text style={{ fontSize: 11, fontWeight: '900', color: dotColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                                        {isAssign ? 'Asignación' : isConfirm ? 'TV Confirmada' : isMissing ? 'Extraviado' : log.action_type.replace(/_/g, ' ')}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ backgroundColor: isDark ? '#18181b' : '#ffffff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                                                    <Text style={{ fontSize: 20, fontWeight: '900', color: isDark ? '#ffffff' : '#000000' }}>{log.room_number}</Text>
+                                                </View>
+                                            </View>
+                                            <Text style={{ fontSize: 10, color: isDark ? '#71717a' : '#a1a1aa', fontFamily: 'monospace', marginBottom: 4 }}>{timeStr}</Text>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                                <User size={10} color={isDark ? '#a1a1aa' : '#71717a'} />
+                                                <Text style={{ fontSize: 10, color: isDark ? '#a1a1aa' : '#71717a' }}>Por: </Text>
+                                                <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#d4d4d8' : '#3f3f46' }}>{log.action_by_name}</Text>
+                                                {isAssign && log.assigned_to_name !== '—' && (
+                                                    <><ChevronRight size={10} color={isDark ? '#71717a' : '#a1a1aa'} /><Text style={{ fontSize: 10, fontWeight: '800', color: '#f59e0b' }}>{log.assigned_to_name}</Text></>
+                                                )}
+                                            </View>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                <Text style={{ fontSize: 9, color: isDark ? '#52525b' : '#a1a1aa', fontFamily: 'monospace' }}>{(log.previous_status || '—').replace(/_/g, ' ')}</Text>
+                                                <ArrowRight size={8} color={isDark ? '#52525b' : '#a1a1aa'} />
+                                                <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#a1a1aa' : '#71717a', fontFamily: 'monospace' }}>{log.new_status.replace(/_/g, ' ')}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                );
+                            })
+                        )}
+                    </View>
+                ) : (
+                    /* ─── ROOM CARDS GRID ─── */
+                    <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
+                        {filteredRooms.map(room => {
+                            const isMine = room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' && room.assignedEmployeeId === employeeId;
+                            const canDrop = isMine && hasActiveShift;
+                            const style = getStatusStyle(room.tvRemoteStatus);
+                            return (
+                                <View key={room.id} style={{ width: CARD_SIZE, backgroundColor: isDark ? '#18181b' : '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: isMine ? '#f59e0b' : (isDark ? '#27272a' : '#e4e4e7'), overflow: 'hidden' }}>
+                                    <View style={{ padding: 12, alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 24, fontWeight: '900', color: isDark ? '#ffffff' : '#000000' }}>{room.number}</Text>
+                                        <View style={{ marginTop: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: style.bg, borderRadius: 8, borderWidth: 1, borderColor: style.border, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                            <Tv size={12} color={style.iconColor} />
+                                            <Text style={{ fontSize: 9, fontWeight: '800', color: style.text, textTransform: 'uppercase' }}>{style.label}</Text>
+                                        </View>
+                                    </View>
+                                    {canDrop ? (
+                                        <TouchableOpacity onPress={() => confirmDrop(room.id, room.number)} style={{ backgroundColor: '#f59e0b', paddingVertical: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderTopWidth: 1, borderTopColor: isDark ? '#3f3f46' : '#e4e4e7' }}>
+                                            <Text style={{ color: '#000000', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>Confirmar</Text>
+                                            <ArrowRight size={12} color={'#000000'} style={{ marginLeft: 4 }} />
+                                        </TouchableOpacity>
+                                    ) : room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' ? (
+                                        <View style={{ backgroundColor: isDark ? '#27272a' : '#f4f4f5', paddingVertical: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderTopWidth: 1, borderTopColor: isDark ? '#3f3f46' : '#e4e4e7' }}>
+                                            <AlertTriangle size={12} color={isDark ? '#fbbf24' : '#d97706'} />
+                                            <Text style={{ color: isDark ? '#fbbf24' : '#d97706', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginLeft: 4 }}>Otro Cochero</Text>
+                                        </View>
+                                    ) : (
+                                        <View style={{ backgroundColor: isDark ? '#052e16' : '#ecfdf5', paddingVertical: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderTopWidth: 1, borderTopColor: isDark ? '#064e3b' : '#a7f3d0' }}>
+                                            <CheckCircle2 size={12} color={isDark ? '#34d399' : '#059669'} />
+                                            <Text style={{ color: isDark ? '#34d399' : '#059669', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginLeft: 4 }}>Listo</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })}
+                    </View>
+                )}
             </ScrollView>
 
             <FeedbackModal

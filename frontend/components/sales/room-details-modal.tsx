@@ -3,7 +3,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2, XCircle, AlertTriangle } from "lucide-react";
+import { X, Receipt, Banknote, CreditCard, Building2, Package, Clock, Users, DollarSign, Car, Calendar, ArrowRight, TrendingUp, History, Info, Check, Trash2, XCircle, AlertTriangle, ChevronDown, ChevronUp, UserCheck, Zap } from "lucide-react";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { cn } from "@/lib/utils";
 import {
@@ -40,14 +40,16 @@ export function RoomDetailsModal({
     cancellingItemId, cancelReason, cancellingLoading,
     bulkSelectMode, selectedForCancel, bulkCancelReason, bulkCancelLoading,
     isAssignAssetModalOpen,
+    assetAuditLogs, showAuditTrail, auditLoading,
     totalPayments, totalItems, cancelledCount, cancellableItems,
     selectedCancelCount, selectedCancelTotal,
     setActiveTab, setCancellingItemId, setCancelReason,
     setBulkSelectMode, setBulkCancelReason,
     setIsAssignAssetModalOpen,
+    setShowAuditTrail,
     handleCancelPayment, handleSingleCancel, handleBulkCancel,
     toggleBulkSelect, selectAllCancellable, deselectAllCancel,
-    fetchAssetDetails,
+    fetchAssetDetails, fetchAssetAuditTrail,
     getConceptLabel, formatDateTime, getAssetStatusColor, formatAssetStatus,
   } = useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCancelItem });
 
@@ -677,6 +679,96 @@ export function RoomDetailsModal({
                   >
                     Asignar Cochero para Encender TV
                   </Button>
+                )}
+
+                {/* Audit Trail Toggle */}
+                <button
+                  onClick={() => {
+                    if (!showAuditTrail) fetchAssetAuditTrail();
+                    setShowAuditTrail(!showAuditTrail);
+                  }}
+                  className="w-full mt-3 flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <History size={12} />
+                  <span>Historial de Auditoría</span>
+                  {showAuditTrail ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+
+                {/* Audit Trail Timeline */}
+                {showAuditTrail && (
+                  <div className="mt-2 space-y-0 border-l-2 border-zinc-800 ml-4 pl-4">
+                    {auditLoading ? (
+                      <div className="flex items-center gap-2 py-4 text-zinc-500 text-xs">
+                        <div className="animate-spin h-3 w-3 border border-zinc-600 rounded-full border-t-transparent" />
+                        Cargando historial...
+                      </div>
+                    ) : assetAuditLogs.length === 0 ? (
+                      <div className="py-4 text-zinc-600 text-xs text-center">Sin registros de auditoría</div>
+                    ) : (
+                      assetAuditLogs.map((log) => {
+                        const isAssign = log.action_type === 'ASSIGNED_TO_COCHERO_FOR_TV';
+                        const isConfirm = log.action_type === 'CONFIRMED_TV_ON';
+                        const isMissing = log.action_type === 'MARKED_MISSING';
+                        return (
+                          <div key={log.log_id} className="relative pb-4 last:pb-0">
+                            <div className={cn(
+                              "absolute -left-[calc(1rem+5px)] top-0.5 h-2.5 w-2.5 rounded-full border-2",
+                              isAssign ? "bg-amber-500 border-amber-600" :
+                              isConfirm ? "bg-emerald-500 border-emerald-600" :
+                              isMissing ? "bg-red-500 border-red-600" :
+                              "bg-zinc-600 border-zinc-700"
+                            )} />
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                {isAssign && <Zap size={10} className="text-amber-400" />}
+                                {isConfirm && <Check size={10} className="text-emerald-400" />}
+                                {isMissing && <AlertTriangle size={10} className="text-red-400" />}
+                                <span className={cn(
+                                  "text-[10px] font-black uppercase tracking-wider",
+                                  isAssign ? "text-amber-400" :
+                                  isConfirm ? "text-emerald-400" :
+                                  isMissing ? "text-red-400" :
+                                  "text-zinc-400"
+                                )}>
+                                  {isAssign ? 'Asignación' :
+                                   isConfirm ? 'TV Confirmada' :
+                                   isMissing ? 'Extraviado' :
+                                   log.action_type.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <div className="text-[9px] text-zinc-500 font-mono">
+                                {new Date(log.created_at).toLocaleString('es-MX', {
+                                  day: '2-digit', month: 'short', year: '2-digit',
+                                  hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                })}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 mt-0.5">
+                                {isAssign ? (
+                                  <>
+                                    <span className="text-zinc-500">Por:</span>{' '}
+                                    <span className="font-bold text-zinc-300">{log.action_by_name}</span>{' '}
+                                    <span className="text-zinc-500">→</span>{' '}
+                                    <UserCheck size={10} className="inline text-amber-400 mb-0.5" />{' '}
+                                    <span className="font-bold text-amber-300">{log.assigned_to_name}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-zinc-500">Por:</span>{' '}
+                                    <span className="font-bold text-zinc-300">{log.action_by_name}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-[9px] text-zinc-600 flex items-center gap-1 mt-0.5">
+                                <span className="font-mono">{log.previous_status?.replace(/_/g, ' ') || '—'}</span>
+                                <ArrowRight size={8} />
+                                <span className="font-mono font-bold">{log.new_status.replace(/_/g, ' ')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 )}
               </div>
             </div>

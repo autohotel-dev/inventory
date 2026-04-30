@@ -61,6 +61,21 @@ export interface RoomAsset {
   assigned_employee_id: string | null;
 }
 
+export interface AssetAuditLog {
+  log_id: string;
+  created_at: string;
+  room_number: string;
+  room_id: string;
+  action_type: string;
+  previous_status: string | null;
+  new_status: string;
+  action_by_name: string;
+  action_by_id: string | null;
+  assigned_to_name: string;
+  assigned_to_id: string | null;
+  notes: string | null;
+}
+
 interface UseRoomDetailsProps {
   isOpen: boolean;
   room: Room | null;
@@ -93,6 +108,11 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
   // Asset modal
   const [isAssignAssetModalOpen, setIsAssignAssetModalOpen] = useState(false);
 
+  // Asset audit trail
+  const [assetAuditLogs, setAssetAuditLogs] = useState<AssetAuditLog[]>([]);
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+
   // ─── Data Fetching ───────────────────────────────────────────────
 
   const fetchAssetDetails = useCallback(async () => {
@@ -109,6 +129,25 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
       setTvRemoteAsset(data);
     } catch (err) {
       console.error("Error fetching asset:", err);
+    }
+  }, [room]);
+
+  const fetchAssetAuditTrail = useCallback(async () => {
+    if (!room) return;
+    setAuditLoading(true);
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase.rpc('get_tv_audit_trail', {
+        p_room_number: room.number,
+        p_limit: 20,
+        p_offset: 0,
+      });
+      if (error) throw error;
+      setAssetAuditLogs(data || []);
+    } catch (err) {
+      console.error("Error fetching asset audit trail:", err);
+    } finally {
+      setAuditLoading(false);
     }
   }, [room]);
 
@@ -294,6 +333,8 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
     bulkSelectMode, selectedForCancel, bulkCancelReason, bulkCancelLoading,
     // Asset modal
     isAssignAssetModalOpen,
+    // Asset audit
+    assetAuditLogs, showAuditTrail, auditLoading,
     // Computed
     totalPayments, totalItems, cancelledCount, cancellableItems,
     selectedCancelCount: selectedForCancel.size, selectedCancelTotal,
@@ -301,9 +342,10 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
     setActiveTab, setCancellingItemId, setCancelReason,
     setBulkSelectMode, setBulkCancelReason,
     setIsAssignAssetModalOpen,
+    setShowAuditTrail,
     handleCancelPayment, handleSingleCancel, handleBulkCancel,
     toggleBulkSelect, selectAllCancellable, deselectAllCancel,
-    fetchDetails, fetchAssetDetails,
+    fetchDetails, fetchAssetDetails, fetchAssetAuditTrail,
     // Formatters
     getPaymentIcon, getConceptLabel, formatDateTime, getAssetStatusColor,
     formatAssetStatus: (status: string) => status.replace('_', ' '),

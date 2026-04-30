@@ -120,6 +120,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/analytics/performance", label: "Rendimiento y Tiempos", icon: "activity", permissionId: "analytics.performance", adminOnly: true },
   { href: "/export", label: "Exportar", icon: "download", permissionId: "export", adminOnly: true },
   { href: "/auditoria", label: "Auditoría", icon: "activity", permissionId: "auditoria", adminOnly: true },
+  { href: "/auditoria/controles", label: "Auditoría Controles TV", icon: "activity", permissionId: "auditoria", adminOnly: true },
   { divider: true, adminOnly: true },
   
   // 👥 RECURSOS HUMANOS
