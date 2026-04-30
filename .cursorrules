@@ -21,7 +21,9 @@ You are an AI programming assistant working on the Auto Hotel Luxor project, an 
 - **Mobile Development:** The `mobile/` directory contains an Expo app using Expo Router. Use `NativeWind` for styling. Ensure all critical actions (like checkouts) use loading overlays (`ProcessingOverlay`) to prevent double-tap submissions.
 
 ## 3. Project Context & Current State
-Before proposing new architectural changes, always check the `.jules/project_context.md` file for the latest historical decisions and workflow definitions.
+Before proposing new architectural changes or adding new features, you MUST check:
+1. `MODULES.md` (root directory) to understand the folder structure and follow the "How-To" recipes for scaling.
+2. `.jules/project_context.md` for the latest historical decisions and workflow definitions.
 
 ## 4. Hardware/IoT Safety
 - Do NOT alter `print-server` endpoint structures without ensuring compatibility with the Next.js frontend calls. 

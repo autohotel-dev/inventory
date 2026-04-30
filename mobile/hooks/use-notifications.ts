@@ -83,7 +83,7 @@ Notifications.setNotificationHandler({
 
 export interface NotificationData {
     type?: 'VEHICLE_REQUEST' | 'NEW_CONSUMPTION' | 'NEW_ENTRY' | 'CHECKOUT_REQUEST' | 'GENERAL' | 'REGULAR_CONSUMPTION' | 'NEW_EXTRA'
-    | 'ROOM_CHANGE' | 'DAMAGE_REPORT' | 'PROMO_4H' | 'ROOM_DIRTY' | 'STAFF_BROADCAST';
+    | 'ROOM_CHANGE' | 'DAMAGE_REPORT' | 'PROMO_4H' | 'ROOM_DIRTY' | 'STAFF_BROADCAST' | 'TV_TASK';
     roomNumber?: string;
     stayId?: string;
     consumptionId?: string;
@@ -401,6 +401,11 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
             title: content.title || 'Comunicado',
             message: content.body || '',
             data: data,
+        });
+    } else if (data.type === 'TV_TASK') {
+        // Redirigir a la pestaña de Controles
+        router.push({
+            pathname: '/(tabs)/assets',
         });
     }
 }

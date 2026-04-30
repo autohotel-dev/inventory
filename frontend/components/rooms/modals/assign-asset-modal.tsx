@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Users, Tv, Key, Wind } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
+import { createAdminNotificationForEmployee } from "@/lib/services/valet-notification-service";
 
 interface Employee {
   id: string;
@@ -143,7 +144,15 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
       if (error) throw error;
       
+      // Enviar notificación push al cochero asignado
       if (assetType === 'TV_REMOTE') {
+        await createAdminNotificationForEmployee(
+          supabase,
+          selectedCochero,
+          '📺 Encender TV',
+          `Ve a la Habitación ${room.number} y enciende la televisión para el cliente.`,
+          { type: 'TV_TASK', roomNumber: room.number, roomId: room.id }
+        );
         toast.success("Cochero asignado para encender TV.");
       } else {
         toast.success("Control asignado al cochero correctamente.");

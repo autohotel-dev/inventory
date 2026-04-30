@@ -296,7 +296,7 @@ export default function AssetsScreen() {
                                     <TouchableOpacity
                                         onPress={() => confirmDrop(room.id, room.number)}
                                         style={{
-                                            backgroundColor: isMine ? '#f59e0b' : (isDark ? '#27272a' : '#f4f4f5'),
+                                            backgroundColor: '#f59e0b',
                                             paddingVertical: 10,
                                             alignItems: 'center',
                                             justifyContent: 'center',
@@ -306,15 +306,38 @@ export default function AssetsScreen() {
                                         }}
                                     >
                                         <Text style={{ 
-                                            color: isMine ? '#000000' : (isDark ? '#a1a1aa' : '#52525b'), 
+                                            color: '#000000', 
                                             fontSize: 10, 
                                             fontWeight: '800', 
                                             textTransform: 'uppercase' 
                                         }}>
                                             Confirmar
                                         </Text>
-                                        <ArrowRight size={12} color={isMine ? '#000000' : (isDark ? '#a1a1aa' : '#52525b')} style={{ marginLeft: 4 }} />
+                                        <ArrowRight size={12} color={'#000000'} style={{ marginLeft: 4 }} />
                                     </TouchableOpacity>
+                                ) : room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' ? (
+                                    <View
+                                        style={{
+                                            backgroundColor: isDark ? '#27272a' : '#f4f4f5',
+                                            paddingVertical: 10,
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexDirection: 'row',
+                                            borderTopWidth: 1,
+                                            borderTopColor: isDark ? '#3f3f46' : '#e4e4e7',
+                                        }}
+                                    >
+                                        <AlertTriangle size={12} color={isDark ? '#fbbf24' : '#d97706'} />
+                                        <Text style={{ 
+                                            color: isDark ? '#fbbf24' : '#d97706', 
+                                            fontSize: 10, 
+                                            fontWeight: '800', 
+                                            textTransform: 'uppercase',
+                                            marginLeft: 4
+                                        }}>
+                                            Otro Cochero
+                                        </Text>
+                                    </View>
                                 ) : (
                                     <View
                                         style={{
