@@ -175,16 +175,29 @@ export function ExportManager() {
             .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
           const totalProducts = analyticsProducts?.length || 0;
-          const totalValue = analyticsProducts?.reduce((sum: number, p: any) => {
-            const stock = p.stock?.reduce((s: number, st: any) => s + (st.qty || 0), 0) || 0;
-            return sum + (stock * p.price);
-          }, 0) || 0;
 
-          const movementsByType = {
-            IN: analyticsMovements?.filter((m: any) => m.movement_type === 'IN').length || 0,
-            OUT: analyticsMovements?.filter((m: any) => m.movement_type === 'OUT').length || 0,
-            ADJUSTMENT: analyticsMovements?.filter((m: any) => m.movement_type === 'ADJUSTMENT').length || 0
-          };
+          // ⚡ Bolt: Consolidated analytics calculations to reduce iterations
+          const { totalValue, activeCount, inactiveCount } = (analyticsProducts || []).reduce(
+            (acc: any, p: any) => {
+              const stock = p.stock?.reduce((s: number, st: any) => s + (st.qty || 0), 0) || 0;
+              acc.totalValue += (stock * p.price);
+              if (p.is_active) acc.activeCount++;
+              else acc.inactiveCount++;
+              return acc;
+            },
+            { totalValue: 0, activeCount: 0, inactiveCount: 0 }
+          );
+
+          // ⚡ Bolt: Consolidated movement filtering into a single pass
+          const movementsByType = (analyticsMovements || []).reduce(
+            (acc: any, m: any) => {
+              if (m.movement_type === 'IN') acc.IN++;
+              else if (m.movement_type === 'OUT') acc.OUT++;
+              else if (m.movement_type === 'ADJUSTMENT') acc.ADJUSTMENT++;
+              return acc;
+            },
+            { IN: 0, OUT: 0, ADJUSTMENT: 0 }
+          );
 
           data = [{
             'Fecha Reporte': new Date().toLocaleDateString(),
@@ -194,8 +207,8 @@ export function ExportManager() {
             'Entradas (30 días)': movementsByType.IN,
             'Salidas (30 días)': movementsByType.OUT,
             'Ajustes (30 días)': movementsByType.ADJUSTMENT,
-            'Productos Activos': analyticsProducts?.filter((p: any) => p.is_active).length || 0,
-            'Productos Inactivos': analyticsProducts?.filter((p: any) => !p.is_active).length || 0
+            'Productos Activos': activeCount,
+            'Productos Inactivos': inactiveCount
           }];
           filename = `reporte_analytics_${new Date().toISOString().split('T')[0]}`;
           break;
