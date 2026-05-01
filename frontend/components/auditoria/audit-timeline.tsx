@@ -330,17 +330,53 @@ export function AuditTimeline() {
                       )}
                     </div>
 
-                    {/* Detalles técnicos expandibles */}
-                    {event.metadata && Object.keys(event.metadata).length > 0 && (
-                      <details className="text-xs mt-1">
-                        <summary className="cursor-pointer text-primary/70 hover:text-primary transition-colors font-medium">
-                          Ver detalles técnicos
-                        </summary>
-                        <pre className="mt-2 p-3 bg-muted/50 rounded-lg text-[11px] font-mono overflow-x-auto border border-border/30">
-                          {JSON.stringify(event.metadata, null, 2)}
-                        </pre>
-                      </details>
-                    )}
+                    {/* Detalles legibles */}
+                    {event.metadata && (() => {
+                      const HIDDEN = ["session_id", "stay_id", "sales_order_id", "item_id", "payment_id", "checkout_valet_id", "room_number"];
+                      const LABELS: Record<string, string> = {
+                        amount: "Monto", concept: "Concepto", reason: "Motivo", hours: "Horas",
+                        hours_deducted: "Horas descontadas", people_deducted: "Personas descontadas",
+                        is_courtesy: "¿Cortesía?", courtesy_reason: "Motivo cortesía",
+                        renewal_hours: "Horas renovación", is_weekend: "¿Fin de semana?",
+                        previous_people: "Personas antes", new_people: "Personas después",
+                        total_historic: "Total histórico", tolerance_type: "Tipo tolerancia",
+                        action: "Acción", minutes_elapsed: "Minutos", minutes_remaining: "Min. restantes",
+                        deadline: "Hora límite", remaining: "Saldo restante", new_status: "Nuevo estado",
+                        notes: "Notas", refund_created: "¿Reembolso?", inventory_returned: "¿Inventario devuelto?",
+                        payment_method: "Método pago", item_count: "Artículos",
+                      };
+                      const entries = Object.entries(event.metadata)
+                        .filter(([k]) => !HIDDEN.includes(k) && k !== "products");
+                      if (entries.length === 0 && !event.metadata.products) return null;
+                      return (
+                        <details className="text-xs mt-1">
+                          <summary className="cursor-pointer text-primary/70 hover:text-primary transition-colors font-medium">
+                            Más información
+                          </summary>
+                          <div className="mt-2 space-y-0.5">
+                            {event.metadata.products && Array.isArray(event.metadata.products) && (
+                              <div className="space-y-1 mb-2">
+                                <span className="text-[11px] font-medium text-muted-foreground">Productos:</span>
+                                {event.metadata.products.map((p: any, i: number) => (
+                                  <div key={i} className="flex justify-between text-[11px] bg-muted/30 px-2 py-0.5 rounded">
+                                    <span>{p.qty}x {p.name}{p.is_courtesy ? " (cortesía)" : ""}</span>
+                                    <span className="font-mono">${(p.price * p.qty).toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {entries.map(([k, v]) => (
+                              <div key={k} className="flex justify-between text-[11px] text-muted-foreground">
+                                <span>{LABELS[k] || k}</span>
+                                <span className="font-medium text-foreground">
+                                  {typeof v === "boolean" ? (v ? "Sí" : "No") : String(v ?? "—")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      );
+                    })()}
                   </div>
                 </div>
               );
