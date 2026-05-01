@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,21 +164,27 @@ export function AdvancedStockView() {
     fetchStock();
   }, []);
 
-  const filteredItems = stockItems.filter(item => {
-    const matchesSearch = search === "" ||
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (item.category_name && item.category_name.toLowerCase().includes(search.toLowerCase()));
+  // ⚡ Bolt: Memoize filtered items to prevent unnecessary recalculations on every render
+  // This avoids running `.filter()` and multiple `.toLowerCase().includes()` operations
+  // unless the underlying stock items or specific filter criteria change, significantly
+  // improving performance especially when typing in the search box with large datasets.
+  const filteredItems = useMemo(() => {
+    return stockItems.filter(item => {
+      const matchesSearch = search === "" ||
+        item.name.toLowerCase().includes(search.toLowerCase()) ||
+        item.sku.toLowerCase().includes(search.toLowerCase()) ||
+        (item.category_name && item.category_name.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesStatus = statusFilter === "" || item.stock_status === statusFilter;
+      const matchesStatus = statusFilter === "" || item.stock_status === statusFilter;
 
-    const matchesWarehouse = warehouseFilter === "" ||
-      (warehouseFilter === "UNASSIGNED"
-        ? item.stock_by_warehouse.length === 0 || item.stock_by_warehouse.every(s => s.qty === 0)
-        : item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0));
+      const matchesWarehouse = warehouseFilter === "" ||
+        (warehouseFilter === "UNASSIGNED"
+          ? item.stock_by_warehouse.length === 0 || item.stock_by_warehouse.every(s => s.qty === 0)
+          : item.stock_by_warehouse.some(s => s.warehouse_id === warehouseFilter && s.qty > 0));
 
-    return matchesSearch && matchesStatus && matchesWarehouse;
-  });
+      return matchesSearch && matchesStatus && matchesWarehouse;
+    });
+  }, [stockItems, search, statusFilter, warehouseFilter]);
 
   const handleViewDetail = (item: StockItem) => {
     setSelectedItem(item);
