@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
-import { updateUnpaidItems } from "@/lib/services/product-service";
+import { updateAllUnpaidItems } from "@/lib/services/product-service";
 import { logFinancialAction } from "@/lib/audit-logger";
 import {
   getActiveStay,
@@ -107,17 +107,16 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       // Step 3: Privacy cleanup
       await unsubscribeGuestNotifications(room.number);
 
-      // Step 4: Mark unpaid service items
+      // Step 4: Mark unpaid service items (batch — 1 operation instead of 4)
       const paymentMethod = payments && payments.length > 0
         ? (payments.length > 1 ? "MULTIPAGO" : payments[0].method)
         : "EFECTIVO";
 
-      await Promise.all([
-        updateUnpaidItems(checkoutInfo.salesOrderId, "EXTRA_PERSON", paymentMethod),
-        updateUnpaidItems(checkoutInfo.salesOrderId, "EXTRA_HOUR", paymentMethod),
-        updateUnpaidItems(checkoutInfo.salesOrderId, "ROOM_BASE", paymentMethod),
-        updateUnpaidItems(checkoutInfo.salesOrderId, "TOLERANCE_EXPIRED", paymentMethod),
-      ]);
+      await updateAllUnpaidItems(
+        checkoutInfo.salesOrderId,
+        ["EXTRA_PERSON", "EXTRA_HOUR", "ROOM_BASE", "TOLERANCE_EXPIRED"],
+        paymentMethod
+      );
 
       // Step 5: Build and reconcile payments
       const newPayments = await buildCheckoutPayments(supabase, checkoutInfo, payments, totalPaid);

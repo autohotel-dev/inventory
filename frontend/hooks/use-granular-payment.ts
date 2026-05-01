@@ -98,11 +98,7 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     return payable;
   });
 
-  useEffect(() => {
-    if (isOpen && selectedItems.size > 0) {
-      console.log(`[useGranularPayment] Selected: ${selectedItems.size}, allPayable: ${allSelectedPayable}, pendingCorroboration: ${hasPendingCorroboration}`);
-    }
-  }, [isOpen, selectedItems, allSelectedPayable, hasPendingCorroboration]);
+
 
   // bridge function for unlock
   const forceUnlockItem = (itemId: string) => {
@@ -139,15 +135,10 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
     fetchItems,
     corroborateValetPayment: (ids: string[]) => corroborateValetPayment(ids),
     applyValetPaymentData: (reports: any[]) => {
-      console.log('🔍 GRANULAR PAYMENT DEBUG: applyValetPaymentData llamado');
-      console.log('  - Reports recibidos:', reports?.length || 0);
       const newPayments = applyValetPaymentData(reports);
       if (newPayments && newPayments.length > 0) {
-        console.log('🔍 GRANULAR PAYMENT DEBUG: Pagos creados, setPayments llamado');
         setPayments(newPayments);
         setStep("pay");
-      } else {
-        console.log('🔍 GRANULAR PAYMENT DEBUG: No se crearon pagos o reports vacío');
       }
     },
     applyValetReportData: (report: any) => {

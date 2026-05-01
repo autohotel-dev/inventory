@@ -5,8 +5,11 @@ import { createClient } from "@/lib/supabase/client";
  * Hook dedicado a la suscripción de eventos en tiempo real (Supabase WebSockets).
  * Mantiene la conexión viva y desencadena acciones locales como el refresco o las alertas.
  * 
- * Usa useRef para las callbacks para evitar loops de mount/unmount
- * cuando fetchRooms o playAlert cambian de referencia.
+ * Uses useRef for callbacks to avoid loops of mount/unmount
+ * when fetchRooms or playAlert change reference.
+ * 
+ * Performance: All table change events are debounced with 300ms to coalesce
+ * multiple simultaneous changes (e.g. checkout touches 4+ tables at once).
  */
 export function useRoomRealtime(
   fetchRooms: (showLoading?: boolean) => Promise<void>,
@@ -15,6 +18,7 @@ export function useRoomRealtime(
   // Refs estables para evitar re-suscripciones innecesarias
   const fetchRoomsRef = useRef(fetchRooms);
   const playAlertRef = useRef(playAlert);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Mantener refs actualizados sin causar re-renders
   useEffect(() => { fetchRoomsRef.current = fetchRooms; }, [fetchRooms]);
@@ -24,6 +28,14 @@ export function useRoomRealtime(
     const supabase = createClient();
     let isSubscribed = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    // Debounced fetch: coalesces multiple realtime events into 1 refetch
+    const debouncedFetch = () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        if (isSubscribed) fetchRoomsRef.current(true);
+      }, 300);
+    };
 
     const setupRealtimeChannel = async () => {
       try {
@@ -42,7 +54,7 @@ export function useRoomRealtime(
             { event: "*", schema: "public", table: "rooms" },
             () => {
               if (!isSubscribed) return;
-              fetchRoomsRef.current(true);
+              debouncedFetch();
             }
           )
           .on(
@@ -50,7 +62,7 @@ export function useRoomRealtime(
             { event: "*", schema: "public", table: "room_assets" },
             () => {
               if (!isSubscribed) return;
-              fetchRoomsRef.current(true);
+              debouncedFetch();
             }
           )
           .on(
@@ -58,7 +70,7 @@ export function useRoomRealtime(
             { event: "*", schema: "public", table: "room_stays" },
             () => {
               if (!isSubscribed) return;
-              fetchRoomsRef.current(true);
+              debouncedFetch();
             }
           )
           .on(
@@ -66,7 +78,7 @@ export function useRoomRealtime(
             { event: "*", schema: "public", table: "payments" },
             () => {
               if (!isSubscribed) return;
-              fetchRoomsRef.current(true);
+              debouncedFetch();
             }
           )
           .on(
@@ -74,7 +86,7 @@ export function useRoomRealtime(
             { event: "*", schema: "public", table: "sales_orders" },
             () => {
               if (!isSubscribed) return;
-              fetchRoomsRef.current(true);
+              debouncedFetch();
             }
           )
           .on(
@@ -88,7 +100,7 @@ export function useRoomRealtime(
                 playAlertRef.current();
               }
 
-              fetchRoomsRef.current(true);
+              debouncedFetch();
             }
           )
           .subscribe((status: string, err?: Error) => {
@@ -109,6 +121,7 @@ export function useRoomRealtime(
 
     return () => {
       isSubscribed = false;
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (channel) {
         supabase.removeChannel(channel);
       }

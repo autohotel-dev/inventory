@@ -1,5 +1,8 @@
 /**
  * Servicio para operaciones relacionadas con productos
+ *
+ * Performance: Service/damage product IDs are cached in module-level
+ * variables to avoid repeated DB lookups per session.
  */
 import { createClient } from "@/lib/supabase/client";
 import { Result, success, failure } from "@/lib/types/api";
@@ -13,12 +16,19 @@ import {
 } from "@/lib/constants/payment-constants";
 import { logger } from "@/lib/utils/logger";
 
+// ─── Module-level product ID caches ─────────────────────────────────
+let _serviceProductId: string | null = null;
+let _damageProductId: string | null = null;
+
 /**
  * Obtiene o crea el producto de servicio de habitación
  * Este producto se usa para registrar cargos de servicios (horas extra, personas extra, etc.)
  * @returns Resultado con el ID del producto de servicio
  */
 export async function getOrCreateServiceProduct(): Promise<Result<string>> {
+    // Return cached ID if available
+    if (_serviceProductId) return success(_serviceProductId as string);
+
     const supabase = createClient();
 
     try {
@@ -36,7 +46,8 @@ export async function getOrCreateServiceProduct(): Promise<Result<string>> {
 
         // Si existe, retornar su ID
         if (existingProducts && existingProducts.length > 0) {
-            return success(existingProducts[0].id);
+            _serviceProductId = existingProducts[0].id;
+            return success(_serviceProductId as string);
         }
 
         // Si no existe, crearlo
@@ -61,7 +72,8 @@ export async function getOrCreateServiceProduct(): Promise<Result<string>> {
         }
 
         logger.info("Service product created", { productId: newProduct.id });
-        return success(newProduct.id);
+        _serviceProductId = newProduct.id;
+        return success(_serviceProductId as string);
     } catch (error) {
         return failure("Error inesperado con producto de servicio", "PRODUCT_EXCEPTION");
     }
@@ -72,6 +84,9 @@ export async function getOrCreateServiceProduct(): Promise<Result<string>> {
  * @returns Resultado con el ID del producto de daño
  */
 export async function getOrCreateDamageProduct(): Promise<Result<string>> {
+    // Return cached ID if available
+    if (_damageProductId) return success(_damageProductId as string);
+
     const supabase = createClient();
 
     try {
@@ -87,7 +102,8 @@ export async function getOrCreateDamageProduct(): Promise<Result<string>> {
         }
 
         if (existingProducts && existingProducts.length > 0) {
-            return success(existingProducts[0].id);
+            _damageProductId = existingProducts[0].id;
+            return success(_damageProductId as string);
         }
 
         const { data: newProduct, error: createError } = await supabase
@@ -111,7 +127,8 @@ export async function getOrCreateDamageProduct(): Promise<Result<string>> {
         }
 
         logger.info("Damage product created", { productId: newProduct.id });
-        return success(newProduct.id);
+        _damageProductId = newProduct.id;
+        return success(_damageProductId as string);
     } catch (error) {
         logger.error("Unexpected error in getOrCreateDamageProduct", error);
         return failure("Error inesperado con producto de daños", "PRODUCT_EXCEPTION");
@@ -278,6 +295,58 @@ export async function updateUnpaidItems(
         return success(unpaidItems.length);
     } catch (error) {
         logger.error("Error in updateUnpaidItems", error);
+        return failure("Error inesperado", "EXCEPTION");
+    }
+}
+
+/**
+ * Batch-updates unpaid items across multiple concept types in a single operation.
+ * Replaces 4 separate updateUnpaidItems calls during checkout with 1 SELECT + 1 UPDATE.
+ */
+export async function updateAllUnpaidItems(
+    salesOrderId: string,
+    conceptTypes: string[],
+    paymentMethod: string
+): Promise<Result<number>> {
+    const supabase = createClient();
+
+    try {
+        const { data: unpaidItems } = await supabase
+            .from("sales_order_items")
+            .select("id")
+            .eq("sales_order_id", salesOrderId)
+            .in("concept_type", conceptTypes)
+            .eq("is_paid", false);
+
+        if (!unpaidItems || unpaidItems.length === 0) {
+            return success(0);
+        }
+
+        const { error } = await supabase
+            .from("sales_order_items")
+            .update({
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                payment_method: paymentMethod
+            })
+            .eq("sales_order_id", salesOrderId)
+            .in("concept_type", conceptTypes)
+            .eq("is_paid", false);
+
+        if (error) {
+            logger.error("Error batch-updating unpaid items", error);
+            return failure("Error al actualizar items", "UPDATE_ERROR");
+        }
+
+        logger.info("Batch-updated unpaid items", {
+            salesOrderId,
+            conceptTypes,
+            count: unpaidItems.length
+        });
+
+        return success(unpaidItems.length);
+    } catch (error) {
+        logger.error("Error in updateAllUnpaidItems", error);
         return failure("Error inesperado", "EXCEPTION");
     }
 }

@@ -29,6 +29,7 @@ import { formatDateTime } from "@/components/rooms/modals/connected-start-stay-m
 
 import { useRoomRealtime } from "@/hooks/rooms/use-room-realtime";
 import { useCheckoutReminders } from "@/hooks/rooms/use-checkout-reminders";
+import { useRoomTransitions } from "@/hooks/rooms/use-room-transitions";
 import { useValetPaymentMonitor } from "@/hooks/valet/use-valet-payment-monitor";
 import { useRoomModals } from "@/hooks/rooms/use-room-modals";
 
@@ -99,6 +100,7 @@ function RoomsBoardInternal() {
 
   // Lógicas Extraídas (Hooks)
   useRoomRealtime(fetchRooms, playAlert);
+  useRoomTransitions(rooms, fetchRooms);
   const { reminderAlert, dismissReminder } = useCheckoutReminders(rooms, playAlert);
   const { hasPendingValetPayment } = useValetPaymentMonitor(modals.selectedRoom, modals.isOpen("actions"));
 
@@ -284,73 +286,6 @@ function RoomsBoardInternal() {
     return () => {
       window.removeEventListener("supabase-reconnect", handleReconnect);
     };
-  }, [fetchRooms]);
-
-
-  const roomsRef = useRef(rooms);
-  useEffect(() => {
-    roomsRef.current = rooms;
-  }, [rooms]);
-
-  // Verificar tolerancias expiradas, limpiezas de salida y reactivaciones (Versión Blindada - RPC)
-  useEffect(() => {
-    const processRoomTransitions = async () => {
-      const supabase = createClient();
-      const now = new Date();
-      const currentRooms = roomsRef.current;
-
-      for (const room of currentRooms) {
-        if (room.status === "OCUPADA" && !room.room_types?.is_hotel) {
-          const activeStay = getActiveStay(room);
-          if (!activeStay || !activeStay.expected_check_out_at) continue;
-
-          const expected = new Date(activeStay.expected_check_out_at);
-          const diffMs = now.getTime() - expected.getTime();
-
-          // Solo llamamos al RPC si parece que ya pasó la tolerancia (30 min)
-          // Esto ahorra llamadas innecesarias a la base de datos
-          if (diffMs > EXIT_TOLERANCE_MS) {
-            try {
-              const { data, error } = await supabase.rpc('process_extra_hours_v2', {
-                p_stay_id: activeStay.id
-              });
-
-              if (error) {
-                console.error(`[RPC EXTRA HOUR] Error en Hab. ${room.number}:`, error);
-                continue;
-              }
-
-              if (data && data.success && data.hours_added > 0) {
-                console.log(`⏰ [AUTO EXTRA HOUR] Hab. ${room.number}: +${data.hours_added}h (vía RPC).`);
-
-                // Notificar a los valets
-                await notifyActiveValets(
-                  supabase,
-                  '⏰ Horas Extra Agregadas',
-                  `Habitación ${room.number}: Se agregaron ${data.hours_added}h extra. Saldo actualizado.`,
-                  {
-                    type: 'EXTRA_HOUR_ADDED',
-                    roomNumber: room.number,
-                    stayId: activeStay.id
-                  }
-                );
-
-                await fetchRooms(true);
-                toast.info(`Hab. ${room.number}: +${data.hours_added}h extra cobrada(s).`);
-              }
-            } catch (err) {
-              console.error(`[RPC EXTRA HOUR] Exception en Hab. ${room.number}:`, err);
-            }
-          }
-        }
-      }
-    };
-
-    const interval = setInterval(processRoomTransitions, 60000);
-    // Ejecutar una vez al inicio, pero diferido para evitar bloqueos en el render
-    setTimeout(processRoomTransitions, 5000); 
-    
-    return () => clearInterval(interval);
   }, [fetchRooms]);
 
 

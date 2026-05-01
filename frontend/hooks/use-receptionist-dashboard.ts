@@ -11,6 +11,7 @@ import { ShiftSession, ShiftDefinition } from "@/components/employees/types";
 import { useToast } from "@/hooks/use-toast";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
+import { invalidateReceptionCache } from "@/hooks/room-actions/shift-helpers";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -193,6 +194,7 @@ export function useReceptionistDashboard() {
       if (error) throw error;
 
       success("¡Turno iniciado!", `Bienvenido al turno de ${currentShift.name}`);
+      invalidateReceptionCache();
       setActiveSession(data);
       setShowPinInput(false);
       setPinCode("");
@@ -251,6 +253,7 @@ export function useReceptionistDashboard() {
         .eq("id", activeSession.id);
       if (error) throw error;
       success("Turno cerrado", "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo");
+      invalidateReceptionCache();
       setActiveSession(null);
       setShowClockOutOptions(false);
     } catch (err: any) {
@@ -283,18 +286,26 @@ export function useReceptionistDashboard() {
 
       let salesQuery = supabase.from("sales_orders").select("id, total, status").gte("created_at", startDate);
       if (!posConfig.includeGlobalSalesInShift) salesQuery = salesQuery.eq("created_by", userId);
-      const { data: sales } = await salesQuery;
 
       let paymentsQuery = supabase.from("payments").select("amount, payment_method, terminal_code").gte("created_at", startDate).eq("status", "PAGADO");
       if (!posConfig.includeGlobalSalesInShift) paymentsQuery = paymentsQuery.eq("created_by", userId);
-      const { data: payments } = await paymentsQuery;
-
-      const { count: openRooms } = await supabase.from("rooms").select("id", { count: "exact", head: true }).eq("status", "OCUPADA");
 
       let itemsQuery = supabase.from("sales_order_items").select("concept_type, total, is_paid");
       if (activeSession) itemsQuery = itemsQuery.eq("shift_session_id", activeSession.id);
       else itemsQuery = itemsQuery.gte("created_at", startDate);
-      const { data: shiftItems } = await itemsQuery;
+
+      // Run all 4 queries in parallel (they are independent)
+      const [salesRes, paymentsRes, openRoomsRes, shiftItemsRes] = await Promise.all([
+        salesQuery,
+        paymentsQuery,
+        supabase.from("rooms").select("id", { count: "exact", head: true }).eq("status", "OCUPADA"),
+        itemsQuery,
+      ]);
+
+      const sales = salesRes.data;
+      const payments = paymentsRes.data;
+      const openRooms = openRoomsRes.count;
+      const shiftItems = shiftItemsRes.data;
 
       const totalSales = sales?.length || 0;
       const totalAmount = shiftItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
