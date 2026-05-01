@@ -1,9 +1,5 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Sun,
   Sunset,
@@ -33,9 +30,9 @@ import {
   ChevronRight,
   Receipt,
 } from "lucide-react";
-import { Employee, ShiftDefinition, ShiftSession, SHIFT_COLORS, EMPLOYEE_ROLES } from "./types";
+import { ShiftSession, SHIFT_COLORS, EMPLOYEE_ROLES } from "./types";
 import { ShiftClosingModal } from "./shift-closing";
-import { useSystemConfigRead } from "@/hooks/use-system-config";
+import { useShiftManager } from "@/hooks/use-shift-manager";
 
 // Iconos por turno
 const SHIFT_ICONS: Record<string, React.ReactNode> = {
@@ -48,7 +45,7 @@ interface CurrentShiftIndicatorProps {
   compact?: boolean;
   showClockInOut?: boolean;
   onShiftChange?: (session: ShiftSession | null) => void;
-  userRole?: string | null; // Optional user role to override permission check
+  userRole?: string | null;
 }
 
 export function CurrentShiftIndicator({
@@ -56,382 +53,17 @@ export function CurrentShiftIndicator({
   showClockInOut = true,
   onShiftChange,
 }: CurrentShiftIndicatorProps) {
-  const supabase = createClient();
-  const { success, error: showError } = useToast();
-  const systemConfig = useSystemConfigRead();
-
-  // Obtener límite dinámico por rol desde la configuración del sistema
-  const getRoleLimit = (role: string): number | undefined => {
-    switch (role) {
-      case 'receptionist': return systemConfig.maxShiftsReceptionist;
-      case 'cochero': return systemConfig.maxShiftsValet;
-      case 'admin':
-      case 'manager': return systemConfig.maxShiftsAdmin;
-      default: return undefined; // Sin límite explícito para otros roles
-    }
-  };
-
-  const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
-  const [nextShift, setNextShift] = useState<ShiftDefinition | null>(null);
-  const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [activeSessionsList, setActiveSessionsList] = useState<ShiftSession[]>([]); // Lista de todas las sesiones activas (para admins)
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-
-  // Modal de clock in
-  const [isClockInModalOpen, setIsClockInModalOpen] = useState(false);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
-
-  // Modal de clock out con opciones
-  const [showClockOutOptions, setShowClockOutOptions] = useState(false);
-
-  // Modal de corte de caja
-  const [showClosingModal, setShowClosingModal] = useState(false);
-  const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
-
-  // Cargar datos
-  const loadData = useCallback(async () => {
-    try {
-      // Cargar turnos, empleados y sesión activa
-      const [shiftsRes, employeesRes, sessionRes] = await Promise.all([
-        supabase
-          .from("shift_definitions")
-          .select("*")
-          .eq("is_active", true)
-          .order("start_time"),
-        supabase
-          .from("employees")
-          .select("*")
-          .eq("is_active", true)
-          .in("role", ["receptionist", "manager", "cochero", "camarista", "mantenimiento"])
-          .order("first_name"),
-        supabase
-          .from("shift_sessions")
-          .select("*, employees(*), shift_definitions(*)")
-          .eq("status", "active")
-          .is("clock_out_at", null)
-          .order("clock_in_at", { ascending: false })
-          .limit(1),
-      ]);
-
-      if (shiftsRes.error) throw shiftsRes.error;
-      if (employeesRes.error) throw employeesRes.error;
-      if (sessionRes.error) throw sessionRes.error;
-
-      // Si es admin/manager/supervisor, cargar TODAS las sesiones activas
-      const { data: { user } } = await supabase.auth.getUser();
-      let allActiveSessions: ShiftSession[] = [];
-
-      if (user) {
-        // Verificar rol del usuario actual
-        const { data: roleData } = await supabase
-          .from("employees")
-          .select("role")
-          .eq("auth_user_id", user.id)
-          .single();
-
-        const role = roleData?.role;
-        const isAdminOrManager = role === 'admin' || role === 'manager' || role === 'supervisor';
-
-        if (isAdminOrManager) {
-          const { data: allSessions } = await supabase
-            .from("shift_sessions")
-            .select("*, employees(*), shift_definitions(*)")
-            .eq("status", "active")
-            .is("clock_out_at", null)
-            .order("clock_in_at", { ascending: false });
-
-          if (allSessions) allActiveSessions = allSessions;
-        }
-      }
-
-      const allShifts = shiftsRes.data || [];
-      setEmployees(employeesRes.data || []);
-
-      // Determinar turno actual basado en la hora
-      const now = new Date();
-      const currentTime = now.toTimeString().slice(0, 8);
-
-      let current: ShiftDefinition | null = null;
-      let next: ShiftDefinition | null = null;
-
-      for (const shift of allShifts) {
-        const start = shift.start_time;
-        const end = shift.end_time;
-
-        if (shift.crosses_midnight) {
-          // Turno nocturno (22:00 - 06:00)
-          if (currentTime >= start || currentTime < end) {
-            current = shift;
-          }
-        } else {
-          // Turno normal
-          if (currentTime >= start && currentTime < end) {
-            current = shift;
-          }
-        }
-      }
-
-      // Determinar siguiente turno
-      if (current) {
-        const currentIndex = allShifts.findIndex((s: any) => s.id === current!.id);
-        next = allShifts[(currentIndex + 1) % allShifts.length];
-      }
-
-      setCurrentShift(current);
-      setNextShift(next);
-
-      // Sesión activa
-      const session = sessionRes.data?.[0] || null;
-      setActiveSession(session);
-      setActiveSessionsList(allActiveSessions); // Guardar lista completa
-      onShiftChange?.(session);
-    } catch (err: any) {
-      console.error("Error loading shift data:", err);
-      // Silenciar error si las tablas no existen
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase, onShiftChange]);
-
-  useEffect(() => {
-    loadData();
-    // Actualizar cada minuto como fallback
-    const interval = setInterval(loadData, 60000);
-
-    // Suscripción realtime para cambios en shift_sessions
-    const channel = supabase
-      .channel('shift-indicator-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'shift_sessions' },
-        () => {
-          console.log('[SHIFT INDICATOR] Shift session change detected, refreshing...');
-          loadData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
-  }, [loadData]);
-
-  // Clock In
-  const handleClockIn = async () => {
-    if (!selectedEmployeeId || !currentShift) return;
-
-    setActionLoading(true);
-    try {
-      // Obtener información del empleado seleccionado
-      const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-      if (!selectedEmployee) {
-        showError("Error", "No se encontró el empleado seleccionado");
-        setActionLoading(false);
-        return;
-      }
-
-      const employeeRole = selectedEmployee.role;
-      const roleLimit = getRoleLimit(employeeRole);
-      const roleLabel = EMPLOYEE_ROLES.find(r => r.value === employeeRole)?.label || employeeRole;
-
-      // 🔒 VALIDACIÓN POR ROL: Verificar límite de turnos activos para este rol
-      // EXCEPCIÓN: Si el empleado mismo es admin o manager, podría tener un tratamiento especial, pero por consistencia
-      // aplicamos la regla. Los admins que inician turno para OTROS deben respetar la regla del OTRO.
-      if (roleLimit !== undefined) {
-        const { data: activeSessions, error: checkError } = await supabase
-          .from("shift_sessions")
-          .select("*, employees!inner(*)")
-          .eq("status", "active")
-          .eq("employees.role", employeeRole)
-          .is("clock_out_at", null);
-
-        if (checkError) throw checkError;
-
-        const activeCount = activeSessions?.length || 0;
-
-        // Si se ha alcanzado el límite para este rol, mostrar error
-        if (activeCount >= roleLimit) {
-          const activeNames = activeSessions
-            ?.map((s: any) => `${s.employees.first_name} ${s.employees.last_name}`)
-            .join(", ");
-
-          showError(
-            "Límite de turnos alcanzado",
-            `Ya hay ${activeCount} turno(s) activo(s) de ${roleLabel} (máximo permitido: ${roleLimit}). ` +
-            `Empleado(s) activo(s): ${activeNames}. ` +
-            `Primero debe(n) cerrar su turno para que puedas iniciar uno nuevo.`
-          );
-          setActionLoading(false);
-          return;
-        }
-      }
-
-      // Proceder con el registro del turno
-      const { data, error } = await supabase
-        .from("shift_sessions")
-        .insert({
-          employee_id: selectedEmployeeId,
-          shift_definition_id: currentShift.id,
-          clock_in_at: new Date().toISOString(),
-          status: "active",
-        })
-        .select("*, employees(*), shift_definitions(*)")
-        .single();
-
-      if (error) throw error;
-
-      success("Entrada registrada", "Se ha registrado tu entrada al turno");
-
-      // Actualización optimista para UX inmediato
-      setActiveSession(data);
-      setIsClockInModalOpen(false);
-      setSelectedEmployeeId("");
-
-      await loadData(); // Recarga completa en segundo plano
-    } catch (err: any) {
-      console.error("Error clocking in:", err);
-      console.log("Error details:", {
-        message: err.message,
-        code: err.code,
-        details: err.details,
-        hint: err.hint,
-        fullError: err
-      });
-
-      // Detectar error del trigger de límite por rol
-      const errorMessage = err.message || err.details || "";
-
-      if (errorMessage.includes("ROLE_SHIFT_LIMIT_EXCEEDED")) {
-        // Parsear el mensaje del trigger: ROLE_SHIFT_LIMIT_EXCEEDED::RoleName::count::max
-        const parts = errorMessage.split("::");
-        const roleName = parts[1] || "tu puesto";
-        const maxAllowed = parts[3] || "1";
-
-        showError(
-          "⚠️ Turno en curso",
-          `Ya hay un turno de ${roleName} activo en este momento. Debes cerrar el turno anterior antes de poder iniciar uno nuevo.`
-        );
-      } else if (
-        errorMessage.includes("idx_single_active_shift_session") ||
-        errorMessage.includes("duplicate key") ||
-        errorMessage.includes("unique constraint") ||
-        err.code === "23505"
-      ) {
-        showError(
-          "⚠️ Turno en curso",
-          "Otro empleado ya tiene un turno activo. Pídele que cierre su turno o contacta a un supervisor para continuar."
-        );
-      } else {
-        // Mensaje genérico más amigable
-        showError(
-          "No se pudo iniciar el turno",
-          "Ocurrió un problema al registrar tu entrada. Intenta de nuevo o contacta a un supervisor si el problema persiste."
-        );
-      }
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Clock Out - Mostrar opciones o salir directo (Cocheros)
-  const handleClockOutClick = () => {
-    if (!activeSession) {
-      showError("Error", "No hay un turno activo");
-      return;
-    }
-
-    // FIX: Los cocheros NO hacen corte de caja, solo marcan salida
-    const role = activeSession.employees?.role;
-    if (role === 'cochero') {
-      handleClockOutDeferred(); // Reutilizamos "Deferred" porque solo cierra el turno sin modal de conteo
-      return;
-    }
-
-    setShowClockOutOptions(true);
-  };
-
-  // Clock Out con corte inmediato
-  const handleClockOutWithClosing = async () => {
-    if (!activeSession || actionLoading) return; // Prevent race conditions
-
-    setActionLoading(true);
-    try {
-      const { error } = await supabase
-        .from("shift_sessions")
-        .update({
-          clock_out_at: new Date().toISOString(),
-          status: "pending_closing",
-        })
-        .eq("id", activeSession.id);
-
-      if (error) throw error;
-
-      // Actualizar sesión local
-      const updatedSession = {
-        ...activeSession,
-        clock_out_at: new Date().toISOString(),
-        status: "pending_closing" as const,
-      };
-
-      setSessionToClose(updatedSession);
-      setShowClockOutOptions(false);
-      setShowClosingModal(true);
-    } catch (err: any) {
-      console.error("Error clocking out:", err);
-      showError("Error", err.message || "No se pudo registrar la salida");
-      setActionLoading(false);
-    }
-  };
-
-  // Clock Out diferido (sin corte inmediato)
-  const handleClockOutDeferred = async (targetSession: ShiftSession | null = activeSession) => {
-    if (!targetSession || actionLoading) return; // Prevent race conditions
-
-    setActionLoading(true);
-    try {
-      const { error } = await supabase
-        .from("shift_sessions")
-        .update({
-          clock_out_at: new Date().toISOString(),
-          status: "pending_closing",
-        })
-        .eq("id", targetSession.id);
-
-      if (error) throw error;
-
-      success(
-        "Turno cerrado",
-        "El turno se ha cerrado correctamente."
-      );
-
-      // Si cerramos la sesión activa actual, limpiarla
-      if (activeSession?.id === targetSession.id) {
-        setActiveSession(null);
-        onShiftChange?.(null);
-      }
-
-      setShowClockOutOptions(false);
-      loadData(); // Recargar lista
-    } catch (err: any) {
-      console.error("Error clocking out:", err);
-      showError("Error", err.message || "No se pudo registrar la salida");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Callback cuando se completa el corte
-  const handleClosingComplete = () => {
-    setShowClosingModal(false);
-    setSessionToClose(null);
-    setActiveSession(null);
-    onShiftChange?.(null);
-    setActionLoading(false);
-    loadData(); // Recargar datos
-  };
+  const {
+    currentShift, nextShift, activeSession, employees, activeSessionsList,
+    loading, actionLoading,
+    isClockInModalOpen, setIsClockInModalOpen,
+    selectedEmployeeId, setSelectedEmployeeId,
+    showClockOutOptions, setShowClockOutOptions,
+    showClosingModal, setShowClosingModal,
+    sessionToClose, setSessionToClose, setActiveSession,
+    handleClockIn, handleClockOutClick, handleClockOutWithClosing,
+    handleClockOutDeferred, handleClosingComplete
+  } = useShiftManager(onShiftChange);
 
   // Formatear hora
   const formatTime = (time: string) => time.slice(0, 5);
@@ -445,7 +77,6 @@ export function CurrentShiftIndicator({
     const endDate = new Date(now);
     endDate.setHours(endHour, endMin, 0, 0);
 
-    // Si el turno cruza medianoche y estamos antes de medianoche
     if (currentShift.crosses_midnight && now.getHours() >= 22) {
       endDate.setDate(endDate.getDate() + 1);
     }
@@ -470,16 +101,16 @@ export function CurrentShiftIndicator({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 backdrop-blur-md bg-white/5 border border-white/10 rounded-full px-3 py-1 shadow-sm">
         {currentShift && (
-          <Badge className={`${SHIFT_COLORS[currentShift.code]} text-white`}>
+          <Badge className={`${SHIFT_COLORS[currentShift.code]} text-white shadow-sm border-white/20`}>
             {SHIFT_ICONS[currentShift.code]}
-            <span className="ml-1">{currentShift.name}</span>
+            <span className="ml-1 tracking-tight">{currentShift.name}</span>
           </Badge>
         )}
         {activeSession?.employees && (
-          <span className="text-sm text-muted-foreground">
-            <User className="h-3 w-3 inline mr-1" />
+          <span className="text-sm text-foreground/80 font-medium">
+            <User className="h-3 w-3 inline mr-1 text-primary" />
             {activeSession.employees.first_name}
           </span>
         )}
@@ -488,43 +119,46 @@ export function CurrentShiftIndicator({
   }
 
   return (
-    <div className="bg-card border rounded-lg p-4 space-y-4">
+    <div className="relative overflow-hidden bg-white/5 dark:bg-[#0a0a0a]/60 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-5 space-y-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.16)] dark:hover:border-white/20">
+      {/* Decorative gradient blob */}
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 rounded-full blur-[60px] pointer-events-none" />
+
       {/* Turno actual */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+        <div className="flex items-center gap-4">
           {currentShift ? (
             <>
               <div
-                className={`p-3 rounded-full ${SHIFT_COLORS[currentShift.code]} text-white`}
+                className={`p-3.5 rounded-xl shadow-lg border border-white/20 ${SHIFT_COLORS[currentShift.code]} text-white`}
               >
                 {SHIFT_ICONS[currentShift.code]}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Turno actual</p>
-                <p className="text-lg font-semibold">{currentShift.name}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground/80 font-medium uppercase tracking-wider mb-0.5">Turno en curso</p>
+                <p className="text-xl font-bold tracking-tight text-foreground">{currentShift.name}</p>
+                <p className="text-xs font-medium text-muted-foreground bg-black/5 dark:bg-white/5 w-fit px-2 py-0.5 rounded-full mt-1 border border-white/10">
                   {formatTime(currentShift.start_time)} - {formatTime(currentShift.end_time)}
                 </p>
               </div>
             </>
           ) : (
             <>
-              <div className="p-3 rounded-full bg-gray-500 text-white">
+              <div className="p-3.5 rounded-xl shadow-lg border border-white/20 bg-slate-500/80 text-white">
                 <AlertCircle className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Turno actual</p>
-                <p className="text-lg font-semibold">Sin turno definido</p>
+                <p className="text-xs text-muted-foreground/80 font-medium uppercase tracking-wider mb-0.5">Turno en curso</p>
+                <p className="text-xl font-bold tracking-tight text-foreground">Sin turno definido</p>
               </div>
             </>
           )}
         </div>
 
         {currentShift && (
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Tiempo restante</p>
-            <p className="text-lg font-mono font-semibold">
-              <Clock className="h-4 w-4 inline mr-1" />
+          <div className="bg-black/5 dark:bg-white/5 px-4 py-2.5 rounded-xl border border-white/10 sm:text-right">
+            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Tiempo restante</p>
+            <p className="text-xl font-mono font-bold text-foreground">
+              <Clock className="h-4 w-4 inline mr-1.5 text-primary" />
               {getTimeRemaining() || "--:--"}
             </p>
           </div>
@@ -533,12 +167,12 @@ export function CurrentShiftIndicator({
 
       {/* Siguiente turno */}
       {nextShift && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ChevronRight className="h-4 w-4" />
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground relative z-10 px-1">
+          <ChevronRight className="h-3.5 w-3.5 text-primary" />
           <span>Siguiente:</span>
-          <Badge variant="outline" className="font-normal">
-            {SHIFT_ICONS[nextShift.code]}
-            <span className="ml-1">{nextShift.name}</span>
+          <Badge variant="secondary" className="font-medium bg-background/50 border-white/10">
+            <span className="scale-75 mr-1 origin-left">{SHIFT_ICONS[nextShift.code]}</span>
+            <span>{nextShift.name}</span>
             <span className="ml-1 opacity-70">
               ({formatTime(nextShift.start_time)})
             </span>
@@ -547,25 +181,25 @@ export function CurrentShiftIndicator({
       )}
 
       {/* Recepcionista en turno */}
-      <div>
-        {/* Solo mostrar la sección individual si NO es vista de admin (sin lista expandida) */}
+      <div className="relative z-10">
         {activeSessionsList.length === 0 ? (
           activeSession?.employees ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-sm font-medium">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-gradient-to-r from-primary/5 to-transparent border border-primary/10 gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="h-12 w-12 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30 shadow-inner">
+                  <span className="text-lg font-bold text-primary">
                     {activeSession.employees.first_name[0]}
                     {activeSession.employees.last_name[0]}
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">En turno</p>
-                  <p className="font-medium">
+                  <p className="text-[10px] text-primary/80 font-bold uppercase tracking-wider mb-0.5">Operador Activo</p>
+                  <p className="font-bold text-base text-foreground leading-none mb-1">
                     {activeSession.employees.first_name} {activeSession.employees.last_name}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Desde {new Date(activeSession.clock_in_at).toLocaleTimeString("es-MX", {
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    En línea desde {new Date(activeSession.clock_in_at).toLocaleTimeString("es-MX", {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
@@ -579,28 +213,28 @@ export function CurrentShiftIndicator({
                   size="sm"
                   onClick={handleClockOutClick}
                   disabled={actionLoading}
-                  className="text-red-500 border-red-500 hover:bg-red-500/10"
+                  className="text-red-500 border-red-500/50 hover:bg-red-500 hover:text-white transition-all shadow-sm rounded-lg"
                 >
                   {actionLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
                       <LogOut className="h-4 w-4 mr-2" />
-                      Salir
+                      Terminar Turno
                     </>
                   )}
                 </Button>
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                  <User className="h-5 w-5" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50 border-dashed gap-4">
+              <div className="flex items-center gap-3.5 text-muted-foreground">
+                <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center border border-white/5">
+                  <User className="h-6 w-6 opacity-50" />
                 </div>
                 <div>
-                  <p className="text-sm">Sin recepcionista</p>
-                  <p className="text-xs">Nadie ha registrado entrada</p>
+                  <p className="font-semibold text-foreground/70">Caja Cerrada</p>
+                  <p className="text-xs">Inicia sesión para comenzar a operar</p>
                 </div>
               </div>
 
@@ -610,9 +244,10 @@ export function CurrentShiftIndicator({
                   size="sm"
                   onClick={() => setIsClockInModalOpen(true)}
                   disabled={!currentShift}
+                  className="rounded-lg shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
-                  Entrar
+                  Iniciar Operación
                 </Button>
               )}
             </div>
@@ -622,14 +257,14 @@ export function CurrentShiftIndicator({
 
       {/* SECCIÓN ADMIN: Listado de todas las sesiones activas */}
       {activeSessionsList.length > 0 && (
-        <div className="border-t pt-5 mt-2">
+        <div className="border-t border-white/10 pt-5 mt-2 relative z-10">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-              <div className="bg-primary/10 p-1.5 rounded-full">
+            <h3 className="text-sm font-bold flex items-center gap-2 text-foreground">
+              <div className="bg-primary/20 p-1.5 rounded-lg border border-primary/30">
                 <User className="h-4 w-4 text-primary" />
               </div>
-              Staff Activo
-              <Badge variant="secondary" className="ml-1 text-xs font-normal h-5 px-1.5">
+              Personal en Turno
+              <Badge variant="default" className="ml-1 text-xs font-bold h-5 px-1.5 rounded-md shadow-sm">
                 {activeSessionsList.length}
               </Badge>
             </h3>
@@ -637,15 +272,15 @@ export function CurrentShiftIndicator({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs gap-1"
+              className="h-8 text-xs gap-1.5 rounded-lg border-white/20 bg-white/5 hover:bg-white/10 transition-colors"
               onClick={() => setIsClockInModalOpen(true)}
             >
               <LogIn className="h-3.5 w-3.5" />
-              Registrar entrada
+              <span className="hidden sm:inline">Nueva Entrada</span>
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
             {activeSessionsList.map((session) => {
               const roleInfo = EMPLOYEE_ROLES.find(r => r.value === session.employees?.role);
               const roleLabel = roleInfo?.label || session.employees?.role;
@@ -655,40 +290,37 @@ export function CurrentShiftIndicator({
               return (
                 <div
                   key={session.id}
-                  className="group flex items-center justify-between p-3 bg-card border rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-200"
+                  className="group flex items-center justify-between p-3 bg-white/5 dark:bg-[#0a0a0a]/40 border border-white/10 rounded-xl shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300"
                 >
                   <div className="flex items-center gap-3">
-                    {/* Avatar con iniciales y color de rol */}
-                    <div className={`h-10 w-10 rounded-full ${roleColor} flex items-center justify-center text-white shadow-sm ring-2 ring-white dark:ring-slate-900`}>
-                      <span className="text-xs font-bold tracking-wider">{initials}</span>
+                    <div className={`h-10 w-10 rounded-lg ${roleColor} flex items-center justify-center text-white shadow-inner border border-white/20`}>
+                      <span className="text-sm font-bold tracking-wider">{initials}</span>
                     </div>
 
                     <div className="flex flex-col">
-                      <span className="text-sm font-semibold leading-none mb-1">
+                      <span className="text-sm font-bold leading-none mb-1 text-foreground">
                         {session.employees?.first_name} {session.employees?.last_name}
                       </span>
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 h-4 border-muted-foreground/30 font-normal text-muted-foreground bg-muted/30"
+                          className="text-[9px] px-1.5 py-0 h-4 border-white/10 font-bold uppercase tracking-wider text-muted-foreground bg-black/20"
                         >
                           {roleLabel}
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          • <Clock className="h-3 w-3" /> {new Date(session.clock_in_at).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
+                        <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                          • <Clock className="h-2.5 w-2.5" /> {new Date(session.clock_in_at).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Acciones */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-70 group-hover:opacity-100 transition-all"
-                    title="Cerrar turno de este empleado"
+                    className="h-8 w-8 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 opacity-50 group-hover:opacity-100 transition-all rounded-lg"
+                    title="Cerrar turno"
                     onClick={() => {
-                      // FIX: Si es cochero, cerrar directo sin preguntar corte
                       if (session.employees?.role === 'cochero') {
                         if (confirm(`¿Cerrar turno de ${session.employees.first_name} ${session.employees.last_name}?`)) {
                           handleClockOutDeferred(session);
@@ -712,23 +344,23 @@ export function CurrentShiftIndicator({
 
       {/* Modal de Clock In */}
       <Dialog open={isClockInModalOpen} onOpenChange={setIsClockInModalOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-md bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-white/10">
           <DialogHeader>
-            <DialogTitle>Registrar Entrada</DialogTitle>
+            <DialogTitle className="text-2xl">Registrar Entrada</DialogTitle>
             <DialogDescription>
               Selecciona tu nombre para registrar tu entrada al turno de{" "}
-              <strong>{currentShift?.name}</strong>
+              <strong className="text-foreground">{currentShift?.name}</strong>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
+          <div className="py-6">
             <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona tu nombre" />
+              <SelectTrigger className="h-12 rounded-xl bg-white/5 border-white/10">
+                <SelectValue placeholder="Selecciona tu perfil" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-white/10">
                 {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
+                  <SelectItem key={emp.id} value={emp.id} className="rounded-lg">
                     {emp.first_name} {emp.last_name}
                   </SelectItem>
                 ))}
@@ -737,12 +369,12 @@ export function CurrentShiftIndicator({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsClockInModalOpen(false)}>
+            <Button variant="ghost" onClick={() => setIsClockInModalOpen(false)} className="rounded-xl">
               Cancelar
             </Button>
-            <Button onClick={handleClockIn} disabled={!selectedEmployeeId || actionLoading}>
+            <Button onClick={handleClockIn} disabled={!selectedEmployeeId || actionLoading} className="rounded-xl px-6">
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Registrar Entrada
+              Comenzar Turno
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -750,62 +382,67 @@ export function CurrentShiftIndicator({
 
       {/* Modal de Opciones de Clock Out */}
       <Dialog open={showClockOutOptions} onOpenChange={setShowClockOutOptions}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-white/10">
           <DialogHeader className="text-center pb-2">
-            <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center mb-3">
-              <LogOut className="h-6 w-6 text-white" />
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center mb-4 shadow-lg shadow-orange-500/20">
+              <LogOut className="h-7 w-7 text-white" />
             </div>
-            <DialogTitle className="text-xl">Cerrar Turno</DialogTitle>
+            <DialogTitle className="text-2xl font-bold">Cerrar Turno</DialogTitle>
             <DialogDescription>
-              Selecciona cómo deseas proceder
+              Selecciona cómo deseas proceder con tu caja
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2 py-3">
+          <div className="space-y-3 py-4">
             <button
-              className="w-full p-3 rounded-lg border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 hover:border-amber-400 dark:hover:border-amber-600 transition-all flex items-center justify-between group disabled:opacity-50"
+              className="w-full p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-amber-600/5 hover:border-amber-500 hover:from-amber-500/20 hover:to-amber-600/10 transition-all flex items-center justify-between group disabled:opacity-50"
               onClick={handleClockOutWithClosing}
               disabled={actionLoading}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Receipt className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Receipt className="h-5 w-5 text-amber-500" />
                 </div>
-                <span className="font-medium text-amber-700 dark:text-amber-300">Hacer corte ahora</span>
+                <div className="flex flex-col items-start">
+                  <span className="font-bold text-amber-600 dark:text-amber-400">Hacer Corte Ahora</span>
+                  <span className="text-[10px] font-medium text-amber-600/70 dark:text-amber-400/70">Recomendado</span>
+                </div>
               </div>
-              <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200 px-2 py-1 rounded-full">
+              <span className="text-xs bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-md font-bold">
                 ~5 min
               </span>
             </button>
 
             <button
-              className="w-full p-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-600 transition-all flex items-center justify-between group disabled:opacity-50"
+              className="w-full p-4 rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 hover:border-emerald-500 hover:from-emerald-500/20 hover:to-emerald-600/10 transition-all flex items-center justify-between group disabled:opacity-50"
               onClick={() => handleClockOutDeferred()}
               disabled={actionLoading}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Clock className="h-5 w-5 text-emerald-500" />
                 </div>
-                <span className="font-medium text-emerald-700 dark:text-emerald-300">Hacer corte después</span>
+                <div className="flex flex-col items-start">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">Corte Diferido</span>
+                  <span className="text-[10px] font-medium text-emerald-600/70 dark:text-emerald-400/70">Hacerlo más tarde</span>
+                </div>
               </div>
-              <span className="text-xs bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200 px-2 py-1 rounded-full">
-                ✓ Rápido
+              <span className="text-xs bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-md font-bold">
+                Rápido
               </span>
             </button>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center pb-2">
-            Si eliges &quot;después&quot;, podrás completar el corte desde cualquier dispositivo.
+          <p className="text-xs font-medium text-muted-foreground text-center pb-2">
+            Si eliges "diferido", podrás completar el corte desde tu móvil.
           </p>
 
           <DialogFooter className="sm:justify-center">
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => setShowClockOutOptions(false)}
               disabled={actionLoading}
-              className="text-muted-foreground hover:text-foreground"
+              className="rounded-xl w-full"
             >
               Cancelar
             </Button>
@@ -820,7 +457,6 @@ export function CurrentShiftIndicator({
           onClose={() => {
             setShowClosingModal(false);
             setSessionToClose(null);
-            setActionLoading(false);
           }}
           onComplete={handleClosingComplete}
         />

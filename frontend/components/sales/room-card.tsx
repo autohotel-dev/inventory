@@ -110,18 +110,22 @@ export function RoomCardComponent({
   // Clases dinámicas para alerta de puerta abierta
   const containerClasses = showDoorAlert
     ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-transform duration-300"
-    : `${bgClass || "bg-slate-900/80"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50" : "border-white/10 hover:border-white/20"}`;
+    : `${bgClass || "bg-white/5 dark:bg-black/40"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "border-white/20 dark:border-white/10 hover:border-white/40 dark:hover:border-white/20"}`;
 
   return (
     <div
       id="tour-room-card"
       data-room-status={status}
       data-room-number={number}
-      className={`relative rounded-lg p-2 text-sm flex flex-col min-h-[82px] h-auto cursor-pointer shadow-lg hover:shadow-xl backdrop-blur-md border transition-all duration-300 ease-in-out hover:-translate-y-0.5 ${containerClasses}`}
+      className={`relative rounded-xl p-3 text-sm flex flex-col min-h-[90px] h-auto cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:hover:shadow-[0_8px_30px_rgba(255,255,255,0.04)] backdrop-blur-xl border transition-all duration-300 ease-out hover:-translate-y-1 ${containerClasses} group/card`}
     >
+      {/* Glassmorphism subtle glow overlay */}
+      <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      </div>
       {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
       {hasPendingPayment && !showDoorAlert && (
-        <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse z-20" title="Pago pendiente">
+        <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse z-50" title="Pago pendiente">
           <AlertCircle className="h-3 w-3 text-white" />
         </div>
       )}
@@ -135,7 +139,7 @@ export function RoomCardComponent({
             onViewServices?.();
           }}
           className={cn(
-            "absolute rounded-full p-1 shadow-lg z-30 ring-2 ring-background hover:scale-110 active:scale-95 transition-transform duration-200 cursor-pointer",
+            "absolute rounded-full p-1 shadow-lg z-50 ring-2 ring-background hover:scale-110 active:scale-95 transition-transform duration-200 cursor-pointer",
             isCriticalService ? "bg-red-600 animate-[pulse_0.8s_infinite] shadow-red-500/50" : "bg-orange-500 animate-pulse",
             hasPendingPayment ? "-top-1.5 right-4" : "-top-1.5 -right-1.5"
           )}
@@ -148,8 +152,8 @@ export function RoomCardComponent({
       {/* Indicador de Valet Pendiente (Workflow Estricto) - Bloqueo Visual */}
       {isValetPending && !showDoorAlert && (
         <>
-          <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center gap-1.5 cursor-not-allowed group-hover:bg-background/60 transition-colors">
-            <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm animate-pulse">
+          <div className="absolute inset-0 z-40 bg-background/60 backdrop-blur-sm rounded-xl border-2 border-orange-500/50 flex flex-col items-center justify-center gap-1.5 cursor-not-allowed transition-colors">
+            <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-lg animate-pulse">
               Esperando Cochero
             </span>
           </div>
@@ -160,13 +164,13 @@ export function RoomCardComponent({
                 e.stopPropagation();
                 onCancelStay();
               }}
-              className="absolute -top-1.5 -left-1.5 z-30 flex items-center justify-center h-5 w-5 bg-red-600 hover:bg-red-500 text-white rounded-full shadow-lg ring-2 ring-background transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+              className="absolute -top-1.5 -left-1.5 z-50 flex items-center justify-center h-5 w-5 bg-red-600 hover:bg-red-500 text-white rounded-full shadow-lg ring-2 ring-background transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
               title="Cancelar estancia (requiere autorización)"
             >
               <XCircle className="h-3 w-3" />
             </button>
           )}
-          <div className="absolute -top-1.5 -right-1.5 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 ring-2 ring-background animate-pulse" title="Esperando registro de vehículo por Valet">
+          <div className="absolute -top-1.5 -right-1.5 z-50 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 ring-2 ring-background animate-pulse" title="Esperando registro de vehículo por Valet">
             <span className="h-2 w-2 rounded-full bg-white" />
           </div>
         </>
@@ -175,7 +179,7 @@ export function RoomCardComponent({
       {/* Indicador de BLOQUEO DE SALIDA (Pago Pendiente) - SOP 4 */}
       {hasPendingPayment && !showDoorAlert && status === "OCUPADA" && !isValetPending && (
         <>
-          <div className="absolute inset-0 z-10 bg-amber-950/20 backdrop-blur-[0.5px] rounded-lg border-2 border-amber-500/40 flex flex-col items-center justify-center animate-pulse cursor-pointer group-hover:bg-amber-900/30 transition-colors">
+          <div className="absolute inset-0 z-40 bg-amber-950/40 backdrop-blur-[1px] rounded-xl border-2 border-amber-500/40 flex flex-col items-center justify-center animate-pulse cursor-pointer transition-colors">
             <div className="bg-amber-600 text-white text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-full shadow-lg border border-amber-400/50 flex items-center gap-1">
               <AlertCircle size={10} />
               BLOQUEO DE SALIDA
@@ -187,22 +191,22 @@ export function RoomCardComponent({
 
       {/* Indicador de Sensor (Puerta Abierta) - Solo si está ocupada */}
       {showDoorAlert && (
-        <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-30 animate-bounce">
+        <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-50 animate-bounce">
           ¡PUERTA ABIERTA!
         </div>
       )}
 
       {/* Indicador de Valet solicitando salida (Notificación del cochero) */}
       {vehicleStatus?.isWaitingAuthorization && !showDoorAlert && (
-        <div className="absolute -top-2 -left-2 bg-amber-600 text-white p-1 rounded-md shadow-lg border border-amber-400 z-30 animate-pulse" title="Valet avisa que el cliente está saliendo">
+        <div className="absolute -top-2 -left-2 bg-amber-600 text-white p-1 rounded-md shadow-lg border border-amber-400 z-50 animate-pulse" title="Valet avisa que el cliente está saliendo">
           <Car className="h-3.5 w-3.5" />
         </div>
       )}
 
       {/* Fila superior: Número + Estado */}
-      <div className="flex items-start justify-between gap-1 mb-1">
+      <div className="flex items-start justify-between gap-1 mb-2 relative z-10">
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="font-extrabold text-lg leading-none bg-clip-text text-transparent bg-gradient-to-br from-white to-white/70 tracking-tight">{number}</span>
+          <span className="font-black text-xl leading-none tracking-tighter text-foreground drop-shadow-sm">{number}</span>
 
           {/* Indicador de Vehículo */}
           {vehicleStatus?.hasVehicle && (
