@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export type UserRole = "admin" | "manager" | "supervisor" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
@@ -38,6 +38,7 @@ export function useUserRole(): UserRoleData {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hasActiveShift, setHasActiveShift] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const instanceId = useRef(Math.random().toString(36).slice(2, 8));
 
   const fetchUserRole = useCallback(async () => {
     const supabase = createClient();
@@ -173,7 +174,7 @@ export function useUserRole(): UserRoleData {
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`web-shift-sync-${employeeId}`)
+      .channel(`web-shift-sync-${employeeId}-${instanceId.current}`)
       .on(
         'postgres_changes',
         {
