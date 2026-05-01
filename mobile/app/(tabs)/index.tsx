@@ -305,7 +305,8 @@ export default function DashboardScreen() {
 
     return (
         <ScrollView
-            className={`flex-1 ${isDark ? 'bg-zinc-950' : 'bg-zinc-50'}`}
+            className={`flex-1 ${isDark ? 'bg-black' : 'bg-zinc-50'}`}
+            contentContainerStyle={{ paddingBottom: 40 }}
             refreshControl={
                 <RefreshControl
                     refreshing={refreshing}
@@ -314,103 +315,116 @@ export default function DashboardScreen() {
                 />
             }
         >
-            {/* Header con saludo personalizado */}
-            <View className={`px-5 pt-4 pb-5 ${isDark ? 'bg-zinc-950' : 'bg-white'}`}>
+            {/* Header Premium */}
+            <View className={`px-5 pt-6 pb-6 rounded-b-[40px] mb-4 shadow-xl ${isDark ? 'bg-[#0a0a0a] border-b border-white/10' : 'bg-white shadow-sm'}`}>
                 <View className="flex-row items-center justify-between">
                     <View className="flex-1">
-                        <Text className={`text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                            {getGreeting()}, {getFirstName(employeeName || '')}!
+                        <Text className={`text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                            {getGreeting()},
                         </Text>
-                        <Text className={`text-xs mt-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                        <Text className={`text-3xl font-black tracking-tight mb-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                            {getFirstName(employeeName || '')}!
+                        </Text>
+                        <Text className={`text-xs uppercase tracking-widest font-bold ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
                             {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
                         </Text>
                     </View>
                     <TouchableOpacity
                         onPress={onRefresh}
-                        className={`w-10 h-10 rounded-full items-center justify-center ${isDark ? 'bg-zinc-900' : 'bg-zinc-100'}`}
+                        activeOpacity={0.7}
+                        className={`w-12 h-12 rounded-full items-center justify-center border shadow-sm ${isDark ? 'bg-white/5 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}
                     >
-                        <RefreshCw color={isDark ? '#71717a' : '#a1a1aa'} size={18} />
+                        <RefreshCw color={isDark ? '#a1a1aa' : '#71717a'} size={20} />
                     </TouchableOpacity>
                 </View>
             </View>
 
-            <View className="px-4 pb-8">
-                {/* Tarjeta de Turno */}
+            <View className="px-5 pb-8">
+                {/* Tarjeta de Turno Glassmorphism */}
                 {hasActiveShift ? (
-                    <View className={`p-5 rounded-3xl mt-4 border-2 ${isDark ? 'bg-emerald-950/50 border-emerald-800/50' : 'bg-emerald-50 border-emerald-100'}`}>
-                        <View className="flex-row items-center justify-between mb-4">
+                    <View className={`p-5 rounded-3xl mt-2 border border-emerald-500/30 overflow-hidden shadow-lg ${isDark ? 'bg-emerald-950/40' : 'bg-emerald-50'}`}>
+                        {/* Decorative glow in dark mode */}
+                        {isDark && <View className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl" />}
+                        
+                        <View className="flex-row items-center justify-between mb-5">
                             <View className="flex-row items-center">
-                                <View className={`w-10 h-10 rounded-2xl items-center justify-center ${isDark ? 'bg-emerald-900' : 'bg-emerald-100'}`}>
-                                    <CheckCircle2 color="#10b981" size={22} />
+                                <View className={`w-12 h-12 rounded-2xl items-center justify-center border ${isDark ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-emerald-100 border-emerald-200'}`}>
+                                    <CheckCircle2 color={isDark ? '#34d399' : '#10b981'} size={24} />
                                 </View>
-                                <View className="ml-3">
-                                    <Text className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>Turno Activo</Text>
+                                <View className="ml-4">
+                                    <Text className={`text-base font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-emerald-800'}`}>Turno Activo</Text>
                                     {getElapsedTime() && (
-                                        <Text className={`text-xs ${isDark ? 'text-emerald-500/70' : 'text-emerald-600/70'}`}>
-                                            Hace {getElapsedTime()}
+                                        <Text className={`text-xs font-medium ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>
+                                            Duración: {getElapsedTime()}
                                         </Text>
                                     )}
                                 </View>
                             </View>
-                            <View className={`px-3 py-1.5 rounded-full ${isDark ? 'bg-emerald-900/50' : 'bg-emerald-100'}`}>
-                                <Text className={`text-xs font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                            <View className={`px-3 py-1.5 rounded-full border ${isDark ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-200 border-emerald-300'}`}>
+                                <Text className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
                                     {totalActions} acciones
                                 </Text>
                             </View>
                         </View>
 
-                        {/* Money Stats */}
-                        <View className={`p-4 rounded-2xl ${isDark ? 'bg-black/30' : 'bg-white/80'}`}>
-                            <View className="flex-row items-center mb-3">
-                                <DollarSign color={isDark ? '#10b981' : '#059669'} size={16} />
-                                <Text className={`text-xs font-black uppercase tracking-widest ml-1 ${isDark ? 'text-emerald-500' : 'text-emerald-700'}`}>
-                                    Recaudado este turno
+                        {/* Money Stats - Elevated Card inside */}
+                        <View className={`p-5 rounded-2xl border ${isDark ? 'bg-black/40 border-white/10' : 'bg-white shadow-sm border-emerald-100'}`}>
+                            <View className="flex-row items-center mb-1">
+                                <DollarSign color={isDark ? '#10b981' : '#059669'} size={18} />
+                                <Text className={`text-xs font-black uppercase tracking-widest ml-1 ${isDark ? 'text-zinc-400' : 'text-emerald-700'}`}>
+                                    Recaudación Total
                                 </Text>
                             </View>
-                            <Text className={`text-3xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                            <Text className={`text-4xl font-black mb-4 tracking-tighter ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                                 ${myStats.totalCollected.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                             </Text>
-                            <View className="flex-row gap-3 mt-3">
-                                <View className="flex-1">
-                                    <Text className={`text-[10px] font-bold uppercase ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>Entradas</Text>
-                                    <Text className={`text-lg font-black ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{myStats.entriesHandled}</Text>
+                            
+                            <View className={`flex-row gap-3 pt-4 border-t ${isDark ? 'border-white/10' : 'border-emerald-100'}`}>
+                                <View className="flex-1 items-center justify-center">
+                                    <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-800'}`}>{myStats.entriesHandled}</Text>
+                                    <Text className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>Entradas</Text>
                                 </View>
-                                <View className="flex-1">
-                                    <Text className={`text-[10px] font-bold uppercase ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>Salidas</Text>
-                                    <Text className={`text-lg font-black ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{myStats.checkoutsHandled}</Text>
+                                <View className={`w-px h-full ${isDark ? 'bg-white/10' : 'bg-emerald-100'}`} />
+                                <View className="flex-1 items-center justify-center">
+                                    <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-800'}`}>{myStats.checkoutsHandled}</Text>
+                                    <Text className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>Salidas</Text>
                                 </View>
-                                <View className="flex-1">
-                                    <Text className={`text-[10px] font-bold uppercase ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>Servicios</Text>
-                                    <Text className={`text-lg font-black ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{myStats.servicesDelivered}</Text>
+                                <View className={`w-px h-full ${isDark ? 'bg-white/10' : 'bg-emerald-100'}`} />
+                                <View className="flex-1 items-center justify-center">
+                                    <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-800'}`}>{myStats.servicesDelivered}</Text>
+                                    <Text className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>Servicios</Text>
                                 </View>
                             </View>
                         </View>
                     </View>
                 ) : (
-                    <View className={`p-6 rounded-3xl mt-4 border-2 ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-                        <View className="flex-row items-center mb-5">
-                            <View className={`w-12 h-12 rounded-2xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-50'}`}>
-                                <Clock color={isDark ? '#a1a1aa' : '#71717a'} size={24} />
+                    <View className={`p-6 rounded-3xl mt-4 border ${isDark ? 'bg-[#111111] border-white/10 shadow-xl' : 'bg-white border-zinc-200 shadow-md'}`}>
+                        <View className="flex-row items-center mb-6">
+                            <View className={`w-14 h-14 rounded-2xl items-center justify-center border ${isDark ? 'bg-white/5 border-white/10' : 'bg-zinc-50 border-zinc-100'}`}>
+                                <Clock color={isDark ? '#a1a1aa' : '#71717a'} size={28} />
                             </View>
-                            <View className="ml-4">
-                                <Text className={`text-lg font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>Sin Turno Activo</Text>
-                                {currentShift && (
-                                    <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                                        Turno disponible: {currentShift.name}
+                            <View className="ml-4 flex-1">
+                                <Text className={`text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>Sin Turno</Text>
+                                {currentShift ? (
+                                    <Text className={`text-xs font-medium mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                        Disponible: {currentShift.name}
                                     </Text>
+                                ) : (
+                                    <Text className={`text-xs mt-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>No hay turnos asignados</Text>
                                 )}
                             </View>
                         </View>
                         <TouchableOpacity
                             onPress={handleStartShift}
                             disabled={loading || !currentShift}
-                            className={`h-14 items-center justify-center rounded-2xl ${currentShift ? 'bg-emerald-600' : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')}`}
+                            activeOpacity={0.8}
+                            className={`h-16 items-center justify-center rounded-2xl border ${currentShift ? (isDark ? 'bg-emerald-600 border-emerald-500' : 'bg-emerald-600 border-emerald-700') : (isDark ? 'bg-white/5 border-white/10' : 'bg-zinc-200 border-zinc-300')}`}
                         >
                             {loading ? (
                                 <ActivityIndicator color="white" />
                             ) : (
-                                <Text className={`font-black uppercase tracking-widest text-sm ${currentShift ? 'text-white' : (isDark ? 'text-zinc-500' : 'text-zinc-400')}`}>
-                                    {currentShift ? `Iniciar Turno` : 'No hay turnos'}
+                                <Text className={`font-black uppercase tracking-widest text-sm ${currentShift ? 'text-white' : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>
+                                    {currentShift ? `Iniciar Turno Ahora` : 'Turno no disponible'}
                                 </Text>
                             )}
                         </TouchableOpacity>
@@ -418,41 +432,56 @@ export default function DashboardScreen() {
                 )}
 
                 {/* Stats Grid - General */}
-                <View className="flex-row gap-2 mt-4">
-                    <View className={`flex-1 items-center p-3.5 rounded-2xl border ${isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-                        <Car color={stats.entries > 0 ? '#3b82f6' : (isDark ? '#52525b' : '#a1a1aa')} size={20} />
-                        <Text className={`text-[10px] font-bold mt-1.5 ${stats.entries > 0 ? (isDark ? 'text-blue-400' : 'text-blue-600') : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>Entradas</Text>
-                        <Text className={`text-xl font-black ${stats.entries > 0 ? (isDark ? 'text-blue-400' : 'text-blue-600') : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>{stats.entries}</Text>
+                <View className="flex-row gap-3 mt-6">
+                    <View className={`flex-1 items-center p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-blue-950/20 border-blue-500/20' : 'bg-blue-50 border-blue-100'}`}>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center mb-2 ${isDark ? 'bg-blue-500/20' : 'bg-blue-200'}`}>
+                            <Car color={isDark ? '#60a5fa' : '#3b82f6'} size={20} />
+                        </View>
+                        <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-blue-400/80' : 'text-blue-600'}`}>Entradas</Text>
+                        <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-blue-900'}`}>{stats.entries}</Text>
                     </View>
-                    <View className={`flex-1 items-center p-3.5 rounded-2xl border ${isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-                        <CheckCircle2 color={isDark ? '#10b981' : '#059669'} size={20} />
-                        <Text className={`text-[10px] font-bold mt-1.5 ${isDark ? 'text-emerald-500' : 'text-emerald-700'}`}>En Estancia</Text>
-                        <Text className={`text-xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{stats.inStay}</Text>
+                    <View className={`flex-1 items-center p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-emerald-950/20 border-emerald-500/20' : 'bg-emerald-50 border-emerald-100'}`}>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center mb-2 ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-200'}`}>
+                            <CheckCircle2 color={isDark ? '#34d399' : '#10b981'} size={20} />
+                        </View>
+                        <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>En Garaje</Text>
+                        <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-emerald-900'}`}>{stats.inStay}</Text>
                     </View>
-                    <View className={`flex-1 items-center p-3.5 rounded-2xl border ${stats.checkouts > 0 ? (isDark ? 'bg-red-950/30 border-red-800/50' : 'bg-red-50 border-red-100') : (isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-100')}`}>
-                        <LogOut color={stats.checkouts > 0 ? '#ef4444' : (isDark ? '#52525b' : '#a1a1aa')} size={20} />
-                        <Text className={`text-[10px] font-bold mt-1.5 ${stats.checkouts > 0 ? 'text-red-500' : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>Urgentes</Text>
-                        <Text className={`text-xl font-black ${stats.checkouts > 0 ? 'text-red-500' : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>{stats.checkouts}</Text>
+                </View>
+                <View className="flex-row gap-3 mt-3">
+                    <View className={`flex-1 items-center p-4 rounded-2xl border shadow-sm ${stats.checkouts > 0 ? (isDark ? 'bg-red-950/40 border-red-500/40' : 'bg-red-100 border-red-300') : (isDark ? 'bg-[#111111] border-white/10' : 'bg-white border-zinc-200')}`}>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center mb-2 ${stats.checkouts > 0 ? (isDark ? 'bg-red-500/20' : 'bg-red-200') : (isDark ? 'bg-white/5' : 'bg-zinc-100')}`}>
+                            <LogOut color={stats.checkouts > 0 ? (isDark ? '#f87171' : '#ef4444') : (isDark ? '#71717a' : '#a1a1aa')} size={20} />
+                        </View>
+                        <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stats.checkouts > 0 ? (isDark ? 'text-red-400' : 'text-red-600') : (isDark ? 'text-zinc-500' : 'text-zinc-400')}`}>Salidas</Text>
+                        <Text className={`text-2xl font-black ${stats.checkouts > 0 ? (isDark ? 'text-white' : 'text-red-900') : (isDark ? 'text-white' : 'text-zinc-900')}`}>{stats.checkouts}</Text>
                     </View>
-                    <View className={`flex-1 items-center p-3.5 rounded-2xl border ${isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-                        <ShoppingBag color={stats.services > 0 ? '#f59e0b' : (isDark ? '#52525b' : '#a1a1aa')} size={20} />
-                        <Text className={`text-[10px] font-bold mt-1.5 ${stats.services > 0 ? (isDark ? 'text-amber-400' : 'text-amber-600') : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>Servicios</Text>
-                        <Text className={`text-xl font-black ${stats.services > 0 ? (isDark ? 'text-amber-400' : 'text-amber-600') : (isDark ? 'text-zinc-600' : 'text-zinc-400')}`}>{stats.services}</Text>
+                    <View className={`flex-1 items-center p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-[#111111] border-white/10' : 'bg-white border-zinc-200'}`}>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center mb-2 ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                            <ShoppingBag color={stats.services > 0 ? (isDark ? '#fbbf24' : '#f59e0b') : (isDark ? '#71717a' : '#a1a1aa')} size={20} />
+                        </View>
+                        <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stats.services > 0 ? (isDark ? 'text-amber-400/80' : 'text-amber-600') : (isDark ? 'text-zinc-500' : 'text-zinc-400')}`}>Servicios</Text>
+                        <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{stats.services}</Text>
                     </View>
                 </View>
 
                 {/* Acciones Urgentes */}
                 {urgentRooms.length > 0 && (
-                    <View className="mt-5">
-                        <View className="flex-row items-center mb-3">
-                            <Zap color="#ef4444" size={16} strokeWidth={3} />
-                            <Text className={`text-xs font-black uppercase tracking-widest ml-2 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
-                                Requieren atención
-                            </Text>
+                    <View className="mt-8">
+                        <View className="flex-row items-center justify-between mb-4">
+                            <View className="flex-row items-center">
+                                <View className="bg-red-500/20 p-1.5 rounded-lg border border-red-500/30 mr-2">
+                                    <Zap color="#ef4444" size={16} strokeWidth={3} />
+                                </View>
+                                <Text className={`text-xs font-black uppercase tracking-widest ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                                    Atención Inmediata
+                                </Text>
+                            </View>
                         </View>
                         {urgentRooms.map((room) => (
                             <Animated.View key={room.stayId} style={{ transform: [{ scale: room.type === 'checkout' ? pulseAnim : 1 }] }}>
                                 <TouchableOpacity
+                                    activeOpacity={0.7}
                                     onPress={() => {
                                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                                         router.push({
@@ -463,29 +492,29 @@ export default function DashboardScreen() {
                                             }
                                         });
                                     }}
-                                    className={`flex-row items-center justify-between p-4 rounded-2xl mb-2 border-2 ${
+                                    className={`flex-row items-center justify-between p-4 rounded-2xl mb-3 border ${
                                         room.type === 'checkout'
-                                            ? (isDark ? 'bg-red-950/30 border-red-800/50' : 'bg-red-50 border-red-100')
-                                            : (isDark ? 'bg-blue-950/30 border-blue-800/50' : 'bg-blue-50 border-blue-100')
+                                            ? (isDark ? 'bg-red-950/40 border-red-500/30 shadow-[0_4px_20px_rgba(239,68,68,0.15)]' : 'bg-red-50 border-red-200 shadow-sm')
+                                            : (isDark ? 'bg-blue-950/40 border-blue-500/30 shadow-[0_4px_20px_rgba(59,130,246,0.15)]' : 'bg-blue-50 border-blue-200 shadow-sm')
                                     }`}
                                 >
                                     <View className="flex-row items-center">
-                                        <View className={`w-11 h-11 rounded-xl items-center justify-center ${
+                                        <View className={`w-12 h-12 rounded-xl items-center justify-center border ${
                                             room.type === 'checkout'
-                                                ? 'bg-red-500'
-                                                : 'bg-blue-500'
+                                                ? (isDark ? 'bg-red-500/20 border-red-500/50' : 'bg-red-500 border-red-600')
+                                                : (isDark ? 'bg-blue-500/20 border-blue-500/50' : 'bg-blue-500 border-blue-600')
                                         }`}>
                                             {room.type === 'checkout' ? (
-                                                <LogOut color="white" size={20} />
+                                                <LogOut color={isDark ? '#f87171' : 'white'} size={22} />
                                             ) : (
-                                                <Car color="white" size={20} />
+                                                <Car color={isDark ? '#60a5fa' : 'white'} size={22} />
                                             )}
                                         </View>
-                                        <View className="ml-3">
-                                            <Text className={`text-base font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                                        <View className="ml-4">
+                                            <Text className={`text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                                                 Hab. {room.number}
                                             </Text>
-                                            <Text className={`text-xs ${
+                                            <Text className={`text-xs font-bold uppercase tracking-wider mt-0.5 ${
                                                 room.type === 'checkout'
                                                     ? (isDark ? 'text-red-400' : 'text-red-600')
                                                     : (isDark ? 'text-blue-400' : 'text-blue-600')
@@ -494,7 +523,9 @@ export default function DashboardScreen() {
                                             </Text>
                                         </View>
                                     </View>
-                                    <ChevronRight color={room.type === 'checkout' ? '#ef4444' : '#3b82f6'} size={20} />
+                                    <View className={`w-10 h-10 rounded-full items-center justify-center ${isDark ? 'bg-white/5' : 'bg-white'}`}>
+                                        <ChevronRight color={room.type === 'checkout' ? '#ef4444' : '#3b82f6'} size={20} />
+                                    </View>
                                 </TouchableOpacity>
                             </Animated.View>
                         ))}
@@ -502,53 +533,55 @@ export default function DashboardScreen() {
                 )}
 
                 {/* Quick Navigation */}
-                <Text className={`text-xs font-black uppercase tracking-widest mt-6 mb-3 ml-1 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                    Accesos Rápidos
+                <Text className={`text-xs font-black uppercase tracking-widest mt-8 mb-4 ml-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    Navegación Rápida
                 </Text>
 
                 <TouchableOpacity
+                    activeOpacity={0.8}
                     onPress={() => router.push('/(tabs)/rooms')}
-                    className={`flex-row items-center justify-between p-4 rounded-2xl mb-2 border ${isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-100'}`}
+                    className={`flex-row items-center justify-between p-5 rounded-3xl mb-3 border shadow-sm ${isDark ? 'bg-[#111111] border-white/10' : 'bg-white border-zinc-200'}`}
                 >
                     <View className="flex-row items-center">
-                        <View className={`w-10 h-10 rounded-xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-50'}`}>
-                            <Car color={isDark ? '#a1a1aa' : '#52525b'} size={20} />
+                        <View className={`w-12 h-12 rounded-2xl items-center justify-center border ${isDark ? 'bg-white/5 border-white/10' : 'bg-zinc-50 border-zinc-100'}`}>
+                            <Car color={isDark ? '#a1a1aa' : '#52525b'} size={24} />
                         </View>
-                        <View className="ml-3">
-                            <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Habitaciones</Text>
-                            <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Entradas y salidas</Text>
+                        <View className="ml-4">
+                            <Text className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>Habitaciones</Text>
+                            <Text className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Entradas y salidas</Text>
                         </View>
                     </View>
                     <View className="flex-row items-center">
                         {stats.entries > 0 && (
-                            <View className="bg-blue-500 px-2.5 py-1 rounded-full mr-2">
-                                <Text className="text-white text-xs font-black">{stats.entries}</Text>
+                            <View className="bg-blue-500 px-3 py-1.5 rounded-full mr-3 shadow-md border border-blue-400">
+                                <Text className="text-white text-xs font-black">{stats.entries} Nuevas</Text>
                             </View>
                         )}
-                        <ChevronRight color={isDark ? '#3f3f46' : '#d4d4d8'} size={20} />
+                        <ChevronRight color={isDark ? '#52525b' : '#d4d4d8'} size={24} />
                     </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                    activeOpacity={0.8}
                     onPress={() => router.push('/(tabs)/services')}
-                    className={`flex-row items-center justify-between p-4 rounded-2xl mb-2 border ${isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-100'}`}
+                    className={`flex-row items-center justify-between p-5 rounded-3xl mb-3 border shadow-sm ${isDark ? 'bg-[#111111] border-white/10' : 'bg-white border-zinc-200'}`}
                 >
                     <View className="flex-row items-center">
-                        <View className={`w-10 h-10 rounded-xl items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-50'}`}>
-                            <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={20} />
+                        <View className={`w-12 h-12 rounded-2xl items-center justify-center border ${isDark ? 'bg-white/5 border-white/10' : 'bg-zinc-50 border-zinc-100'}`}>
+                            <ShoppingBag color={isDark ? '#fbbf24' : '#d97706'} size={24} />
                         </View>
-                        <View className="ml-3">
-                            <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Servicios</Text>
-                            <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Entregas de tienda</Text>
+                        <View className="ml-4">
+                            <Text className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>Servicios</Text>
+                            <Text className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Entregas de tienda</Text>
                         </View>
                     </View>
                     <View className="flex-row items-center">
                         {stats.services > 0 && (
-                            <View className="bg-amber-500 px-2.5 py-1 rounded-full mr-2">
-                                <Text className="text-white text-xs font-black">{stats.services}</Text>
+                            <View className="bg-amber-500 px-3 py-1.5 rounded-full mr-3 shadow-md border border-amber-400">
+                                <Text className="text-white text-xs font-black">{stats.services} Por llevar</Text>
                             </View>
                         )}
-                        <ChevronRight color={isDark ? '#3f3f46' : '#d4d4d8'} size={20} />
+                        <ChevronRight color={isDark ? '#52525b' : '#d4d4d8'} size={24} />
                     </View>
                 </TouchableOpacity>
             </View>

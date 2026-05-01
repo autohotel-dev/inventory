@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useValetDashboard } from "@/hooks/use-valet-dashboard";
 import { Room } from "@/components/sales/room-types";
-import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { ValetCheckInModal } from "./valet-checkin-modal";
 import { ValetCheckoutModal } from "./valet-checkout-modal";
 import { ValetDeliveryConfirmModal } from "./valet-delivery-confirm-modal";
 import { ValetExtraChargeModal } from "./valet-extra-charge-modal";
-import { useValetActions } from "@/hooks/use-valet-actions";
-import { usePushRegistration } from "@/hooks/use-push-registration";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +17,6 @@ import {
     Clock,
     Users,
     LogOut,
-    Receipt,
     ShoppingBag,
     Zap,
     LayoutGrid,
@@ -32,11 +27,9 @@ import {
     ChevronDown,
     ChevronUp,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     AlertDialog,
-    AlertDialogAction,
     AlertDialogCancel,
     AlertDialogContent,
     AlertDialogDescription,
@@ -44,450 +37,259 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 interface ValetDashboardProps {
     employeeId: string;
 }
 
 export function ValetDashboard({ employeeId }: ValetDashboardProps) {
-    const [rooms, setRooms] = useState<Room[]>([]);
-    const [pendingConsumptions, setPendingConsumptions] = useState<any[]>([]);
-    const [myConsumptions, setMyConsumptions] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-    const [showCheckInModal, setShowCheckInModal] = useState(false);
-    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-    const [showExtraChargeModal, setShowExtraChargeModal] = useState(false);
-    const [extraChargeType, setExtraChargeType] = useState<'EXTRA_HOUR' | 'EXTRA_PERSON'>('EXTRA_HOUR');
-    const [showDeliveryModal, setShowDeliveryModal] = useState(false);
-    const [selectedConsumption, setSelectedConsumption] = useState<any | null>(null);
-    const [cancellingId, setCancellingId] = useState<string | null>(null);
-    const [expandedServiceCards, setExpandedServiceCards] = useState<Set<string>>(new Set());
-    const [bulkConfirmItems, setBulkConfirmItems] = useState<{ items: any[], roomNumber: string } | null>(null);
-    const [bulkConfirmLoading, setBulkConfirmLoading] = useState(false);
-
-    const { isSupported, isSubscribed, subscribe, unsubscribe, loading: pushLoading } = usePushRegistration(employeeId);
-
-    const fetchRooms = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
-        const supabase = createClient();
-
-        try {
-            const { data, error } = await supabase
-                .from("rooms")
-                .select(`
-          *,
-          room_types(*),
-          room_stays!inner(
-            *,
-            sales_orders(*)
-          )
-        `)
-                .eq("room_stays.status", "ACTIVA")
-                .order("number");
-
-            if (error) throw error;
-
-            setRooms(data as Room[] || []);
-        } catch (error) {
-            console.error("Error fetching rooms:", error);
-            toast.error("Error al cargar habitaciones");
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    }, []);
-
-    // Cargar consumos pendientes de entrega
-    const fetchPendingConsumptions = useCallback(async () => {
-        const supabase = createClient();
-        try {
-            const { data, error } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products(name, sku),
-                    sales_orders!inner(
-                        id,
-                        room_stays!inner(
-                            room_id,
-                            rooms(number)
-                        )
-                    )
-                `)
-                .eq('concept_type', 'CONSUMPTION')
-                .is('delivery_accepted_by', null)
-                .eq('is_paid', false)
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")') // Exclude finished/cancelled items
-                .order('id', { ascending: false });
-
-            if (error) throw error;
-            setPendingConsumptions(data || []);
-        } catch (error) {
-            console.error('Error fetching pending consumptions:', error);
-            setPendingConsumptions([]);
-        }
-    }, []);
-
-    // Cargar MIS consumos en progreso (aceptados por mí)
-    const fetchMyConsumptions = useCallback(async () => {
-        if (!employeeId) return;
-        const supabase = createClient();
-        try {
-            const { data, error } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products(name, sku),
-                    sales_orders!inner(
-                        id,
-                        room_stays!inner(
-                            room_id,
-                            rooms(number)
-                        )
-                    )
-                `)
-                .eq('concept_type', 'CONSUMPTION')
-                .eq('delivery_accepted_by', employeeId)
-                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT'])
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")') // Exclude finished/cancelled items
-                .order('id', { ascending: false });
-
-            if (error) throw error;
-            setMyConsumptions(data || []);
-        } catch (error) {
-            console.error('Error fetching my consumptions:', error);
-            setMyConsumptions([]);
-        }
-    }, [employeeId]);
-
-
-
-    // ... (keep existing audio hook)
-    const { isAudioReady, unlockAudio } = useSoundNotifications('valet', rooms.map(r => ({ id: r.id, number: r.number })));
-
     const {
-        loading: actionLoading,
-        handleRegisterVehicleAndPayment,
+        loading,
+        selectedRoom,
+        showCheckInModal,
+        showCheckoutModal,
+        showExtraChargeModal,
+        extraChargeType,
+        showDeliveryModal,
+        selectedConsumption,
+        cancellingId,
+        expandedServiceCards,
+        bulkConfirmItems,
+        bulkConfirmLoading,
+        
+        isSupported,
+        isSubscribed,
+        subscribe,
+        unsubscribe,
+        pushLoading,
+        isAudioReady,
+        unlockAudio,
+        actionLoading,
+
+        entriesToAccept,
+        myPendingEntries,
+        urgentCheckouts,
+        parkedVehicles,
+        pendingConsumptions,
+        myConsumptions,
+
+        setSelectedRoom,
+        setShowCheckInModal,
+        setShowCheckoutModal,
+        setShowExtraChargeModal,
+        setExtraChargeType,
+        setShowDeliveryModal,
+        setSelectedConsumption,
+        setExpandedServiceCards,
+        setBulkConfirmItems,
+        fetchRooms,
+
+        handleAcceptEntryWrapper,
+        handleAcceptConsumptionWrapper,
+        handleAcceptAllConsumptionsWrapper,
+        openBulkConfirmModal,
+        handleConfirmAllDeliveriesWrapper,
+        handleCancelConsumptionWrapper,
+        handleOpenCheckIn,
+        handleOpenCheckout,
+        handleCheckIn,
+        handleCheckout,
+        handlePropose,
         handleRegisterExtraHour,
         handleRegisterExtraPerson,
-        handleConfirmCheckout,
-        handleProposeCheckout,
-        handleAcceptEntry,
-        handleAcceptConsumption,
-        handleAcceptAllConsumptions,
         handleConfirmDelivery,
-        handleConfirmAllDeliveries,
-        handleCancelConsumption
-    } = useValetActions(async () => {
-        await fetchRooms(true);
-        await fetchPendingConsumptions();
-        await fetchMyConsumptions();
-    });
-
-    // ... (keep existing subscription effect)
-    useEffect(() => {
-        const supabase = createClient();
-        console.log("Setting up realtime subscription for ValetDashboard");
-        const channel = supabase
-            .channel('valet-dashboard-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' },
-                () => fetchRooms(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' },
-                () => fetchRooms(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' },
-                () => fetchRooms(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' },
-                () => {
-                    fetchPendingConsumptions();
-                    fetchMyConsumptions();
-                })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [fetchRooms, fetchPendingConsumptions, fetchMyConsumptions]);
-
-    // ... (keep existing handlers: handleAcceptEntry, handleAcceptConsumption, useEffect for intervals, filters)
-    const handleAcceptEntryWrapper = async (room: Room) => {
-        const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
-        if (!stay || !employeeId) return;
-        await handleAcceptEntry(stay.id, room.number, employeeId);
-    };
-
-    // Aceptar consumo para entregar
-    const handleAcceptConsumptionWrapper = async (consumptionId: string, roomNumber: string) => {
-        if (!employeeId) return;
-        await handleAcceptConsumption(consumptionId, roomNumber, employeeId);
-    };
-
-    // Aceptar TODOS los consumos de una habitación
-    const handleAcceptAllConsumptionsWrapper = async (items: any[], roomNumber: string) => {
-        if (!employeeId || items.length === 0) return;
-        await handleAcceptAllConsumptions(items, roomNumber, employeeId);
-    };
-
-    // Abrir modal de confirmación para TODOS los consumos de una habitación (que estén IN_TRANSIT)
-    const openBulkConfirmModal = (items: any[], roomNumber: string) => {
-        const inTransitItems = items.filter(item => item.delivery_status === 'IN_TRANSIT');
-        if (inTransitItems.length === 0) {
-            toast.error("No hay entregas listas para confirmar");
-            return;
-        }
-        setBulkConfirmItems({ items: inTransitItems, roomNumber });
-    };
-
-    // Ejecutar confirmación de todas las entregas
-    const handleConfirmAllDeliveriesWrapper = async () => {
-        if (!bulkConfirmItems || !employeeId) return;
-        setBulkConfirmLoading(true);
-        // Por ahora bulk use payment EFECTIVO por el total, 
-        // idealmente abriría un mini modal de cobro igual que el individual
-        const totalAmount = bulkConfirmItems.items.reduce((sum, item) => sum + Number(item.total), 0);
-        const payments = [{ amount: totalAmount, method: 'EFECTIVO' as const }];
-
-        await handleConfirmAllDeliveries(
-            bulkConfirmItems.items,
-            bulkConfirmItems.roomNumber,
-            payments,
-            undefined,
-            employeeId
-        );
-        setBulkConfirmItems(null);
-        setBulkConfirmLoading(false);
-    };
-
-    const handleCancelConsumptionWrapper = async (consumptionId: string) => {
-        setCancellingId(consumptionId);
-        await handleCancelConsumption(consumptionId);
-        setCancellingId(null);
-    };
-
-    useEffect(() => {
-        fetchRooms(false);
-        fetchPendingConsumptions();
-        fetchMyConsumptions();
-
-        // Auto-refresh cada 30 segundos (silencioso)
-        const interval = setInterval(() => {
-            // No refrescar si hay un modal abierto para evitar perder foco o datos
-            if (!showCheckInModal && !showCheckoutModal && !showDeliveryModal) {
-                fetchRooms(true);
-                fetchPendingConsumptions();
-                fetchMyConsumptions();
-            }
-        }, 30000);
-        return () => clearInterval(interval);
-    }, [employeeId, showCheckInModal, showCheckoutModal, showDeliveryModal, fetchPendingConsumptions, fetchMyConsumptions]);
-
-    // Filtrar habitaciones sin vehículo (entradas pendientes)
-    const roomsWithoutVehicle = rooms.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay && !stay.vehicle_plate;
-    });
-
-    // Filtrar habitaciones con vehículo pero sin checkout confirmado (salidas pendientes)
-    const roomsPendingCheckout = rooms.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        // Aquí deberías tener una forma de saber si está en proceso de checkout
-        // Por ahora, mostrar habitaciones con checkout_valet_employee_id null
-        return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id;
-    }).sort((a, b) => {
-        const stayA = a.room_stays?.find(s => s.status === 'ACTIVA');
-        const stayB = b.room_stays?.find(s => s.status === 'ACTIVA');
-        // Priorizar vehículos solicitados
-        const reqA = stayA?.vehicle_requested_at ? 1 : 0;
-        const reqB = stayB?.vehicle_requested_at ? 1 : 0;
-        if (reqA !== reqB) return reqB - reqA; // Solicitados primero
-        return 0;
-
-    });
-
-    // 1. Entradas SIN valet asignado (Cualquiera puede aceptar)
-    const entriesToAccept = roomsWithoutVehicle.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return !stay?.valet_employee_id;
-    });
-
-    // 2. Mis entradas pendientes (Valet asignado = Yo, pero sin vehículo)
-    const myPendingEntries = roomsWithoutVehicle.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay?.valet_employee_id === employeeId;
-    });
-
-    const handleOpenCheckIn = (room: Room) => {
-        setSelectedRoom(room);
-        setShowCheckInModal(true);
-    };
-
-    const handleOpenCheckout = (room: Room) => {
-        setSelectedRoom(room);
-        setShowCheckoutModal(true);
-    };
-
-    const handleCheckIn = async (vehicleData: any, paymentData: any, personCount: number): Promise<void> => {
-        if (!selectedRoom) return;
-        const success = await handleRegisterVehicleAndPayment(selectedRoom, vehicleData, paymentData, employeeId, personCount);
-        if (success) {
-            setShowCheckInModal(false);
-            setSelectedRoom(null);
-            // Forzar actualización inmediata del dashboard
-            await fetchRooms(true);
-        }
-    };
-
-    const handleCheckout = async (personCount: number) => {
-        if (!selectedRoom) return;
-        const success = await handleConfirmCheckout(selectedRoom, employeeId, personCount);
-        if (success) {
-            setShowCheckoutModal(false);
-            setSelectedRoom(null);
-            // Forzar actualización inmediata del dashboard
-            await fetchRooms(true);
-        }
-    };
-
-    const handlePropose = async (room: Room) => {
-        await handleProposeCheckout(room, employeeId);
-        // Forzar actualización inmediata del dashboard
-        await fetchRooms(true);
-    };
+    } = useValetDashboard(employeeId);
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen">
+            <div className="flex items-center justify-center h-screen bg-black/95">
                 <div className="text-center space-y-4">
-                    <RefreshCw className="h-12 w-12 animate-spin mx-auto text-muted-foreground" />
-                    <p className="text-muted-foreground">Cargando...</p>
+                    <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+                    <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs">Cargando Operaciones...</p>
                 </div>
             </div>
         );
     }
 
-    const urgentCheckouts = roomsPendingCheckout.filter(r => {
-        const stay = r.room_stays?.find(s => s.status === 'ACTIVA');
-        return stay?.vehicle_requested_at || stay?.valet_checkout_requested_at;
-    });
+    // Helper para renderizar contenido de tarjetas de salida
+    function renderCheckoutCardContent(room: Room) {
+        const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
+        const checkinTime = stay?.check_in_at ? new Date(stay.check_in_at) : new Date();
+        const durationH = Math.floor((new Date().getTime() - checkinTime.getTime()) / 3600000);
+        const isRequested = !!stay?.vehicle_requested_at;
+        const isValetRequested = !!stay?.valet_checkout_requested_at;
 
-    const parkedVehicles = roomsPendingCheckout; // Todos, incluyendo urgentes, pero en la otra tab se ven todos.
+        return (
+            <>
+                <div className="flex justify-between items-start mb-3 relative z-10">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-2xl font-black tracking-tight drop-shadow-sm">{room.number}</span>
+                            {stay?.vehicle_plate && (
+                                <Badge variant="secondary" className="font-mono bg-white/20 border-white/30 text-white shadow-sm backdrop-blur-md px-2 py-0.5 text-xs">{stay.vehicle_plate}</Badge>
+                            )}
+                        </div>
+                        <div className="flex items-center text-xs text-white/80 font-medium mt-1 gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>{durationH}h estacionado</span>
+                        </div>
+                    </div>
+                    {isRequested && <Badge className="bg-red-500/90 border border-red-400 text-white shadow-lg animate-pulse uppercase tracking-wider text-[10px]">Solicitado</Badge>}
+                    {isValetRequested && <Badge className="bg-amber-500/90 border border-amber-400 text-white shadow-lg uppercase tracking-wider text-[10px]">Aviso Enviado</Badge>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-4 relative z-10">
+                    {isRequested ? (
+                        <Button onClick={() => handleOpenCheckout(room)} className="col-span-2 bg-red-600/90 hover:bg-red-500 text-white h-12 text-lg shadow-lg border border-red-500/50 rounded-xl active:scale-95 transition-all">
+                            <LogOut className="h-5 w-5 mr-2" /> Entregar Vehículo
+                        </Button>
+                    ) : (
+                        <>
+                            <Button variant="outline" onClick={() => handlePropose(room)} disabled={isValetRequested || actionLoading} className="h-12 text-sm bg-white/10 hover:bg-white/20 border-white/20 text-white rounded-xl active:scale-95 transition-all shadow-sm" >
+                                {isValetRequested ? "Avisado" : "Avisar Salida"}
+                            </Button>
+                            <Button onClick={() => handleOpenCheckout(room)} className="h-12 text-sm bg-primary/90 hover:bg-primary text-white border border-primary/50 shadow-lg rounded-xl active:scale-95 transition-all" >
+                                <LogOut className="h-4 w-4 mr-2" /> Entregar
+                            </Button>
+                        </>
+                    )}
+                    
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { setSelectedRoom(room); setExtraChargeType('EXTRA_HOUR'); setShowExtraChargeModal(true); }}
+                        className="h-10 text-xs border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 rounded-xl active:scale-95 transition-all" 
+                    >
+                        <Clock className="h-3.5 w-3.5 mr-1.5" /> Hora Extra
+                    </Button>
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { setSelectedRoom(room); setExtraChargeType('EXTRA_PERSON'); setShowExtraChargeModal(true); }}
+                        className="h-10 text-xs border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200 rounded-xl active:scale-95 transition-all" 
+                    >
+                        <Users className="h-3.5 w-3.5 mr-1.5" /> Pers. Extra
+                    </Button>
+                </div>
+            </>
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-background pb-20">
-            {/* Header - Static on mobile/desktop to allow scrolling away */}
-            <div className="bg-background border-b pt-4 px-4 pb-0 space-y-3">
-                <div className="flex items-center justify-between">
+        <div className="min-h-screen bg-[#0a0a0a] pb-24 text-slate-100 font-sans selection:bg-primary/30">
+            {/* Header Premium Glassmorphism */}
+            <div className="sticky top-0 z-40 bg-black/60 backdrop-blur-2xl border-b border-white/10 pt-safe px-4 pb-4 shadow-2xl">
+                <div className="flex items-center justify-between pt-4 mb-5">
                     <div>
-                        <h1 className="text-xl font-bold">Dashboard Cochero</h1>
-                        <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
+                        <h1 className="text-2xl font-black tracking-tight text-white drop-shadow-sm">Operación Valet</h1>
+                        <p className="text-[11px] uppercase tracking-widest text-primary/80 font-bold">{new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         {isSupported && (
                             <Button
-                                variant={isSubscribed ? "secondary" : "default"}
-                                size="sm"
+                                variant="outline"
+                                size="icon"
                                 onClick={isSubscribed ? unsubscribe : subscribe}
                                 disabled={pushLoading}
-                                className={!isSubscribed ? "animate-pulse" : ""}
+                                className={`h-10 w-10 rounded-full border-white/10 shadow-inner transition-all ${!isSubscribed ? 'bg-red-500/20 text-red-400 border-red-500/30 animate-pulse' : 'bg-white/5 text-white'}`}
                             >
-                                {isSubscribed ? (
-                                    <>
-                                        <BellOff className="h-4 w-4 mr-1" />
-                                        Alertas ON
-                                    </>
-                                ) : (
-                                    <>
-                                        <Bell className="h-4 w-4 mr-1" />
-                                        Activar Alertas
-                                    </>
-                                )}
+                                {isSubscribed ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
                             </Button>
                         )}
                         {!isAudioReady && (
                             <Button
-                                variant="outline"
+                                variant="default"
                                 size="sm"
                                 onClick={async () => {
                                     const ok = await unlockAudio(true);
                                     if (!ok) toast.error("No se pudo activar el sonido");
                                     else toast.success("Sonido activado");
                                 }}
+                                className="rounded-full shadow-lg bg-primary hover:bg-primary/90 text-white"
                             >
-                                🔊 Activar Sonido
+                                🔊 Sonido
                             </Button>
                         )}
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             size="icon"
                             onClick={() => fetchRooms()}
                             disabled={loading}
+                            className="h-10 w-10 rounded-full bg-white/5 border-white/10 hover:bg-white/10 text-white shadow-inner transition-all active:scale-95"
                         >
-                            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-primary' : ''}`} />
                         </Button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pb-2">
-                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-400">
-                        <Car className="h-4 w-4 mb-1" />
-                        <span className="text-xs font-medium text-center leading-none">Entradas</span>
-                        <span className="text-lg font-bold leading-none mt-1">{entriesToAccept.length + myPendingEntries.length}</span>
+                <div className="grid grid-cols-4 gap-2">
+                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/5 border border-blue-500/30 shadow-[0_4px_20px_rgba(59,130,246,0.15)] relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-blue-500/10 blur-xl group-hover:bg-blue-500/20 transition-all"></div>
+                        <Car className="h-5 w-5 mb-1.5 text-blue-400 relative z-10" />
+                        <span className="text-2xl font-black leading-none text-white relative z-10">{entriesToAccept.length + myPendingEntries.length}</span>
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-blue-300/80 mt-1 relative z-10">Entradas</span>
                     </div>
-                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400">
-                        <CheckCircle2 className="h-4 w-4 mb-1" />
-                        <span className="text-xs font-medium text-center leading-none">En Estancia</span>
-                        <span className="text-lg font-bold leading-none mt-1">{roomsPendingCheckout.length}</span>
+                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 border border-emerald-500/30 shadow-[0_4px_20px_rgba(16,185,129,0.15)] relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-all"></div>
+                        <CheckCircle2 className="h-5 w-5 mb-1.5 text-emerald-400 relative z-10" />
+                        <span className="text-2xl font-black leading-none text-white relative z-10">{parkedVehicles.length}</span>
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-300/80 mt-1 relative z-10">Custodia</span>
                     </div>
-                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400">
-                        <LogOut className="h-4 w-4 mb-1" />
-                        <span className="text-xs font-medium text-center leading-none">Salidas</span>
-                        <span className="text-lg font-bold leading-none mt-1">{urgentCheckouts.length}</span>
+                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-red-500/20 to-red-600/5 border border-red-500/30 shadow-[0_4px_20px_rgba(239,68,68,0.15)] relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-red-500/10 blur-xl group-hover:bg-red-500/20 transition-all"></div>
+                        <LogOut className="h-5 w-5 mb-1.5 text-red-400 relative z-10" />
+                        <span className="text-2xl font-black leading-none text-white relative z-10">{urgentCheckouts.length}</span>
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-red-300/80 mt-1 relative z-10">Salidas</span>
                     </div>
-                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
-                        <ShoppingBag className="h-4 w-4 mb-1" />
-                        <span className="text-xs font-medium text-center leading-none">Servicios</span>
-                        <span className="text-lg font-bold leading-none mt-1">{pendingConsumptions.length + myConsumptions.length}</span>
+                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 border border-amber-500/30 shadow-[0_4px_20px_rgba(245,158,11,0.15)] relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-amber-500/10 blur-xl group-hover:bg-amber-500/20 transition-all"></div>
+                        <ShoppingBag className="h-5 w-5 mb-1.5 text-amber-400 relative z-10" />
+                        <span className="text-2xl font-black leading-none text-white relative z-10">{pendingConsumptions.length + myConsumptions.length}</span>
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-amber-300/80 mt-1 relative z-10">Servicios</span>
                     </div>
                 </div>
             </div>
 
-            <Tabs defaultValue="tasks" className="w-full">
-                <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 shadow-sm border-b overflow-x-auto md:overflow-visible">
-                    <TabsList className="flex md:grid md:grid-cols-2 w-max md:w-full h-14 p-1.5 bg-muted/40 rounded-full border border-border/50 whitespace-nowrap md:whitespace-normal">
+            <Tabs defaultValue="tasks" className="w-full mt-4">
+                <div className="px-4 mb-4">
+                    <TabsList className="grid w-full grid-cols-2 h-14 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner">
                         <TabsTrigger
                             value="tasks"
-                            className="relative text-base h-full rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300"
+                            className="relative text-sm h-full rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/50 border border-transparent transition-all duration-300 font-bold tracking-wide"
                         >
                             <Zap className="h-4 w-4 mr-2" />
-                            <span className="font-medium">Tareas</span>
+                            TAREAS
                             {(entriesToAccept.length > 0 || urgentCheckouts.length > 0 || pendingConsumptions.length > 0) && (
-                                <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1 flex items-center justify-center text-[10px] rounded-full border-none shadow-sm">
+                                <Badge className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1.5 flex items-center justify-center text-[10px] rounded-full bg-red-500 text-white border-2 border-[#0a0a0a] shadow-lg animate-pulse">
                                     {entriesToAccept.length + urgentCheckouts.length + pendingConsumptions.length}
                                 </Badge>
                             )}
                         </TabsTrigger>
                         <TabsTrigger
                             value="parking"
-                            className="text-base h-full rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300"
+                            className="text-sm h-full rounded-xl data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:border-white/20 border border-transparent text-muted-foreground transition-all duration-300 font-bold tracking-wide"
                         >
                             <LayoutGrid className="h-4 w-4 mr-2" />
-                            <span className="font-medium">Estacionamiento</span>
+                            GARAJE
                         </TabsTrigger>
                     </TabsList>
                 </div>
 
-                <div className="p-4">
-                    <TabsContent value="tasks" className="space-y-6 mt-0 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in data-[state=active]:slide-in-from-bottom-6 duration-500 ease-out">
+                <div className="px-4">
+                    <TabsContent value="tasks" className="space-y-6 mt-0 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in data-[state=active]:slide-in-from-bottom-4 duration-500 ease-out">
+                        
                         {/* 1. Salidas Urgentes (PRIORIDAD ZERO) */}
                         {urgentCheckouts.length > 0 && (
-                            <section>
-                                <div className="flex items-center gap-2 mb-3 text-red-600">
-                                    <LogOut className="h-5 w-5" />
-                                    <h2 className="text-lg font-bold">Salidas Solicitadas</h2>
-                                    <Badge variant="destructive" className="animate-pulse">{urgentCheckouts.length}</Badge>
+                            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300 delay-100 fill-mode-both">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="bg-red-500/20 p-1.5 rounded-lg border border-red-500/30">
+                                        <LogOut className="h-4 w-4 text-red-400" />
+                                    </div>
+                                    <h2 className="text-sm uppercase tracking-widest font-black text-white/90">Salidas Urgentes</h2>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {urgentCheckouts.map(room => (
-                                        <Card key={room.id} className="p-4 border-red-500 bg-red-50 dark:bg-red-950/30 shadow-md">
+                                        <Card key={room.id} className="relative overflow-hidden p-5 border-red-500/40 bg-gradient-to-br from-red-950/40 to-black backdrop-blur-xl shadow-[0_8px_30px_rgba(239,68,68,0.15)] rounded-2xl group">
+                                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-600/20 rounded-full blur-[50px] pointer-events-none group-hover:bg-red-600/30 transition-colors" />
                                             {renderCheckoutCardContent(room)}
                                         </Card>
                                     ))}
@@ -497,32 +299,35 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                         {/* 2. Entradas (Nueva + Mías) */}
                         {(entriesToAccept.length > 0 || myPendingEntries.length > 0) && (
-                            <section>
-                                <div className="flex items-center gap-2 mb-3 text-blue-600">
-                                    <Car className="h-5 w-5" />
-                                    <h2 className="text-lg font-bold">Entradas</h2>
-                                    <Badge className="bg-blue-600">{entriesToAccept.length + myPendingEntries.length}</Badge>
+                            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300 delay-150 fill-mode-both">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="bg-blue-500/20 p-1.5 rounded-lg border border-blue-500/30">
+                                        <Car className="h-4 w-4 text-blue-400" />
+                                    </div>
+                                    <h2 className="text-sm uppercase tracking-widest font-black text-white/90">Entradas Pendientes</h2>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {entriesToAccept.map(room => (
-                                        <Card key={room.id} className="p-4 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10">
-                                            <div className="flex justify-between items-center mb-3">
-                                                <span className="text-xl font-bold">Hab. {room.number}</span>
-                                                <Badge variant="outline">Entrada</Badge>
+                                        <Card key={room.id} className="relative overflow-hidden p-5 border-blue-500/30 bg-gradient-to-br from-blue-950/40 to-black backdrop-blur-xl shadow-[0_8px_30px_rgba(59,130,246,0.1)] rounded-2xl group">
+                                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/20 rounded-full blur-[50px] pointer-events-none group-hover:bg-blue-600/30 transition-colors" />
+                                            <div className="flex justify-between items-center mb-5 relative z-10">
+                                                <span className="text-3xl font-black tracking-tighter drop-shadow-sm">{room.number}</span>
+                                                <Badge variant="outline" className="bg-blue-500/10 text-blue-300 border-blue-500/30 px-3 py-1 rounded-full uppercase tracking-wider text-[10px] font-bold">Nueva</Badge>
                                             </div>
-                                            <Button onClick={() => handleAcceptEntryWrapper(room)} className="w-full bg-blue-600 hover:bg-blue-700">
-                                                <CheckCircle2 className="h-4 w-4 mr-2" /> Aceptar
+                                            <Button onClick={() => handleAcceptEntryWrapper(room)} className="w-full h-14 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg border border-blue-400/50 text-lg font-bold active:scale-95 transition-all relative z-10">
+                                                <CheckCircle2 className="h-5 w-5 mr-2" /> Aceptar Recepción
                                             </Button>
                                         </Card>
                                     ))}
                                     {myPendingEntries.map(room => (
-                                        <Card key={room.id} className="p-4 border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
-                                            <div className="flex justify-between items-center mb-3">
-                                                <span className="text-xl font-bold">Hab. {room.number}</span>
-                                                <Badge className="bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/30">Mis Registros</Badge>
+                                        <Card key={room.id} className="relative overflow-hidden p-5 border-purple-500/30 bg-gradient-to-br from-purple-950/40 to-black backdrop-blur-xl shadow-[0_8px_30px_rgba(168,85,247,0.1)] rounded-2xl group">
+                                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/20 rounded-full blur-[50px] pointer-events-none group-hover:bg-purple-600/30 transition-colors" />
+                                            <div className="flex justify-between items-center mb-5 relative z-10">
+                                                <span className="text-3xl font-black tracking-tighter drop-shadow-sm">{room.number}</span>
+                                                <Badge className="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1 rounded-full uppercase tracking-wider text-[10px] font-bold shadow-inner">Mis Asignaciones</Badge>
                                             </div>
-                                            <Button onClick={() => handleOpenCheckIn(room)} className="w-full bg-purple-600 hover:bg-purple-700">
-                                                <Car className="h-4 w-4 mr-2" /> Registrar Auto
+                                            <Button onClick={() => handleOpenCheckIn(room)} className="w-full h-14 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg border border-purple-400/50 text-lg font-bold active:scale-95 transition-all relative z-10">
+                                                <Car className="h-5 w-5 mr-2" /> Registrar Auto
                                             </Button>
                                         </Card>
                                     ))}
@@ -532,14 +337,15 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                         {/* 3. Servicios (Mis Entregas + Pendientes) */}
                         {(pendingConsumptions.length > 0 || myConsumptions.length > 0) && (
-                            <section>
-                                <div className="flex items-center gap-2 mb-3 text-amber-600">
-                                    <ShoppingBag className="h-5 w-5" />
-                                    <h2 className="text-lg font-bold">Servicios</h2>
-                                    <Badge className="bg-amber-600">{pendingConsumptions.length + myConsumptions.length}</Badge>
+                            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300 delay-200 fill-mode-both">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="bg-amber-500/20 p-1.5 rounded-lg border border-amber-500/30">
+                                        <ShoppingBag className="h-4 w-4 text-amber-400" />
+                                    </div>
+                                    <h2 className="text-sm uppercase tracking-widest font-black text-white/90">Servicios a Habitación</h2>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {/* Mis Entregas - Agrupar por habitación */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Mis Entregas */}
                                     {Object.entries(
                                         myConsumptions.reduce((acc: Record<string, any[]>, item) => {
                                             const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
@@ -553,82 +359,75 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                         const toggleExpand = () => {
                                             setExpandedServiceCards(prev => {
                                                 const next = new Set(prev);
-                                                if (next.has(cardKey)) {
-                                                    next.delete(cardKey);
-                                                } else {
-                                                    next.add(cardKey);
-                                                }
+                                                if (next.has(cardKey)) next.delete(cardKey);
+                                                else next.add(cardKey);
                                                 return next;
                                             });
                                         };
 
                                         return (
-                                            <Card key={cardKey} className="p-4 border-orange-400 bg-orange-50/50 dark:bg-orange-900/10">
-                                                <div
-                                                    className="flex justify-between items-center cursor-pointer"
+                                            <Card key={cardKey} className="relative overflow-hidden p-1 border-orange-500/30 bg-gradient-to-b from-orange-950/40 to-black/80 backdrop-blur-xl shadow-lg rounded-2xl">
+                                                <div 
+                                                    className="p-4 flex justify-between items-center cursor-pointer select-none"
                                                     onClick={toggleExpand}
                                                 >
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xl font-bold">Hab. {roomNumber}</span>
-                                                        <Badge className="bg-orange-500 text-white">{items.length} a entregar</Badge>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="bg-orange-500/20 h-10 w-10 rounded-xl flex items-center justify-center border border-orange-500/30">
+                                                            <span className="font-black text-lg text-orange-400">{roomNumber}</span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-bold text-white/60 uppercase tracking-widest">Entrega Activa</span>
+                                                            <span className="text-sm font-bold text-orange-200">{items.length} productos</span>
+                                                        </div>
                                                     </div>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                                    </Button>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-lg">Mis Entregas</div>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 text-white">
+                                                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                                        </Button>
+                                                    </div>
                                                 </div>
 
                                                 {isExpanded && (
-                                                    <div className="space-y-2 mt-3 animate-in slide-in-from-top-2 fade-in duration-200">
-                                                        {/* Botón Confirmar Todos si hay items listos */}
+                                                    <div className="px-4 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
                                                         {items.filter((i: any) => i.delivery_status === 'IN_TRANSIT').length > 1 && (
                                                             <Button
-                                                                className="w-full mb-2 bg-green-600 hover:bg-green-700"
+                                                                className="w-full h-12 mb-3 bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-lg border border-emerald-500/50 rounded-xl font-bold active:scale-95 transition-all"
                                                                 onClick={(e) => { e.stopPropagation(); openBulkConfirmModal(items, roomNumber); }}
                                                             >
-                                                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                                <CheckCircle2 className="h-5 w-5 mr-2" />
                                                                 Confirmar Todos ({items.filter((i: any) => i.delivery_status === 'IN_TRANSIT').length})
                                                             </Button>
                                                         )}
-                                                        {items.map((item: any) => {
-                                                            const isInTransit = item.delivery_status === 'IN_TRANSIT';
-                                                            return (
-                                                                <div key={item.id} className="flex justify-between items-center text-sm bg-background/50 p-2 rounded">
-                                                                    <div className="flex-1">
-                                                                        <span>{item.qty}x {item.products?.name}</span>
-                                                                        <span className="ml-2 text-green-600 font-medium">{formatCurrency(item.total)}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-1">
-                                                                        {isInTransit ? (
-                                                                            <Button size="sm" className="h-6 text-xs bg-green-600 hover:bg-green-700" onClick={(e) => { e.stopPropagation(); setSelectedConsumption(item); setShowDeliveryModal(true); }}>
-                                                                                Confirmar
-                                                                            </Button>
-                                                                        ) : (
-                                                                            <span className="text-xs text-slate-500">Esperando...</span>
-                                                                        )}
-                                                                        <Button
-                                                                            size="icon"
-                                                                            variant="ghost"
-                                                                            className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                                                                            onClick={(e) => { e.stopPropagation(); handleCancelConsumptionWrapper(item.id); }}
-                                                                            disabled={cancellingId === item.id}
-                                                                        >
-                                                                            {cancellingId === item.id ? (
-                                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                        <div className="space-y-2">
+                                                            {items.map((item: any) => {
+                                                                const isInTransit = item.delivery_status === 'IN_TRANSIT';
+                                                                return (
+                                                                    <div key={item.id} className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white/5 border border-white/5 p-3 rounded-xl">
+                                                                        <div className="flex-1">
+                                                                            <span className="text-sm font-bold text-white/90">{item.qty}x {item.products?.name}</span>
+                                                                            <span className="ml-2 text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 text-xs">{formatCurrency(item.total)}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                                            {isInTransit ? (
+                                                                                <Button size="sm" className="flex-1 sm:flex-none h-10 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 shadow-md font-bold active:scale-95 transition-all" onClick={(e) => { e.stopPropagation(); setSelectedConsumption(item); setShowDeliveryModal(true); }}>
+                                                                                    Confirmar
+                                                                                </Button>
                                                                             ) : (
-                                                                                <X className="h-3 w-3" />
+                                                                                <span className="text-xs text-white/40 font-medium px-3 flex-1 sm:flex-none text-center">Esperando preparación...</span>
                                                                             )}
-                                                                        </Button>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </Card>
                                         );
                                     })}
+
                                     {/* Pendientes Generales */}
-                                    {/* Agrupar por habitación para consistencia visual */}
                                     {Object.entries(
                                         pendingConsumptions.reduce((acc: Record<string, any[]>, item) => {
                                             const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
@@ -637,45 +436,32 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                             return acc;
                                         }, {})
                                     ).map(([roomNumber, items]) => (
-                                        <Card key={roomNumber} className="p-4 border-amber-200 bg-amber-50/50 dark:bg-amber-900/10">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="text-xl font-bold">Hab. {roomNumber}</span>
-                                                <Badge variant="outline" className="bg-amber-100 text-amber-800">{items.length} items</Badge>
+                                        <Card key={`gen-${roomNumber}`} className="relative overflow-hidden p-5 border-amber-500/30 bg-gradient-to-br from-amber-950/30 to-black backdrop-blur-xl shadow-lg rounded-2xl">
+                                            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-3xl font-black drop-shadow-sm text-white">{roomNumber}</span>
+                                                    <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 uppercase tracking-wider text-[10px] font-bold">En Cocina</Badge>
+                                                </div>
+                                                <span className="text-sm font-bold text-white/60">{items.length} items</span>
                                             </div>
 
-                                            {/* Botón Aceptar Todos si hay más de 1 item */}
                                             {items.length > 1 && (
                                                 <Button
-                                                    className="w-full mb-3 bg-amber-600 hover:bg-amber-700"
+                                                    className="w-full h-12 mb-4 bg-amber-600/90 hover:bg-amber-500 text-white shadow-lg border border-amber-500/50 rounded-xl font-bold active:scale-95 transition-all"
                                                     onClick={() => handleAcceptAllConsumptionsWrapper(items, roomNumber)}
                                                 >
-                                                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                                                    Aceptar Todos ({items.length})
+                                                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                                                    Llevar Todo ({items.length})
                                                 </Button>
                                             )}
 
                                             <div className="space-y-2">
                                                 {items.map((item: any) => (
-                                                    <div key={item.id} className="flex justify-between items-center text-sm bg-background/50 p-2 rounded">
-                                                        <span className="flex-1">{item.qty}x {item.products?.name}</span>
-                                                        <div className="flex items-center gap-1">
-                                                            <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500 text-amber-600" onClick={() => handleAcceptConsumptionWrapper(item.id, roomNumber)}>
-                                                                Aceptar
-                                                            </Button>
-                                                            <Button
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                                                                onClick={() => handleCancelConsumptionWrapper(item.id)}
-                                                                disabled={cancellingId === item.id}
-                                                            >
-                                                                {cancellingId === item.id ? (
-                                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                                ) : (
-                                                                    <X className="h-3 w-3" />
-                                                                )}
-                                                            </Button>
-                                                        </div>
+                                                    <div key={item.id} className="flex flex-col justify-between gap-2 bg-white/5 p-3 rounded-xl border border-white/5">
+                                                        <span className="text-sm font-medium text-white/90">{item.qty}x {item.products?.name}</span>
+                                                        <Button size="sm" variant="outline" className="w-full h-10 rounded-lg border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-95 font-bold" onClick={() => handleAcceptConsumptionWrapper(item.id, roomNumber)}>
+                                                            Llevar
+                                                        </Button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -687,30 +473,36 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
 
                         {/* Empty State Tareas */}
                         {entriesToAccept.length === 0 && myPendingEntries.length === 0 && urgentCheckouts.length === 0 && pendingConsumptions.length === 0 && myConsumptions.length === 0 && (
-                            <div className="text-center py-12 flex flex-col items-center justify-center opacity-50">
-                                <CheckCircle2 className="h-16 w-16 mb-4 text-green-500" />
-                                <h3 className="text-xl font-medium">Todo al día</h3>
-                                <p>No hay tareas urgentes pendientes</p>
+                            <div className="text-center py-20 flex flex-col items-center justify-center opacity-40 animate-in fade-in duration-700">
+                                <div className="bg-white/5 p-6 rounded-full mb-6 border border-white/10 shadow-inner">
+                                    <CheckCircle2 className="h-16 w-16 text-emerald-500" />
+                                </div>
+                                <h3 className="text-2xl font-black tracking-tight text-white mb-2">Todo al día</h3>
+                                <p className="text-sm uppercase tracking-widest font-bold">No hay tareas pendientes</p>
                             </div>
                         )}
                     </TabsContent>
 
-                    <TabsContent value="parking" className="mt-0 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in data-[state=active]:slide-in-from-bottom-6 duration-500 ease-out">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold flex items-center gap-2">
-                                <Car className="h-5 w-5" /> Vehículos en Custodia
+                    <TabsContent value="parking" className="mt-0 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in data-[state=active]:slide-in-from-bottom-4 duration-500 ease-out">
+                        <div className="flex items-center justify-between mb-4 px-1">
+                            <h2 className="text-sm uppercase tracking-widest font-black text-white/90 flex items-center gap-2">
+                                <LayoutGrid className="h-4 w-4 text-emerald-400" /> Estacionamiento
                             </h2>
-                            <Badge variant="secondary">{parkedVehicles.length}</Badge>
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg">{parkedVehicles.length} Custodiados</Badge>
                         </div>
 
                         {parkedVehicles.length === 0 ? (
-                            <div className="text-center py-12 opacity-50">
-                                <p>El estacionamiento está vacío</p>
+                            <div className="text-center py-20 flex flex-col items-center justify-center opacity-40">
+                                <div className="bg-white/5 p-6 rounded-full mb-6 border border-white/10 shadow-inner">
+                                    <Car className="h-16 w-16 text-white/50" />
+                                </div>
+                                <h3 className="text-2xl font-black tracking-tight text-white mb-2">Garaje Vacío</h3>
+                                <p className="text-sm uppercase tracking-widest font-bold">No hay vehículos registrados</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {parkedVehicles.map(room => (
-                                    <Card key={room.id} className="p-4 relative hover:shadow-md transition-shadow">
+                                    <Card key={room.id} className="relative overflow-hidden p-5 border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-md shadow-lg rounded-2xl hover:border-white/20 transition-all">
                                         {renderCheckoutCardContent(room)}
                                     </Card>
                                 ))}
@@ -720,7 +512,7 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 </div>
             </Tabs>
 
-            {/* Modals remain the same */}
+            {/* Modals remain the same functionally, adapted to dark mode context */}
             <ValetCheckInModal
                 room={selectedRoom}
                 isOpen={showCheckInModal}
@@ -752,170 +544,65 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                 }}
                 consumption={selectedConsumption}
                 employeeId={employeeId}
-                onConfirmed={() => {
-                    // El modal ya llama a handleConfirmDelivery que refresca todo
-                }}
+                onConfirmed={() => {}}
                 onConfirmDelivery={handleConfirmDelivery}
             />
 
-            {/* Modal de confirmación para entregas masivas */}
             <AlertDialog open={!!bulkConfirmItems} onOpenChange={(open) => !open && setBulkConfirmItems(null)}>
-                <AlertDialogContent>
+                <AlertDialogContent className="bg-[#0a0a0a]/95 backdrop-blur-2xl border-white/10 text-white rounded-3xl">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                            Confirmar Todas las Entregas
+                        <AlertDialogTitle className="flex items-center gap-3 text-2xl font-black">
+                            <div className="bg-emerald-500/20 p-2 rounded-xl border border-emerald-500/30">
+                                <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                            </div>
+                            Confirmar Entrega
                         </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Vas a confirmar la entrega de todos los productos para la Habitación {bulkConfirmItems?.roomNumber}
+                        <AlertDialogDescription className="text-white/60 font-medium">
+                            Se confirmará la entrega masiva a la Habitación {bulkConfirmItems?.roomNumber}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
                     {bulkConfirmItems && (
                         <div className="py-4">
-                            <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 space-y-2 max-h-48 overflow-auto">
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 max-h-48 overflow-auto shadow-inner">
                                 {bulkConfirmItems.items.map((item: any) => (
-                                    <div key={item.id} className="flex justify-between text-sm">
-                                        <span>{item.qty}x {item.products?.name}</span>
-                                        <span className="text-green-600 font-medium">{formatCurrency(item.total)}</span>
+                                    <div key={item.id} className="flex justify-between items-center text-sm">
+                                        <span className="font-bold text-white/90">{item.qty}x {item.products?.name}</span>
+                                        <span className="text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">{formatCurrency(item.total)}</span>
                                     </div>
                                 ))}
-                                <div className="border-t pt-2 mt-2 flex justify-between font-bold">
-                                    <span>Total ({bulkConfirmItems.items.length} productos):</span>
-                                    <span className="text-green-600">
+                                <div className="border-t border-white/10 pt-3 mt-3 flex justify-between font-black text-lg">
+                                    <span>Total ({bulkConfirmItems.items.length}):</span>
+                                    <span className="text-emerald-400">
                                         {formatCurrency(bulkConfirmItems.items.reduce((sum: number, i: any) => sum + Number(i.total), 0))}
                                     </span>
                                 </div>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-3">
-                                ⚠️ Esta acción marcará todos los productos como entregados. Debes entregar el dinero en recepción.
+                            <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold mt-4 text-center">
+                                ⚠️ Asegúrate de entregar el efectivo en recepción
                             </p>
                         </div>
                     )}
 
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={bulkConfirmLoading}>Cancelar</AlertDialogCancel>                        <Button
-                            variant="default"
-                            className="bg-green-600 hover:bg-green-700"
+                    <AlertDialogFooter className="sm:justify-center">
+                        <AlertDialogCancel disabled={bulkConfirmLoading} className="rounded-xl border-white/10 hover:bg-white/5 text-white w-full sm:w-auto h-12">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <Button
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg h-12 w-full sm:w-auto px-8"
                             onClick={handleConfirmAllDeliveriesWrapper}
                             disabled={bulkConfirmLoading}
                         >
                             {bulkConfirmLoading ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                             ) : (
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                <CheckCircle2 className="h-5 w-5 mr-2" />
                             )}
-                            Confirmar Entregas
+                            Confirmar
                         </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>
     );
-
-    // Helper para renderizar contenido de tarjetas de salida para evitar duplicidad
-    function renderCheckoutCardContent(room: Room) {
-        const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
-        const checkinTime = stay?.check_in_at ? new Date(stay.check_in_at) : new Date();
-        const durationH = Math.floor((new Date().getTime() - checkinTime.getTime()) / 3600000);
-        const isRequested = !!stay?.vehicle_requested_at;
-        const isValetRequested = !!stay?.valet_checkout_requested_at;
-
-        return (
-            <>
-                <div className="flex justify-between items-start mb-2">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xl font-bold">Hab. {room.number}</span>
-                            {stay?.vehicle_plate && (
-                                <Badge variant="secondary" className="font-mono">{stay.vehicle_plate}</Badge>
-                            )}
-                        </div>
-                        <div className="flex items-center text-xs text-muted-foreground mt-1 gap-2">
-                            <Clock className="h-3 w-3" />
-                            <span>{durationH}h</span>
-                        </div>
-                    </div>
-                    {isRequested && <Badge className="bg-red-500 hover:bg-red-600 animate-pulse">Solicitado</Badge>}
-                    {isValetRequested && <Badge className="bg-amber-500 hover:bg-amber-600">Aviso Enviado</Badge>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-3">
-                    {isRequested ? (
-                        <Button onClick={() => handleOpenCheckout(room)} className="col-span-2 bg-red-600 hover:bg-red-700 text-white h-10 text-lg">
-                            <LogOut className="h-4 w-4 mr-2" /> Entregar
-                        </Button>
-                    ) : (
-                        <>
-                            <Button variant="outline" size="sm" onClick={() => handlePropose(room)} disabled={isValetRequested || actionLoading} className="h-10 text-sm" >
-                                {isValetRequested ? "Avisado" : "Avisar Salida"}
-                            </Button>
-                            <Button variant="secondary" size="sm" onClick={() => handleOpenCheckout(room)} className="h-10 text-sm" >
-                                <LogOut className="h-4 w-4 mr-2" /> Entregar
-                            </Button>
-                        </>
-                    )}
-                    
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => { setSelectedRoom(room); setExtraChargeType('EXTRA_HOUR'); setShowExtraChargeModal(true); }}
-                        className="h-9 text-xs border-amber-200 bg-amber-50 text-amber-700" 
-                    >
-                        <Clock className="h-3 w-3 mr-1" /> Hora Extra
-                    </Button>
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => { setSelectedRoom(room); setExtraChargeType('EXTRA_PERSON'); setShowExtraChargeModal(true); }}
-                        className="h-9 text-xs border-blue-200 bg-blue-50 text-blue-700" 
-                    >
-                        <Users className="h-3 w-3 mr-1" /> Pers. Extra
-                    </Button>
-                </div>
-            </>
-        );
-    }
-
-    function renderConsumptionCardContent(item: any, isMine: boolean) {
-        const roomNumber = item.sales_orders?.room_stays[0]?.rooms?.number || '??';
-        const isInTransit = item.delivery_status === 'IN_TRANSIT';
-
-        return (
-            <>
-                <div className="flex justify-between mb-2">
-                    <span className="font-bold">Hab. {roomNumber}</span>
-                    <span className="font-bold text-green-600">{formatCurrency(item.total)}</span>
-                </div>
-                <div className="text-sm mb-3">
-                    {item.qty}x {item.products?.name}
-                </div>
-                {isInTransit ? (
-                    <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => { setSelectedConsumption(item); setShowDeliveryModal(true); }}>
-                        <CheckCircle2 className="h-4 w-4 mr-2" /> Confirmar Entrega
-                    </Button>
-                ) : (
-                    <div className="flex items-center gap-2 w-full">
-                        <div className="text-center text-xs bg-slate-100 dark:bg-slate-800 py-2 rounded flex-1 text-slate-500 font-medium">
-                            Esperando servicio...
-                        </div>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors shrink-0"
-                            onClick={() => handleCancelConsumption(item.id)}
-                            title="Cancelar servicio"
-                            disabled={cancellingId === item.id}
-                        >
-                            {cancellingId === item.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <X className="h-4 w-4" />
-                            )}
-                        </Button>
-                    </div>
-                )}
-            </>
-        );
-    }
 }
