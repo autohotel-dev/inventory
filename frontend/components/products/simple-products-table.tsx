@@ -994,7 +994,7 @@ export function SimpleProductsTable() {
 
       {/* Modal para crear/editar producto */}
       < Dialog open={isModalOpen} onOpenChange={(open) => !isSaving && setIsModalOpen(open)}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingProduct ? "Editar Producto" : "Nuevo Producto"}

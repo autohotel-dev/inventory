@@ -390,7 +390,7 @@ export function SimpleWarehousesTable() {
 
       {/* Modal para crear/editar almacén */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {editingWarehouse ? "Editar Almacén" : "Nuevo Almacén"}
@@ -406,7 +406,7 @@ export function SimpleWarehousesTable() {
 
       {/* Modal para ver detalle de stock */}
       <Dialog open={showStockDetail} onOpenChange={setShowStockDetail}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
               Stock en {selectedWarehouse?.name} ({selectedWarehouse?.code})

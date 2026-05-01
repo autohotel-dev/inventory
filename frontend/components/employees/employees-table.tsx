@@ -541,7 +541,7 @@ export function EmployeesTable() {
 
       {/* Modal de crear/editar */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:w-full max-w-md">
           <DialogHeader>
             <DialogTitle>
               {editingEmployee ? "Editar Empleado" : "Nuevo Empleado"}
@@ -767,7 +767,7 @@ export function EmployeesTable() {
 
       {/* Modal de confirmación de eliminación */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="w-[95vw] sm:w-full max-w-sm">
           <DialogHeader>
             <DialogTitle>Eliminar Empleado</DialogTitle>
             <DialogDescription>

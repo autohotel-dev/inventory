@@ -120,7 +120,7 @@ export function RoomCheckoutModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-background border rounded-lg shadow-lg w-[95vw] sm:w-full sm:max-w-4xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
         {/* Processing overlay */}
         <ProcessingOverlay
           isVisible={actionLoading}

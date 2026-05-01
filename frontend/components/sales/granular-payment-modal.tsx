@@ -115,7 +115,7 @@ export function GranularPaymentModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-none md:rounded-[2rem] h-[100dvh] md:h-[85vh] w-full md:w-auto flex flex-col">
+        <DialogContent className="w-[95vw] sm:w-full max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-none md:rounded-[2rem] h-[100dvh] md:h-[85vh] flex flex-col">
           {/* Header con glassmorphism */}
           <div className="relative p-6 shrink-0 overflow-hidden border-b border-white/5">
             <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/5"></div>

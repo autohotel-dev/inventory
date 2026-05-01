@@ -571,7 +571,7 @@ export function ReceptionistDashboard() {
 
       {/* Modal de opciones de cierre de turno */}
       <Dialog open={showClockOutOptions} onOpenChange={setShowClockOutOptions}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-sm">
           <DialogHeader className="text-center pb-2">
             <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center mb-3">
               <LogOut className="h-6 w-6 text-white" />
@@ -664,7 +664,7 @@ export function ReceptionistDashboard() {
 
       {/* Modal de Ajuste de Caja (solo admin/manager) */}
       <Dialog open={showCashAdjustModal} onOpenChange={setShowCashAdjustModal}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-sm">
           <DialogHeader className="text-center pb-2">
             <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center mb-3">
               <Wallet className="h-6 w-6 text-white" />

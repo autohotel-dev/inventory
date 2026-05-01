@@ -76,7 +76,7 @@ export function CancelItemModal({
   return createPortal(
     <>
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
-        <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl w-[95vw] sm:w-full sm:max-w-md mx-4 overflow-hidden pointer-events-auto" onClick={(e) => e.stopPropagation()}>
           {/* Accent bar */}
           <div className="h-1 bg-gradient-to-r from-red-500 via-orange-500 to-amber-500" />
 

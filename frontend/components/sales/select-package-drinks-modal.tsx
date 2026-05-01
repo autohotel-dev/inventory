@@ -159,7 +159,7 @@ export function SelectPackageDrinksModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 text-white">

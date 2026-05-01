@@ -216,7 +216,7 @@ export function MockAdminPanel({ completed, onComplete }: { completed: string[],
             </Tabs>
 
             <Dialog open={isNewCustomerOpen} onOpenChange={setIsNewCustomerOpen}>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle>Registrar Nuevo Cliente</DialogTitle>
                     </DialogHeader>

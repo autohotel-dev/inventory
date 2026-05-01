@@ -118,7 +118,7 @@ export function PWAInstaller() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setShowInstructions(false)} />
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
           <div 
-            className="pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            className="pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-[95vw] sm:w-full sm:max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

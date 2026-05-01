@@ -189,7 +189,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-zinc-950 border border-white/10 text-white rounded-3xl">
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-md bg-zinc-950 border border-white/10 text-white rounded-3xl">
         <DialogHeader>
           <div className="mx-auto bg-primary/20 p-4 rounded-full border border-primary/30 shadow-[0_0_20px_-5px_var(--primary)] mb-4">
             {getAssetIcon()}

@@ -68,7 +68,7 @@ export function RoomDetailsModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-2xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-[2rem] h-[90vh] flex flex-col">
+      <DialogContent className="w-[95vw] sm:w-full max-w-6xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-2xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-[2rem] h-[90vh] flex flex-col">
         {/* Header con glassmorphism */}
         <div className="relative p-8 shrink-0 overflow-hidden border-b border-white/5 bg-zinc-900/50">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>

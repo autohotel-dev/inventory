@@ -344,7 +344,7 @@ export function CurrentShiftIndicator({
 
       {/* Modal de Clock In */}
       <Dialog open={isClockInModalOpen} onOpenChange={setIsClockInModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-white/10">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-white/10">
           <DialogHeader>
             <DialogTitle className="text-2xl">Registrar Entrada</DialogTitle>
             <DialogDescription>
@@ -382,7 +382,7 @@ export function CurrentShiftIndicator({
 
       {/* Modal de Opciones de Clock Out */}
       <Dialog open={showClockOutOptions} onOpenChange={setShowClockOutOptions}>
-        <DialogContent className="sm:max-w-sm bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-white/10">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-sm bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-white/10">
           <DialogHeader className="text-center pb-2">
             <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center mb-4 shadow-lg shadow-orange-500/20">
               <LogOut className="h-7 w-7 text-white" />

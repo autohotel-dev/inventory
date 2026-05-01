@@ -145,7 +145,7 @@ export function QuickCheckinModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
         id="tour-quick-checkin-modal"
-        className="relative bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative bg-background border rounded-lg shadow-lg w-[95vw] sm:w-full sm:max-w-md mx-4 max-h-[90vh] flex flex-col overflow-hidden"
       >
         {/* Processing overlay */}
         <ProcessingOverlay

@@ -50,7 +50,7 @@ export function ShiftClosingCorrectionModal({
 
   return (
     <Dialog open={showCorrectionModal} onOpenChange={setShowCorrectionModal}>
-      <DialogContent className="max-w-[90%] w-full h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
+      <DialogContent className="w-[95vw] sm:w-full max-w-[90%] h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
         <DialogHeader className="px-6 py-4 border-b bg-background z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

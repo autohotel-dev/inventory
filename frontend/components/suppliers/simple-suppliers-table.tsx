@@ -358,7 +358,7 @@ export function SimpleSuppliersTable() {
 
       {/* Modal para crear/editar proveedor */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingSupplier ? "Editar Proveedor" : "Nuevo Proveedor"}

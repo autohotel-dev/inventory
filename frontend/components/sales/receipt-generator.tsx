@@ -271,7 +271,7 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
 
       {showPreview && receiptData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[90vh] flex flex-col">
+          <div className="bg-background border border-border rounded-xl shadow-2xl w-[95vw] sm:w-full sm:max-w-sm mx-4 max-h-[90vh] flex flex-col">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <h3 className="font-semibold">Vista previa del recibo</h3>
               <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)}>

@@ -153,7 +153,7 @@ export function MockPurchasesPanel({ completed, onComplete }: { completed: strin
             </Dialog>
 
             <Dialog open={isNewPurchaseOpen} onOpenChange={setIsNewPurchaseOpen}>
-                <DialogContent className="sm:max-w-xl">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-xl">
                     <DialogHeader>
                         <DialogTitle>Registrar Compra</DialogTitle>
                     </DialogHeader>

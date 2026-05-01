@@ -28,7 +28,7 @@ export function ShiftClosingRejectModal({
 }: ShiftClosingRejectModalProps) {
   return (
     <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[95vw] sm:w-full max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <XCircle className="h-5 w-5" />

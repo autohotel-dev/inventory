@@ -156,7 +156,7 @@ export function AuthorizationGate({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-background border border-white/10 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+      <div className="bg-background border border-white/10 rounded-xl shadow-2xl w-[95vw] sm:w-full sm:max-w-sm mx-4 overflow-hidden">
         {/* Header gradient */}
         <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
         

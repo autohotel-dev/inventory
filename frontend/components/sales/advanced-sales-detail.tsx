@@ -675,7 +675,7 @@ export function AdvancedSalesDetail({ orderId }: AdvancedSalesDetailProps) {
         <>
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={handlePaymentModalClose} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <div className="pointer-events-auto bg-background border rounded-xl shadow-2xl w-full max-w-sm animate-in zoom-in-95 fade-in duration-200">
+            <div className="pointer-events-auto bg-background border rounded-xl shadow-2xl w-[95vw] sm:w-full sm:max-w-sm animate-in zoom-in-95 fade-in duration-200">
               <div className="flex items-center justify-between p-4 border-b">
                 <div className="flex items-center gap-2">
                   <Receipt className="h-4 w-4 text-emerald-500" />
