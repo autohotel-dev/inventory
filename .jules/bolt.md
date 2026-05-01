@@ -1,3 +1,6 @@
 ## 2024-05-18 - [Optimizing Frequent Array Methods in React]
 **Learning:** React components containing both search terms (`onChange` state variables triggered every keystroke) and large array renders (like sorting and filtering list items) often re-run `.sort()` and `.filter()` operations on every state update, which can block the main thread and feel sluggish on large data sets (e.g., employee lists). Adding `useMemo` avoids redundant sorts and filters unless the core data or specific filter criteria actually change.
 **Action:** When identifying performance bottlenecks where large arrays are filtered/sorted *and* local state changes rapidly (like text input fields), prioritize wrapping these array transformations in `useMemo`.
+## 2025-05-01 - [Safety vs Readability in linting]
+**Learning:** Fixing a minor ESLint warning like \`prefer-const\` can unintentionally introduce regressions (e.g. \`TypeError: Assignment to constant variable\`) if you don't trace where the variable might be reassigned later in the same function or block. Code correctness should ALWAYS supersede minor lint warnings.
+**Action:** Always fully read the surrounding block context before modifying variable declarations to fix lint warnings. If uncertain, leave \`let\` variables as is.
