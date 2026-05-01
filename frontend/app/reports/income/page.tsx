@@ -460,8 +460,9 @@ function IncomeReportContent() {
                 </div>
             </CollapsibleSection>
 
-            {/* Herramienta de reasignación de pagos por turno */}
-            <ShiftMigrationTool />
+            {/* Herramienta de reasignación de pagos por turno (Oculta por solicitud)
+             <ShiftMigrationTool />
+            */}
 
             {/* Componente de reporte */}
             <IncomeReport
