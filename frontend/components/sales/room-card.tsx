@@ -140,7 +140,7 @@ export function RoomCard({
       {/* Indicador de Valet Pendiente (Workflow Estricto) - Bloqueo Visual */}
       {isValetPending && !showDoorAlert && (
         <>
-          <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center animate-pulse cursor-not-allowed group-hover:bg-background/60 transition-colors">
+          <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] rounded-lg border-2 border-orange-500/50 flex flex-col items-center justify-center animate-pulse pointer-events-none transition-colors">
             <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm">
               Esperando Cochero
             </span>
@@ -154,7 +154,7 @@ export function RoomCard({
       {/* Indicador de BLOQUEO DE SALIDA (Pago Pendiente) - SOP 4 */}
       {hasPendingPayment && !showDoorAlert && status === "OCUPADA" && !isValetPending && (
         <>
-          <div className="absolute inset-0 z-10 bg-amber-950/20 backdrop-blur-[0.5px] rounded-lg border-2 border-amber-500/40 flex flex-col items-center justify-center animate-pulse cursor-pointer group-hover:bg-amber-900/30 transition-colors">
+          <div className="absolute inset-0 z-10 bg-amber-950/20 backdrop-blur-[0.5px] rounded-lg border-2 border-amber-500/40 flex flex-col items-center justify-center animate-pulse pointer-events-none transition-colors">
             <div className="bg-amber-600 text-white text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-full shadow-lg border border-amber-400/50 flex items-center gap-1">
               <AlertCircle size={10} />
               BLOQUEO DE SALIDA
