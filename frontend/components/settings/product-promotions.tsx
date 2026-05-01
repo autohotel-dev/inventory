@@ -538,7 +538,7 @@ export function ProductPromotions() {
 
             {/* ---- Add/Edit Modal ---- */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingPromo ? "Editar Promoción" : "Nueva Promoción"}</DialogTitle>
                         <DialogDescription>
@@ -833,7 +833,7 @@ export function ProductPromotions() {
 
             {/* ---- Delete Confirmation ---- */}
             <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-sm">
                     <DialogHeader>
                         <DialogTitle>¿Eliminar promoción?</DialogTitle>
                         <DialogDescription>

@@ -78,7 +78,7 @@ export function RoleFormModal({ isOpen, onClose, onSave, role, mode }: RoleFormM
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !saving && !open && onClose()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="w-[95vw] sm:w-full sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>
                         {mode === "create" ? "Crear Nuevo Rol" : "Editar Rol"}

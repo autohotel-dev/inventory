@@ -253,7 +253,7 @@ export function AddProductModal({
 
       {/* Modal - Tema Next.js Dark */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
+        <div className="pointer-events-auto bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl w-[95vw] sm:w-full sm:max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
 
           {/* Header */}
           <div className="relative bg-neutral-900 border-b border-neutral-800 p-4">

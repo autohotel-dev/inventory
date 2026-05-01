@@ -181,7 +181,7 @@ export function MockGranularPaymentModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+            <div className="bg-background border border-border rounded-xl shadow-2xl w-[95vw] sm:w-full sm:max-w-2xl mx-4 max-h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
                     <div>

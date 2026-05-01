@@ -63,7 +63,7 @@ export function MediaPicker({ open, onClose, onSelect, category, accept = 'all' 
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-5xl max-h-[80vh] flex flex-col">
+            <DialogContent className="w-[95vw] sm:w-full max-w-5xl max-h-[80vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Seleccionar Archivo</DialogTitle>
                     <DialogDescription>

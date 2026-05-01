@@ -350,7 +350,7 @@ export function BottlePackageRules() {
 
             {/* Add/Edit Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>
                             {editingRule ? "Editar Regla" : "Nueva Regla de Paquete"}
@@ -435,7 +435,7 @@ export function BottlePackageRules() {
 
             {/* Delete Confirmation */}
             <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-sm">
                     <DialogHeader>
                         <DialogTitle>¿Eliminar regla?</DialogTitle>
                         <DialogDescription>

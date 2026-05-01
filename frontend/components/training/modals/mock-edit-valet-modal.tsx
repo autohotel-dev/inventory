@@ -57,7 +57,7 @@ export function MockEditValetModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-md bg-background">
+            <DialogContent className="w-[95vw] sm:w-full max-w-md bg-background">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <UserCog className="h-5 w-5" />

@@ -240,7 +240,7 @@ export function MockInventoryPanel({ completed, onComplete }: { completed: strin
 
             {/* Kardex Modal */}
             <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-                <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Kardex de Producto - {selectedProduct?.name}</DialogTitle>
                     </DialogHeader>
@@ -335,7 +335,7 @@ function MockMovementsView({ hasTransfer, hasPurchase, hasAdjustment, onComplete
 
             {/* Mock Movement Modal */}
             <Dialog open={isNewMovementOpen} onOpenChange={setIsNewMovementOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>Registrar Nuevo Movimiento</DialogTitle>
                     </DialogHeader>

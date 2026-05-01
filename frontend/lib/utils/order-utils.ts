@@ -40,7 +40,7 @@ export function summarizePendingItems(
   items: Array<{ concept_type?: string; total?: number; is_paid?: boolean; is_cancelled?: boolean }>
 ): { pendingItems: PendingItemSummary[]; hasUndeliveredItems: boolean } {
   const pendingByType: Record<string, { total: number; count: number }> = {};
-  let hasUndeliveredItems = false;
+  const hasUndeliveredItems = false;
 
   for (const item of items) {
     if (item.is_cancelled) continue;

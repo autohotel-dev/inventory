@@ -478,7 +478,7 @@ export function AdvancedStockView() {
 
       {/* Modal de detalle */}
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Detalle de Stock - {selectedItem?.name}

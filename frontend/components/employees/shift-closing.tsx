@@ -43,7 +43,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl w-full max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background border-0 shadow-2xl">
+      <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background border-0 shadow-2xl">
         <DialogTitle className="sr-only">Corte de Caja</DialogTitle>
         <DialogDescription className="sr-only">Realiza el corte de caja del turno actual</DialogDescription>
         {/* Processing overlay */}

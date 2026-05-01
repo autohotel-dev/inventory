@@ -48,7 +48,7 @@ export function AddDamageChargeModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-background border rounded-lg shadow-lg w-[95vw] sm:w-full sm:max-w-md mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-red-500" />

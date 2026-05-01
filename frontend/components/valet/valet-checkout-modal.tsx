@@ -50,7 +50,7 @@ export function ValetCheckoutModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="w-[95vw] sm:w-full sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-xl">
                         Revisión de Salida - Hab. {room.number}

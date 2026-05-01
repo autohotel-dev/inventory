@@ -168,7 +168,7 @@ export function SupervisorAuthDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[420px] bg-background border-border">
+            <DialogContent className="w-[95vw] sm:w-full sm:max-w-[420px] bg-background border-border">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <ShieldCheck className={`h-5 w-5 ${colors.icon}`} />

@@ -532,7 +532,7 @@ export function SimpleCategoriesTable() {
 
       {/* Modal para crear/editar categoría */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {editingCategory ? "Editar Categoría" : "Nueva Categoría"}
@@ -548,7 +548,7 @@ export function SimpleCategoriesTable() {
 
       {/* Modal para crear/editar subcategoría */}
       <Dialog open={isSubcategoryModalOpen} onOpenChange={setIsSubcategoryModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {editingSubcategory ? "Editar Subcategoría" : "Nueva Subcategoría"}

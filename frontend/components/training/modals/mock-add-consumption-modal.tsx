@@ -407,7 +407,7 @@ export function MockAddConsumptionModal({
             onClick={ensureFocus}
         >
             <div
-                className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
+                className="bg-background border border-border rounded-xl shadow-2xl w-[95vw] sm:w-full sm:max-w-3xl mx-4 max-h-[90vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}

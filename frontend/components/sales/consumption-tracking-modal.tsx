@@ -428,7 +428,7 @@ export function ConsumptionTrackingModal({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                <DialogContent className="sm:max-w-[700px] lg:max-w-[1000px] max-h-[100dvh] md:max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-none md:rounded-[2rem] w-full inset-0 md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] translate-x-0 translate-y-0">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-[700px] lg:max-w-[1000px] max-h-[100dvh] md:max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none bg-zinc-950/95 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] rounded-none md:rounded-[2rem] inset-0 md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] translate-x-0 translate-y-0">
                     <DialogHeader className="px-4 md:px-8 py-5 md:py-7 bg-zinc-900/50 border-b border-white/5 relative overflow-hidden shrink-0">
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
                         <div className="relative flex items-center justify-between">
