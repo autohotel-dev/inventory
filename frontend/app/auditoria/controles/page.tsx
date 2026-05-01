@@ -175,31 +175,31 @@ export default function ControlesAuditoriaPage() {
   const totalMissing = logs.filter(l => l.action_type === "MARKED_MISSING").length;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto px-2 sm:px-4 md:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div>
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 bg-primary/20 rounded-2xl flex items-center justify-center border border-primary/30">
-              <Tv className="h-6 w-6 text-primary" />
+            <div className="h-10 w-10 sm:h-12 sm:w-12 bg-primary/20 rounded-xl sm:rounded-2xl flex items-center justify-center border border-primary/30 shrink-0">
+              <Tv className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight">Auditoría de Controles de TV</h1>
-              <p className="text-sm text-muted-foreground">
-                Trazabilidad forense de asignaciones, confirmaciones y responsables
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-black tracking-tight">Auditoría Controles TV</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                Trazabilidad de asignaciones y responsables
               </p>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className="text-xs sm:text-sm">
             <Filter className="h-4 w-4 mr-1" />
             Filtros
             <ChevronDown className={cn("h-3 w-3 ml-1 transition-transform", showFilters && "rotate-180")} />
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={logs.length === 0}>
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={logs.length === 0} className="text-xs sm:text-sm">
             <Download className="h-4 w-4 mr-1" />
-            Exportar CSV
+            <span className="hidden sm:inline">Exportar CSV</span><span className="sm:hidden">CSV</span>
           </Button>
         </div>
       </div>
@@ -208,7 +208,7 @@ export default function ControlesAuditoriaPage() {
       {showFilters && (
         <Card className="bg-zinc-950 border-white/10">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1 block">Habitación</label>
                 <Input
@@ -271,46 +271,46 @@ export default function ControlesAuditoriaPage() {
       {/* Summary Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="bg-zinc-950 border-white/10">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
-              <Zap className="h-5 w-5 text-amber-400" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 bg-amber-500/10 rounded-lg sm:rounded-xl flex items-center justify-center border border-amber-500/20 shrink-0">
+              <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-black">{totalAssignments}</div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Asignaciones</div>
+              <div className="text-xl sm:text-2xl font-black">{totalAssignments}</div>
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Asignaciones</div>
             </div>
           </CardContent>
         </Card>
         <Card className="bg-zinc-950 border-white/10">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
-              <Check className="h-5 w-5 text-emerald-400" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 bg-emerald-500/10 rounded-lg sm:rounded-xl flex items-center justify-center border border-emerald-500/20 shrink-0">
+              <Check className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-400" />
             </div>
             <div>
-              <div className="text-2xl font-black">{totalConfirmations}</div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Confirmaciones</div>
+              <div className="text-xl sm:text-2xl font-black">{totalConfirmations}</div>
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Confirmaciones</div>
             </div>
           </CardContent>
         </Card>
         <Card className="bg-zinc-950 border-white/10">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 bg-red-500/10 rounded-xl flex items-center justify-center border border-red-500/20">
-              <AlertTriangle className="h-5 w-5 text-red-400" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 bg-red-500/10 rounded-lg sm:rounded-xl flex items-center justify-center border border-red-500/20 shrink-0">
+              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-400" />
             </div>
             <div>
-              <div className="text-2xl font-black">{totalMissing}</div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Extraviados</div>
+              <div className="text-xl sm:text-2xl font-black">{totalMissing}</div>
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Extraviados</div>
             </div>
           </CardContent>
         </Card>
         <Card className="bg-zinc-950 border-white/10">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
-              <BarChart3 className="h-5 w-5 text-primary" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 bg-primary/10 rounded-lg sm:rounded-xl flex items-center justify-center border border-primary/20 shrink-0">
+              <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-black">{logs.length}</div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Total Registros</div>
+              <div className="text-xl sm:text-2xl font-black">{logs.length}</div>
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Total Registros</div>
             </div>
           </CardContent>
         </Card>

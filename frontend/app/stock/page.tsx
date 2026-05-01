@@ -6,10 +6,10 @@ import { RoleGuard } from "@/components/auth/role-guard";
 export default function StockPage() {
   return (
     <RoleGuard requireAdmin permissionId="stock">
-      <div className="p-6 space-y-6">
+      <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Control de Stock</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-foreground">Control de Stock</h1>
             <p className="text-muted-foreground">
               Vista detallada del inventario en tiempo real por almacén
             </p>

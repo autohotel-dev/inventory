@@ -44,11 +44,11 @@ export default async function NotificationsAdminPage() {
         .select('*', { count: 'exact', head: true });
 
     return (
-        <div className="min-h-screen bg-neutral-950 p-6">
+        <div className="min-h-screen bg-neutral-950 p-2 sm:p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-white mb-2">
+                    <h1 className="text-xl sm:text-3xl font-bold text-white mb-2">
                         Panel de Notificaciones
                     </h1>
                     <p className="text-neutral-400">
@@ -63,7 +63,7 @@ export default async function NotificationsAdminPage() {
                 />
 
                 {/* Main Content */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mt-4 sm:mt-6">
                     {/* Composer */}
                     <div className="lg:col-span-2">
                         <NotificationComposer />

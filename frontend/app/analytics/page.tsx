@@ -15,9 +15,9 @@ export default function AnalyticsPage() {
 
   return (
     <RoleGuard requireAdmin permissionId="analytics">
-      <div className="p-6 space-y-6">
+      <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
         {/* Header Mejorado */}
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border border-border/50">
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-3 sm:p-6 border border-border/50">
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-1/2 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl" />
@@ -28,10 +28,10 @@ export default function AnalyticsPage() {
                 <BarChart3 className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
                   Analytics & Reportes
                 </h1>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1 hidden sm:block">
                   Análisis avanzado de tu inventario y operaciones
                 </p>
               </div>

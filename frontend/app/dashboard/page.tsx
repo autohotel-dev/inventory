@@ -85,11 +85,11 @@ export default async function Home() {
 
   return (
     <DashboardWrapper>
-      <div className="space-y-8 p-6" data-tutorial="dashboard">
+      <div className="space-y-6 sm:space-y-8 p-2 sm:p-4 md:p-6" data-tutorial="dashboard">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Dashboard Ejecutivo</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-foreground">Dashboard Ejecutivo</h1>
             <p className="text-muted-foreground">
               Resumen completo de tu inventario y operaciones diarias
             </p>
@@ -212,7 +212,7 @@ export default async function Home() {
           </Card>
 
           {/* Acciones Rápidas */}
-          <div id="tour-dashboard-quick-actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+          <div id="tour-dashboard-quick-actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 sm:gap-4">
             <AdminQuickActions quickLinks={quickLinks} />
           </div>
         </div>
@@ -227,15 +227,15 @@ export default async function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {modules.map((module) => (
                   <Link
                     key={module.href}
                     href={module.href}
-                    className="flex flex-col items-center gap-3 p-4 border rounded-lg hover:bg-muted transition-colors group text-center"
+                    className="flex flex-col items-center gap-2 sm:gap-3 p-3 sm:p-4 border rounded-lg hover:bg-muted transition-colors group text-center"
                   >
-                    <span className="text-3xl">{module.icon}</span>
-                    <span className="font-medium group-hover:text-primary transition-colors">
+                    <span className="text-2xl sm:text-3xl">{module.icon}</span>
+                    <span className="text-xs sm:text-sm font-medium group-hover:text-primary transition-colors">
                       {module.label}
                     </span>
                   </Link>

@@ -195,11 +195,11 @@ function IncomeReportContent() {
     }, [searchParams, fetchShifts, fetchRooms]);
 
     return (
-        <div className="container mx-auto py-6 space-y-6">
+        <div className="container mx-auto px-2 sm:px-4 md:py-6 py-4 space-y-4 sm:space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">Corte de Caja</h1>
+                <h1 className="text-xl sm:text-3xl font-bold">Corte de Caja</h1>
                 <p className="text-muted-foreground">
-                    Reporte de ingresos por turno — se imprime al cierre de cada turno para corroboración
+                    Reporte de ingresos por turno
                 </p>
             </div>
             {/* Filtros estilo Productos */}
@@ -222,10 +222,10 @@ function IncomeReportContent() {
             >
                 <div>
                     <Tabs value={reportType} onValueChange={(v) => setReportType(v as "shift" | "dateRange")}>
-                        <TabsList className="w-full max-w-3xl grid grid-cols-2 p-2 rounded-2xl mx-auto mb-8">
+                        <TabsList className="w-full max-w-3xl grid grid-cols-2 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl mx-auto mb-6 sm:mb-8">
                             <TabsTrigger
                                 value="dateRange"
-                                className="py-6 px-4 data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:shadow-[0_0_25px_rgba(59,130,246,0.5)] data-[state=active]:border-blue-400/50 data-[state=active]:text-white"
+                                className="py-3 sm:py-6 px-2 sm:px-4 data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:shadow-[0_0_25px_rgba(59,130,246,0.5)] data-[state=active]:border-blue-400/50 data-[state=active]:text-white"
                             >
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="flex items-center gap-3">
@@ -235,14 +235,14 @@ function IncomeReportContent() {
                                             <line x1="8" x2="8" y1="2" y2="6" />
                                             <line x1="3" x2="21" y1="10" y2="10" />
                                         </svg>
-                                        <span className="text-base font-bold">Por Fechas</span>
+                                        <span className="text-sm sm:text-base font-bold">Por Fechas</span>
                                     </div>
-                                    <span className="text-sm opacity-90 font-normal">Rango personalizado</span>
+                                    <span className="text-xs sm:text-sm opacity-90 font-normal hidden sm:block">Rango personalizado</span>
                                 </div>
                             </TabsTrigger>
                             <TabsTrigger
                                 value="shift"
-                                className="py-6 px-4 data-[state=active]:from-amber-500 data-[state=active]:to-amber-600 data-[state=active]:shadow-[0_0_25px_rgba(245,158,11,0.5)] data-[state=active]:border-amber-400/50 data-[state=active]:text-white"
+                                className="py-3 sm:py-6 px-2 sm:px-4 data-[state=active]:from-amber-500 data-[state=active]:to-amber-600 data-[state=active]:shadow-[0_0_25px_rgba(245,158,11,0.5)] data-[state=active]:border-amber-400/50 data-[state=active]:text-white"
                             >
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="flex items-center gap-3">
@@ -251,9 +251,9 @@ function IncomeReportContent() {
                                             <line x1="8" x2="16" y1="21" y2="21" />
                                             <line x1="12" x2="12" y1="17" y2="21" />
                                         </svg>
-                                        <span className="text-base font-bold">Por Turno</span>
+                                        <span className="text-sm sm:text-base font-bold">Por Turno</span>
                                     </div>
-                                    <span className="text-sm opacity-90 font-normal">Cierre de Caja</span>
+                                    <span className="text-xs sm:text-sm opacity-90 font-normal hidden sm:block">Cierre de Caja</span>
                                 </div>
                             </TabsTrigger>
                         </TabsList>

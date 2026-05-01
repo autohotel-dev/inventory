@@ -19,24 +19,24 @@ export default function AuditoriaPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto px-2 sm:px-4 md:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20 shadow-inner">
-            <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-md" />
-            <Shield className="h-7 w-7 text-primary relative z-10" />
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div className="flex items-center gap-3">
+          <div className="relative h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+            <div className="absolute inset-0 bg-primary/20 rounded-xl sm:rounded-2xl blur-md" />
+            <Shield className="h-5 w-5 sm:h-7 sm:w-7 text-primary relative z-10" />
           </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tighter bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black tracking-tighter bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
               Centro de Auditoría
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Monitoreo completo de acciones, pagos y actividad del sistema
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+              Monitoreo de acciones, pagos y actividad
             </p>
           </div>
         </div>
-        <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-bold bg-emerald-500/5 text-emerald-600 border-emerald-500/20 px-3 py-1">
+        <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-bold bg-emerald-500/5 text-emerald-600 border-emerald-500/20 px-3 py-1 self-start sm:self-auto hidden sm:flex">
           <span className="relative flex h-2 w-2 mr-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -50,7 +50,8 @@ export default function AuditoriaPage() {
 
       {/* Contenido principal */}
       <Tabs defaultValue="timeline" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 h-11 bg-muted/50 backdrop-blur-sm">
+        <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+        <TabsList className="grid w-full min-w-[500px] sm:min-w-0 grid-cols-5 h-11 bg-muted/50 backdrop-blur-sm">
           <TabsTrigger value="timeline" className="flex items-center gap-1.5 text-xs font-semibold">
             <Clock className="h-3.5 w-3.5" />
             Línea de Tiempo
@@ -72,6 +73,7 @@ export default function AuditoriaPage() {
             Sesiones
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="timeline" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

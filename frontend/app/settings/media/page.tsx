@@ -126,17 +126,17 @@ export default function MediaLibraryPage() {
 
 
     return (
-        <div className="container mx-auto p-6 max-w-7xl space-y-6">
+        <div className="container mx-auto px-2 sm:px-4 md:p-6 max-w-7xl space-y-4 sm:space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold mb-2">Biblioteca de Medios</h1>
+                <h1 className="text-xl sm:text-3xl font-bold mb-2">Biblioteca de Medios</h1>
                 <p className="text-muted-foreground">
                     Gestiona tus logos, imágenes y documentos
                 </p>
             </div>
 
             {/* Stats */}
-            <div className="grid gap-4 md:grid-cols-5">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
                 <Card>
                     <CardHeader className="pb-3">
                         <CardDescription>Total</CardDescription>

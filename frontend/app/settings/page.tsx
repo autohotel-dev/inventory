@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
     Settings,
@@ -144,10 +143,10 @@ function SettingRow({ title, description, children, disabled }: {
 }) {
     return (
         <div className={cn(
-            "flex items-center justify-between py-4 group transition-all duration-200",
+            "flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-3 sm:gap-0 group transition-all duration-200",
             disabled && "opacity-60"
         )}>
-            <div className="space-y-0.5 flex-1 mr-4">
+            <div className="space-y-0.5 flex-1 sm:mr-4">
                 <Label className="text-[14px] font-semibold text-foreground/90 group-hover:text-foreground transition-colors">
                     {title}
                 </Label>
@@ -366,32 +365,32 @@ export default function SettingsPage() {
     // RENDER
     // ═══════════════════════════════════════════════════════════════
     return (
-        <div className="mx-auto py-6 px-4 lg:px-8">
+        <div className="mx-auto py-4 sm:py-6 px-3 sm:px-4 lg:px-8">
             {/* ─── Header ──────────────────────────────────────────── */}
-            <div className="mb-8">
-                <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 backdrop-blur-xl">
+            <div className="mb-6 sm:mb-8">
+                <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6 backdrop-blur-xl">
                     <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] via-transparent to-transparent" />
 
-                    <div className="relative flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-xl bg-white/[0.06] border border-white/[0.06]">
-                                <Settings className="h-6 w-6 text-foreground/70" />
+                    <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <div className="p-2.5 sm:p-3 rounded-xl bg-white/[0.06] border border-white/[0.06] shrink-0">
+                                <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-foreground/70" />
                             </div>
-                            <div>
-                                <h1 className="text-xl font-bold tracking-tight text-foreground/90">Configuración</h1>
-                                <p className="text-sm text-muted-foreground/50 font-medium">Personaliza el comportamiento del sistema</p>
+                            <div className="min-w-0">
+                                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground/90">Configuración</h1>
+                                <p className="text-xs sm:text-sm text-muted-foreground/50 font-medium truncate">Personaliza el comportamiento del sistema</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                             {hasChanges && (
-                                <Badge variant="outline" className="bg-white/[0.04] text-foreground/60 border-white/[0.08] backdrop-blur-sm animate-pulse font-medium text-xs">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-foreground/50 mr-2" />
+                                <Badge variant="outline" className="bg-white/[0.04] text-foreground/60 border-white/[0.08] backdrop-blur-sm animate-pulse font-medium text-[10px] sm:text-xs">
+                                    <div className="h-1.5 w-1.5 rounded-full bg-foreground/50 mr-1.5 sm:mr-2" />
                                     Cambios sin guardar
                                 </Badge>
                             )}
-                            <Badge variant="outline" className="bg-white/[0.04] text-muted-foreground/60 border-white/[0.06] gap-2 py-1.5 px-3 backdrop-blur-sm font-medium text-xs">
-                                <div className="p-1 rounded-md bg-white/[0.06]"><User className="h-3 w-3" /></div>
-                                {employeeName || role || "Admin"}
+                            <Badge variant="outline" className="bg-white/[0.04] text-muted-foreground/60 border-white/[0.06] gap-1.5 sm:gap-2 py-1 sm:py-1.5 px-2 sm:px-3 backdrop-blur-sm font-medium text-[10px] sm:text-xs">
+                                <div className="p-0.5 sm:p-1 rounded-md bg-white/[0.06]"><User className="h-3 w-3" /></div>
+                                <span className="truncate max-w-[120px] sm:max-w-none">{employeeName || role || "Admin"}</span>
                             </Badge>
                         </div>
                     </div>
@@ -399,7 +398,7 @@ export default function SettingsPage() {
             </div>
 
             {/* ─── Main Layout ──────────────────────────────────────── */}
-            <div className="flex gap-8">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-8">
                 {/* ─── Sidebar (Desktop) ─── */}
                 <div className="w-60 shrink-0 hidden md:block">
                     <div className="sticky top-20">
@@ -436,25 +435,23 @@ export default function SettingsPage() {
                 </div>
 
                 {/* ─── Mobile Section Selector ─── */}
-                <div className="md:hidden w-full">
-                    <ScrollArea className="w-full">
-                        <div className="flex gap-2 pb-4">
-                            {visibleSections.map((section) => (
-                                <button key={section.id} onClick={() => setActiveSection(section.id)} className={cn(
-                                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 border",
-                                    activeSection === section.id
-                                        ? cn("text-white border-transparent shadow-lg bg-gradient-to-r", section.gradient)
-                                        : "bg-white/[0.03] border-white/[0.06] text-muted-foreground hover:bg-white/[0.06]"
-                                )}>
-                                    {section.icon}{section.label}
-                                </button>
-                            ))}
-                        </div>
-                    </ScrollArea>
+                <div className="md:hidden w-full overflow-x-auto scrollbar-hide">
+                    <div className="flex gap-2 pb-4 min-w-min">
+                        {visibleSections.map((section) => (
+                            <button key={section.id} onClick={() => setActiveSection(section.id)} className={cn(
+                                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 border",
+                                activeSection === section.id
+                                    ? "text-foreground bg-white/[0.10] border-white/[0.12] shadow-lg"
+                                    : "bg-white/[0.03] border-white/[0.06] text-muted-foreground hover:bg-white/[0.06]"
+                            )}>
+                                {section.icon}{section.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* ─── Content ─── */}
-                <div className="flex-1 min-w-0">
+                <div className="w-full md:flex-1 md:min-w-0">
                     <div className="space-y-6" key={activeSection}>
 
                         {/* ══════════════════════════════════════════════════════
@@ -462,8 +459,8 @@ export default function SettingsPage() {
                            ══════════════════════════════════════════════════════ */}
                         {activeSection === "operations" && (
                             <SectionCard gradient={currentSection.gradient}>
-                                <CardHeader className="pb-0 pt-6 px-7">
-                                    <div className="flex items-center gap-4">
+                                <CardHeader className="pb-0 pt-5 sm:pt-6 px-4 sm:px-7">
+                                    <div className="flex items-center gap-3 sm:gap-4">
                                         <div className="p-3 rounded-xl bg-white/[0.05] border border-white/[0.06]">
                                             <Building2 className="h-6 w-6 text-foreground/60" />
                                         </div>
@@ -473,7 +470,7 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="px-7 pb-7 pt-4">
+                                <CardContent className="px-4 sm:px-7 pb-5 sm:pb-7 pt-4">
                                     {!canEditShared && <ReadOnlyNotice />}
 
                                     {/* ── Sub: Configuración de Caja ── */}
@@ -614,8 +611,8 @@ export default function SettingsPage() {
                            ══════════════════════════════════════════════════════ */}
                         {activeSection === "devices" && (
                             <SectionCard gradient={currentSection.gradient}>
-                                <CardHeader className="pb-0 pt-6 px-7">
-                                    <div className="flex items-center gap-4">
+                                <CardHeader className="pb-0 pt-5 sm:pt-6 px-4 sm:px-7">
+                                    <div className="flex items-center gap-3 sm:gap-4">
                                         <div className="p-3 rounded-xl bg-white/[0.05] border border-white/[0.06]">
                                             <Cpu className="h-6 w-6 text-foreground/60" />
                                         </div>
@@ -625,7 +622,7 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="px-7 pb-7 pt-4">
+                                <CardContent className="px-4 sm:px-7 pb-5 sm:pb-7 pt-4">
 
                                     {/* ── Sub: Impresión ── */}
                                     <div className="space-y-2">
@@ -831,8 +828,8 @@ export default function SettingsPage() {
                            ══════════════════════════════════════════════════════ */}
                         {activeSection === "history" && canEditShared && (
                             <SectionCard gradient={currentSection.gradient}>
-                                <CardHeader className="pb-0 pt-6 px-7">
-                                    <div className="flex items-center gap-4">
+                                <CardHeader className="pb-0 pt-5 sm:pt-6 px-4 sm:px-7">
+                                    <div className="flex items-center gap-3 sm:gap-4">
                                         <div className="p-3 rounded-xl bg-white/[0.05] border border-white/[0.06]">
                                             <History className="h-6 w-6 text-foreground/60" />
                                         </div>
@@ -842,7 +839,7 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="px-7 pb-7 pt-5">
+                                <CardContent className="px-4 sm:px-7 pb-5 sm:pb-7 pt-5">
                                     {meta.updatedAt ? (
                                         <div className="space-y-5">
                                             <div className="flex items-start gap-4 p-5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
@@ -865,7 +862,7 @@ export default function SettingsPage() {
 
                                             <div className="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                                                 <p className="text-xs text-muted-foreground/50 font-semibold uppercase tracking-wider mb-4">Valores actuales</p>
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                                                     {([
                                                         { label: "Fondo de caja", value: `$${systemConfig.initialCashFund.toLocaleString()}` },
                                                         { label: "Adelanto cochero", value: `$${systemConfig.valetAdvanceAmount.toLocaleString()}` },
@@ -901,8 +898,8 @@ export default function SettingsPage() {
                         {activeSection === "maintenance" && canEditShared && (
                             <div className="space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-400">
                                 <SectionCard gradient={currentSection.gradient}>
-                                    <CardHeader className="pb-0 pt-6 px-7">
-                                        <div className="flex items-center justify-between">
+                                    <CardHeader className="pb-0 pt-5 sm:pt-6 px-4 sm:px-7">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                             <div className="flex items-center gap-4">
                                                 <div className="p-3 rounded-xl bg-gradient-to-br from-red-500/20 to-rose-500/10 border border-red-500/10">
                                                     <Zap className="h-6 w-6 text-red-400" />
@@ -917,7 +914,7 @@ export default function SettingsPage() {
                                             </Badge>
                                         </div>
                                     </CardHeader>
-                                    <CardContent className="px-7 pb-7 pt-5 space-y-6">
+                                    <CardContent className="px-4 sm:px-7 pb-5 sm:pb-7 pt-5 space-y-6">
                                         <div className="p-5 rounded-xl bg-red-500/[0.03] border border-red-500/15 space-y-5">
                                             <div className="space-y-2">
                                                 <h4 className="text-sm font-bold text-red-400 flex items-center gap-2"><Zap className="h-4 w-4" />Reinicio Nuclear del Sistema</h4>
@@ -951,21 +948,21 @@ export default function SettingsPage() {
             {/* ─── Floating Save Bar ──────────────────────────────── */}
             {hasChanges && (
                 <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-                    <div className="mx-auto px-4 lg:px-8 pb-5">
-                        <div className="pointer-events-auto relative overflow-hidden bg-background/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/40 p-5 flex items-center justify-between animate-in slide-in-from-bottom-6 duration-500">
+                    <div className="mx-auto px-3 sm:px-4 lg:px-8 pb-3 sm:pb-5">
+                        <div className="pointer-events-auto relative overflow-hidden bg-background/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/40 p-3 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 animate-in slide-in-from-bottom-6 duration-500">
                             <div className="absolute inset-0 bg-gradient-to-r from-primary/[0.03] via-transparent to-primary/[0.03]" />
-                            <div className="relative flex items-center gap-3 text-sm text-muted-foreground">
-                                <div className="relative">
+                            <div className="relative flex items-center gap-2.5 sm:gap-3 text-sm text-muted-foreground">
+                                <div className="relative shrink-0">
                                     <div className="absolute inset-0 rounded-full bg-amber-500 animate-ping opacity-30" />
                                     <div className="relative h-2.5 w-2.5 rounded-full bg-amber-500 shadow-lg shadow-amber-500/50" />
                                 </div>
-                                <span className="font-medium">Tienes cambios sin guardar</span>
+                                <span className="font-medium text-xs sm:text-sm">Tienes cambios sin guardar</span>
                             </div>
-                            <div className="relative flex items-center gap-3">
-                                <Button variant="ghost" size="sm" onClick={() => setLocalConfig(null)} className="text-muted-foreground hover:text-foreground rounded-xl">
+                            <div className="relative flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                                <Button variant="ghost" size="sm" onClick={() => setLocalConfig(null)} className="text-muted-foreground hover:text-foreground rounded-xl flex-1 sm:flex-none text-xs sm:text-sm">
                                     Descartar
                                 </Button>
-                                <Button size="sm" onClick={handleSave} disabled={systemSaving} className="gap-2 min-w-[150px] rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 hover:scale-[1.02]">
+                                <Button size="sm" onClick={handleSave} disabled={systemSaving} className="gap-2 flex-1 sm:flex-none sm:min-w-[150px] rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 hover:scale-[1.02] text-xs sm:text-sm">
                                     {systemSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                     {systemSaving ? "Guardando..." : "Guardar cambios"}
                                 </Button>

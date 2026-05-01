@@ -157,16 +157,16 @@ export default function StaffNotificationsPage() {
   const selectedTypeMeta = NOTIF_TYPES.find(t => t.value === notifType)!;
 
   return (
-    <div className="min-h-screen bg-neutral-950 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-neutral-950 p-2 sm:p-4 md:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/20 flex items-center justify-center">
               <Megaphone className="w-5 h-5 text-violet-400" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white">Comunicados al Staff</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Comunicados al Staff</h1>
               <p className="text-neutral-500 text-sm">Envía notificaciones personalizadas a la app móvil</p>
             </div>
           </div>
@@ -176,9 +176,9 @@ export default function StaffNotificationsPage() {
           {/* ── Compose Panel ── */}
           <div className="lg:col-span-2 space-y-6">
             {/* Notification Type Selector */}
-            <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-white/5 shadow-2xl">
-              <label className="block text-sm font-medium text-neutral-400 mb-4">Tipo de Notificación</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-3 sm:p-6 border border-white/5 shadow-2xl">
+              <label className="block text-sm font-medium text-neutral-400 mb-3 sm:mb-4">Tipo de Notificación</label>
+              <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
                 {NOTIF_TYPES.map((t) => {
                   const Icon = t.icon;
                   const isSelected = notifType === t.value;
@@ -186,7 +186,7 @@ export default function StaffNotificationsPage() {
                     <button
                       key={t.value}
                       onClick={() => setNotifType(t.value)}
-                      className={`group relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
+                      className={`group relative flex flex-col items-center gap-1.5 sm:gap-2 p-2.5 sm:p-4 rounded-xl border-2 transition-all duration-200 ${
                         isSelected
                           ? `${t.bg} ${t.border} shadow-lg`
                           : "bg-neutral-950/50 border-white/5 hover:border-white/10 hover:bg-neutral-900/50"
@@ -197,7 +197,7 @@ export default function StaffNotificationsPage() {
                       }`}>
                         <Icon className={`w-5 h-5 ${isSelected ? t.color : "text-neutral-500 group-hover:text-neutral-300"}`} />
                       </div>
-                      <span className={`text-xs font-medium text-center leading-tight ${
+                      <span className={`text-[10px] sm:text-xs font-medium text-center leading-tight ${
                         isSelected ? "text-white" : "text-neutral-500 group-hover:text-neutral-300"
                       }`}>{t.label}</span>
                       {isSelected && (
@@ -210,7 +210,7 @@ export default function StaffNotificationsPage() {
             </div>
 
             {/* Target + Compose */}
-            <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-white/5 shadow-2xl space-y-6">
+            <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-3 sm:p-6 border border-white/5 shadow-2xl space-y-4 sm:space-y-6">
               {/* Target Type */}
               <div>
                 <label className="block text-sm font-medium text-neutral-400 mb-3">Destinatarios</label>
@@ -376,7 +376,7 @@ export default function StaffNotificationsPage() {
 
           {/* ── History Panel ── */}
           <div className="lg:col-span-1">
-            <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-white/5 shadow-2xl h-full">
+            <div className="bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-3 sm:p-6 border border-white/5 shadow-2xl h-full">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <History className="w-5 h-5 text-neutral-500" />

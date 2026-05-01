@@ -8,7 +8,7 @@ export default function EmployeesPage() {
     <RoleGuard requireAdmin permissionId="employees">
       <div className="container mx-auto py-6 px-4">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold">Empleados</h1>
+          <h1 className="text-xl sm:text-3xl font-bold">Empleados</h1>
           <p className="text-muted-foreground">
             Gestiona los empleados y recepcionistas del sistema
           </p>

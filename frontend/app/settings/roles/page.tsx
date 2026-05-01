@@ -145,17 +145,17 @@ export default function RolesManagementPage() {
     }
 
     return (
-        <div className="container mx-auto p-6 max-w-6xl">
-            <div className="mb-6 flex items-center justify-between">
+        <div className="container mx-auto px-2 sm:px-4 md:p-6 max-w-6xl">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Gestión de Roles</h1>
-                    <p className="text-muted-foreground">
+                    <h1 className="text-xl sm:text-3xl font-bold mb-1 sm:mb-2">Gestión de Roles</h1>
+                    <p className="text-sm text-muted-foreground">
                         Crea, edita y elimina roles para el sistema
                     </p>
                 </div>
                 <button
                     onClick={handleCreateRole}
-                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium text-sm sm:text-base self-start sm:self-auto"
                 >
                     + Crear Rol
                 </button>
@@ -179,7 +179,8 @@ export default function RolesManagementPage() {
                 </div>
             ) : (
                 <div className="bg-card border rounded-lg overflow-hidden">
-                    <table className="w-full">
+                    <div className="overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
                         <thead className="bg-muted/50 border-b">
                             <tr>
                                 <th className="text-left p-4 font-semibold">Nombre</th>
@@ -248,6 +249,7 @@ export default function RolesManagementPage() {
                             )}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 

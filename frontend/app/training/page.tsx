@@ -60,16 +60,16 @@ export default function TrainingPage() {
 
     return (
 
-        <div className="container mx-auto py-8 space-y-10 animate-in fade-in duration-500 max-w-7xl">
+        <div className="container mx-auto px-2 sm:px-4 md:py-8 py-4 space-y-6 sm:space-y-10 animate-in fade-in duration-500 max-w-7xl">
             {/* Header Centrado Simplificado */}
             <div className="text-center space-y-4 max-w-3xl mx-auto">
                 <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-full mb-2 ring-1 ring-primary/20">
                     <GraduationCap className="h-8 w-8 text-primary" />
                 </div>
-                <h1 className="text-5xl font-extrabold tracking-tight">
+                <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
                     Academia <span className="bg-gradient-to-r from-primary to-amber-500 bg-clip-text text-transparent">Luxor Manager</span>
                 </h1>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                <p className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                     Sube de nivel tus habilidades y conviértete en un experto del sistema.
                 </p>
 
@@ -81,13 +81,13 @@ export default function TrainingPage() {
                         placeholder="¿Qué quieres aprender hoy?"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-12 h-14 text-lg shadow-lg rounded-full border-muted/50 bg-background/50 backdrop-blur-sm focus-visible:ring-primary/50 focus-visible:border-primary transition-all group-hover:shadow-xl"
+                        className="pl-12 h-12 sm:h-14 text-base sm:text-lg shadow-lg rounded-full border-muted/50 bg-background/50 backdrop-blur-sm focus-visible:ring-primary/50 focus-visible:border-primary transition-all group-hover:shadow-xl"
                     />
                 </div>
             </div>
 
             {/* Stats Grid Simétrico (3 Columnas) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 {/* Columna 1: Nivel Actual */}
                 <Card className="border-amber-200/50 bg-gradient-to-br from-amber-50/50 to-orange-50/50 dark:from-amber-950/10 dark:to-orange-950/10 shadow-lg hover:shadow-xl transition-all duration-300 group relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity transform group-hover:scale-110 duration-500">
@@ -168,14 +168,14 @@ export default function TrainingPage() {
 
             {/* Navegación de Categorías y Módulos */}
             <Tabs defaultValue="all" className="w-full">
-                <TabsList className="w-full h-auto flex flex-wrap justify-center gap-2 bg-transparent p-0 mb-8">
+                <TabsList className="w-full h-auto flex flex-wrap justify-center gap-1.5 sm:gap-2 bg-transparent p-0 mb-6 sm:mb-8">
                     {categories.map(cat => (
                         <TabsTrigger
                             key={cat.id}
                             value={cat.id}
-                            className="text-sm px-4 py-2 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border border-transparent data-[state=active]:shadow-md transition-all"
+                            className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border border-transparent data-[state=active]:shadow-md transition-all"
                         >
-                            <span className="mr-2 text-lg">{cat.icon}</span>
+                            <span className="mr-1 sm:mr-2 text-base sm:text-lg">{cat.icon}</span>
                             {cat.label}
                         </TabsTrigger>
                     ))}
@@ -183,7 +183,7 @@ export default function TrainingPage() {
 
                 {categories.map(cat => (
                     <TabsContent key={cat.id} value={cat.id} className="mt-0 animate-in slide-in-from-bottom-4 duration-500">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                             {getModulesByCategory(cat.id).map(module => (
                                 <ModuleCard key={module.id} module={module} />
                             ))}

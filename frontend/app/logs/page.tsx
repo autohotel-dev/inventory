@@ -314,6 +314,111 @@ const SEVERITY_BORDER: Record<string, string> = {
   DEBUG: "border-l-zinc-300 dark:border-l-zinc-700",
 };
 
+function FiltersContent({ filters, updateFilter, resetFilters }: {
+  filters: ReturnType<typeof useLogCenter>["filters"];
+  updateFilter: ReturnType<typeof useLogCenter>["updateFilter"];
+  resetFilters: ReturnType<typeof useLogCenter>["resetFilters"];
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Buscar</label>
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
+          <Input
+            placeholder="Texto, empleado, acción..."
+            value={filters.search}
+            onChange={e => updateFilter("search", e.target.value)}
+            className="pl-9 h-9 text-xs rounded-xl border-border/30 focus:ring-2 focus:ring-primary/20 bg-muted/20"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-2 block">Severidad</label>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            { value: "all", label: "Todas", dot: "bg-gradient-to-r from-blue-400 to-emerald-400" },
+            { value: "CRITICAL", label: "Crítico", dot: "bg-red-500" },
+            { value: "ERROR", label: "Error", dot: "bg-orange-500" },
+            { value: "WARNING", label: "Alerta", dot: "bg-amber-400" },
+            { value: "INFO", label: "Info", dot: "bg-blue-400" },
+            { value: "DEBUG", label: "Debug", dot: "bg-zinc-400" },
+          ].map(sev => {
+            const isActive = filters.severity === sev.value;
+            return (
+              <button
+                key={sev.value}
+                onClick={() => updateFilter("severity", sev.value)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                  isActive
+                    ? "bg-foreground text-background shadow-md"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                <div className={`h-1.5 w-1.5 rounded-full ${sev.dot}`} />
+                {sev.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Habitación</label>
+        <Input placeholder="Ej: 5" value={filters.roomNumber} onChange={e => updateFilter("roomNumber", e.target.value)} className="h-9 text-xs rounded-xl border-border/30 bg-muted/20" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Desde</label>
+          <Input type="date" value={filters.dateFrom} onChange={e => updateFilter("dateFrom", e.target.value)} className="h-9 text-[10px] rounded-xl border-border/30 bg-muted/20" />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Hasta</label>
+          <Input type="date" value={filters.dateTo} onChange={e => updateFilter("dateTo", e.target.value)} className="h-9 text-[10px] rounded-xl border-border/30 bg-muted/20" />
+        </div>
+      </div>
+      <Button variant="ghost" size="sm" onClick={resetFilters} className="w-full text-xs text-muted-foreground/60 hover:text-foreground rounded-xl h-8">
+        Limpiar filtros
+      </Button>
+    </div>
+  );
+}
+
+function EmployeeStats({ stats }: { stats: ReturnType<typeof useLogCenter>["stats"] }) {
+  if (stats.byEmployee.length === 0) return null;
+  return (
+    <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-xl ring-1 ring-border/20 overflow-hidden">
+      <CardHeader className="pb-3 bg-gradient-to-r from-violet-500/5 to-transparent border-b border-border/30">
+        <CardTitle className="text-sm flex items-center gap-2.5">
+          <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+            <User className="h-3.5 w-3.5 text-violet-500" />
+          </div>
+          Actividad por Empleado
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3 space-y-2.5">
+        {stats.byEmployee.map((emp, i) => {
+          const maxCount = stats.byEmployee[0]?.count || 1;
+          const pct = Math.round((emp.count / maxCount) * 100);
+          return (
+            <div key={i} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium truncate flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-muted-foreground/50 w-4">{i + 1}.</span>
+                  {emp.name}
+                </span>
+                <span className="text-[10px] font-bold tabular-nums text-primary">{emp.count}</span>
+              </div>
+              <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-violet-500 to-primary rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
 function LogRow({ log, nameMap }: { log: LogEntry; nameMap?: NameMap }) {
   const iconColor = ACTION_COLORS[log.action] || "bg-muted text-muted-foreground";
   const icon = ACTION_ICONS[log.action] || ACTION_ICONS[log.event_type] || <Clock className="h-4 w-4" />;
@@ -323,22 +428,22 @@ function LogRow({ log, nameMap }: { log: LogEntry; nameMap?: NameMap }) {
   const hasDetails = log.metadata && Object.keys(log.metadata).filter(k => !HIDDEN_KEYS.includes(k)).length > 0;
 
   return (
-    <div className={`flex gap-4 px-5 py-4 hover:bg-muted/20 transition-all duration-200 group border-b border-border/10 last:border-0 border-l-[3px] ${borderColor}`}>
+    <div className={`flex gap-2.5 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 hover:bg-muted/20 transition-all duration-200 group border-b border-border/10 last:border-0 border-l-[3px] ${borderColor}`}>
       <div className="flex-shrink-0 pt-0.5">
-        <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${iconColor} ring-2 ring-background shadow-sm transition-transform group-hover:scale-105`}>
+        <div className={`h-7 w-7 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl flex items-center justify-center ${iconColor} ring-2 ring-background shadow-sm transition-transform group-hover:scale-105`}>
           {icon}
         </div>
       </div>
       <div className="flex-1 min-w-0 space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="font-bold text-[13px] tracking-tight">{title}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <span className="font-bold text-xs sm:text-[13px] tracking-tight">{title}</span>
             <div className="flex items-center gap-1.5">
-              <div className={`h-2 w-2 rounded-full ${dotColor} shadow-[0_0_6px]`} />
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{log.severity}</span>
+              <div className={`h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full ${dotColor} shadow-[0_0_6px]`} />
+              <span className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{log.severity}</span>
             </div>
           </div>
-          <time className="text-[10px] font-mono text-muted-foreground/70 whitespace-nowrap tabular-nums bg-muted/30 px-2 py-0.5 rounded-md">
+          <time className="text-[9px] sm:text-[10px] font-mono text-muted-foreground/70 whitespace-nowrap tabular-nums">
             {format(new Date(log.created_at), "dd MMM · HH:mm:ss", { locale: es })}
           </time>
         </div>
@@ -389,173 +494,104 @@ export default function LogsPage() {
   const { logs, stats, filters, loading, hasMore, nameMap, updateFilter, resetFilters, loadMore, refetch } = useLogCenter();
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto px-2 sm:px-4 md:p-6 space-y-4 sm:space-y-6">
       {/* ─── Header ─── */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 via-primary/15 to-violet-500/20 flex items-center justify-center border border-primary/10 shadow-inner">
-            <div className="absolute inset-0 bg-primary/10 rounded-2xl blur-lg" />
-            <Activity className="h-7 w-7 text-primary relative z-10" />
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="relative h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500/20 via-primary/15 to-violet-500/20 flex items-center justify-center border border-primary/10 shadow-inner shrink-0">
+            <div className="absolute inset-0 bg-primary/10 rounded-xl sm:rounded-2xl blur-lg" />
+            <Activity className="h-5 w-5 sm:h-7 sm:w-7 text-primary relative z-10" />
           </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tighter bg-gradient-to-r from-foreground via-foreground/90 to-foreground/60 bg-clip-text text-transparent">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black tracking-tighter bg-gradient-to-r from-foreground via-foreground/90 to-foreground/60 bg-clip-text text-transparent">
               Registro de Actividad
             </h1>
-            <p className="text-sm text-muted-foreground/70">
-              Historial completo y unificado — todas las acciones del sistema
+            <p className="text-xs sm:text-sm text-muted-foreground/70 truncate">
+              Historial completo y unificado
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-bold bg-emerald-500/5 text-emerald-600 border-emerald-500/20 px-3 py-1.5 hidden sm:flex">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-bold bg-emerald-500/5 text-emerald-600 border-emerald-500/20 px-2 sm:px-3 py-1 sm:py-1.5 hidden sm:flex">
             <span className="relative flex h-2 w-2 mr-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
             Tiempo Real
           </Badge>
-          <Button variant="outline" size="sm" onClick={refetch} className="gap-1.5 h-9 rounded-xl">
-            <RotateCw className="h-3.5 w-3.5" /> Actualizar
+          <Button variant="outline" size="sm" onClick={refetch} className="gap-1.5 h-8 sm:h-9 rounded-xl text-xs">
+            <RotateCw className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Actualizar</span><span className="sm:hidden">Sync</span>
           </Button>
         </div>
       </div>
 
       {/* ─── Category Tabs ─── */}
-      <div className="flex gap-2 flex-wrap p-1 bg-muted/30 rounded-2xl border border-border/30 backdrop-blur-sm">
-        {CATEGORY_CONFIGS.map(cat => {
-          const count = typeof stats[cat.statKey] === "number" ? stats[cat.statKey] as number : 0;
-          const isActive = filters.category === cat.key;
-          return (
-            <Button
-              key={cat.key}
-              variant={isActive ? "default" : "ghost"}
-              size="sm"
-              onClick={() => updateFilter("category", cat.key)}
-              className={`gap-1.5 h-9 rounded-xl text-xs font-semibold transition-all ${
-                isActive ? "shadow-lg shadow-primary/25" : "hover:bg-muted/60 text-muted-foreground"
-              }`}
-            >
-              {cat.icon}
-              {cat.label}
-              <span className={`text-[10px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${
-                isActive ? "bg-primary-foreground/20" : "bg-muted"
-              }`}>{count}</span>
-            </Button>
-          );
-        })}
+      <div className="overflow-x-auto scrollbar-hide -mx-2 px-2 sm:mx-0 sm:px-0">
+        <div className="flex gap-1.5 sm:gap-2 p-1 bg-muted/30 rounded-2xl border border-border/30 backdrop-blur-sm min-w-min">
+          {CATEGORY_CONFIGS.map(cat => {
+            const count = typeof stats[cat.statKey] === "number" ? stats[cat.statKey] as number : 0;
+            const isActive = filters.category === cat.key;
+            return (
+              <Button
+                key={cat.key}
+                variant={isActive ? "default" : "ghost"}
+                size="sm"
+                onClick={() => updateFilter("category", cat.key)}
+                className={`gap-1 sm:gap-1.5 h-8 sm:h-9 rounded-xl text-[11px] sm:text-xs font-semibold transition-all whitespace-nowrap ${
+                  isActive ? "shadow-lg shadow-primary/25" : "hover:bg-muted/60 text-muted-foreground"
+                }`}
+              >
+                {cat.icon}
+                <span className="hidden xs:inline">{cat.label}</span>
+                <span className="xs:hidden">{cat.label.substring(0, 3)}</span>
+                <span className={`text-[9px] sm:text-[10px] tabular-nums font-mono px-1 sm:px-1.5 py-0.5 rounded-md ${
+                  isActive ? "bg-primary-foreground/20" : "bg-muted"
+                }`}>{count}</span>
+              </Button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Filters Sidebar */}
-        <div className="space-y-5">
-          <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-xl ring-1 ring-border/20 overflow-hidden">
-            <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent border-b border-border/30">
-              <CardTitle className="text-sm flex items-center gap-2.5">
-                <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Filter className="h-3.5 w-3.5 text-primary" />
-                </div>
-                Filtros
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div>
-                <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Buscar</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
-                  <Input
-                    placeholder="Texto, empleado, acción..."
-                    value={filters.search}
-                    onChange={e => updateFilter("search", e.target.value)}
-                    className="pl-9 h-9 text-xs rounded-xl border-border/30 focus:ring-2 focus:ring-primary/20 bg-muted/20"
-                  />
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* Filters Sidebar — collapsible on mobile */}
+        <div className="space-y-4 sm:space-y-5 order-2 lg:order-1">
+          {/* Mobile: collapsible filters */}
+          <details className="lg:hidden group/filters">
+            <summary className="flex items-center justify-between cursor-pointer p-3 rounded-xl bg-muted/20 border border-border/20 text-sm font-semibold">
+              <div className="flex items-center gap-2.5">
+                <Filter className="h-4 w-4 text-primary" />
+                Filtros y Estadísticas
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-2 block">Severidad</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { value: "all", label: "Todas", dot: "bg-gradient-to-r from-blue-400 to-emerald-400" },
-                    { value: "CRITICAL", label: "Crítico", dot: "bg-red-500" },
-                    { value: "ERROR", label: "Error", dot: "bg-orange-500" },
-                    { value: "WARNING", label: "Alerta", dot: "bg-amber-400" },
-                    { value: "INFO", label: "Info", dot: "bg-blue-400" },
-                    { value: "DEBUG", label: "Debug", dot: "bg-zinc-400" },
-                  ].map(sev => {
-                    const isActive = filters.severity === sev.value;
-                    return (
-                      <button
-                        key={sev.value}
-                        onClick={() => updateFilter("severity", sev.value)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                          isActive
-                            ? "bg-foreground text-background shadow-md"
-                            : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
-                        }`}
-                      >
-                        <div className={`h-1.5 w-1.5 rounded-full ${sev.dot}`} />
-                        {sev.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Habitación</label>
-                <Input placeholder="Ej: 5" value={filters.roomNumber} onChange={e => updateFilter("roomNumber", e.target.value)} className="h-9 text-xs rounded-xl border-border/30 bg-muted/20" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Desde</label>
-                  <Input type="date" value={filters.dateFrom} onChange={e => updateFilter("dateFrom", e.target.value)} className="h-9 text-[10px] rounded-xl border-border/30 bg-muted/20" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.15em] mb-1.5 block">Hasta</label>
-                  <Input type="date" value={filters.dateTo} onChange={e => updateFilter("dateTo", e.target.value)} className="h-9 text-[10px] rounded-xl border-border/30 bg-muted/20" />
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={resetFilters} className="w-full text-xs text-muted-foreground/60 hover:text-foreground rounded-xl h-8">
-                Limpiar filtros
-              </Button>
-            </CardContent>
-          </Card>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open/filters:rotate-180" />
+            </summary>
+            <div className="mt-3 space-y-4">
+              <FiltersContent filters={filters} updateFilter={updateFilter} resetFilters={resetFilters} />
+              <EmployeeStats stats={stats} />
+            </div>
+          </details>
 
-          {/* Top Employees — ranked with progress bars */}
-          {stats.byEmployee.length > 0 && (
+          {/* Desktop: always visible */}
+          <div className="hidden lg:block space-y-5">
             <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-xl ring-1 ring-border/20 overflow-hidden">
-              <CardHeader className="pb-3 bg-gradient-to-r from-violet-500/5 to-transparent border-b border-border/30">
+              <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent border-b border-border/30">
                 <CardTitle className="text-sm flex items-center gap-2.5">
-                  <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                    <User className="h-3.5 w-3.5 text-violet-500" />
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Filter className="h-3.5 w-3.5 text-primary" />
                   </div>
-                  Actividad por Empleado
+                  Filtros
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-3 space-y-2.5">
-                {stats.byEmployee.map((emp, i) => {
-                  const maxCount = stats.byEmployee[0]?.count || 1;
-                  const pct = Math.round((emp.count / maxCount) * 100);
-                  return (
-                    <div key={i} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium truncate flex items-center gap-1.5">
-                          <span className="text-[10px] font-mono text-muted-foreground/50 w-4">{i + 1}.</span>
-                          {emp.name}
-                        </span>
-                        <span className="text-[10px] font-bold tabular-nums text-primary">{emp.count}</span>
-                      </div>
-                      <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-violet-500 to-primary rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
+              <CardContent className="space-y-4 pt-4">
+                <FiltersContent filters={filters} updateFilter={updateFilter} resetFilters={resetFilters} />
               </CardContent>
             </Card>
-          )}
+            <EmployeeStats stats={stats} />
+          </div>
         </div>
 
         {/* Log List */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 order-1 lg:order-2">
           <Card className="border-0 shadow-xl bg-background/80 backdrop-blur-xl overflow-hidden ring-1 ring-border/30">
             <CardHeader className="pb-3 border-b border-border/30 bg-muted/10">
               <div className="flex items-center justify-between">
@@ -591,7 +627,7 @@ export default function LogsPage() {
                   </Button>
                 </div>
               ) : (
-                <ScrollArea className="h-[720px]">
+                <ScrollArea className="h-[50vh] sm:h-[60vh] lg:h-[720px]">
                   <div className="divide-y-0">
                     {logs.map(log => <LogRow key={log.id} log={log} nameMap={nameMap} />)}
                   </div>

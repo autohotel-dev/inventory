@@ -228,14 +228,14 @@ export default function PermissionsPage() {
     const totalFiltered = filteredMenuItems.length;
 
     return (
-        <div className="container mx-auto p-6 max-w-7xl">
+        <div className="container mx-auto px-2 sm:px-4 md:p-6 max-w-7xl">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                <h1 className="text-2xl sm:text-4xl font-bold mb-2 sm:mb-3 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                     Configuración de Permisos
                 </h1>
-                <p className="text-muted-foreground text-lg">
-                    Gestiona los permisos de acceso a menús y páginas para cada rol
+                <p className="text-muted-foreground text-sm sm:text-lg">
+                    Gestiona los permisos de acceso para cada rol
                 </p>
             </div>
 
@@ -347,10 +347,10 @@ export default function PermissionsPage() {
                         </div>
 
                         {/* Permissions Grid */}
-                        <div className="bg-card border rounded-lg p-6">
+                        <div className="bg-card border rounded-lg p-3 sm:p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <div>
-                                    <h2 className="text-2xl font-semibold">Permisos de Menú</h2>
+                                    <h2 className="text-lg sm:text-2xl font-semibold">Permisos de Menú</h2>
                                     <p className="text-sm text-muted-foreground mt-1">
                                         Selecciona los elementos del menú que este rol puede ver
                                     </p>
@@ -390,9 +390,9 @@ export default function PermissionsPage() {
                         </div>
 
                         {/* Action Bar */}
-                        <div className="sticky bottom-0 bg-background border-t pt-4 pb-2">
-                            <div className="bg-card border rounded-lg p-4">
-                                <div className="flex items-center justify-between gap-4">
+                        <div className="sticky bottom-0 bg-background border-t pt-3 sm:pt-4 pb-2">
+                            <div className="bg-card border rounded-lg p-3 sm:p-4">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                                     <div className="flex items-center gap-3">
                                         {hasChanges && (
                                             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
@@ -401,7 +401,7 @@ export default function PermissionsPage() {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex gap-3">
+                                    <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                                         <button
                                             onClick={handleReset}
                                             disabled={!hasChanges || saving}
