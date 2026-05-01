@@ -9,10 +9,11 @@ import {
   PlusCircle, XCircle, Gift, RotateCcw, Timer, UserPlus, UserMinus,
   LogOut, ShoppingBag, Wrench, Zap, DoorOpen, Home,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface AuditEvent {
   id: string;
@@ -166,36 +167,47 @@ export function AuditTimeline() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const fetchEvents = useCallback(async () => {
+    const supabase = createClient();
+    const from = (currentPage - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from("audit_logs")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (filter === "reception") {
+      query = query.eq("event_type", "RECEPTION_ACTION");
+    } else if (filter === "payments") {
+      query = query.eq("entity_type", "PAYMENT");
+    } else if (filter === "anomalies") {
+      query = query.in("severity", ["ERROR", "CRITICAL", "WARNING"]);
+    } else if (filter === "auth") {
+      query = query.eq("event_type", "AUTH_EVENT");
+    }
+
+    const { data, count } = await query;
+    setEvents(data || []);
+    setTotalCount(count || 0);
+    setLoading(false);
+  }, [filter, currentPage, pageSize]);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      const supabase = createClient();
-      
-      let query = supabase
-        .from("audit_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (filter === "reception") {
-        query = query.eq("event_type", "RECEPTION_ACTION");
-      } else if (filter === "payments") {
-        query = query.eq("entity_type", "PAYMENT");
-      } else if (filter === "anomalies") {
-        query = query.in("severity", ["ERROR", "CRITICAL", "WARNING"]);
-      } else if (filter === "auth") {
-        query = query.eq("event_type", "AUTH_EVENT");
-      }
-
-      const { data } = await query;
-      setEvents(data || []);
-      setLoading(false);
-    };
-
     fetchEvents();
     const interval = setInterval(fetchEvents, 15000);
     return () => clearInterval(interval);
-  }, [filter]);
+  }, [fetchEvents]);
 
   const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
     { key: "all", label: "Todos" },
@@ -233,7 +245,7 @@ export function AuditTimeline() {
             </div>
             Línea de Tiempo
             <Badge variant="outline" className="text-[10px] font-mono ml-1">
-              {events.length} eventos
+              {totalCount} eventos
             </Badge>
           </CardTitle>
           <div className="flex gap-1.5 flex-wrap">
@@ -391,6 +403,17 @@ export function AuditTimeline() {
             )}
           </div>
         </ScrollArea>
+
+        {/* Pagination */}
+        <div className="px-6 pb-4">
+          <TablePagination
+            currentPage={currentPage}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          />
+        </div>
       </CardContent>
     </Card>
   );

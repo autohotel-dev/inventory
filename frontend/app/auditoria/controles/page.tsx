@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,11 @@ export default function ControlesAuditoriaPage() {
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
   // Filters
   const [roomFilter, setRoomFilter] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState<string>("");
@@ -97,22 +103,40 @@ export default function ControlesAuditoriaPage() {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { p_limit: 200, p_offset: 0 };
+      const offset = (currentPage - 1) * pageSize;
+      const params: any = { p_limit: pageSize, p_offset: offset };
       if (roomFilter.trim()) params.p_room_number = roomFilter.trim();
       if (employeeFilter) params.p_employee_id = employeeFilter;
       if (actionFilter) params.p_action_type = actionFilter;
       if (dateFrom) params.p_date_from = new Date(dateFrom).toISOString();
       if (dateTo) params.p_date_to = new Date(dateTo + "T23:59:59").toISOString();
 
+      // Fetch page data
       const { data, error } = await supabase.rpc("get_tv_audit_trail", params);
       if (error) throw error;
       setLogs(data || []);
+
+      // Fetch total count with same filters
+      let countQuery = supabase
+        .from("room_asset_logs")
+        .select("id", { count: "exact", head: true })
+        .not("action_type", "is", null);
+
+      // Apply same filters for count
+      if (roomFilter.trim()) countQuery = countQuery.eq("room_number", roomFilter.trim());
+      if (employeeFilter) countQuery = countQuery.or(`employee_id.eq.${employeeFilter},assigned_to_employee_id.eq.${employeeFilter}`);
+      if (actionFilter) countQuery = countQuery.eq("action_type", actionFilter);
+      if (dateFrom) countQuery = countQuery.gte("created_at", new Date(dateFrom).toISOString());
+      if (dateTo) countQuery = countQuery.lte("created_at", new Date(dateTo + "T23:59:59").toISOString());
+
+      const { count } = await countQuery;
+      setTotalCount(count || 0);
     } catch (err) {
       console.error("Error fetching audit trail:", err);
     } finally {
       setLoading(false);
     }
-  }, [roomFilter, employeeFilter, actionFilter, dateFrom, dateTo]);
+  }, [roomFilter, employeeFilter, actionFilter, dateFrom, dateTo, currentPage, pageSize]);
 
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
@@ -144,6 +168,11 @@ export default function ControlesAuditoriaPage() {
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roomFilter, employeeFilter, actionFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchLogs();
@@ -393,7 +422,7 @@ export default function ControlesAuditoriaPage() {
           <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
             <History className="h-4 w-4 text-primary" />
             Registro de Auditoría Detallado
-            <span className="text-zinc-600 font-mono text-xs ml-2">({logs.length} registros)</span>
+            <span className="text-zinc-600 font-mono text-xs ml-2">({totalCount} registros)</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -473,6 +502,15 @@ export default function ControlesAuditoriaPage() {
               </table>
             </div>
           )}
+
+          {/* Pagination */}
+          <TablePagination
+            currentPage={currentPage}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          />
         </CardContent>
       </Card>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, TrendingUp, TrendingDown, RotateCcw, Package, ArrowDownCircle, X, Filter, Calendar, User } from "lucide-react";
 import Link from "next/link";
 import { useUserRole } from "@/hooks/use-user-role";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface InventoryMovement {
   id: string;
@@ -42,25 +43,48 @@ export function InventoryMovementsTable() {
   const [typeFilter, setTypeFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [productFilter, setProductFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
   const { success, error: showError } = useToast();
   const { isReceptionist, isAdmin, isManager } = useUserRole();
   const canCreateMovement = isReceptionist || isAdmin || isManager;
 
-  const fetchMovements = async () => {
+  const fetchMovements = useCallback(async () => {
     const supabase = createClient();
+    setLoading(true);
     try {
-      // Obtener movimientos con relaciones
-      const { data: movementsData, error: movementsError } = await supabase
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase
         .from("inventory_movements")
         .select(`
           *,
           product:products(id, name, sku, unit),
           warehouse:warehouses(id, name, code)
-        `)
-        .order("created_at", { ascending: false })
-        .limit(100);
+        `, { count: "exact" })
+        .order("created_at", { ascending: false });
+
+      // Server-side filters
+      if (typeFilter) query = query.eq("movement_type", typeFilter);
+      if (productFilter) query = query.eq("product_id", productFilter);
+      if (dateFilter) {
+        const dayStart = new Date(dateFilter);
+        const dayEnd = new Date(dateFilter);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        query = query.gte("created_at", dayStart.toISOString()).lt("created_at", dayEnd.toISOString());
+      }
+      if (search) {
+        query = query.or(`reason.ilike.%${search}%,notes.ilike.%${search}%`);
+      }
+
+      query = query.range(from, to);
+
+      const { data: movementsData, error: movementsError, count } = await query;
 
       if (movementsError) throw movementsError;
+      setTotalCount(count || 0);
 
       // Resolve created_by UUIDs to employee names
       const uniqueUserIds = [...new Set((movementsData || []).map((m: any) => m.created_by).filter(Boolean))];
@@ -89,7 +113,7 @@ export function InventoryMovementsTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, typeFilter, productFilter, dateFilter, search]);
 
   const fetchProducts = async () => {
     const supabase = createClient();
@@ -110,26 +134,18 @@ export function InventoryMovementsTable() {
   useEffect(() => {
     fetchMovements();
     fetchProducts();
-  }, []);
+  }, [fetchMovements]);
+
+  // Reset to page 1 on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [typeFilter, productFilter, dateFilter, search]);
 
 
 
-  const filteredMovements = movements.filter(movement => {
-    const matchesSearch = search === "" ||
-      movement.product?.name.toLowerCase().includes(search.toLowerCase()) ||
-      movement.product?.sku.toLowerCase().includes(search.toLowerCase()) ||
-      movement.warehouse?.name.toLowerCase().includes(search.toLowerCase()) ||
-      movement.reason.toLowerCase().includes(search.toLowerCase());
-
-    const matchesType = typeFilter === "" || movement.movement_type === typeFilter;
-
-    const matchesDate = dateFilter === "" ||
-      new Date(movement.created_at).toDateString() === new Date(dateFilter).toDateString();
-
-    const matchesProduct = productFilter === "" || movement.product_id === productFilter;
-
-    return matchesSearch && matchesType && matchesDate && matchesProduct;
-  });
+  // Client-side search is now done server-side via the .or() query
+  // filteredMovements = movements (already filtered server-side)
+  const filteredMovements = movements;
 
   if (loading) {
     return (
@@ -139,7 +155,7 @@ export function InventoryMovementsTable() {
     );
   }
 
-  const totalMovements = movements.length;
+  const totalMovements = totalCount;
   const inMovements = movements.filter(m => m.movement_type === 'IN').length;
   const outMovements = movements.filter(m => m.movement_type === 'OUT').length;
   const adjustments = movements.filter(m => m.movement_type === 'ADJUSTMENT').length;
@@ -430,14 +446,15 @@ export function InventoryMovementsTable() {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="flex justify-between items-center text-sm text-muted-foreground">
-        <div>
-          Mostrando {filteredMovements.length} de {movements.length} movimientos
-        </div>
-        <div>
-          Últimos 100 movimientos
-        </div>
+      {/* Footer with pagination */}
+      <div className="mt-4">
+        <TablePagination
+          currentPage={currentPage}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        />
       </div>
 
 
