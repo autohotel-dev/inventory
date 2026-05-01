@@ -93,45 +93,45 @@ export function DetailedPerformanceDashboard() {
   }, [dateRange.start, dateRange.end]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-4 md:space-y-8 animate-in fade-in duration-500">
       {/* Header section */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-gradient-to-r from-background to-muted p-6 rounded-2xl border shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-            <Activity className="h-8 w-8 text-white" />
+      <div className="flex flex-col gap-3 md:gap-4 md:flex-row md:items-center md:justify-between bg-gradient-to-r from-background to-muted p-4 md:p-6 rounded-xl md:rounded-2xl border shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 flex-shrink-0">
+            <Activity className="h-5 w-5 md:h-8 md:w-8 text-white" />
           </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
               Tiempos y Rendimiento
             </h1>
-            <p className="text-muted-foreground mt-1 text-sm font-medium">
+            <p className="text-muted-foreground text-xs md:text-sm font-medium hidden sm:block">
               Análisis detallado de eficiencia por departamento
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap justify-end">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <select 
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary h-10"
+            className="px-3 py-2 bg-background border rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary h-9"
           >
             <option value="active">Personal Activo</option>
             <option value="inactive">Personal Inactivo</option>
-            <option value="all">Todos los Empleados</option>
+            <option value="all">Todos</option>
           </select>
           <div className="flex items-center gap-2">
             <input 
               type="date" 
               value={dateRange.start} 
               onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-              className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary h-10"
+              className="px-2 py-2 bg-background border rounded-lg text-xs md:text-sm font-medium focus:ring-2 focus:ring-primary h-9 flex-1 min-w-0"
             />
-            <span className="text-muted-foreground">a</span>
+            <span className="text-muted-foreground text-xs">a</span>
             <input 
               type="date" 
               value={dateRange.end} 
               onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-              className="px-4 py-2 bg-background border rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary h-10"
+              className="px-2 py-2 bg-background border rounded-lg text-xs md:text-sm font-medium focus:ring-2 focus:ring-primary h-9 flex-1 min-w-0"
             />
           </div>
         </div>
@@ -141,62 +141,55 @@ export function DetailedPerformanceDashboard() {
       <InefficiencyAlerts />
 
       <Tabs defaultValue="cocheros" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8 h-14 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="cocheros" className="rounded-lg text-base font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Car className="h-4 w-4 mr-2" />
-            Cocheros (Valet)
+        <TabsList className="grid w-full grid-cols-3 mb-4 md:mb-8 h-10 md:h-14 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="cocheros" className="rounded-lg text-xs md:text-base font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1 md:gap-2 px-1 md:px-3">
+            <Car className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <span className="hidden sm:inline">Cocheros</span>
+            <span className="sm:hidden">Valet</span>
           </TabsTrigger>
-          <TabsTrigger value="recepcion" className="rounded-lg text-base font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <MonitorCheck className="h-4 w-4 mr-2" />
+          <TabsTrigger value="recepcion" className="rounded-lg text-xs md:text-base font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1 md:gap-2 px-1 md:px-3">
+            <MonitorCheck className="h-3.5 w-3.5 md:h-4 md:w-4" />
             Recepción
           </TabsTrigger>
-          <TabsTrigger value="camaristas" className="rounded-lg text-base font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Camaristas
+          <TabsTrigger value="camaristas" className="rounded-lg text-xs md:text-base font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1 md:gap-2 px-1 md:px-3">
+            <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <span className="hidden sm:inline">Camaristas</span>
+            <span className="sm:hidden">Limpieza</span>
           </TabsTrigger>
         </TabsList>
 
         {/* ======================= COCHEROS ======================= */}
         <TabsContent value="cocheros" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 gap-2 md:gap-6">
             <Card className="bg-gradient-to-br from-blue-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-500/20 rounded-xl text-blue-600">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="bg-background">Promedio Global</Badge>
+              <CardContent className="p-3 md:p-6">
+                <div className="p-2 md:p-3 bg-blue-500/20 rounded-lg md:rounded-xl text-blue-600 w-fit mb-2 md:mb-4">
+                  <Clock className="h-4 w-4 md:h-5 md:w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Tiempo de Entrada</h4>
-                <div className="text-3xl font-bold">
-                  {filteredCocheros.length > 0 ? Math.round(filteredCocheros.reduce((a, b) => a + Number(b.avg_checkin_time_minutes), 0) / filteredCocheros.length) : 0} min
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1">Entrada Prom.</h4>
+                <div className="text-lg md:text-3xl font-bold">
+                  {filteredCocheros.length > 0 ? Math.round(filteredCocheros.reduce((a, b) => a + Number(b.avg_checkin_time_minutes), 0) / filteredCocheros.length) : 0}<span className="text-xs md:text-base"> min</span>
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-indigo-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-indigo-500/20 rounded-xl text-indigo-600">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="bg-background">Promedio Global</Badge>
+              <CardContent className="p-3 md:p-6">
+                <div className="p-2 md:p-3 bg-indigo-500/20 rounded-lg md:rounded-xl text-indigo-600 w-fit mb-2 md:mb-4">
+                  <Clock className="h-4 w-4 md:h-5 md:w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Tiempo de Salida</h4>
-                <div className="text-3xl font-bold">
-                  {filteredCocheros.length > 0 ? Math.round(filteredCocheros.reduce((a, b) => a + Number(b.avg_checkout_time_minutes), 0) / filteredCocheros.length) : 0} min
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1">Salida Prom.</h4>
+                <div className="text-lg md:text-3xl font-bold">
+                  {filteredCocheros.length > 0 ? Math.round(filteredCocheros.reduce((a, b) => a + Number(b.avg_checkout_time_minutes), 0) / filteredCocheros.length) : 0}<span className="text-xs md:text-base"> min</span>
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-emerald-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-600">
-                    <Briefcase className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="bg-background">Total</Badge>
+              <CardContent className="p-3 md:p-6">
+                <div className="p-2 md:p-3 bg-emerald-500/20 rounded-lg md:rounded-xl text-emerald-600 w-fit mb-2 md:mb-4">
+                  <Briefcase className="h-4 w-4 md:h-5 md:w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Servicios Extras Atendidos</h4>
-                <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-400">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1">Servicios</h4>
+                <div className="text-lg md:text-3xl font-bold text-emerald-700 dark:text-emerald-400">
                   {filteredCocheros.reduce((a, b) => a + Number(b.total_services), 0)}
                 </div>
               </CardContent>
@@ -205,38 +198,38 @@ export function DetailedPerformanceDashboard() {
 
           <Card className="border-0 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+              <table className="w-full text-xs md:text-sm text-left">
+                <thead className="text-[10px] md:text-xs text-muted-foreground uppercase bg-muted/50 border-b">
                   <tr>
-                    <th className="px-6 py-4 font-bold">Cochero</th>
-                    <th className="px-6 py-4 font-bold">Vehículos Recibidos</th>
-                    <th className="px-6 py-4 font-bold">Tiempo Prom. Entrada</th>
-                    <th className="px-6 py-4 font-bold">Vehículos Entregados</th>
-                    <th className="px-6 py-4 font-bold">Tiempo Prom. Salida</th>
-                    <th className="px-6 py-4 font-bold">Servicios Extras</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Cochero</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold"><span className="hidden md:inline">Vehículos </span>Recibidos</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold"><span className="hidden md:inline">Tiempo Prom. </span>Entrada</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold hidden md:table-cell">Entregados</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold"><span className="hidden md:inline">Tiempo Prom. </span>Salida</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold hidden md:table-cell">Servicios</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {loading ? (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Cargando...</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Cargando...</td></tr>
                   ) : filteredCocheros.length === 0 ? (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo para este filtro</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No hay datos en este periodo</td></tr>
                   ) : filteredCocheros.map(c => (
                     <tr key={c.employee_id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4 font-semibold">{c.employee_name}</td>
-                      <td className="px-6 py-4">{c.total_checkins}</td>
-                      <td className="px-6 py-4">
-                        <span className={`font-semibold ${Number(c.avg_checkin_time_minutes) > 15 ? 'text-red-500' : 'text-green-500'}`}>
+                      <td className="px-3 md:px-6 py-3 md:py-4 font-semibold">{c.employee_name}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4">{c.total_checkins}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4">
+                        <span className={`font-semibold ${Number(c.avg_checkin_time_minutes) > 5 ? 'text-red-500' : 'text-green-500'}`}>
                           {c.avg_checkin_time_minutes || 0} min
                         </span>
                       </td>
-                      <td className="px-6 py-4">{c.total_checkouts}</td>
-                      <td className="px-6 py-4">
-                        <span className={`font-semibold ${Number(c.avg_checkout_time_minutes) > 20 ? 'text-red-500' : 'text-green-500'}`}>
+                      <td className="px-3 md:px-6 py-3 md:py-4 hidden md:table-cell">{c.total_checkouts}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4">
+                        <span className={`font-semibold ${Number(c.avg_checkout_time_minutes) > 10 ? 'text-red-500' : 'text-green-500'}`}>
                           {c.avg_checkout_time_minutes || 0} min
                         </span>
                       </td>
-                      <td className="px-6 py-4">{c.total_services}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4 hidden md:table-cell">{c.total_services}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -247,63 +240,63 @@ export function DetailedPerformanceDashboard() {
 
         {/* ======================= RECEPCION ======================= */}
         <TabsContent value="recepcion" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-6">
             <Card className="bg-gradient-to-br from-indigo-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Entradas Procesadas</h4>
-                <div className="text-3xl font-bold">{filteredReceptionists.reduce((a, b) => a + Number(b.total_entries_processed), 0)}</div>
+              <CardContent className="p-3 md:p-6">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1 md:mb-2">Entradas</h4>
+                <div className="text-lg md:text-3xl font-bold">{filteredReceptionists.reduce((a, b) => a + Number(b.total_entries_processed), 0)}</div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-purple-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Salidas Procesadas</h4>
-                <div className="text-3xl font-bold">{filteredReceptionists.reduce((a, b) => a + Number(b.total_exits_processed), 0)}</div>
+              <CardContent className="p-3 md:p-6">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1 md:mb-2">Salidas</h4>
+                <div className="text-lg md:text-3xl font-bold">{filteredReceptionists.reduce((a, b) => a + Number(b.total_exits_processed), 0)}</div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-emerald-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Cobros de Extras</h4>
-                <div className="text-3xl font-bold text-emerald-600">{filteredReceptionists.reduce((a, b) => a + Number(b.total_extras_charged), 0)}</div>
+              <CardContent className="p-3 md:p-6">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1 md:mb-2">Extras</h4>
+                <div className="text-lg md:text-3xl font-bold text-emerald-600">{filteredReceptionists.reduce((a, b) => a + Number(b.total_extras_charged), 0)}</div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-amber-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Anomalías Detectadas</h4>
-                <div className="text-3xl font-bold text-amber-600">{filteredReceptionists.reduce((a, b) => a + Number(b.anomalies_detected), 0)}</div>
+              <CardContent className="p-3 md:p-6">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1 md:mb-2">Anomalías</h4>
+                <div className="text-lg md:text-3xl font-bold text-amber-600">{filteredReceptionists.reduce((a, b) => a + Number(b.anomalies_detected), 0)}</div>
               </CardContent>
             </Card>
           </div>
 
           <Card className="border-0 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+              <table className="w-full text-xs md:text-sm text-left">
+                <thead className="text-[10px] md:text-xs text-muted-foreground uppercase bg-muted/50 border-b">
                   <tr>
-                    <th className="px-6 py-4 font-bold">Recepcionista</th>
-                    <th className="px-6 py-4 font-bold">Entradas</th>
-                    <th className="px-6 py-4 font-bold">Salidas</th>
-                    <th className="px-6 py-4 font-bold">Extras Cobrados</th>
-                    <th className="px-6 py-4 font-bold">Ingresos Totales</th>
-                    <th className="px-6 py-4 font-bold">Anomalías</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Nombre</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Entradas</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Salidas</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold hidden md:table-cell">Extras</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Ingresos</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold hidden md:table-cell">Anomalías</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {loading ? (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Cargando...</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Cargando...</td></tr>
                   ) : filteredReceptionists.length === 0 ? (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo para este filtro</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No hay datos en este periodo</td></tr>
                   ) : filteredReceptionists.map(r => (
                     <tr key={r.employee_id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4 font-semibold">{r.employee_name}</td>
-                      <td className="px-6 py-4">{r.total_entries_processed}</td>
-                      <td className="px-6 py-4">{r.total_exits_processed}</td>
-                      <td className="px-6 py-4">{r.total_extras_charged}</td>
-                      <td className="px-6 py-4 font-medium text-green-600 dark:text-green-400">
-                        ${Number(r.total_revenue).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      <td className="px-3 md:px-6 py-3 md:py-4 font-semibold">{r.employee_name}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4">{r.total_entries_processed}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4">{r.total_exits_processed}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4 hidden md:table-cell">{r.total_extras_charged}</td>
+                      <td className="px-3 md:px-6 py-3 md:py-4 font-medium text-green-600 dark:text-green-400">
+                        ${Number(r.total_revenue).toLocaleString('es-MX', { minimumFractionDigits: 0 })}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 md:px-6 py-3 md:py-4 hidden md:table-cell">
                         {Number(r.anomalies_detected) > 0 ? (
-                          <Badge variant="destructive">{r.anomalies_detected} Alertas</Badge>
+                          <Badge variant="destructive">{r.anomalies_detected}</Badge>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
@@ -318,45 +311,36 @@ export function DetailedPerformanceDashboard() {
 
         {/* ======================= CAMARISTAS ======================= */}
         <TabsContent value="camaristas" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 gap-2 md:gap-6">
             <Card className="bg-gradient-to-br from-cyan-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-cyan-500/20 rounded-xl text-cyan-600">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="bg-background">Total</Badge>
+              <CardContent className="p-3 md:p-6">
+                <div className="p-2 md:p-3 bg-cyan-500/20 rounded-lg md:rounded-xl text-cyan-600 w-fit mb-2 md:mb-4">
+                  <Sparkles className="h-4 w-4 md:h-5 md:w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Habitaciones Limpiadas</h4>
-                <div className="text-3xl font-bold">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1">Limpiadas</h4>
+                <div className="text-lg md:text-3xl font-bold">
                   {filteredCamaristas.reduce((a, b) => a + Number(b.total_rooms_cleaned), 0)}
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-amber-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-amber-500/20 rounded-xl text-amber-600">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="bg-background">Promedio Global</Badge>
+              <CardContent className="p-3 md:p-6">
+                <div className="p-2 md:p-3 bg-amber-500/20 rounded-lg md:rounded-xl text-amber-600 w-fit mb-2 md:mb-4">
+                  <Clock className="h-4 w-4 md:h-5 md:w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Tiempo de Limpieza</h4>
-                <div className="text-3xl font-bold">
-                  {filteredCamaristas.length > 0 ? Math.round(filteredCamaristas.reduce((a, b) => a + Number(b.avg_cleaning_time_minutes), 0) / filteredCamaristas.length) : 0} min
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1">Prom. Limpieza</h4>
+                <div className="text-lg md:text-3xl font-bold">
+                  {filteredCamaristas.length > 0 ? Math.round(filteredCamaristas.reduce((a, b) => a + Number(b.avg_cleaning_time_minutes), 0) / filteredCamaristas.length) : 0}<span className="text-xs md:text-base"> min</span>
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-blue-500/10 to-transparent border-0 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-500/20 rounded-xl text-blue-600">
-                    <Activity className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="bg-background">En Vivo</Badge>
+              <CardContent className="p-3 md:p-6">
+                <div className="p-2 md:p-3 bg-blue-500/20 rounded-lg md:rounded-xl text-blue-600 w-fit mb-2 md:mb-4">
+                  <Activity className="h-4 w-4 md:h-5 md:w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-1">Limpiando Actualmente</h4>
-                <div className="text-3xl font-bold text-blue-600">
+                <h4 className="text-[10px] md:text-sm font-medium text-muted-foreground mb-1">En Limpieza</h4>
+                <div className="text-lg md:text-3xl font-bold text-blue-600">
                   {filteredCamaristas.reduce((a, b) => a + Number(b.currently_cleaning), 0)}
                 </div>
               </CardContent>
@@ -365,54 +349,54 @@ export function DetailedPerformanceDashboard() {
 
           <Card className="border-0 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+              <table className="w-full text-xs md:text-sm text-left">
+                <thead className="text-[10px] md:text-xs text-muted-foreground uppercase bg-muted/50 border-b">
                   <tr>
-                    <th className="px-6 py-4 font-bold">Camarista</th>
-                    <th className="px-6 py-4 font-bold">Habitaciones Limpiadas</th>
-                    <th className="px-6 py-4 font-bold">Tiempo Promedio</th>
-                    <th className="px-6 py-4 font-bold">Eficiencia</th>
-                    <th className="px-6 py-4 font-bold">Estado Actual</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Nombre</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold"><span className="hidden md:inline">Hab. </span>Limp.</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Tiempo</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold hidden md:table-cell">Eficiencia</th>
+                    <th className="px-3 md:px-6 py-3 md:py-4 font-bold">Estado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {loading ? (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Cargando...</td></tr>
+                    <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Cargando...</td></tr>
                   ) : filteredCamaristas.length === 0 ? (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No hay datos en este periodo para este filtro</td></tr>
+                    <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">No hay datos en este periodo</td></tr>
                   ) : filteredCamaristas.map(c => {
                     const avgTime = Number(c.avg_cleaning_time_minutes) || 0;
                     return (
                       <tr key={c.employee_id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-6 py-4 font-semibold">{c.employee_name}</td>
-                        <td className="px-6 py-4">{c.total_rooms_cleaned}</td>
-                        <td className="px-6 py-4">
-                          <span className={`font-semibold ${avgTime > 45 ? 'text-red-500' : 'text-green-500'}`}>
+                        <td className="px-3 md:px-6 py-3 md:py-4 font-semibold">{c.employee_name}</td>
+                        <td className="px-3 md:px-6 py-3 md:py-4">{c.total_rooms_cleaned}</td>
+                        <td className="px-3 md:px-6 py-3 md:py-4">
+                          <span className={`font-semibold ${avgTime > 25 ? 'text-red-500' : avgTime > 20 ? 'text-amber-500' : 'text-green-500'}`}>
                             {avgTime} min
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 md:px-6 py-3 md:py-4 hidden md:table-cell">
                           {avgTime === 0 ? (
                             <span className="text-muted-foreground">N/A</span>
-                          ) : avgTime <= 30 ? (
+                          ) : avgTime <= 20 ? (
                             <Badge className="bg-green-500 hover:bg-green-600">Excelente</Badge>
-                          ) : avgTime <= 45 ? (
+                          ) : avgTime <= 25 ? (
                             <Badge variant="secondary" className="bg-amber-500/20 text-amber-600">Normal</Badge>
                           ) : (
                             <Badge variant="destructive">Lento</Badge>
                           )}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 md:px-6 py-3 md:py-4">
                           {Number(c.currently_cleaning) > 0 ? (
-                            <span className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 font-medium">
-                              <span className="relative flex h-3 w-3">
+                            <span className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-medium text-xs">
+                              <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                               </span>
-                              Limpiando {c.currently_cleaning} hab
+                              <span className="hidden md:inline">Limpiando</span> {c.currently_cleaning}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">Libre</span>
+                            <span className="text-muted-foreground text-xs">Libre</span>
                           )}
                         </td>
                       </tr>

@@ -2,7 +2,6 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 function toTitle(segment: string) {
   if (!segment) return "";
@@ -25,13 +24,15 @@ export function Breadcrumbs() {
   const title = items[items.length - 1]?.label ?? "";
 
   return (
-    <div className="space-y-1">
-      <nav className="text-xs text-muted-foreground/50 overflow-x-auto">
-        <div className="flex items-center whitespace-nowrap">
+    <div className="min-w-0 flex-1">
+      {/* Breadcrumb trail — hidden on mobile, visible on sm+ */}
+      <nav className="hidden sm:block text-xs text-muted-foreground/50">
+        {/* Desktop: full path */}
+        <div className="flex items-center gap-1 whitespace-nowrap">
           {items.map((it, idx) => (
-            <span key={it.href} className="flex items-center">
+            <span key={it.href} className="flex items-center gap-1">
               {idx > 0 && (
-                <ChevronRight className="mx-1 h-3 w-3 text-muted-foreground/30" />
+                <ChevronRight className="h-3 w-3 text-muted-foreground/30 flex-shrink-0" />
               )}
               {idx < items.length - 1 ? (
                 <Link
@@ -47,7 +48,9 @@ export function Breadcrumbs() {
           ))}
         </div>
       </nav>
-      <h1 className="text-lg md:text-xl font-semibold tracking-tight text-foreground/90">
+
+      {/* Page title */}
+      <h1 className="text-lg md:text-xl font-semibold tracking-tight text-foreground/90 truncate">
         {title}
       </h1>
     </div>

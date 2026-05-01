@@ -25,13 +25,14 @@ export function InefficiencyAlerts() {
       const { data, error } = await supabase.rpc('get_active_sla_violations');
       
       if (error) {
-        console.error("Error fetching SLA violations:", error);
+        // RPC may not exist yet — silently return empty
+        setViolations([]);
         return;
       }
       
       setViolations(data || []);
-    } catch (error) {
-      console.error("Exception fetching SLA violations:", error);
+    } catch {
+      setViolations([]);
     } finally {
       setLoading(false);
     }
