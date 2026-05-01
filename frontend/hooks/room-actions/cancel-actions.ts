@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+import { logFinancialAction } from "@/lib/audit-logger";
 import {
   getActiveStay,
   getReceptionEmployeeId,
@@ -47,6 +48,17 @@ export function createCancelActions(ctx: RoomActionContext) {
         description: parts.length > 0
           ? `${concept} - $${amount.toFixed(2)} | ${parts.join(', ')}`
           : `${concept} - $${amount.toFixed(2)} descontado`
+      });
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("CANCEL_CHARGE", {
+        roomNumber: room.number,
+        amount,
+        stayId: activeStay.id,
+        salesOrderId: activeStay.sales_order_id,
+        description: `Cargo cancelado: ${concept} - $${amount.toFixed(2)} en Hab. ${room.number}`,
+        extra: { concept, payment_id: paymentId, hours_deducted: data?.hours_deducted, people_deducted: data?.people_deducted },
+        severity: "WARNING",
       });
 
       await notifyActiveValets(supabase, '🚫 Cargo Cancelado',
@@ -91,6 +103,17 @@ export function createCancelActions(ctx: RoomActionContext) {
 
       toast.success("Item cancelado correctamente", {
         description: parts.length > 0 ? parts.join(' | ') : `$${Number(data.amount).toFixed(2)} descontados`,
+      });
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("CANCEL_ITEM", {
+        roomNumber: room.number,
+        amount: Number(data.amount),
+        stayId: activeStay.id,
+        itemId: itemId,
+        description: `Item cancelado en Hab. ${room.number}: $${Number(data.amount).toFixed(2)}. Motivo: ${reason}`,
+        extra: { reason, refund_created: data.refund_created, inventory_returned: data.inventory_returned },
+        severity: "WARNING",
       });
 
       await notifyActiveValets(supabase, '🚫 Item Cancelado',

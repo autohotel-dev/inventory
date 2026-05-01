@@ -8,6 +8,7 @@ import { logger } from "@/lib/utils/logger";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getOrCreateServiceProduct, createServiceItem } from "@/lib/services/product-service";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+import { logFinancialAction } from "@/lib/audit-logger";
 import {
   getActiveStay,
   isToleranceExpired,
@@ -110,6 +111,16 @@ export function createPeopleActions(ctx: RoomActionContext) {
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
             });
 
+            // ─── Audit Log ─────────────────────────────────────────
+            logFinancialAction("EXTRA_PERSON", {
+              roomNumber: room.number,
+              amount: extraPrice,
+              stayId: activeStay.id,
+              salesOrderId: activeStay.sales_order_id,
+              description: `Persona extra con cargo en Hab. ${room.number}: $${extraPrice.toFixed(2)}. Personas: ${current}→${newCurrentPeople}`,
+              extra: { previous_people: current, new_people: newCurrentPeople, total_historic: newTotalPeople },
+            });
+
             await notifyActiveValets(supabase, '👤 Persona Extra Registrada',
               `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: ${formatCurrency(chargeResult.newRemaining || extraPrice)}.`,
               { type: 'NEW_EXTRA', consumptionId: itemResult.data, roomNumber: room.number, stayId: activeStay.id }
@@ -120,6 +131,14 @@ export function createPeopleActions(ctx: RoomActionContext) {
         } else {
           toast.success("Persona agregada", {
             description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople})`,
+          });
+
+          // ─── Audit Log ─────────────────────────────────────────
+          logFinancialAction("ADD_PERSON", {
+            roomNumber: room.number,
+            stayId: activeStay.id,
+            description: `Persona agregada (sin cargo) en Hab. ${room.number}. Personas: ${current}→${newCurrentPeople}`,
+            extra: { previous_people: current, new_people: newCurrentPeople, total_historic: newTotalPeople },
           });
 
           await notifyActiveValets(supabase, '👤 Persona Agregada',
@@ -157,6 +176,14 @@ export function createPeopleActions(ctx: RoomActionContext) {
 
       toast.success("Persona removida", {
         description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}`,
+      });
+
+      // ─── Audit Log ───────────────────────────────────────────
+      logFinancialAction("REMOVE_PERSON", {
+        roomNumber: room.number,
+        stayId: activeStay.id,
+        description: `Persona removida de Hab. ${room.number}. Personas: ${current}→${newCurrentPeople}`,
+        extra: { previous_people: current, new_people: newCurrentPeople },
       });
 
       await notifyActiveValets(supabase, '👤 Persona Salió',
@@ -200,6 +227,14 @@ export function createPeopleActions(ctx: RoomActionContext) {
           description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Regresó en ${minutesElapsed} min (quedaban ${minutesRemaining} min).`,
         });
 
+        // ─── Audit Log ─────────────────────────────────────────
+        logFinancialAction("TOLERANCE", {
+          roomNumber: room.number,
+          stayId: activeStay.id,
+          description: `Persona regresó dentro de tolerancia en Hab. ${room.number}. Tiempo: ${minutesElapsed}min de 60min`,
+          extra: { action: "RETURN", minutes_elapsed: minutesElapsed, minutes_remaining: minutesRemaining },
+        });
+
         await notifyActiveValets(supabase, '👤 Persona Regresó',
           `Habitación ${room.number}: La persona regresó dentro del tiempo de tolerancia.`,
           { type: 'PERSON_RETURN', roomNumber: room.number, stayId: activeStay.id }
@@ -235,6 +270,16 @@ export function createPeopleActions(ctx: RoomActionContext) {
           duration: 5000,
         });
       }
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("TOLERANCE", {
+        roomNumber: room.number,
+        stayId: activeStay.id,
+        amount: toleranceType === 'ROOM_EMPTY' ? (room.room_types!.base_price ?? 0) : (room.room_types!.extra_person_price ?? 0),
+        description: `Tolerancia iniciada en Hab. ${room.number}. Tipo: ${toleranceType}. Personas: ${current}→${newCurrentPeople}. Límite: ${expiryTime}`,
+        extra: { action: "START", tolerance_type: toleranceType, deadline: expiryTime, previous_people: current, new_people: newCurrentPeople },
+        severity: "WARNING",
+      });
 
       // Imprimir ticket de tolerancia (fire-and-forget)
       const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';

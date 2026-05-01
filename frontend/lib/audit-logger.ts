@@ -9,7 +9,22 @@ export type AuditAction =
   | "LOGIN_FAILED"
   | "PERMISSION_CHANGE"
   | "PURGE_SYSTEM"
-  | "MAINTENANCE";
+  | "MAINTENANCE"
+  // ─── Granular Reception Actions ─────────────────────────────────
+  | "CANCEL_ITEM"
+  | "CANCEL_CHARGE"
+  | "COURTESY"
+  | "RENEWAL"
+  | "EXTRA_HOUR"
+  | "EXTRA_PERSON"
+  | "PROMO_4H"
+  | "DAMAGE_CHARGE"
+  | "CHECKOUT"
+  | "ADD_PERSON"
+  | "REMOVE_PERSON"
+  | "TOLERANCE"
+  | "CONSUMPTION_ADDED"
+  | "PAYMENT_METHOD_CHANGE";
 
 interface AuditOptions {
   tableName?: string;
@@ -18,6 +33,7 @@ interface AuditOptions {
   oldData?: Record<string, unknown>;
   newData?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  severity?: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 }
 
 /**
@@ -36,6 +52,13 @@ export async function logAudit(action: AuditAction, options: AuditOptions = {}) 
       entityType = "auth";
     } else if (["INSERT", "UPDATE", "DELETE"].includes(action)) {
       eventType = "DATA_CHANGE";
+    } else if ([
+      "CANCEL_ITEM", "CANCEL_CHARGE", "COURTESY", "RENEWAL",
+      "EXTRA_HOUR", "EXTRA_PERSON", "PROMO_4H", "DAMAGE_CHARGE",
+      "CHECKOUT", "ADD_PERSON", "REMOVE_PERSON", "TOLERANCE",
+      "CONSUMPTION_ADDED", "PAYMENT_METHOD_CHANGE"
+    ].includes(action)) {
+      eventType = "RECEPTION_ACTION";
     }
 
     // `entity_id` is NOT NULL in the database, so we must provide a valid UUID
@@ -54,7 +77,7 @@ export async function logAudit(action: AuditAction, options: AuditOptions = {}) 
       p_old_data: options.oldData ?? null,
       p_new_data: options.newData ?? null,
       p_metadata: options.metadata ?? {},
-      p_severity: "INFO",
+      p_severity: options.severity ?? "INFO",
     });
 
     if (error) {
@@ -63,4 +86,47 @@ export async function logAudit(action: AuditAction, options: AuditOptions = {}) 
   } catch (err) {
     console.error("[audit-logger] Unexpected error:", err);
   }
+}
+
+// ─── Financial Action Helper ──────────────────────────────────────────
+// Convenience wrapper for financial/reception events that auto-populates
+// room_number, amount, session_id, and payment_method in metadata.
+
+interface FinancialAuditOptions {
+  roomNumber: string;
+  amount?: number;
+  sessionId?: string | null;
+  paymentMethod?: string;
+  stayId?: string;
+  salesOrderId?: string;
+  itemId?: string;
+  description: string;
+  extra?: Record<string, unknown>;
+  severity?: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+}
+
+/**
+ * Log a financial/reception audit event with standardized metadata.
+ * Fire-and-forget — never blocks the calling operation.
+ */
+export function logFinancialAction(action: AuditAction, opts: FinancialAuditOptions) {
+  const metadata: Record<string, unknown> = {
+    room_number: opts.roomNumber,
+    ...(opts.amount != null && { amount: opts.amount }),
+    ...(opts.sessionId && { session_id: opts.sessionId }),
+    ...(opts.paymentMethod && { payment_method: opts.paymentMethod }),
+    ...(opts.stayId && { stay_id: opts.stayId }),
+    ...(opts.salesOrderId && { sales_order_id: opts.salesOrderId }),
+    ...(opts.itemId && { item_id: opts.itemId }),
+    ...opts.extra,
+  };
+
+  // Fire-and-forget — intentionally no await
+  logAudit(action, {
+    tableName: "room_stays",
+    recordId: opts.stayId || opts.salesOrderId || opts.itemId,
+    description: opts.description,
+    metadata,
+    severity: opts.severity,
+  });
 }

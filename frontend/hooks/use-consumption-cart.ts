@@ -14,6 +14,7 @@ import { usePOSConfigRead } from "@/hooks/use-pos-config";
 import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { validatePromotionConditions } from "@/lib/promo-conditions";
+import { logFinancialAction } from "@/lib/audit-logger";
 import type { BottlePackageRule } from "@/lib/types/inventory";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -640,6 +641,22 @@ export function useConsumptionCart({
       const productNames = Array.from(cartItems.values())
         .map(({ product, qty }) => `${qty}x ${product.name}`).join(", ");
       toast.success("✓ Consumo registrado", { description: `${productNames} - Total: ${formatCurrency(totalAmount)}` });
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("CONSUMPTION_ADDED", {
+        roomNumber: roomNumber || "N/A",
+        amount: totalAmount,
+        sessionId: currentSessionId,
+        salesOrderId: salesOrderId,
+        description: `Consumo en Hab. ${roomNumber || 'N/A'}: ${productNames} - Total: ${formatCurrency(totalAmount)}`,
+        extra: {
+          item_count: totalItems,
+          products: Array.from(cartItems.values()).map(({ product, qty, is_courtesy }) => ({
+            name: product.name, qty, price: product.price, is_courtesy: !!is_courtesy,
+          })),
+        },
+      });
+
       onComplete();
     } catch (error) {
       console.error("Error adding consumption:", error);

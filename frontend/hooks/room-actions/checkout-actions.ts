@@ -8,6 +8,7 @@ import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
 import { updateUnpaidItems } from "@/lib/services/product-service";
+import { logFinancialAction } from "@/lib/audit-logger";
 import {
   getActiveStay,
   withAction,
@@ -148,6 +149,16 @@ export function createCheckoutActions(ctx: RoomActionContext) {
           : `Hab. ${room.number} → SUCIA`
       });
 
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("CHECKOUT", {
+        roomNumber: room.number,
+        amount: totalPaid,
+        paymentMethod: paymentMethod,
+        salesOrderId: checkoutInfo.salesOrderId,
+        description: `Checkout Hab. ${room.number}: $${totalPaid.toFixed(2)} cobrados. Saldo restante: $${remainingTotal.toFixed(2)}`,
+        extra: { remaining: remainingTotal, checkout_valet_id: checkoutValetId },
+      });
+
       await onRefresh();
       return true;
     });
@@ -186,6 +197,13 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       }
 
       toast.success(successMessage);
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("UPDATE", {
+        roomNumber: room.number,
+        description: `Estado de Hab. ${room.number} cambiado a ${newStatus}`,
+        extra: { new_status: newStatus, notes },
+      });
     });
   };
 

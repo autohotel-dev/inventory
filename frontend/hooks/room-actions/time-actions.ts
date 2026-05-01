@@ -8,6 +8,7 @@ import { logger } from "@/lib/utils/logger";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getOrCreateServiceProduct, createServiceItem, createDamageItem } from "@/lib/services/product-service";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+import { logFinancialAction } from "@/lib/audit-logger";
 import {
   getActiveStay,
   getReceptionShiftId,
@@ -42,6 +43,16 @@ export function createTimeActions(ctx: RoomActionContext) {
 
       toast.success("Cargo por daño registrado", {
         description: `Hab. ${room.number}: ${formatCurrency(amount)} - ${description}`,
+      });
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("DAMAGE_CHARGE", {
+        roomNumber: room.number,
+        amount,
+        stayId: activeStay.id,
+        salesOrderId: activeStay.sales_order_id,
+        description: `Daño registrado en Hab. ${room.number}: $${amount.toFixed(2)} - ${description}`,
+        severity: "WARNING",
       });
 
       await notifyActiveValets(supabase, '🛠️ Cargo por Daño',
@@ -88,6 +99,18 @@ export function createTimeActions(ctx: RoomActionContext) {
 
       toast.success("Horas agregadas", {
         description: `Hab. ${room.number}: +${hours} hora(s) - ${isCourtesy ? 'Cortesía' : `$${totalPrice.toFixed(2)} MXN`}`,
+      });
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction(isCourtesy ? "COURTESY" : "EXTRA_HOUR", {
+        roomNumber: room.number,
+        amount: totalPrice,
+        stayId: activeStay.id,
+        salesOrderId: activeStay.sales_order_id,
+        description: isCourtesy
+          ? `Cortesía: +${hours} hora(s) en Hab. ${room.number}. Motivo: ${courtesyReason || 'Sin motivo'}`
+          : `Hora(s) extra: +${hours} en Hab. ${room.number} - $${totalPrice.toFixed(2)}`,
+        extra: { hours, is_courtesy: !!isCourtesy, courtesy_reason: courtesyReason },
       });
 
       if (!isCourtesy && totalPrice > 0) {
@@ -137,6 +160,16 @@ export function createTimeActions(ctx: RoomActionContext) {
         description: `Hab. ${room.number}: Renovación completa - $${basePrice.toFixed(2)} MXN`,
       });
 
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("RENEWAL", {
+        roomNumber: room.number,
+        amount: basePrice,
+        stayId: activeStay.id,
+        salesOrderId: activeStay.sales_order_id,
+        description: `Renovación Hab. ${room.number}: $${basePrice.toFixed(2)} (+${renewalHours}h)`,
+        extra: { renewal_hours: renewalHours, is_weekend: isWeekendPeriod },
+      });
+
       await notifyActiveValets(supabase, '🔄 Cobro de Renovación',
         `Habitación ${room.number}: Cobrar renovación ($${basePrice.toFixed(2)} MXN).`,
         { type: 'NEW_EXTRA', consumptionId: itemRes.success ? itemRes.data : undefined, roomNumber: room.number, stayId: activeStay.id }
@@ -180,6 +213,15 @@ export function createTimeActions(ctx: RoomActionContext) {
 
       toast.success("Promoción 4 horas aplicada", {
         description: `Hab. ${room.number}: +4 horas - $${promoPrice.toFixed(2)} MXN`,
+      });
+
+      // ─── Audit Log ─────────────────────────────────────────────
+      logFinancialAction("PROMO_4H", {
+        roomNumber: room.number,
+        amount: promoPrice,
+        stayId: activeStay.id,
+        salesOrderId: activeStay.sales_order_id,
+        description: `Promo 4H en Hab. ${room.number}: $${promoPrice.toFixed(2)}`,
       });
 
       await notifyActiveValets(supabase, '🏷️ Cobro de Promoción 4H',

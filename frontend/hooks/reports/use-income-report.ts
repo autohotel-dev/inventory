@@ -86,7 +86,8 @@ export function useIncomeReport({
                         sales_order_items (
                             concept_type,
                             unit_price,
-                            qty
+                            qty,
+                            shift_session_id
                         )
                     )
                 `)
@@ -146,11 +147,23 @@ export function useIncomeReport({
 
                 if (shift) {
                     setShiftInfo(shift);
-                    query = query.gte("check_in_at", shift.shift_start);
-                    if (shift.shift_end) {
-                        query = query.lte("check_in_at", shift.shift_end);
+                    // NUEVA LÓGICA: En lugar de filtrar por check_in_at, buscamos todos los items y pagos de este turno
+                    // Optimización: queries en paralelo con Promise.all
+                    const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
+                        supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", shiftId),
+                        supabase.from("payments").select("sales_order_id").eq("shift_session_id", shiftId),
+                    ]);
+
+                    const ids = new Set<string>();
+                    (shiftItems || []).forEach((i: any) => i.sales_order_id && ids.add(i.sales_order_id));
+                    (shiftPayments || []).forEach((p: any) => p.sales_order_id && ids.add(p.sales_order_id));
+                    
+                    const salesOrderIds = Array.from(ids);
+                    if (salesOrderIds.length > 0) {
+                        query = query.in("sales_order_id", salesOrderIds);
                     } else {
-                        query = query.lte("check_in_at", new Date().toISOString());
+                        // Si no hay ventas ni pagos en este turno, forzamos un resultado vacío
+                        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
                     }
                 }
             } else if (reportType === "dateRange") {
@@ -184,10 +197,10 @@ export function useIncomeReport({
 
             let processedEntries: IncomeEntry[] = filteredData.map((stay: any, index: number) => {
                 const order = stay.sales_orders;
-                const items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
+                let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
 
                 const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
-                const allObservedPayments: any[] = [];
+                let allObservedPayments: any[] = [];
                 
                 rawOrderData.forEach((o: any) => {
                     if (o?.payments) {
@@ -195,6 +208,12 @@ export function useIncomeReport({
                         allObservedPayments.push(...pList);
                     }
                 });
+
+                // NUEVA LÓGICA: Si es reporte de turno, filtramos SOLO lo cobrado/añadido en ese turno
+                if (reportType === "shift" && shiftId) {
+                    items = items.filter((item: any) => item.shift_session_id === shiftId);
+                    allObservedPayments = allObservedPayments.filter((payment: any) => payment.shift_session_id === shiftId);
+                }
 
                 const idUniquePaymentsMap = new Map();
                 allObservedPayments.forEach((p: any) => {
@@ -222,21 +241,19 @@ export function useIncomeReport({
                 let extra = 0;
                 let consumption = 0;
 
-                if (stay.status === "CANCELADA") {
-                    roomPrice = Array.isArray(order) ? (order[0]?.total || 0) : (order?.total || 0);
-                } else {
-                    roomPrice = items
-                        .filter((item: any) => item.concept_type === "ROOM_BASE")
-                        .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
+                roomPrice = items
+                    .filter((item: any) => item.concept_type === "ROOM_BASE")
+                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
 
-                    extra = items
-                        .filter((item: any) =>
-                            ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(item.concept_type)
-                        )
-                        .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
+                extra = items
+                    .filter((item: any) =>
+                        ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(item.concept_type)
+                    )
+                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
 
-                    consumption = Math.max(0, (Array.isArray(order) ? (order[0]?.subtotal || 0) : (order?.subtotal || 0)) - roomPrice - extra);
-                }
+                consumption = items
+                    .filter((item: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(item.concept_type))
+                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
 
                 let paymentMethodLabel = "";
                 if (payments.length === 0) {
@@ -262,7 +279,7 @@ export function useIncomeReport({
                     room_price: roomPrice,
                     extra: extra,
                     consumption: consumption,
-                    total: (Array.isArray(order) ? (order[0]?.total || 0) : (order?.total || 0)) || (roomPrice + extra + consumption),
+                    total: roomPrice + extra + consumption,
                     payment_method: paymentMethodLabel,
                     card_type: cardPayment?.card_type,
                     card_last_4: cardPayment?.card_last_4,
