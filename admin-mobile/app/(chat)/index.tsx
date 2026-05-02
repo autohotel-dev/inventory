@@ -204,6 +204,13 @@ export default function InboxScreen() {
     };
 
     const handleLogout = async () => {
+        // Limpiar push token antes de cerrar sesión para evitar notificaciones fantasma
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('employees')
+                .update({ push_token: null, push_token_updated_at: null })
+                .eq('auth_user_id', user.id);
+        }
         await supabase.auth.signOut();
         router.replace('/login');
     };
