@@ -19,7 +19,11 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "notification": {
+        "icon": "./assets/images/android-icon-monochrome.png",
+        "color": "#e11d48"
+      }
     },
     "web": {
       "output": "static",

@@ -348,13 +348,13 @@ export function ChatWidget() {
                                 <div className="mb-4">
                                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Disponibles</h3>
                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                                        {onlineUsers.filter(u => u.user_id !== currentUser?.id).map(user => (
+                                        {onlineUsers.filter(u => u.user_id !== currentUser?.id && u.email).map(user => (
                                             <div key={user.user_id} className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer group" onClick={() => handleOpenDm(user.user_id)}>
                                                 <div className="relative h-12 w-12 rounded-full bg-primary/10 border-2 border-transparent group-hover:border-primary transition-all flex items-center justify-center shadow-sm">
-                                                    <span className="text-sm font-bold text-primary">{user.email.substring(0,2).toUpperCase()}</span>
+                                                    <span className="text-sm font-bold text-primary">{(user.email || '??').substring(0,2).toUpperCase()}</span>
                                                     <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-emerald-500 rounded-full border-2 border-background" />
                                                 </div>
-                                                <span className="text-[10px] text-muted-foreground font-medium truncate w-14 text-center">{user.email.split('@')[0]}</span>
+                                                <span className="text-[10px] text-muted-foreground font-medium truncate w-14 text-center">{(user.email || 'Usuario').split('@')[0]}</span>
                                             </div>
                                         ))}
                                     </div>
