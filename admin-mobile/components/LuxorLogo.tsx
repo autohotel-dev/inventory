@@ -15,8 +15,6 @@ export default function LuxorLogo({ width = "100%", height = 120, color = "white
                     fontFamily="Michroma" 
                     fontSize="64" 
                     fill={color} 
-                    stroke={color} 
-                    strokeWidth="0.5"
                     textLength="395"
                     lengthAdjust="spacingAndGlyphs"
                 >
