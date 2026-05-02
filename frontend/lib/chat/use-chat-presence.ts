@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 
@@ -16,14 +16,14 @@ export function useChatPresence(
 ) {
     const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
     const [typingUsers, setTypingUsers] = useState<PresenceState[]>([]);
-    const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+    const channelRef = useRef<RealtimeChannel | null>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const supabase = useMemo(() => createClient(), []);
 
     // Initialize Presence Channel
     useEffect(() => {
         if (!currentUser) return;
 
-        const supabase = createClient();
         const newChannel = supabase.channel('presence:global', {
             config: {
                 presence: {
@@ -36,7 +36,6 @@ export function useChatPresence(
             const state = newChannel.presenceState();
             const users: PresenceState[] = [];
 
-            // Flatten state (Supabase returns object with keys per presence ref)
             for (const key in state) {
                 users.push(...(state[key] as any));
             }
@@ -53,41 +52,49 @@ export function useChatPresence(
             .on('presence', { event: 'leave' }, updateState)
             .subscribe(async (status: any) => {
                 if (status === 'SUBSCRIBED') {
-                    await newChannel.track({
-                        user_id: currentUser.id,
-                        email: currentUser.email || 'Anónimo',
-                        is_typing: false,
-                        online_at: new Date().toISOString(),
-                    });
+                    try {
+                        await newChannel.track({
+                            user_id: currentUser.id,
+                            email: currentUser.email || 'Anónimo',
+                            is_typing: false,
+                            online_at: new Date().toISOString(),
+                        });
+                    } catch {
+                        // Channel may have been removed during subscribe — safe to ignore
+                    }
                 }
             });
 
-        setChannel(newChannel);
+        channelRef.current = newChannel;
 
         return () => {
+            channelRef.current = null;
             supabase.removeChannel(newChannel);
         };
-    }, [currentUser?.id]); // Only re-run if user ID changes to avoid constant reconnections
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentUser?.id]);
 
     const setTyping = useCallback(async (isTyping: boolean) => {
+        const channel = channelRef.current;
         if (!channel || !currentUser) return;
 
-        // Track state with debounce/safety
-        await channel.track({
-            user_id: currentUser.id,
-            email: currentUser.email || 'Anónimo',
-            is_typing: isTyping,
-            online_at: new Date().toISOString(),
-        });
-
-    }, [channel, currentUser]);
+        try {
+            await channel.track({
+                user_id: currentUser.id,
+                email: currentUser.email || 'Anónimo',
+                is_typing: isTyping,
+                online_at: new Date().toISOString(),
+            });
+        } catch {
+            // Channel disconnected — safe to ignore
+        }
+    }, [currentUser]);
 
     // Helper to trigger typing with auto-reset
     const handleTypingInput = useCallback(() => {
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
         } else {
-            // Start typing
             setTyping(true);
         }
 

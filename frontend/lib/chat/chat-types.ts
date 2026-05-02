@@ -29,6 +29,7 @@ export interface ConversationParticipant {
 export interface ChatContextType {
     messages: ChatMessage[];
     sendMessage: (content: string, mediaUrl?: string, messageType?: 'text' | 'image') => Promise<void>;
+    retryMessage: (failedId: string) => Promise<void>;
     editMessage: (id: string, newContent: string) => Promise<void>;
     deleteMessage: (id: string) => Promise<void>;
     isLoading: boolean;

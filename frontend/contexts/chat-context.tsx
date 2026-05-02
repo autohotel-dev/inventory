@@ -1,13 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ChatContextType } from '@/lib/chat/chat-types';
 import { useChatMessages } from '@/lib/chat/use-chat-messages';
 import { useChatNotifications } from '@/lib/chat/use-chat-notifications';
 import { useChatPresence } from '@/lib/chat/use-chat-presence';
 import { useSoundEngine } from '@/hooks/use-sound-notifications';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { useToast } from '@/hooks/use-toast';
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -17,8 +17,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const { playNewMessage } = useSoundEngine();
+    const { error: toastError } = useToast();
 
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
     // Get current user on mount
     useEffect(() => {
@@ -29,9 +30,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
         };
         init();
-    }, [supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const { messages, sendMessage: sendMsgFn, isLoading, hasMore, loadMore, uploadMedia, editMessage, deleteMessage } = useChatMessages(activeConversationId);
+    const { messages, sendMessage: sendMsgFn, retryMessage: retryMsgFn, isLoading, hasMore, loadMore, uploadMedia, editMessage, deleteMessage } = useChatMessages(activeConversationId);
     // Note: useChatMessages currently creates its own subscription. This is fine for now but optimization for later.
 
     const { notifyNewMessage } = useChatNotifications(currentUser?.id, isOpen);
@@ -78,14 +80,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, [isOpen, messages, currentUser, supabase]);
 
+    const retryMessage = async (failedId: string) => {
+        if (!currentUser) return;
+        try {
+            await retryMsgFn(failedId, currentUser);
+        } catch {
+            toastError('Error', 'No se pudo reenviar el mensaje.');
+        }
+    };
+
     const sendMessage = async (content: string, mediaUrl?: string, messageType: 'text' | 'image' = 'text') => {
         if (!currentUser) return;
-        await sendMsgFn(content, currentUser, mediaUrl, messageType);
+        try {
+            await sendMsgFn(content, currentUser, mediaUrl, messageType);
+        } catch {
+            toastError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.');
+        }
     };
 
     const value = {
         messages,
         sendMessage,
+        retryMessage,
         isLoading,
         isOpen,
         setIsOpen,
