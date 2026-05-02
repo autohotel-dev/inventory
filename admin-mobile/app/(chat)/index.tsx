@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, useColorScheme, Platform, Dimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, useColorScheme, Platform, Dimensions, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, ShieldAlert, LogOut, ChevronRight, Check, CheckCheck } from 'lucide-react-native';
+import { MessageCircle, ShieldAlert, LogOut, ChevronRight, Check, CheckCheck, User } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -24,6 +24,8 @@ function formatMessageTime(dateStr: string): string {
 export default function InboxScreen() {
     const [conversations, setConversations] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+    const [employees, setEmployees] = useState<any[]>([]);
     const router = useRouter();
     const isDark = useColorScheme() === 'dark';
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -57,22 +59,22 @@ export default function InboxScreen() {
                 });
             });
 
-            // Mapear nombres de usuarios
+            // Mapear nombres de usuarios y cargar directorio de empleados
             let userNameMap = new Map<string, string>();
-            if (otherUserIds.size > 0) {
-                const { data: employees } = await supabase
-                    .from('employees')
-                    .select('auth_user_id, first_name, last_name')
-                    .in('auth_user_id', Array.from(otherUserIds));
+            const { data: allEmployees } = await supabase
+                .from('employees')
+                .select('id, auth_user_id, first_name, last_name, role, email')
+                .eq('is_active', true)
+                .not('auth_user_id', 'is', null);
 
-                if (employees) {
-                    employees.forEach((emp: any) => {
-                        const name = [emp.first_name, emp.last_name].filter(Boolean).join(' ');
-                        if (name.trim()) {
-                            userNameMap.set(emp.auth_user_id, name);
-                        }
-                    });
-                }
+            if (allEmployees) {
+                setEmployees(allEmployees.filter((emp: any) => emp.auth_user_id !== user.id));
+                allEmployees.forEach((emp: any) => {
+                    const name = [emp.first_name, emp.last_name].filter(Boolean).join(' ') || emp.email?.split('@')[0] || 'Usuario';
+                    if (name.trim()) {
+                        userNameMap.set(emp.auth_user_id, name);
+                    }
+                });
             }
 
             // Obtener el último mensaje de cada conversación
@@ -130,10 +132,76 @@ export default function InboxScreen() {
             })
             .subscribe();
 
+        const presenceChannel = supabase.channel('presence:global');
+        
+        presenceChannel
+            .on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState();
+                const onlineIds = new Set<string>();
+                for (const key in state) {
+                    const users = state[key] as any[];
+                    users.forEach(u => {
+                        if (u.user_id) onlineIds.add(u.user_id);
+                    });
+                }
+                setOnlineUsers(onlineIds);
+            })
+            .on('presence', { event: 'join' }, ({ newPresences }) => {
+                setOnlineUsers(prev => {
+                    const next = new Set(prev);
+                    newPresences.forEach((p: any) => { if (p.user_id) next.add(p.user_id); });
+                    return next;
+                });
+            })
+            .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+                setOnlineUsers(prev => {
+                    const next = new Set(prev);
+                    leftPresences.forEach((p: any) => { if (p.user_id) next.delete(p.user_id); });
+                    return next;
+                });
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        await presenceChannel.track({
+                            user_id: user.id,
+                            online_at: new Date().toISOString(),
+                        });
+                    }
+                }
+            });
+
         return () => {
             supabase.removeChannel(channel);
+            supabase.removeChannel(presenceChannel);
         };
     }, [fetchConversations]);
+
+    const handleStartDm = async (otherUserId: string) => {
+        if (!currentUserId) return;
+        try {
+            // Check if we already have a direct conversation with this user
+            const existingConv = conversations.find(c => c.type === 'direct' && c.other_user_id === otherUserId);
+            if (existingConv) {
+                router.push({ pathname: '/(chat)/room', params: { conversationId: existingConv.id } });
+                return;
+            }
+
+            // Create new direct message
+            const { data: newConvId, error } = await supabase.rpc('create_direct_message', {
+                user1_id: currentUserId,
+                user2_id: otherUserId
+            });
+
+            if (error) throw error;
+            if (newConvId) {
+                router.push({ pathname: '/(chat)/room', params: { conversationId: newConvId } });
+            }
+        } catch (err) {
+            console.error('Error starting DM:', err);
+        }
+    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -176,6 +244,44 @@ export default function InboxScreen() {
                                 Comunicaciones Activas
                             </Text>
                         </View>
+
+                        {/* Directorio de Empleados */}
+                        {employees.length > 0 && (
+                            <View className="mt-6 mb-2">
+                                <Text className={`text-xs font-semibold mb-3 tracking-wider uppercase pl-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                                    Directorio
+                                </Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible" contentContainerStyle={{ paddingRight: 20, paddingLeft: 4 }}>
+                                    {employees.map((emp) => {
+                                        const isOnline = onlineUsers.has(emp.auth_user_id);
+                                        const name = emp.first_name || emp.email?.split('@')[0] || 'Usuario';
+                                        const initial = name.charAt(0).toUpperCase();
+
+                                        return (
+                                            <TouchableOpacity 
+                                                key={emp.id} 
+                                                className="items-center mr-4 w-[64px]"
+                                                onPress={() => handleStartDm(emp.auth_user_id)}
+                                                activeOpacity={0.7}
+                                            >
+                                                <View className="relative mb-2">
+                                                    <View className={`w-14 h-14 rounded-[20px] items-center justify-center border-2 ${isOnline ? 'border-emerald-500/80 bg-emerald-500/10' : (isDark ? 'border-zinc-800 bg-zinc-800/80' : 'border-zinc-200 bg-zinc-100')} shadow-sm`}>
+                                                        <Text className={`text-[22px] font-black ${isOnline ? 'text-emerald-500' : (isDark ? 'text-zinc-400' : 'text-zinc-400')}`}>{initial}</Text>
+                                                    </View>
+                                                    <View className={`absolute -bottom-1 -right-1 w-[18px] h-[18px] rounded-full border-[3px] ${isDark ? 'border-[#09090b]' : 'border-[#f4f4f5]'} ${isOnline ? 'bg-emerald-500' : 'bg-zinc-400/80'}`} />
+                                                </View>
+                                                <Text className={`text-[10px] font-bold text-center ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`} numberOfLines={1}>
+                                                    {name}
+                                                </Text>
+                                                <Text className={`text-[8px] font-bold tracking-widest uppercase mt-0.5 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} numberOfLines={1}>
+                                                    {emp.role || 'Staff'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                        )}
                     </Animated.View>
                 )}
                 renderItem={({ item, index }) => {

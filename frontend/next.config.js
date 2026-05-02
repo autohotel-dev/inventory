@@ -12,6 +12,7 @@ const nextConfig = {
     // Ignorar errores de TypeScript durante el build si es necesario
     ignoreBuildErrors: false,
   },
+  transpilePackages: ['@emoji-mart/data', '@emoji-mart/react', 'emoji-mart'],
   // Optimizaciones para producción
   compress: true,
   poweredByHeader: false,

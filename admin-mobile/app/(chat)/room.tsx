@@ -29,7 +29,7 @@ export default function RoomScreen() {
     
     // Typing indicators
     const [typingUsers, setTypingUsers] = useState<any[]>([]);
-    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isDark = useColorScheme() === 'dark';
     const flatListRef = useRef<FlatList>(null);
