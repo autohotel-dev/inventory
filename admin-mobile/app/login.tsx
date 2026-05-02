@@ -8,6 +8,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import LuxorLogo from '../components/LuxorLogo';
 
 const { width, height } = Dimensions.get('window');
 
@@ -135,18 +136,12 @@ export default function LoginScreen() {
                     className="px-8 z-10"
                 >
                     <Animated.View entering={FadeInDown.duration(800).springify()} className="items-center mb-12">
-                        <View className="relative items-center justify-center mb-6">
-                            <View className="absolute w-32 h-32 rounded-full bg-rose-500/20 blur-2xl" />
-                            <LinearGradient 
-                                colors={isDark ? ['#18181b', '#09090b'] : ['#ffffff', '#f4f4f5']}
-                                className="w-24 h-24 rounded-[32px] items-center justify-center border border-zinc-500/10 shadow-2xl"
-                            >
-                                <ShieldCheck color={isDark ? '#fb7185' : '#e11d48'} size={44} strokeWidth={2} />
-                            </LinearGradient>
+                        <View className="relative items-center justify-center mb-0 w-full px-4">
+                            <View className="absolute w-full h-24 rounded-full bg-rose-500/10 blur-3xl" />
+                            <LuxorLogo color={isDark ? "white" : "black"} height={100} />
                         </View>
                         
-                        <Text className={`text-[42px] font-black tracking-tighter ${textColor}`}>LUXOR</Text>
-                        <View className="bg-rose-500/10 px-4 py-1.5 rounded-full mt-3 border border-rose-500/20">
+                        <View className="bg-rose-500/10 px-4 py-1.5 rounded-full mt-2 border border-rose-500/20">
                             <Text className="text-xs font-bold uppercase tracking-[0.2em] text-rose-500">
                                 Management Portal
                             </Text>

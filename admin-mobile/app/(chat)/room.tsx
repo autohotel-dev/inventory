@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, useColorScheme, Keyboard, Modal, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, useColorScheme, Keyboard, Modal, Alert, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Send, Image as ImageIcon, X, Edit2, Trash2, Reply, Check, CheckCheck } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import Animated, { FadeInDown, Layout, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 const PAGE_SIZE = 15;
@@ -24,6 +25,11 @@ export default function RoomScreen() {
     const [editingMsg, setEditingMsg] = useState<any>(null);
     const [replyingMsg, setReplyingMsg] = useState<any>(null);
     const [selectedMsg, setSelectedMsg] = useState<any>(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
+    
+    // Typing indicators
+    const [typingUsers, setTypingUsers] = useState<any[]>([]);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const isDark = useColorScheme() === 'dark';
     const flatListRef = useRef<FlatList>(null);
@@ -74,38 +80,82 @@ export default function RoomScreen() {
     }, [conversationId]);
 
     useEffect(() => {
+        let channel: any;
+
         const setup = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             setCurrentUser(user);
             await fetchMessages();
+
+            if (user) {
+                channel = supabase.channel(`room:${conversationId}`)
+                    .on('postgres_changes', { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'messages',
+                        filter: `conversation_id=eq.${conversationId}`
+                    }, payload => {
+                        if (payload.eventType === 'INSERT') {
+                            setMessages(prev => [payload.new, ...prev]);
+                            if (payload.new.user_id !== user.id) {
+                                supabase.from('messages')
+                                    .update({ is_read: true })
+                                    .eq('id', payload.new.id)
+                                    .then();
+                            }
+                        } else if (payload.eventType === 'UPDATE') {
+                            setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+                        }
+                    })
+                    .on('broadcast', { event: 'typing' }, payload => {
+                        if (payload.payload.user_id !== user.id) {
+                            setTypingUsers(prev => {
+                                const filtered = prev.filter(u => u.user_id !== payload.payload.user_id);
+                                return [...filtered, payload.payload];
+                            });
+                            setTimeout(() => {
+                                setTypingUsers(prev => prev.filter(u => u.user_id !== payload.payload.user_id));
+                            }, 3000);
+                        }
+                    })
+                    .subscribe((status) => {
+                        if (status === 'SUBSCRIBED') {
+                            supabase.from('messages')
+                                .update({ is_read: true })
+                                .eq('conversation_id', conversationId)
+                                .neq('user_id', user.id)
+                                .eq('is_read', false)
+                                .then();
+                        }
+                    });
+            }
         };
 
         setup();
 
-        const channel = supabase.channel(`room:${conversationId}`)
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'messages',
-                filter: `conversation_id=eq.${conversationId}`
-            }, payload => {
-                if (payload.eventType === 'INSERT') {
-                    // With inverted list, new messages go at the START of the array (index 0)
-                    setMessages(prev => [payload.new, ...prev]);
-                } else if (payload.eventType === 'UPDATE') {
-                    setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
-                }
-            })
-            .subscribe();
-
         return () => {
-            supabase.removeChannel(channel);
+            if (channel) supabase.removeChannel(channel);
         };
     }, [conversationId, fetchMessages]);
 
     const handleLoadMore = () => {
         if (!hasMore || loadingMore || initialLoading) return;
         fetchMessages(messages.length, messages.length + PAGE_SIZE - 1, true);
+    };
+
+    const handleTyping = (text: string) => {
+        setNewMessage(text);
+        if (!currentUser) return;
+        
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        
+        supabase.channel(`room:${conversationId}`).send({
+            type: 'broadcast',
+            event: 'typing',
+            payload: { user_id: currentUser.id, user_email: currentUser.email }
+        });
+        
+        typingTimeoutRef.current = setTimeout(() => {}, 2000);
     };
 
     const handleSend = async () => {
@@ -150,6 +200,51 @@ export default function RoomScreen() {
         }
     };
 
+    const handleImagePick = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.7,
+        });
+
+        if (!result.canceled && result.assets[0] && currentUser) {
+            setUploadingImage(true);
+            try {
+                const uri = result.assets[0].uri;
+                const ext = uri.substring(uri.lastIndexOf('.') + 1) || 'jpg';
+                const fileName = `${currentUser.id}/${Date.now()}.${ext}`;
+                
+                const response = await fetch(uri);
+                const blob = await response.blob();
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('chat-attachments')
+                    .upload(fileName, blob, { contentType: `image/${ext}` });
+                    
+                if (uploadError) throw uploadError;
+                
+                const { data: publicUrlData } = supabase.storage
+                    .from('chat-attachments')
+                    .getPublicUrl(fileName);
+                    
+                await supabase.from('messages').insert({
+                    conversation_id: conversationId,
+                    user_id: currentUser.id,
+                    user_email: currentUser.email,
+                    content: '📷 Imagen adjunta',
+                    media_url: publicUrlData.publicUrl,
+                    message_type: 'image'
+                });
+                
+            } catch (e) {
+                console.error('Error uploading image', e);
+                Alert.alert('Error', 'No se pudo subir la imagen.');
+            } finally {
+                setUploadingImage(false);
+            }
+        }
+    };
+
     const handleDelete = async (msgId: string) => {
         Alert.alert(
             "Eliminar mensaje",
@@ -181,6 +276,16 @@ export default function RoomScreen() {
         let contentElement;
         if (isDeleted) {
             contentElement = <Text className={`italic ${isMe ? 'text-white/60' : (isDark ? 'text-zinc-500' : 'text-zinc-400')}`}>🚫 Este mensaje fue eliminado</Text>;
+        } else if (item.message_type === 'image' && item.media_url) {
+            contentElement = (
+                <View className="mb-1">
+                    <Image 
+                        source={{ uri: item.media_url }} 
+                        className="w-[220px] h-[220px] rounded-[18px]" 
+                        resizeMode="cover"
+                    />
+                </View>
+            );
         } else if (item.content.startsWith('> Citando a')) {
             const parts = item.content.split('\n\n');
             const quoteText = parts[0];
@@ -238,7 +343,7 @@ export default function RoomScreen() {
                                 <View className="flex-row items-center justify-end mt-1 gap-1 opacity-90">
                                     {item.is_edited && !isDeleted && <Text className="text-[10px] text-white/70 italic mr-1">(editado)</Text>}
                                     <Text className="text-[10px] text-white/90 font-bold tracking-wider">{timeStr}</Text>
-                                    {!isDeleted && <CheckCheck size={14} color="#fecdd3" strokeWidth={2.5} />}
+                                    {!isDeleted && <CheckCheck size={14} color={item.is_read ? "#38bdf8" : "#fecdd3"} strokeWidth={2.5} />}
                                 </View>
                             </LinearGradient>
                             {/* Rim Light Premium Glass Effect */}
@@ -321,6 +426,15 @@ export default function RoomScreen() {
                 <Animated.View style={{ paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 }}>
                     <BlurView intensity={isDark ? 30 : 80} tint={isDark ? "dark" : "light"} className={`border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
                         
+                        {typingUsers.length > 0 && (
+                            <Animated.View entering={FadeInDown} className="absolute -top-7 left-6 z-10 px-3 py-1 rounded-full bg-rose-500/90 border border-rose-500 shadow-sm flex-row items-center gap-1.5">
+                                <ActivityIndicator size="small" color="white" style={{ transform: [{ scale: 0.6 }] }} />
+                                <Text className="text-[10px] text-white font-bold tracking-widest uppercase">
+                                    {typingUsers[0].user_email.split('@')[0]} escribiendo
+                                </Text>
+                            </Animated.View>
+                        )}
+                        
                         {/* Reply / Edit Indicator */}
                     {(replyingMsg || editingMsg) && (
                         <Animated.View entering={SlideInDown.duration(200)} exiting={SlideOutDown.duration(200)} className="flex-row items-center px-4 pt-3 pb-1 justify-between">
@@ -342,15 +456,19 @@ export default function RoomScreen() {
                     )}
 
                     <View className="flex-row items-end p-3 pt-2 pb-6 gap-3">
-                        <TouchableOpacity className={`w-12 h-12 rounded-full items-center justify-center border ${isDark ? 'bg-zinc-800 border-zinc-700/50' : 'bg-white border-zinc-200/50'} shadow-sm`}>
-                            <ImageIcon color={isDark ? '#a1a1aa' : '#71717a'} size={20} />
+                        <TouchableOpacity 
+                            onPress={handleImagePick}
+                            disabled={uploadingImage}
+                            className={`w-12 h-12 rounded-full items-center justify-center border ${isDark ? 'bg-zinc-800 border-zinc-700/50' : 'bg-white border-zinc-200/50'} shadow-sm`}
+                        >
+                            {uploadingImage ? <ActivityIndicator size="small" color="#e11d48" /> : <ImageIcon color={isDark ? '#a1a1aa' : '#71717a'} size={20} />}
                         </TouchableOpacity>
                         
                         <View className={`flex-1 min-h-[48px] max-h-32 rounded-[24px] border flex-row items-center px-2 ${isDark ? 'bg-zinc-800/90 border-zinc-700/50' : 'bg-white/90 border-zinc-200/50'} shadow-sm`}>
                             <TextInput
                                 ref={inputRef}
                                 value={newMessage}
-                                onChangeText={setNewMessage}
+                                onChangeText={handleTyping}
                                 placeholder="Escribe un mensaje..."
                                 placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
                                 className={`flex-1 min-h-[48px] py-3 px-3 text-[15px] font-medium ${isDark ? 'text-white' : 'text-zinc-900'}`}

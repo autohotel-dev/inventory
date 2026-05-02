@@ -115,7 +115,7 @@ export function GranularPaymentModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="w-[95vw] sm:w-full max-w-4xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-none md:rounded-[2rem] h-[100dvh] md:h-[85vh] flex flex-col">
+        <DialogContent className="w-[100vw] sm:w-[98vw] max-w-6xl p-0 overflow-hidden bg-zinc-950/95 backdrop-blur-xl border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-none lg:rounded-[2rem] h-[100dvh] lg:h-[85vh] flex flex-col">
           {/* Header con glassmorphism */}
           <div className="relative p-6 shrink-0 overflow-hidden border-b border-white/5">
             <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/5"></div>
@@ -135,9 +135,9 @@ export function GranularPaymentModal({
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row min-h-0">
+          <div className="flex-1 overflow-hidden flex flex-col lg:flex-row min-h-0">
             {/* Columna Izquierda: Conceptos */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 bg-zinc-950/20 custom-scrollbar">
+            <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 lg:p-6 bg-zinc-950/20 custom-scrollbar">
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-full gap-6">
                   <div className="h-16 w-16 border-t-4 border-primary rounded-full animate-spin shadow-[0_0_20px_var(--primary)]"></div>
@@ -219,35 +219,44 @@ export function GranularPaymentModal({
             </div>
 
             {/* Columna Derecha: Panel de Pago */}
-            <div className="w-full md:w-[400px] border-t md:border-t-0 md:border-l border-white/5 bg-zinc-950 flex flex-col shrink-0 relative z-10 max-h-[45dvh] md:max-h-none">
-              <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-                <div className="space-y-8">
+            <div className="w-full lg:w-[380px] border-t lg:border-t-0 lg:border-l border-white/5 bg-zinc-950/80 backdrop-blur-md flex flex-col shrink-0 relative z-10 max-h-[50dvh] lg:max-h-none">
+              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-50"></div>
+              
+              <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
+                <div className="space-y-6">
+                  {/* Header */}
                   <div className="flex items-center justify-between pb-4 border-b border-white/5">
-                    <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-primary">RESUMEN DE COBRO</h3>
+                    <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-primary flex items-center gap-2">
+                      <Wallet className="w-3.5 h-3.5" />
+                      Resumen de Cobro
+                    </h3>
                     {selectedItems.size > 0 && !hasActiveValetReports && (
-                      <Button variant="ghost" size="sm" onClick={deselectAll} className="h-7 text-[10px] font-black uppercase text-red-500 hover:text-red-400 hover:bg-red-500/5 rounded-lg px-3 underline-offset-4 hover:underline">
-                        Limpiar Selección
+                      <Button variant="ghost" size="sm" onClick={deselectAll} className="h-6 text-[10px] font-bold uppercase text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-md px-2 transition-colors">
+                        Limpiar
                       </Button>
                     )}
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] bg-zinc-900/40 border border-white/10 shadow-2xl relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none"></div>
+                  <div className="space-y-5">
+                    {/* Main Totals Card */}
+                    <div className="relative p-5 rounded-3xl bg-zinc-900/50 border border-white/5 shadow-xl overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent pointer-events-none"></div>
                       <div className="relative space-y-4">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-bold text-zinc-500 uppercase tracking-widest">Subtotal Acumulado</span>
-                          <span className="font-black text-zinc-300 text-lg tracking-tight">{formatCurrency(selectedTotal)}</span>
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-[11px] text-zinc-400 uppercase tracking-widest">Subtotal Acumulado</span>
+                          <span className="font-mono font-medium text-zinc-300 text-base">{formatCurrency(selectedTotal)}</span>
                         </div>
+                        
                         {step === 'pay' && tipAmount > 0 && (
-                          <div className="flex justify-between items-center text-xs text-emerald-400 font-bold animate-in fade-in slide-in-from-right-2">
-                            <span className="flex items-center gap-1 uppercase tracking-[0.2em]">Gratificación</span>
-                            <span className="font-black text-lg tracking-tight">+{formatCurrency(tipAmount)}</span>
+                          <div className="flex justify-between items-center text-emerald-400/90 animate-in fade-in slide-in-from-right-2">
+                            <span className="font-bold text-[11px] uppercase tracking-widest">Gratificación</span>
+                            <span className="font-mono font-medium text-base">+{formatCurrency(tipAmount)}</span>
                           </div>
                         )}
-                        <div className="pt-6 mt-2 border-t border-white/10">
-                          <span className="font-black text-[10px] uppercase tracking-[0.3em] text-primary block mb-2">Total a Recibir</span>
-                          <span className="font-black text-3xl md:text-5xl text-white tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                        
+                        <div className="pt-4 mt-2 border-t border-dashed border-white/10">
+                          <span className="font-bold text-[10px] uppercase tracking-[0.3em] text-zinc-500 block mb-1">Total a Recibir</span>
+                          <span className="font-black text-4xl text-white tracking-tighter drop-shadow-md">
                             {formatCurrency(selectedTotal + (step === 'pay' ? tipAmount : 0))}
                           </span>
                         </div>
@@ -255,130 +264,122 @@ export function GranularPaymentModal({
                     </div>
 
                     {step === 'select' ? (
-                      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {!hasActiveValetReports ? (
                           selectedItems.size > 0 ? (
                             <>
                               <div className="grid grid-cols-2 gap-3">
-                                <Button variant="outline" onClick={selectAllPending} className="font-black text-[10px] uppercase tracking-[0.2em] border-white/10 bg-white/5 h-12 rounded-2xl hover:bg-white/10 hover:border-white/20 transform transition-all active:scale-95">
+                                <Button variant="outline" onClick={selectAllPending} className="font-bold text-[10px] uppercase tracking-widest border-white/5 bg-white/[0.02] h-12 rounded-xl hover:bg-white/5 hover:border-white/10 transition-all">
                                   Seleccionar Todo
                                 </Button>
-                                <Button variant="outline" onClick={deselectAll} className="font-black text-[10px] uppercase tracking-[0.2em] border-white/10 bg-transparent h-12 rounded-2xl hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-500 transform transition-all active:scale-95">
-                                  Limpiar
+                                <Button variant="outline" onClick={deselectAll} className="font-bold text-[10px] uppercase tracking-widest border-white/5 bg-transparent h-12 rounded-xl hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all">
+                                  Desmarcar
                                 </Button>
                               </div>
 
-                              <div className="relative group p-[1px] bg-gradient-to-br from-zinc-700 via-primary to-zinc-700 bg-[length:200%_200%] animate-[gradient:3s_linear_infinite] rounded-[1.8rem] shadow-2xl transition-all hover:scale-[1.02]">
+                              <div className="relative group rounded-2xl shadow-[0_0_40px_-15px_var(--primary)] transition-all hover:scale-[1.02]">
+                                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-indigo-500/50 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
                                 <Button
-                                  className="w-full h-16 bg-zinc-950 hover:bg-zinc-900 text-white rounded-[1.7rem] border-none flex items-center justify-center gap-3 overflow-hidden group"
+                                  className="relative w-full h-14 bg-zinc-100 hover:bg-white text-zinc-950 rounded-2xl border-none flex items-center justify-center gap-3 overflow-hidden group/btn"
                                   disabled={!canProceed}
                                   onClick={() => setStep('pay')}
                                 >
                                   {hasPendingCorroboration ? (
-                                    <div className="flex items-center gap-3 text-amber-500">
-                                      <AlertTriangle className="h-6 w-6 animate-pulse" />
-                                      <span className="font-black uppercase tracking-[0.2em] text-sm">Validar Corroboración</span>
+                                    <div className="flex items-center gap-2 text-amber-600">
+                                      <AlertTriangle className="h-5 w-5 animate-pulse" />
+                                      <span className="font-black uppercase tracking-[0.1em] text-sm">Validar Corroboración</span>
                                     </div>
                                   ) : !allSelectedPayable ? (
-                                    <div className="flex items-center gap-3 text-zinc-500">
-                                      <Clock className="h-6 w-6 animate-spin-slow" />
-                                      <span className="font-black uppercase tracking-[0.2em] text-sm">Esperando Datos</span>
+                                    <div className="flex items-center gap-2 text-zinc-500">
+                                      <Clock className="h-5 w-5 animate-spin-slow" />
+                                      <span className="font-black uppercase tracking-[0.1em] text-sm">Esperando Datos</span>
                                     </div>
                                   ) : (
                                     <>
-                                      <span className="font-black uppercase tracking-[0.1em] text-lg">Continuar al Pago</span>
-                                      <ArrowRightCircle className="h-6 w-6 text-primary group-hover:translate-x-1.5 transition-transform duration-300" />
+                                      <span className="font-black uppercase tracking-widest text-sm">Continuar al Pago</span>
+                                      <ArrowRightCircle className="h-5 w-5 text-zinc-900 group-hover/btn:translate-x-1 transition-transform" />
                                     </>
                                   )}
                                 </Button>
                               </div>
                             </>
                           ) : (
-                            <div className="p-10 rounded-[2.5rem] bg-zinc-900/20 border border-white/5 text-center space-y-4 animate-in fade-in zoom-in duration-500">
-                              <div className="flex justify-center">
-                                <div className="h-16 w-16 rounded-3xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner">
-                                  <Receipt className="h-8 w-8 text-zinc-600" />
-                                </div>
+                            <div className="py-12 px-6 rounded-3xl bg-zinc-900/30 border-2 border-dashed border-white/5 text-center flex flex-col items-center justify-center gap-5 animate-in fade-in zoom-in duration-500 group">
+                              <div className="h-16 w-16 rounded-2xl bg-zinc-800/50 flex items-center justify-center border border-white/5 group-hover:scale-110 group-hover:bg-zinc-800 transition-all duration-500">
+                                <Receipt className="h-7 w-7 text-zinc-500" />
                               </div>
-                              <div className="space-y-1">
-                                <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Esperando Selección</p>
-                                <p className="text-[10px] font-bold text-zinc-600 leading-normal max-w-[180px] mx-auto">
+                              <div className="space-y-2">
+                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400">Esperando Selección</p>
+                                <p className="text-[11px] font-medium text-zinc-500/80 leading-relaxed max-w-[220px] mx-auto">
                                   Selecciona los conceptos en el panel izquierdo para iniciar el proceso de cobro.
                                 </p>
                               </div>
                             </div>
                           )
                         ) : (
-                          <div className="p-8 rounded-[2.5rem] bg-indigo-500/5 border border-indigo-500/20 text-center space-y-4 animate-in fade-in zoom-in duration-500 shadow-[0_0_30px_-10px_rgba(99,102,241,0.1)]">
+                          <div className="p-6 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 text-center space-y-4 animate-in fade-in zoom-in duration-500 shadow-[0_0_30px_-10px_rgba(99,102,241,0.1)]">
                             <div className="flex justify-center">
-                              <div className="h-16 w-16 rounded-3xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-[0_0_20px_-5px_rgba(99,102,241,0.2)]">
-                                <AlertTriangle className="h-8 w-8 text-indigo-400" />
+                              <div className="h-14 w-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-lg shadow-indigo-500/20">
+                                <AlertTriangle className="h-7 w-7 text-indigo-400" />
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <p className="text-xs font-black uppercase tracking-[0.3em] text-indigo-300">Prioridad Cochero</p>
-                              <p className="text-[10px] font-bold text-indigo-300/60 leading-relaxed px-4">
-                                Se han detectado reportes del cochero pendientes. Por seguridad, utiliza los datos informados en la sección izquierda para proceder.
+                              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-300">Prioridad Cochero</p>
+                              <p className="text-[11px] font-medium text-indigo-300/70 leading-relaxed px-2">
+                                Se han detectado reportes del cochero pendientes. Utiliza los datos del panel izquierdo.
                               </p>
-                            </div>
-                            <div className="pt-2">
-                              <div className="h-1 w-12 bg-indigo-500/30 rounded-full mx-auto" />
                             </div>
                           </div>
                         )}
 
-                        <div className="flex justify-between items-center px-6 py-4 rounded-2xl bg-zinc-900/40 border border-white/5">
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Saldo Restante</span>
-                          <span className="text-sm font-black text-zinc-400 tracking-tight">{formatCurrency(pendingTotal)}</span>
+                        <div className="flex justify-between items-center px-5 py-4 rounded-2xl bg-zinc-900/40 border border-white/5">
+                          <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Saldo Restante</span>
+                          <span className="text-sm font-mono font-medium text-zinc-400">{formatCurrency(pendingTotal)}</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-4">
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setStep('select')} className="h-8 rounded-lg">
+                      <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300 pb-4">
+                        <div className="flex items-center gap-3">
+                          <Button variant="ghost" size="sm" onClick={() => setStep('select')} className="h-8 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300">
                             <ArrowLeftCircle className="h-4 w-4 mr-2" />
                             Regresar
                           </Button>
-                          <div className="h-1 flex-1 bg-muted rounded-full">
-                            <div className="h-full w-full bg-primary rounded-full animate-in slide-in-from-left duration-500"></div>
+                          <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-primary w-full rounded-full animate-in slide-in-from-left duration-500"></div>
                           </div>
                         </div>
 
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-xs font-black uppercase text-muted-foreground mb-2 block">Método de Pago</label>
-                            <MultiPaymentInput
-                              totalAmount={selectedTotal}
-                              payments={payments}
-                              onPaymentsChange={setPayments}
-                            />
-                          </div>
+                        <div className="space-y-3 bg-zinc-900/40 p-5 rounded-3xl border border-white/5">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-1 mb-2 block">Métodos de Pago</label>
+                          <MultiPaymentInput
+                            totalAmount={selectedTotal}
+                            payments={payments}
+                            onPaymentsChange={setPayments}
+                          />
                         </div>
 
-                        <div className="pt-4 space-y-3">
-                          <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">Monto Total</span>
-                              <span className="text-lg font-black text-primary">{formatCurrency(selectedTotal + tipAmount)}</span>
-                            </div>
+                        <div className="pt-2 space-y-4">
+                          <div className="flex justify-between items-center px-5 py-4 bg-primary/10 rounded-2xl border border-primary/20">
+                            <span className="text-[11px] font-bold text-primary uppercase tracking-widest">A Pagar</span>
+                            <span className="text-xl font-black text-primary font-mono">{formatCurrency(selectedTotal + tipAmount)}</span>
                           </div>
                           <Button
-                            className="w-full h-12 md:h-14 text-base md:text-xl font-black rounded-2xl shadow-2xl relative overflow-hidden group"
+                            className="w-full h-14 text-sm font-black uppercase tracking-widest rounded-2xl shadow-xl relative overflow-hidden group bg-primary hover:bg-primary/90 text-primary-foreground"
                             disabled={processing || Math.abs(payments.reduce((s, p) => s + p.amount, 0) - (selectedTotal + tipAmount)) > 0.1}
                             onClick={() => processPayment()}
                           >
                             {processing ? (
                               <span className="flex items-center gap-3">
-                                <RefreshCcw className="h-6 w-6 animate-spin" />
-                                PROCESANDO...
+                                <RefreshCcw className="h-5 w-5 animate-spin" />
+                                Procesando...
                               </span>
                             ) : (
                               <span className="flex items-center gap-2">
-                                <Wallet className="h-6 w-6" />
-                                CONFIRMAR PAGO
+                                <Wallet className="h-5 w-5" />
+                                Confirmar Pago
                               </span>
                             )}
-                            <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                           </Button>
                         </div>
                       </div>
@@ -387,12 +388,15 @@ export function GranularPaymentModal({
                 </div>
               </div>
 
-              <div className="p-4 bg-muted/10 border-t shrink-0">
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase font-black tracking-widest px-2">
-                  <span>Modo Granular Activado</span>
-                  <div className="flex gap-1">
-                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                    <span>Live Data Sync</span>
+              <div className="p-4 bg-zinc-950 border-t border-white/5 shrink-0 z-20">
+                <div className="flex items-center justify-between text-[10px] text-zinc-600 uppercase font-black tracking-widest px-1">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-zinc-500" />
+                    Modo Granular
+                  </span>
+                  <div className="flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-md border border-green-500/20">
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                    <span className="text-green-500">Live Sync</span>
                   </div>
                 </div>
               </div>

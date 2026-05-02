@@ -47,6 +47,11 @@ export function useRoomRealtime(
           console.warn("⚠️ [Realtime] No hay sesión activa");
         }
 
+        // Remove any pre-existing channel with the same name to prevent
+        // "cannot add callbacks after subscribe()" during StrictMode/hot reload
+        const existingChannel = supabase.channel("rooms-board-realtime");
+        await supabase.removeChannel(existingChannel);
+
         channel = supabase
           .channel("rooms-board-realtime")
           .on(
