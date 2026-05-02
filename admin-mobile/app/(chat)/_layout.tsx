@@ -16,8 +16,7 @@ export default function ChatLayout() {
             <Stack.Screen 
                 name="index" 
                 options={{ 
-                    title: 'Bandeja de Entrada',
-                    headerLargeTitle: true,
+                    headerShown: false,
                 }} 
             />
             <Stack.Screen 

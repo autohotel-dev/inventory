@@ -11,7 +11,8 @@ import {
     NotificationSubscribe,
     ServicesShowcase,
     SurveyViewer,
-    NotificationListener
+    NotificationListener,
+    FeedbackForm
 } from '@/components/guest';
 
 interface PageProps {
@@ -124,6 +125,9 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
 
                 {/* Services */}
                 <ServicesShowcase />
+
+                {/* Feedback */}
+                <FeedbackForm roomNumber={roomNumber} stayId={roomStay.id} />
 
                 {/* Surveys */}
                 {surveys && surveys.length > 0 && (

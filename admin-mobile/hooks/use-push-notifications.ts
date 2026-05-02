@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Platform, AppState } from 'react-native';
+import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -16,7 +16,7 @@ try {
             shouldShowList: true,
         }),
     });
-} catch (e) {
+} catch (error) {
     console.warn('[Push] No se pudo configurar el handler de notificaciones. Posiblemente usando Expo Go en SDK 53+');
 }
 
@@ -60,7 +60,7 @@ export function usePushNotifications() {
                 if (data?.conversationId) {
                     router.push({
                         pathname: '/(chat)/room',
-                        params: { conversationId: data.conversationId }
+                        params: { conversationId: String(data.conversationId) }
                     });
                 }
             });
@@ -73,9 +73,9 @@ export function usePushNotifications() {
             try {
                 if (notificationListener.current) notificationListener.current.remove();
                 if (responseListener.current) responseListener.current.remove();
-            } catch (e) {}
+            } catch {}
         };
-    }, []);
+    }, [router]);
 
     return { expoPushToken };
 }

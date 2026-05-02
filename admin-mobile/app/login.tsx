@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, useColorScheme } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, useColorScheme, Dimensions, ScrollView } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { ShieldAlert, Fingerprint } from 'lucide-react-native';
+import { ShieldCheck, Fingerprint, Lock, Mail, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -52,21 +57,20 @@ export default function LoginScreen() {
         }
 
         if (!authEmail || !authPwd) {
-            setError('Por favor ingresa correo y contraseña');
+            setError('Faltan credenciales');
             return;
         }
 
         setLoading(true);
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
+            const { data, error: authError } = await supabase.auth.signInWithPassword({
                 email: authEmail,
                 password: authPwd,
             });
 
-            if (error) {
-                setError(error.message);
+            if (authError) {
+                setError('Credenciales incorrectas');
             } else {
-                // Verificar si es admin
                 const { data: employee } = await supabase
                     .from('employees')
                     .select('role')
@@ -75,7 +79,7 @@ export default function LoginScreen() {
 
                 if (!employee || !['admin', 'manager', 'superuser'].includes(employee.role.toLowerCase())) {
                     await supabase.auth.signOut();
-                    setError('Acceso denegado. Esta app es solo para administradores.');
+                    setError('Acceso denegado (Solo Administradores)');
                     return;
                 }
 
@@ -87,8 +91,8 @@ export default function LoginScreen() {
                 
                 router.replace('/(chat)');
             }
-        } catch (err: any) {
-            setError('Ocurrió un error inesperado al intentar entrar.');
+        } catch {
+            setError('Ocurrió un error inesperado');
         } finally {
             setLoading(false);
         }
@@ -106,76 +110,128 @@ export default function LoginScreen() {
         }
     };
 
+    // Colores premium adaptados al tema
+    const bgColors = isDark ? ['#09090b', '#000000'] as const : ['#f4f4f5', '#ffffff'] as const;
+    const accent1 = isDark ? 'rgba(225, 29, 72, 0.15)' : 'rgba(225, 29, 72, 0.1)';
+    const accent2 = isDark ? 'rgba(244, 63, 94, 0.1)' : 'rgba(244, 63, 94, 0.05)';
+    const textColor = isDark ? 'text-white' : 'text-zinc-900';
+    const subTextColor = isDark ? 'text-zinc-400' : 'text-zinc-500';
+
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            className={`flex-1 ${isDark ? 'bg-zinc-950' : 'bg-zinc-50'}`}
+            behavior="padding"
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+            className="flex-1"
         >
-            <View className="flex-1 justify-center px-10">
-                <View className="items-center mb-16">
-                    <View className={`w-24 h-24 rounded-3xl items-center justify-center shadow-2xl ${isDark ? 'bg-white' : 'bg-zinc-900'}`}>
-                        <ShieldAlert color={isDark ? '#000' : '#fff'} size={48} strokeWidth={2.5} />
-                    </View>
-                    <Text className={`text-4xl font-black mt-8 tracking-tighter ${isDark ? 'text-white' : 'text-zinc-900'}`}>LUXOR</Text>
-                    <Text className={`text-xs font-black uppercase tracking-[0.3em] mt-2 text-emerald-500`}>Admin Communications</Text>
-                </View>
+            <LinearGradient colors={bgColors} className="flex-1">
+                {/* Esferas de fondo premium */}
+                <View className="absolute top-[-10%] left-[-20%] w-[80vw] h-[80vw] rounded-full" style={{ backgroundColor: accent1, filter: 'blur(60px)' }} />
+                <View className="absolute bottom-[-10%] right-[-20%] w-[80vw] h-[80vw] rounded-full" style={{ backgroundColor: accent2, filter: 'blur(60px)' }} />
 
-                <View className="gap-5">
-                    {error && (
-                        <View className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
-                            <Text className="text-red-500 text-xs font-bold text-center">{error}</Text>
+                <ScrollView 
+                    contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    className="px-8 z-10"
+                >
+                    <Animated.View entering={FadeInDown.duration(800).springify()} className="items-center mb-12">
+                        <View className="relative items-center justify-center mb-6">
+                            <View className="absolute w-32 h-32 rounded-full bg-rose-500/20 blur-2xl" />
+                            <LinearGradient 
+                                colors={isDark ? ['#18181b', '#09090b'] : ['#ffffff', '#f4f4f5']}
+                                className="w-24 h-24 rounded-[32px] items-center justify-center border border-zinc-500/10 shadow-2xl"
+                            >
+                                <ShieldCheck color={isDark ? '#fb7185' : '#e11d48'} size={44} strokeWidth={2} />
+                            </LinearGradient>
                         </View>
-                    )}
+                        
+                        <Text className={`text-[42px] font-black tracking-tighter ${textColor}`}>LUXOR</Text>
+                        <View className="bg-rose-500/10 px-4 py-1.5 rounded-full mt-3 border border-rose-500/20">
+                            <Text className="text-xs font-bold uppercase tracking-[0.2em] text-rose-500">
+                                Management Portal
+                            </Text>
+                        </View>
+                    </Animated.View>
 
-                    <View>
-                        <Text className={`text-[10px] font-black uppercase tracking-widest mb-2 ml-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Correo Administrador</Text>
-                        <TextInput
-                            value={email}
-                            onChangeText={setEmail}
-                            placeholder="admin@autohotelluxor.com"
-                            placeholderTextColor={isDark ? '#3f3f46' : '#d4d4d8'}
-                            className={`border-2 rounded-2xl px-5 py-4 font-bold text-lg ${isDark ? 'bg-black border-zinc-800 text-white' : 'bg-white border-zinc-100 text-zinc-900'}`}
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                        />
-                    </View>
-
-                    <View>
-                        <Text className={`text-[10px] font-black uppercase tracking-widest mb-2 ml-1 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Contraseña</Text>
-                        <TextInput
-                            value={password}
-                            onChangeText={setPassword}
-                            placeholder="••••••••"
-                            placeholderTextColor={isDark ? '#3f3f46' : '#d4d4d8'}
-                            className={`border-2 rounded-2xl px-5 py-4 font-bold text-lg ${isDark ? 'bg-black border-zinc-800 text-white' : 'bg-white border-zinc-100 text-zinc-900'}`}
-                            secureTextEntry
-                        />
-                    </View>
-
-                    <TouchableOpacity
-                        onPress={() => handleLogin(false)}
-                        disabled={loading}
-                        className={`rounded-2xl h-16 items-center justify-center mt-6 shadow-xl ${isDark ? 'bg-white' : 'bg-zinc-900'}`}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color={isDark ? 'black' : 'white'} />
-                        ) : (
-                            <Text className={`font-black uppercase tracking-widest ${isDark ? 'text-zinc-900' : 'text-white'}`}>Entrar al Panel</Text>
+                    <Animated.View entering={FadeInUp.duration(800).delay(200).springify()} className="gap-4">
+                        {error && (
+                            <Animated.View entering={FadeInDown} className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex-row items-center gap-3">
+                                <View className="w-2 h-2 rounded-full bg-red-500" />
+                                <Text className="text-red-500 text-xs font-bold flex-1">{error}</Text>
+                            </Animated.View>
                         )}
-                    </TouchableOpacity>
 
-                    {isBiometricSupported && hasCredentials && (
+                        <View className="gap-4">
+                            <BlurView intensity={isDark ? 20 : 60} tint={isDark ? "dark" : "light"} className="rounded-3xl overflow-hidden border border-zinc-500/20">
+                                <View className="flex-row items-center px-5 h-16">
+                                    <Mail color={isDark ? '#a1a1aa' : '#71717a'} size={20} />
+                                    <TextInput
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        placeholder="admin@luxor.com"
+                                        placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                                        className={`flex-1 h-full font-semibold text-base ml-3 ${textColor}`}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                    />
+                                </View>
+                            </BlurView>
+
+                            <BlurView intensity={isDark ? 20 : 60} tint={isDark ? "dark" : "light"} className="rounded-3xl overflow-hidden border border-zinc-500/20">
+                                <View className="flex-row items-center px-5 h-16">
+                                    <Lock color={isDark ? '#a1a1aa' : '#71717a'} size={20} />
+                                    <TextInput
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        placeholder="Contraseña segura"
+                                        placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                                        className={`flex-1 h-full font-semibold text-base ml-3 ${textColor}`}
+                                        secureTextEntry
+                                    />
+                                </View>
+                            </BlurView>
+                        </View>
+
                         <TouchableOpacity
-                            onPress={handleBiometricLogin}
+                            onPress={() => handleLogin(false)}
                             disabled={loading}
-                            className={`rounded-2xl h-16 flex-row gap-3 items-center justify-center mt-2 border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200'} bg-transparent`}
+                            className="mt-6 rounded-3xl overflow-hidden shadow-rose-500/20 shadow-xl"
                         >
-                            <Fingerprint size={20} color={isDark ? '#fff' : '#000'} />
-                            <Text className={`font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-zinc-900'}`}>Usar Biometría</Text>
+                            <LinearGradient 
+                                colors={['#e11d48', '#be123c']} 
+                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                                className="h-16 flex-row items-center justify-center gap-3"
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="white" />
+                                ) : (
+                                    <>
+                                        <Text className="font-black text-base uppercase tracking-widest text-white">
+                                            Acceder
+                                        </Text>
+                                        <ChevronRight color="white" size={20} />
+                                    </>
+                                )}
+                            </LinearGradient>
                         </TouchableOpacity>
-                    )}
-                </View>
-            </View>
+
+                        {isBiometricSupported && hasCredentials && (
+                            <TouchableOpacity
+                                onPress={handleBiometricLogin}
+                                disabled={loading}
+                                className="mt-2"
+                            >
+                                <BlurView intensity={isDark ? 30 : 60} tint={isDark ? "dark" : "light"} className="h-16 rounded-3xl flex-row items-center justify-center gap-3 border border-zinc-500/10">
+                                    <Fingerprint size={22} color={isDark ? '#fb7185' : '#e11d48'} />
+                                    <Text className={`font-bold text-sm tracking-widest ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                        USAR BIOMETRÍA
+                                    </Text>
+                                </BlurView>
+                            </TouchableOpacity>
+                        )}
+                    </Animated.View>
+                </ScrollView>
+            </LinearGradient>
         </KeyboardAvoidingView>
     );
 }

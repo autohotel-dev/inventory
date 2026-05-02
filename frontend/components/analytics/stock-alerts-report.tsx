@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,14 @@ import {
     AlertCircle,
     Package,
     TrendingDown,
-    FileSpreadsheet
+    FileSpreadsheet,
+    Clock,
+    ShoppingCart,
+    RefreshCw
 } from "lucide-react";
-import { exportToExcel, formatDate } from "@/lib/export-utils";
+import { exportToExcel } from "@/lib/export-utils";
 import Link from "next/link";
+import { subDays } from "date-fns";
 
 interface StockAlert {
     product_id: string;
@@ -59,15 +63,28 @@ export function StockAlertsReport() {
                 `)
                 .eq("is_active", true);
 
-            if (error) {
-                console.error("Error en query de stock:", error);
-            }
-
-            console.log("Productos obtenidos:", products?.length || 0);
-
             if (!products) {
                 setLoading(false);
                 return;
+            }
+
+            // Fetch consumption data from last 30 days for velocity calculation
+            const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+            const { data: recentConsumptions } = await supabase
+                .from('order_items')
+                .select('product_id, quantity, created_at')
+                .gte('created_at', thirtyDaysAgo);
+
+            // Build a map of average daily consumption per product
+            const consumptionMap = new Map<string, number>();
+            if (recentConsumptions) {
+                const grouped = new Map<string, number>();
+                recentConsumptions.forEach((item: any) => {
+                    grouped.set(item.product_id, (grouped.get(item.product_id) || 0) + (item.quantity || 0));
+                });
+                grouped.forEach((total, productId) => {
+                    consumptionMap.set(productId, total / 30); // avg per day
+                });
             }
 
             // Procesar alertas
@@ -92,9 +109,11 @@ export function StockAlertsReport() {
                     qty: s.qty || 0
                 }));
 
-                // Estimación de días hasta agotamiento (basado en ventas promedio)
-                // Por ahora es un cálculo simplificado
-                const days_until_stockout = current_stock > 0 ? Math.round(current_stock / 5) : 0;
+                // Accurate depletion estimation using real consumption velocity
+                const dailyConsumption = consumptionMap.get(product.id) || 0;
+                const days_until_stockout = dailyConsumption > 0 
+                    ? Math.round(current_stock / dailyConsumption) 
+                    : current_stock > 0 ? 999 : 0;
 
                 return {
                     product_id: product.id,
