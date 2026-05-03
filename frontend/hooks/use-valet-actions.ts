@@ -91,13 +91,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 throw stayError;
             }
 
-            if (count === 0) {
-                toast.warning('Entrada ya asignada', {
-                    description: 'Otro cochero ya aceptó esta entrada.'
-                });
-                return false;
-            }
-
             // 2. Obtener shift actual del valet (estado 'active' para consistencia con móvil)
             const { data: session } = await supabase
                 .from('shift_sessions')
