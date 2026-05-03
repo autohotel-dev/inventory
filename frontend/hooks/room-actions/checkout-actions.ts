@@ -181,9 +181,7 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       if (notes !== undefined) updateData.notes = notes;
       else if (newStatus === "LIBRE") updateData.notes = null;
 
-      const { error } = await supabase.from("rooms").update(updateData).eq("id", room.id);
-      if (error) { toast.error("No se pudo actualizar el estado de la habitación"); return; }
-
+      // Primero finalizar la estancia (si aplica) para evitar estados huérfanos
       if (newStatus === "LIBRE") {
         const { error: stayError } = await supabase
           .from("room_stays")
@@ -191,9 +189,17 @@ export function createCheckoutActions(ctx: RoomActionContext) {
           .eq("room_id", room.id)
           .eq("status", "ACTIVA");
 
-        if (stayError) console.error("Error finalizing stay on room free:", stayError);
-        else logger.info("Stay finalized automatically on room free", { roomNumber: room.number });
+        if (stayError) {
+          console.error("Error finalizing stay on room free:", stayError);
+          toast.error("No se pudo finalizar la estancia activa");
+          return;
+        }
+        logger.info("Stay finalized automatically on room free", { roomNumber: room.number });
       }
+
+      // Después actualizar el estado de la habitación
+      const { error } = await supabase.from("rooms").update(updateData).eq("id", room.id);
+      if (error) { toast.error("No se pudo actualizar el estado de la habitación"); return; }
 
       toast.success(successMessage);
 

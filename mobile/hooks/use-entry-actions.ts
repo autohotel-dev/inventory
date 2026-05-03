@@ -17,18 +17,6 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
     const handleAcceptEntry = useCallback(async (stayId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         try {
-            // Verificar si ya fue asignada a otro cochero
-            const { data: stay } = await supabase
-                .from('room_stays')
-                .select('valet_employee_id')
-                .eq('id', stayId)
-                .single();
-
-            if (stay?.valet_employee_id && stay.valet_employee_id !== valetId) {
-                showFeedback('Ya asignada', 'Esta entrada ya fue aceptada por otro cochero', 'error');
-                return false;
-            }
-
             // Intento 1: ¿Estamos Offline? Encolarlo.
             const isEnqueued = await SyncQueue.enqueue({
                 type: 'UPDATE',
@@ -43,13 +31,19 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 return true;
             }
 
-            // Intento 2: Normal
-            const { error } = await supabase
-                .from('room_stays')
-                .update({ valet_employee_id: valetId })
-                .eq('id', stayId);
+            // UPDATE atómico via RPC
+            const { data: updated, error } = await supabase.rpc('claim_entry_valet', {
+                p_stay_id: stayId,
+                p_valet_id: valetId
+            });
 
             if (error) throw error;
+
+            if (!updated) {
+                showFeedback('Ya asignada', 'Esta entrada ya fue aceptada por otro cochero', 'error');
+                await onRefresh();
+                return false;
+            }
 
             showFeedback('¡Éxito!', `Te has asignado la Habitación ${roomNumber}`);
             await onRefresh();

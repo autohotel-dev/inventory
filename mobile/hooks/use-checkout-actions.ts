@@ -18,28 +18,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data: stay } = await supabase
-                .from('room_stays')
-                .select('checkout_valet_employee_id')
-                .eq('id', stayId)
-                .single();
-
-            if (stay?.checkout_valet_employee_id && stay.checkout_valet_employee_id !== valetId) {
-                showFeedback('Ya asignada', 'Esta salida ya fue procesada por otro cochero', 'error');
-                return false;
-            }
-
-            const { error } = await supabase
-                .from('room_stays')
-                .update({
-                    checkout_valet_employee_id: valetId,
-                    current_people: personCount,
-                    // Señalizar a recepción que el cochero ya completó la revisión de salida
-                    valet_checkout_requested_at: new Date().toISOString()
-                })
-                .eq('id', stayId);
+            // UPDATE atómico via RPC para evitar problemas de caché de PostgREST
+            const { data: updated, error } = await supabase.rpc('claim_checkout_valet', {
+                p_stay_id: stayId,
+                p_valet_id: valetId,
+                p_person_count: personCount
+            });
 
             if (error) throw error;
+
+            if (!updated) {
+                showFeedback('Ya asignada', 'Esta salida ya fue procesada por otro cochero', 'error');
+                await onRefresh();
+                return false;
+            }
 
             // Log activity with checklist details (SOP 1 & 5)
             await logActivity({
@@ -60,32 +52,36 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 if (emp?.first_name) valetName = emp.first_name;
             } catch { /* fallback */ }
 
-            // Notificar a recepcionistas activos
-            const { data: receptionSessions } = await supabase
-                .from('shift_sessions')
-                .select('employees!inner(auth_user_id, role)')
-                .eq('status', 'active')
-                .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+            // Notificar a recepcionistas activos (no-crítico)
+            try {
+                const { data: receptionSessions } = await supabase
+                    .from('shift_sessions')
+                    .select('employees!inner(auth_user_id, role)')
+                    .eq('status', 'active')
+                    .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
 
-            if (receptionSessions && receptionSessions.length > 0) {
-                const uniqueUserIds = new Set<string>();
-                receptionSessions.forEach((session: any) => {
-                    if (session.employees?.auth_user_id) {
-                        uniqueUserIds.add(session.employees.auth_user_id);
+                if (receptionSessions && receptionSessions.length > 0) {
+                    const uniqueUserIds = new Set<string>();
+                    receptionSessions.forEach((session: any) => {
+                        if (session.employees?.auth_user_id) {
+                            uniqueUserIds.add(session.employees.auth_user_id);
+                        }
+                    });
+
+                    if (uniqueUserIds.size > 0) {
+                        const notifications = Array.from(uniqueUserIds).map(userId => ({
+                            user_id: userId,
+                            type: 'system_alert',
+                            title: '🚗 Salida Lista',
+                            message: `${valetName} ha revisado la Hab. ${roomNumber}, puedes darle salida.`,
+                            data: { type: 'CHECKOUT_READY', roomNumber, stayId },
+                            is_read: false,
+                        }));
+                        await supabase.from('notifications').insert(notifications);
                     }
-                });
-
-                if (uniqueUserIds.size > 0) {
-                    const notifications = Array.from(uniqueUserIds).map(userId => ({
-                        user_id: userId,
-                        type: 'system_alert',
-                        title: '🚗 Salida Lista',
-                        message: `${valetName} ha revisado la Hab. ${roomNumber}, puedes darle salida.`,
-                        data: { type: 'CHECKOUT_READY', roomNumber, stayId },
-                        is_read: false,
-                    }));
-                    await supabase.from('notifications').insert(notifications);
                 }
+            } catch (notifErr) {
+                console.error('Error sending checkout notifications (non-critical):', notifErr);
             }
 
             showFeedback('¡Éxito!', `Hab. ${roomNumber}: Revisión completada.`);
@@ -93,7 +89,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
             return true;
         } catch (error: any) {
             console.error('Error confirming checkout:', error);
-            showFeedback('Error', 'Error al confirmar salida', 'error');
+            showFeedback('Error', `Error al confirmar salida: ${error?.message || error}`, 'error');
             return false;
         } finally {
             setLoading(false);
@@ -108,27 +104,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data: stay } = await supabase
-                .from('room_stays')
-                .select('checkout_valet_employee_id')
-                .eq('id', stayId)
-                .single();
-
-            if (stay?.checkout_valet_employee_id && stay.checkout_valet_employee_id !== valetId) {
-                showFeedback('Ya asignada', 'Esta salida ya fue avisada por otro cochero', 'error');
-                return false;
-            }
-
-            const { error } = await supabase
-                .from('room_stays')
-                .update({
-                    valet_checkout_requested_at: new Date().toISOString(),
-                    checkout_valet_employee_id: valetId,
-                    checkout_payment_data: payments // Save the pre-filled payment data
-                })
-                .eq('id', stayId);
+            // UPDATE atómico via RPC
+            const { data: updated, error } = await supabase.rpc('propose_checkout_valet', {
+                p_stay_id: stayId,
+                p_valet_id: valetId,
+                p_payments: payments
+            });
 
             if (error) throw error;
+
+            if (!updated) {
+                showFeedback('Ya asignada', 'Esta salida ya fue avisada por otro cochero', 'error');
+                await onRefresh();
+                return false;
+            }
 
             // Obtener nombre del cochero
             let valetName = 'Cochero';

@@ -7,8 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "jsEngine": "hermes",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.autohotel.valet"
+      "bundleIdentifier": "com.autohotel.valet",
+      "newArchEnabled": true
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +23,8 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.autohotel.valet",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "newArchEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,15 +41,8 @@
           "androidCollapsedTitle": "Auto Hotel Luxor"
         }
       ],
-      "sentry-expo",
       "expo-secure-store"
     ],
-    "notification": {
-      "icon": "./assets/adaptive-icon.png",
-      "color": "#3b82f6",
-      "androidMode": "default",
-      "androidCollapsedTitle": "Auto Hotel Luxor"
-    },
     "extra": {
       "router": {
         "origin": false

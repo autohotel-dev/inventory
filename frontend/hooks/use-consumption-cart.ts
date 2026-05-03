@@ -15,6 +15,7 @@ import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { validatePromotionConditions } from "@/lib/promo-conditions";
 import { logFinancialAction } from "@/lib/audit-logger";
+import { validateStockAvailability } from "@/lib/utils/stock-helpers";
 import type { BottlePackageRule } from "@/lib/types/inventory";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -518,7 +519,6 @@ export function useConsumptionCart({
       }
 
       // Validate stock
-      const { validateStockAvailability } = await import("@/lib/utils/stock-helpers");
       const itemsToValidate = Array.from(cartItems.values()).map(({ product, qty }) => ({
         product_id: product.id, product_name: product.name, quantity: qty
       }));
