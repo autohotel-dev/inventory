@@ -1,5 +1,4 @@
 import { IncomeEntry, IncomeTotals } from "./types";
-import { openIncomeReportPrintWindow } from "@/lib/utils/income-report-print";
 
 interface ExportParams {
     entries: IncomeEntry[];
@@ -158,7 +157,11 @@ export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel
 export const handleHpPrint = async ({ entries, receptionistName, shiftInfo, startDate, endDate }: ExportParams) => {
     const paymentBreakdown = generatePaymentBreakdown(entries);
 
-    openIncomeReportPrintWindow({
+    const printData = {
+        employeeName: receptionistName,
+        periodStart: shiftInfo?.shift_start || startDate?.toISOString() || new Date().toISOString(),
+        periodEnd: shiftInfo?.shift_end || endDate?.toISOString() || new Date().toISOString(),
+        paymentBreakdown,
         entries: entries.map(e => ({
             time: e.time,
             vehicle_plate: e.vehicle_plate,
@@ -170,11 +173,21 @@ export const handleHpPrint = async ({ entries, receptionistName, shiftInfo, star
             total: e.total,
             payment_method: e.payment_method,
         })),
-        receptionistName,
-        periodStart: shiftInfo?.shift_start || startDate?.toISOString() || new Date().toISOString(),
-        periodEnd: shiftInfo?.shift_end || endDate?.toISOString() || new Date().toISOString(),
-        paymentBreakdown,
-    });
+    };
+
+    try {
+        const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+        const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'income', data: printData }),
+        });
+        if (!response.ok) {
+            console.error('HP print error:', await response.json());
+        }
+    } catch (error) {
+        console.error('Error printing to HP:', error);
+    }
 };
 
 export const handleCsvExport = ({ entries, totals, receptionistName, periodLabel }: ExportParams) => {

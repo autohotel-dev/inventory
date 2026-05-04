@@ -3,6 +3,7 @@ const cors = require('cors');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
+const PdfPrinter = require('pdfmake');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -952,112 +953,253 @@ function buildHPClosingReport(data) {
     return doc;
 }
 
-// ─── HP Income Report Builder (tabular format matching the Income page) ──────
-function buildHPIncomeReport(data) {
-    const NL = '\r\n';
-    const LINE = '='.repeat(96);
-    const DASH = '-'.repeat(96);
+// ─── HP Income Report Builder (PDF via pdfmake for proper table formatting) ──────
+function buildHPIncomeReportPDF(data) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Try Roboto from pdfmake, fallback to Helvetica (built-in PDF font)
+            const robotoPath = path.join(__dirname, 'node_modules', 'pdfmake', 'standard-fonts', 'Roboto-Regular.ttf');
+            let fontsToUse, fontName;
 
-    // PCL reset + Courier 15cpi compressed for wide table
-    let doc = '\x1B%-12345X'; // UEL
-    doc += '\x1BE';           // PCL Reset
-    doc += '\x1B&l0O';        // Portrait
-    doc += '\x1B&l2A';        // Letter size
-    doc += '\x1B&l6D';        // 6 lines per inch
-    doc += '\x1B&l3E';        // Top margin 3 lines
-    doc += '\x1B(s0P';        // Fixed pitch
-    doc += '\x1B(s15H';       // 15 characters per inch (compressed for wide table)
-    doc += '\x1B(s0S';        // Upright style
-    doc += '\x1B(s3T';        // Courier font
+            if (fs.existsSync(robotoPath)) {
+                fontsToUse = {
+                    Roboto: {
+                        normal: robotoPath,
+                        bold: path.join(__dirname, 'node_modules', 'pdfmake', 'standard-fonts', 'Roboto-Medium.ttf'),
+                        italics: path.join(__dirname, 'node_modules', 'pdfmake', 'standard-fonts', 'Roboto-Italic.ttf'),
+                        bolditalics: path.join(__dirname, 'node_modules', 'pdfmake', 'standard-fonts', 'Roboto-MediumItalic.ttf'),
+                    }
+                };
+                fontName = 'Roboto';
+            } else {
+                fontsToUse = {
+                    Helvetica: {
+                        normal: 'Helvetica',
+                        bold: 'Helvetica-Bold',
+                        italics: 'Helvetica-Oblique',
+                        bolditalics: 'Helvetica-BoldOblique',
+                    }
+                };
+                fontName = 'Helvetica';
+            }
 
-    // ═══ HEADER ═══
-    doc += NL;
-    doc += '                                    LUXOR AUTO HOTEL' + NL;
-    doc += '                     INGRESOS DE HOSPEDAJE Y CONSUMO PUBLICO EN GENERAL' + NL;
-    doc += LINE + NL;
+            const printer = new PdfPrinter(fontsToUse);
+            const entries = data.entries || [];
+            const { dateStr: startDate, timeStr: startTime } = formatDateTime(data.periodStart);
+            const { dateStr: endDate, timeStr: endTime } = formatDateTime(data.periodEnd);
 
-    // Meta info
-    const { dateStr: startDate, timeStr: startTime } = formatDateTime(data.periodStart);
-    const { dateStr: endDate, timeStr: endTime } = formatDateTime(data.periodEnd);
-    doc += `  Recepcionista: ${data.employeeName || 'N/A'}` + NL;
-    doc += `  Periodo:       ${startDate} ${startTime}  -->  ${endDate} ${endTime}` + NL;
-    doc += `  Fecha:         ${new Date().toLocaleDateString('es-MX')}` + NL;
-    doc += `  Registros:     ${(data.entries || []).length}` + NL;
-    doc += LINE + NL;
-    doc += NL;
+            // Calculate totals
+            let sumPrice = 0, sumExtra = 0, sumConsumption = 0, sumTotal = 0;
+            entries.forEach(e => {
+                sumPrice += Number(e.room_price) || 0;
+                sumExtra += Number(e.extra) || 0;
+                sumConsumption += Number(e.consumption) || 0;
+                sumTotal += Number(e.total) || 0;
+            });
 
-    // ═══ TABLE HEADER ═══
-    const hdr = 'No.  Hora   Placas       Hab.  Aprobo            Precio     Extra    Consumo      Total  Forma Pago';
-    doc += hdr + NL;
-    doc += DASH + NL;
+            // Build table header
+            const tableHeader = [
+                { text: 'No.', style: 'tableHeader', alignment: 'center' },
+                { text: 'Horario', style: 'tableHeader', alignment: 'center' },
+                { text: 'Placas', style: 'tableHeader', alignment: 'center' },
+                { text: 'Hab.', style: 'tableHeader', alignment: 'center' },
+                { text: 'Aprobó', style: 'tableHeader', alignment: 'center' },
+                { text: 'Precio', style: 'tableHeader', alignment: 'right' },
+                { text: 'Extra', style: 'tableHeader', alignment: 'right' },
+                { text: 'Consumo', style: 'tableHeader', alignment: 'right' },
+                { text: 'Total', style: 'tableHeader', alignment: 'right' },
+                { text: 'Forma Pago', style: 'tableHeader', alignment: 'center' },
+            ];
 
-    // ═══ TABLE ROWS ═══
-    const entries = data.entries || [];
-    let sumPrice = 0, sumExtra = 0, sumConsumption = 0, sumTotal = 0;
+            const tableBody = [tableHeader];
 
-    entries.forEach((e, idx) => {
-        const no = String(idx + 1).padStart(3);
-        const time = (e.time || '').padEnd(6).substring(0, 6);
-        const plate = (e.vehicle_plate || '-').toUpperCase().padEnd(12).substring(0, 12);
-        const room = (e.room_number || '').padEnd(5).substring(0, 5);
-        const valet = (e.checkout_valet_name || '-').padEnd(18).substring(0, 18);
-        const price = formatMoney(e.room_price || 0).padStart(10);
-        const extra = (e.extra || 0) > 0 ? formatMoney(e.extra).padStart(8) : '       -';
-        const consumption = (e.consumption || 0) > 0 ? formatMoney(e.consumption).padStart(10) : '         -';
-        const total = formatMoney(e.total || 0).padStart(10);
-        const pay = (e.payment_method || '-').substring(0, 14);
+            // Data rows
+            entries.forEach((e, idx) => {
+                const fillColor = idx % 2 === 0 ? null : '#f3f4f6';
+                tableBody.push([
+                    { text: String(idx + 1), alignment: 'center', fillColor, bold: true },
+                    { text: e.time || '', alignment: 'center', fillColor },
+                    { text: (e.vehicle_plate || '—').toUpperCase(), alignment: 'center', fillColor, fontSize: 8 },
+                    { text: e.room_number || '', alignment: 'center', fillColor, bold: true },
+                    { text: e.checkout_valet_name || '—', alignment: 'center', fillColor, fontSize: 8, color: '#555' },
+                    { text: (e.room_price || 0) > 0 ? formatMoney(e.room_price) : '—', alignment: 'right', fillColor },
+                    { text: (e.extra || 0) > 0 ? formatMoney(e.extra) : '—', alignment: 'right', fillColor },
+                    { text: (e.consumption || 0) > 0 ? formatMoney(e.consumption) : '—', alignment: 'right', fillColor },
+                    { text: formatMoney(e.total || 0), alignment: 'right', fillColor, bold: true },
+                    { text: e.payment_method || '—', alignment: 'center', fillColor, fontSize: 8, bold: true },
+                ]);
+            });
 
-        doc += `${no}  ${time} ${plate} ${room} ${valet} ${price} ${extra} ${consumption} ${total}  ${pay}` + NL;
+            // Totals row
+            tableBody.push([
+                { text: 'SUMA TOTAL', colSpan: 5, alignment: 'right', bold: true, fillColor: '#e5e7eb', fontSize: 9 },
+                {}, {}, {}, {},
+                { text: formatMoney(sumPrice), alignment: 'right', bold: true, fillColor: '#e5e7eb' },
+                { text: formatMoney(sumExtra), alignment: 'right', bold: true, fillColor: '#e5e7eb' },
+                { text: formatMoney(sumConsumption), alignment: 'right', bold: true, fillColor: '#e5e7eb' },
+                { text: formatMoney(sumTotal), alignment: 'right', bold: true, fillColor: '#e5e7eb', fontSize: 11 },
+                { text: '', fillColor: '#e5e7eb' },
+            ]);
 
-        sumPrice += Number(e.room_price) || 0;
-        sumExtra += Number(e.extra) || 0;
-        sumConsumption += Number(e.consumption) || 0;
-        sumTotal += Number(e.total) || 0;
+            // Payment breakdown
+            const breakdownBody = [
+                [{ text: 'Método', bold: true, fontSize: 9 }, { text: 'Monto', bold: true, alignment: 'right', fontSize: 9 }],
+            ];
+            let totalPayments = 0;
+            if (data.paymentBreakdown) {
+                Object.entries(data.paymentBreakdown).forEach(([method, amount]) => {
+                    breakdownBody.push([
+                        { text: method, fontSize: 9 },
+                        { text: formatMoney(Number(amount)), alignment: 'right', fontSize: 9 },
+                    ]);
+                    totalPayments += Number(amount);
+                });
+                breakdownBody.push([
+                    { text: 'TOTAL', bold: true, fontSize: 10 },
+                    { text: formatMoney(totalPayments), alignment: 'right', bold: true, fontSize: 11 },
+                ]);
+            }
+
+            // Build PDF document definition
+            const docDefinition = {
+                pageSize: 'LETTER',
+                pageOrientation: 'portrait',
+                pageMargins: [30, 30, 30, 30],
+                defaultStyle: { font: fontName, fontSize: 9 },
+                content: [
+                    {
+                        columns: [
+                            { text: 'Fecha: ' + new Date().toLocaleDateString('es-MX'), fontSize: 8, color: '#666' },
+                            { text: 'N° 0001', fontSize: 8, alignment: 'right', bold: true, color: '#666' },
+                        ],
+                        marginBottom: 6,
+                    },
+                    { text: 'LUXOR AUTO HOTEL', fontSize: 16, bold: true, alignment: 'center' },
+                    { text: 'INGRESOS DE HOSPEDAJE Y CONSUMO PÚBLICO EN GENERAL', fontSize: 11, bold: true, alignment: 'center', color: '#333', marginBottom: 6 },
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 555, y2: 0, lineWidth: 2 }], marginBottom: 6 },
+                    { text: 'Turno: ' + startDate + ' ' + startTime + '  —  ' + endDate + ' ' + endTime, alignment: 'center', fontSize: 8, color: '#666', marginBottom: 4 },
+                    {
+                        columns: [
+                            { text: 'Recepcionista: ' + (data.employeeName || 'N/A'), fontSize: 8, color: '#444' },
+                            { text: 'Registros: ' + entries.length, fontSize: 8, alignment: 'right', color: '#444' },
+                        ],
+                        marginBottom: 10,
+                    },
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: [22, 38, 55, 28, 55, 50, 42, 50, 55, '*'],
+                            body: tableBody,
+                        },
+                        layout: {
+                            hLineWidth: function(i, node) { return (i === 0 || i === 1 || i === node.table.body.length) ? 1.5 : 0.5; },
+                            vLineWidth: function() { return 0.5; },
+                            hLineColor: function(i, node) { return (i === 0 || i === 1 || i === node.table.body.length) ? '#111' : '#d1d5db'; },
+                            vLineColor: function() { return '#d1d5db'; },
+                            paddingLeft: function() { return 4; },
+                            paddingRight: function() { return 4; },
+                            paddingTop: function() { return 3; },
+                            paddingBottom: function() { return 3; },
+                        },
+                    },
+                ],
+                styles: {
+                    tableHeader: { fontSize: 8, bold: true, color: '#ffffff', fillColor: '#1a1a2e' },
+                },
+            };
+
+            // Add payment breakdown and summary if available
+            if (data.paymentBreakdown && Object.keys(data.paymentBreakdown).length > 0) {
+                docDefinition.content.push(
+                    { text: '', marginTop: 14 },
+                    {
+                        columns: [
+                            {
+                                width: '50%',
+                                stack: [
+                                    { text: 'DESGLOSE POR MÉTODO DE PAGO', fontSize: 8, bold: true, color: '#555', marginBottom: 4 },
+                                    {
+                                        table: { widths: ['*', 'auto'], body: breakdownBody },
+                                        layout: {
+                                            hLineWidth: function(i, node) { return (i === 0 || i === node.table.body.length) ? 1.5 : 0.5; },
+                                            vLineWidth: function() { return 0; },
+                                            hLineColor: function(i, node) { return (i === 0 || i === node.table.body.length) ? '#111' : '#e5e7eb'; },
+                                        },
+                                    },
+                                ],
+                            },
+                            {
+                                width: '50%',
+                                stack: [
+                                    { text: 'RESUMEN', fontSize: 8, bold: true, color: '#555', marginBottom: 4 },
+                                    {
+                                        table: {
+                                            widths: ['*', 'auto'],
+                                            body: [
+                                                [{ text: 'Recepcionista', fontSize: 9 }, { text: data.employeeName || 'N/A', alignment: 'right', bold: true, fontSize: 9 }],
+                                                [{ text: 'Habitaciones', fontSize: 9 }, { text: formatMoney(sumPrice), alignment: 'right', fontSize: 9 }],
+                                                [{ text: 'Extras', fontSize: 9 }, { text: formatMoney(sumExtra), alignment: 'right', fontSize: 9 }],
+                                                [{ text: 'Consumo', fontSize: 9 }, { text: formatMoney(sumConsumption), alignment: 'right', fontSize: 9 }],
+                                                [{ text: 'TOTAL', bold: true, fontSize: 10 }, { text: formatMoney(sumTotal), alignment: 'right', bold: true, fontSize: 11 }],
+                                                [{ text: 'Registros', fontSize: 9 }, { text: String(entries.length), alignment: 'right', bold: true, fontSize: 9 }],
+                                            ],
+                                        },
+                                        layout: {
+                                            hLineWidth: function(i, node) { return (i === 0 || i === node.table.body.length) ? 1.5 : 0.5; },
+                                            vLineWidth: function() { return 0; },
+                                            hLineColor: function(i, node) { return (i === 0 || i === node.table.body.length) ? '#111' : '#e5e7eb'; },
+                                        },
+                                    },
+                                ],
+                                marginLeft: 20,
+                            },
+                        ],
+                    }
+                );
+            }
+
+            // Signatures
+            docDefinition.content.push(
+                { text: '', marginTop: 40 },
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 555, y2: 0, lineWidth: 0.5 }] },
+                { text: '', marginTop: 30 },
+                {
+                    columns: [
+                        {
+                            width: '45%',
+                            stack: [
+                                { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 220, y2: 0, lineWidth: 0.5 }] },
+                                { text: 'Recepcionista', fontSize: 8, color: '#666', alignment: 'center', marginTop: 4 },
+                            ],
+                        },
+                        { width: '10%', text: '' },
+                        {
+                            width: '45%',
+                            stack: [
+                                { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 220, y2: 0, lineWidth: 0.5 }] },
+                                { text: 'Supervisor / Gerente', fontSize: 8, color: '#666', alignment: 'center', marginTop: 4 },
+                            ],
+                        },
+                    ],
+                },
+                { text: 'Impreso: ' + new Date().toLocaleString('es-MX'), fontSize: 7, color: '#999', alignment: 'right', marginTop: 20 }
+            );
+
+            // Generate PDF buffer
+            const pdfDoc = printer.createPdfKitDocument(docDefinition);
+            const chunks = [];
+            pdfDoc.on('data', chunk => chunks.push(chunk));
+            pdfDoc.on('end', () => {
+                const pdfBuffer = Buffer.concat(chunks);
+                console.log(`[HP PDF] Generated ${pdfBuffer.length} bytes`);
+                resolve(pdfBuffer);
+            });
+            pdfDoc.on('error', err => reject(err));
+            pdfDoc.end();
+        } catch (err) {
+            reject(err);
+        }
     });
-
-    // ═══ TOTALS ROW ═══
-    doc += DASH + NL;
-    const totLabel = '                                    SUMA TOTAL:  ';
-    const totPrice = formatMoney(sumPrice).padStart(10);
-    const totExtra = formatMoney(sumExtra).padStart(8);
-    const totCons = formatMoney(sumConsumption).padStart(10);
-    const totTotal = formatMoney(sumTotal).padStart(10);
-    doc += `${totLabel}${totPrice} ${totExtra} ${totCons} ${totTotal}` + NL;
-    doc += LINE + NL;
-
-    // ═══ PAYMENT BREAKDOWN ═══
-    if (data.paymentBreakdown && Object.keys(data.paymentBreakdown).length > 0) {
-        doc += NL;
-        doc += '  DESGLOSE POR METODO DE PAGO' + NL;
-        doc += DASH + NL;
-        Object.entries(data.paymentBreakdown).forEach(([method, amount]) => {
-            doc += formatLinePCL(`    ${method}`, formatMoney(Number(amount)), 72) + NL;
-        });
-        doc += DASH + NL;
-        const totalPay = Object.values(data.paymentBreakdown).reduce((s, v) => s + Number(v), 0);
-        doc += formatLinePCL('    TOTAL:', formatMoney(totalPay), 72) + NL;
-    }
-
-    // ═══ SIGNATURES ═══
-    doc += NL + NL + NL;
-    doc += LINE + NL;
-    doc += NL;
-    doc += '    _____________________________          _____________________________' + NL;
-    doc += '    Recepcionista                          Supervisor / Gerente' + NL;
-    doc += NL;
-    doc += LINE + NL;
-
-    // ═══ FOOTER ═══
-    doc += NL;
-    doc += `    Impreso: ${new Date().toLocaleString('es-MX')}` + NL;
-    doc += NL;
-
-    // Form feed + reset
-    doc += '\x0C';
-    doc += '\x1BE';
-    doc += '\x1B%-12345X';
-
-    return doc;
 }
 
 // POST /print/hp — Print closing report on HP (letter-size)
@@ -1072,7 +1214,7 @@ app.post('/print/hp', async (req, res) => {
                 document = buildHPClosingReport(data);
                 break;
             case 'income':
-                document = buildHPIncomeReport(data);
+                document = await buildHPIncomeReportPDF(data);
                 break;
             default:
                 return res.status(400).json({ error: 'Tipo no soportado para HP. Usa: closing, income' });
@@ -1087,6 +1229,7 @@ app.post('/print/hp', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // POST /print/hp/test — Test HP printer connectivity
 app.post('/print/hp/test', async (req, res) => {

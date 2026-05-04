@@ -8,7 +8,6 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ShiftSession } from "@/components/employees/types";
-import { openIncomeReportPrintWindow } from "@/lib/utils/income-report-print";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense } from "@/types/expenses";
 
@@ -376,10 +375,23 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
 
         let paymentMethod = "PENDIENTE";
-        if (allPayments.length === 1) paymentMethod = allPayments[0].payment_method;
-        else if (allPayments.length > 1) {
+        if (allPayments.length === 1) {
+          const p = allPayments[0];
+          paymentMethod = p.payment_method === "TARJETA"
+            ? `TARJETA ${p.terminal_code || ""}`.trim()
+            : p.payment_method;
+        } else if (allPayments.length > 1) {
           const uniqueMethods = new Set(allPayments.map((p: any) => p.payment_method));
-          paymentMethod = uniqueMethods.size > 1 ? "MIXTO" : allPayments[0].payment_method;
+          if (uniqueMethods.size > 1) {
+            paymentMethod = "MIXTO";
+          } else if (allPayments[0].payment_method === "TARJETA") {
+            const terminals = new Set(allPayments.map((p: any) => p.terminal_code).filter(Boolean));
+            paymentMethod = terminals.size === 1
+              ? `TARJETA ${[...terminals][0]}`
+              : `TARJETA ${[...terminals].join('/')}`;
+          } else {
+            paymentMethod = allPayments[0].payment_method;
+          }
         }
 
         const valetName = stay.checkout_valet
@@ -420,14 +432,21 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         });
       });
 
-      // 5. Open HTML print window for HP LaserJet
-      openIncomeReportPrintWindow({
-        entries,
-        receptionistName: employeeName,
-        periodStart,
-        periodEnd,
-        paymentBreakdown,
+      // 5. Send PDF to HP printer via print server (silent print)
+      const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+      const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'income',
+          data: { employeeName, periodStart, periodEnd, entries, paymentBreakdown },
+        }),
       });
+
+      if (!response.ok) {
+        const err = await response.json();
+        console.error('HP print error:', err);
+      }
     } catch (error) {
       console.error('Error printing income report to HP:', error);
     }
