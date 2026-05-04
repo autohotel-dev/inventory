@@ -330,6 +330,61 @@ function buildClosingTicket(data) {
     t += `Transacciones: ${data.totalTransactions}` + CMD.NEW_LINE;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
+    // ═══ DESGLOSE POR TIPO DE HABITACIÓN ═══
+    if (data.roomBreakdown && Object.keys(data.roomBreakdown).length > 0) {
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'HABITACIONES POR TIPO' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        let totalRooms = 0, totalRoomAmount = 0;
+        Object.entries(data.roomBreakdown).forEach(([typeName, info]) => {
+            const { count, total } = info;
+            totalRooms += count;
+            totalRoomAmount += total;
+            const label = `  ${String(count).padStart(2)}  ${typeName}`;
+            t += formatLine(label, formatMoney(total)) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine(`  ${String(totalRooms).padStart(2)}  TOTAL HAB.`, formatMoney(totalRoomAmount)) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    }
+
+    // ═══ DESGLOSE DE EXTRAS ═══
+    if (data.extraBreakdown && Object.keys(data.extraBreakdown).length > 0) {
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'EXTRAS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        let totalExtras = 0, totalExtraAmount = 0;
+        Object.entries(data.extraBreakdown).forEach(([label, info]) => {
+            const { count, total } = info;
+            totalExtras += count;
+            totalExtraAmount += total;
+            const line = `  ${String(count).padStart(2)}  ${label}`;
+            t += formatLine(line, formatMoney(total)) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine(`  ${String(totalExtras).padStart(2)}  TOTAL EXTRAS`, formatMoney(totalExtraAmount)) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    }
+
+    // ═══ DESGLOSE DE CONSUMOS ═══
+    if (data.consumptionBreakdown && Object.keys(data.consumptionBreakdown).length > 0) {
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CONSUMOS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        let totalConsumptions = 0, totalConsumptionAmount = 0;
+        Object.entries(data.consumptionBreakdown).forEach(([productName, info]) => {
+            const { count, total } = info;
+            totalConsumptions += count;
+            totalConsumptionAmount += total;
+            const name = productName.length > 28 ? productName.substring(0, 27) + '.' : productName;
+            const line = `  ${String(count).padStart(2)}  ${name}`;
+            t += formatLine(line, formatMoney(total)) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine(`  ${String(totalConsumptions).padStart(2)}  TOTAL CONSUMOS`, formatMoney(totalConsumptionAmount)) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    }
+
     // Detalle de transacciones (si hay)
     if (data.transactions && data.transactions.length > 0) {
         t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'DETALLE' + CMD.NEW_LINE + CMD.BOLD_OFF;

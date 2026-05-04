@@ -56,6 +56,45 @@ const CONCEPT_LABELS: Record<string, string> = {
   CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
 };
 
+// ─── Build granular breakdowns from accrual items for thermal ticket ─────
+function buildTicketBreakdowns(accrualItems: any[]) {
+  const roomBreakdown: Record<string, { count: number; total: number }> = {};
+  const extraBreakdown: Record<string, { count: number; total: number }> = {};
+  const consumptionBreakdown: Record<string, { count: number; total: number }> = {};
+
+  (accrualItems || []).forEach((item: any) => {
+    const qty = item.qty || 1;
+    const amount = (item.unit_price || 0) * qty;
+    const conceptType = item.concept_type || "PRODUCT";
+
+    if (conceptType === "ROOM_BASE") {
+      // Get room type name from the nested join
+      const order = item.sales_orders;
+      const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+      const room = Array.isArray(roomStay) ? roomStay[0]?.rooms : roomStay?.rooms;
+      const roomType = room?.room_types;
+      const typeName = (Array.isArray(roomType) ? roomType[0]?.name : roomType?.name) || "Sin tipo";
+
+      if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
+      roomBreakdown[typeName].count += qty;
+      roomBreakdown[typeName].total += amount;
+    } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(conceptType)) {
+      const label = CONCEPT_LABELS[conceptType] || conceptType;
+      if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
+      extraBreakdown[label].count += qty;
+      extraBreakdown[label].total += amount;
+    } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
+      const product = Array.isArray(item.products) ? item.products[0] : item.products;
+      const productName = product?.name || "Producto";
+      if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
+      consumptionBreakdown[productName].count += qty;
+      consumptionBreakdown[productName].total += amount;
+    }
+  });
+
+  return { roomBreakdown, extraBreakdown, consumptionBreakdown };
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────
 
 interface UseShiftClosingProps {
@@ -167,7 +206,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
       // Accrual
       const { data: accrualItemsData } = await supabase
-        .from("sales_order_items").select("*, products(name, sku), sales_orders(id, room_stays(rooms(number)))")
+        .from("sales_order_items").select("*, products(name, sku), sales_orders(id, room_stays(rooms(number, room_types(name))))")
         .eq("shift_session_id", session.id);
       const accrual_items = accrualItemsData || [];
       const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
@@ -297,7 +336,9 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
             concept: payment.itemsDescription || payment.concept || undefined,
             items: items.length > 0 ? items : undefined
           };
-        }))
+        })),
+        // ─── Granular breakdowns for thermal ticket ───
+        ...buildTicketBreakdowns(summary.accrual_items),
       };
       await printClosing(printData);
     } catch (error) {
