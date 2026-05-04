@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { IncomeEntry, IncomeTotals } from "./types";
 
 interface ExportParams {
@@ -183,10 +184,27 @@ export const handleHpPrint = async ({ entries, receptionistName, shiftInfo, star
             body: JSON.stringify({ type: 'income', data: printData }),
         });
         if (!response.ok) {
-            console.error('HP print error:', await response.json());
+            const errData = await response.json();
+            console.error('HP print error:', errData);
+            toast.error('Error al imprimir en HP', {
+                description: errData.error || 'La impresora HP no pudo procesar el reporte',
+                duration: 8000
+            });
+        } else {
+            toast.success('Reporte enviado a impresora HP', {
+                description: `${entries.length} registros enviados a la impresora`,
+                duration: 4000
+            });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error printing to HP:', error);
+        const isConnectionError = error?.message?.includes('fetch') || error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError');
+        toast.error(isConnectionError ? 'Print-server no disponible' : 'Error al imprimir en HP', {
+            description: isConnectionError
+                ? 'Verifica que el print-server esté corriendo y el túnel Cloudflare activo'
+                : (error?.message || 'Error desconocido'),
+            duration: 8000
+        });
     }
 };
 

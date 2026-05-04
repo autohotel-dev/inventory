@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useIncomeReport } from "@/hooks/reports/use-income-report";
-import { handlePrintHtml, handleHpPrint, handleCsvExport } from "./income-report/export-utils";
+import { handlePrintHtml, handleCsvExport } from "./income-report/export-utils";
 import { IncomeReportHeader } from "./income-report/income-report-header";
 import { IncomeReportKpi } from "./income-report/income-report-kpi";
 import { IncomeReportTable } from "./income-report/income-report-table";
@@ -72,7 +72,7 @@ export function IncomeReport(props: IncomeReportProps) {
     };
 
     const onPrintHp = () => {
-        handleHpPrint({
+        handlePrintHtml({
             entries,
             totals,
             receptionistName: getReceptionistName(),

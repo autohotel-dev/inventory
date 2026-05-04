@@ -25,7 +25,7 @@ interface DateRange {
   to: Date;
 }
 
-// ─── HP Income Report Helper ─────────────────────────────────────────
+// ─── HP Income Report Helper (browser print dialog) ─────────────────
 
 async function printHPIncomeReport(
   supabase: any,
@@ -72,7 +72,7 @@ async function printHPIncomeReport(
   });
 
   // 3. Build income entries
-  const entries = filteredStays.map((stay: any) => {
+  const entries = filteredStays.map((stay: any, idx: number) => {
     const order = stay.sales_orders;
     let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
     items = items.filter((item: any) => item.shift_session_id === shiftSessionId);
@@ -121,6 +121,7 @@ async function printHPIncomeReport(
       : "—";
 
     return {
+      no: idx + 1,
       time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
       vehicle_plate: stay.vehicle_plate || '',
       room_number: stay.rooms?.number || '',
@@ -130,6 +131,7 @@ async function printHPIncomeReport(
       consumption,
       total: roomPrice + extra + consumption,
       payment_method: paymentMethod,
+      stay_status: stay.status,
     };
   });
 
@@ -154,22 +156,137 @@ async function printHPIncomeReport(
     });
   });
 
-  // 5. Send PDF to HP printer via print server (silent print)
-  const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-  const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'income',
-      data: { employeeName, periodStart, periodEnd, entries, paymentBreakdown },
-    }),
-  });
+  // 5. Calculate totals
+  const totals = entries.reduce((acc: { roomPrice: number; extra: number; consumption: number; total: number }, e: typeof entries[0]) => ({
+    roomPrice: acc.roomPrice + e.room_price,
+    extra: acc.extra + e.extra,
+    consumption: acc.consumption + e.consumption,
+    total: acc.total + e.total,
+  }), { roomPrice: 0, extra: 0, consumption: 0, total: 0 });
 
-  if (!response.ok) {
-    const err = await response.json();
-    console.error('[HP Reprint] Error:', err);
-  } else {
-    console.log('[HP Reprint] Income report PDF sent to HP printer');
+  // 6. Format period
+  const fmtDate = (d: string) => {
+    const dt = new Date(d);
+    return {
+      dateStr: dt.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      timeStr: dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+    };
+  };
+  const { dateStr: startDate, timeStr: startTime } = fmtDate(periodStart);
+  const { dateStr: endDate, timeStr: endTime } = fmtDate(periodEnd);
+  const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
+
+  // 7. Build HTML table rows
+  const tableRows = entries.map((e: typeof entries[0]) => {
+    return `<tr style="${e.no % 2 === 0 ? '' : 'background:#f9fafb;'}">
+        <td style="text-align:center;font-weight:600;">${e.no}</td>
+        <td style="text-align:center;">${e.time}</td>
+        <td style="text-align:center;text-transform:uppercase;font-size:10px;">${e.vehicle_plate || '—'}</td>
+        <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === 'CANCELADA' ? ' <span style="color:#dc2626;font-size:9px;">(CANC)</span>' : e.stay_status === 'ACTIVA' ? ' <span style="color:#d97706;font-size:9px;">(ACT)</span>' : ''}</td>
+        <td style="text-align:center;font-size:10px;color:#4b5563;">${e.checkout_valet_name || '—'}</td>
+        <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
+        <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? '$' + Number(e.extra).toFixed(2) : '—'}</td>
+        <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? '$' + Number(e.consumption).toFixed(2) : '—'}</td>
+        <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
+        <td style="text-align:center;font-size:10px;">${e.payment_method}</td>
+    </tr>`;
+  }).join('');
+
+  const breakdownRows = Object.entries(paymentBreakdown).map(([method, amount]) =>
+    `<tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">${method}</td><td style="padding:4px 12px;text-align:right;font-weight:600;font-family:monospace;border-bottom:1px solid #e5e7eb;">$${Number(amount).toFixed(2)}</td></tr>`
+  ).join('');
+
+  // 8. Open browser print window
+  const printHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Corte de Caja — Luxor Auto Hotel</title>
+<style>
+    @page { size: portrait; margin: 8mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 11px; color: #111; background: #fff; }
+    .header { text-align: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 16px; }
+    .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 2px; }
+    .header h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #444; margin-bottom: 8px; }
+    .meta { display: flex; justify-content: space-between; font-size: 10px; color: #555; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th { background: #111; color: #fff; padding: 6px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; border: 1px solid #111; }
+    td { padding: 5px 8px; border: 1px solid #d1d5db; font-size: 11px; }
+    .totals-row td { background: #f3f4f6; font-weight: 700; border-top: 2px solid #111; }
+    .footer { display: flex; justify-content: space-between; margin-top: 20px; gap: 20px; }
+    .footer-box { flex: 1; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px; }
+    .footer-box h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #666; margin-bottom: 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+    .signature { margin-top: 40px; display: flex; justify-content: space-around; }
+    .sig-line { text-align: center; width: 200px; }
+    .sig-line .line { border-top: 1px solid #111; margin-bottom: 4px; }
+    .sig-line span { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+</style>
+</head>
+<body onload="setTimeout(()=>window.print(),300)">
+<div class="header">
+    <h1>Luxor Auto Hotel</h1>
+    <h2>Corte de Caja</h2>
+    <div class="meta">
+        <span><b>Recepcionista:</b> ${employeeName}</span>
+        <span><b>Periodo:</b> ${periodLabel}</span>
+        <span><b>Impreso:</b> ${new Date().toLocaleString('es-MX')}</span>
+        <span><b>Registros:</b> ${entries.length}</span>
+    </div>
+</div>
+<table>
+    <thead>
+        <tr>
+            <th style="width:35px">No.</th>
+            <th style="width:55px">Hora</th>
+            <th style="width:80px">Placas</th>
+            <th style="width:50px">Hab.</th>
+            <th style="width:60px">Aprobó</th>
+            <th style="width:75px">Precio</th>
+            <th style="width:70px">Extra</th>
+            <th style="width:75px">Consumo</th>
+            <th style="width:80px">Total</th>
+            <th>Forma de Pago</th>
+        </tr>
+    </thead>
+    <tbody>
+        ${tableRows}
+        <tr class="totals-row">
+            <td colspan="5" style="text-align:right;text-transform:uppercase;letter-spacing:2px;font-size:10px;">Suma Total</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(totals.roomPrice).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(totals.extra).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(totals.consumption).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;font-size:13px;">$${Number(totals.total).toFixed(2)}</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<div class="footer">
+    <div class="footer-box">
+        <h4>Desglose por Método de Pago</h4>
+        <table style="margin:0;"><tbody>${breakdownRows}</tbody></table>
+    </div>
+    <div class="footer-box">
+        <h4>Resumen</h4>
+        <table style="margin:0;"><tbody>
+            <tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">Habitaciones</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:600;border-bottom:1px solid #e5e7eb;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">Extras</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:600;border-bottom:1px solid #e5e7eb;">$${Number(totals.extra).toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">Consumo</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:600;border-bottom:1px solid #e5e7eb;">$${Number(totals.consumption).toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 12px;font-size:12px;font-weight:700;border-top:2px solid #111;">TOTAL</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:14px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
+        </tbody></table>
+    </div>
+</div>
+<div class="signature">
+    <div class="sig-line"><div class="line"></div><span>Recepcionista</span></div>
+    <div class="sig-line"><div class="line"></div><span>Supervisor / Gerente</span></div>
+</div>
+</body>
+</html>`;
+
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
   }
 }
 
