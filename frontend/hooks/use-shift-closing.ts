@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ShiftSession } from "@/components/employees/types";
@@ -69,6 +69,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingLockRef = useRef(false);
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [notes, setNotes] = useState("");
   const [showExpenses, setShowExpenses] = useState(false);
@@ -199,7 +200,9 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
   const handleSaveClosing = async () => {
     if (!summary) return;
-    if (summary.total_transactions === 0) { showError("Error", "No hay transacciones en este turno para crear un corte"); return; }
+    if (savingLockRef.current) return; // Synchronous double-click guard
+    savingLockRef.current = true;
+    if (summary.total_transactions === 0) { showError("Error", "No hay transacciones en este turno para crear un corte"); savingLockRef.current = false; return; }
 
     setSaving(true);
     try {
@@ -250,6 +253,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       showError("Error", err.message || "No se pudo guardar el corte");
     } finally {
       setSaving(false);
+      savingLockRef.current = false;
     }
   };
 

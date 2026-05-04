@@ -105,6 +105,7 @@ export function useConsumptionCart({
   const lastInputTimeRef = useRef<number>(0);
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const rapidInputRef = useRef<boolean>(false);
+  const processingLockRef = useRef<boolean>(false);
 
   // External hooks
   const { printConsumptionTickets, isPrinting, printStatus } = useThermalPrinter();
@@ -502,6 +503,8 @@ export function useConsumptionCart({
 
   const processConsumption = async () => {
     if (cartItems.size === 0) { toast.error("Agrega al menos un producto"); return; }
+    if (processingLockRef.current) return; // Synchronous double-click guard
+    processingLockRef.current = true;
     if (!isReceptionist && !isAdmin && !isManager) {
       toast.error("Acceso denegado", { description: "Solo los recepcionistas pueden realizar ventas directas." });
       return;
@@ -692,6 +695,7 @@ export function useConsumptionCart({
       toast.error("Error al agregar consumo");
     } finally {
       setProcessing(false);
+      processingLockRef.current = false;
     }
   };
 

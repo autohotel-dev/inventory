@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
@@ -29,6 +29,7 @@ export function usePaymentProcessing({
   const [payments, setPayments] = useState<PaymentEntry[]>(createInitialPayment(0));
   const [tipAmount, setTipAmount] = useState(0);
   const [processing, setProcessing] = useState(false);
+  const processingLockRef = useRef(false);
 
   const selectedTotal = items
     .filter(i => selectedItems.has(i.id) && !i.is_paid)
@@ -39,6 +40,7 @@ export function usePaymentProcessing({
     .reduce((sum, i) => sum + (i.total - (discounts[i.id] || 0)), 0);
 
   const processPayment = async () => {
+    if (processingLockRef.current) return; // Synchronous double-click guard
     const totalToPay = selectedTotal + tipAmount;
     const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
 
@@ -48,6 +50,7 @@ export function usePaymentProcessing({
     }
 
     try {
+      processingLockRef.current = true;
       setProcessing(true);
       const supabase = createClient();
 
@@ -417,6 +420,7 @@ export function usePaymentProcessing({
       toast.error("Error al procesar el pago");
     } finally {
       setProcessing(false);
+      processingLockRef.current = false;
     }
   };
 

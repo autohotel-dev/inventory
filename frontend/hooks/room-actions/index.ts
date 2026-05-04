@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useUserRole } from "@/hooks/use-user-role";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
@@ -70,6 +70,7 @@ export interface UseRoomActionsReturn {
 
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
   const [actionLoading, setActionLoading] = useState(false);
+  const actionLockRef = useRef(false);
   const { isReceptionist, isAdmin, isManager } = useUserRole();
 
   const checkAuthorization = (actionName: string) => {
@@ -82,7 +83,14 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     return true;
   };
 
-  const ctx: RoomActionContext = { checkAuthorization, setActionLoading, onRefresh };
+  const ctx: RoomActionContext = {
+    checkAuthorization,
+    setActionLoading,
+    onRefresh,
+    isLocked: () => actionLockRef.current,
+    lock: () => { actionLockRef.current = true; },
+    unlock: () => { actionLockRef.current = false; },
+  };
 
   const people = createPeopleActions(ctx);
   const time = createTimeActions(ctx);

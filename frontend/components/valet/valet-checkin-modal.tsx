@@ -76,6 +76,7 @@ export function ValetCheckInModal({
     if (!room) return null;
 
     const handleSubmit = async () => {
+        if (loading) return; // Double-click guard
         // Validaciones
         if (!plate.trim()) {
             toast.error("Ingresa la placa del vehículo");

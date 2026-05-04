@@ -92,6 +92,10 @@ export interface RoomActionContext {
   checkAuthorization: (actionName: string) => boolean;
   setActionLoading: (loading: boolean) => void;
   onRefresh: () => Promise<void>;
+  /** Synchronous lock to prevent double-click race conditions */
+  isLocked: () => boolean;
+  lock: () => void;
+  unlock: () => void;
 }
 
 // ─── Action Wrappers ─────────────────────────────────────────────────
@@ -104,6 +108,9 @@ export async function withAction<T>(
   errorMessage: string,
   fn: () => Promise<T>
 ): Promise<T | undefined> {
+  // Synchronous guard: prevents double-click before React re-renders disabled state
+  if (ctx.isLocked()) return undefined;
+  ctx.lock();
   ctx.setActionLoading(true);
   try {
     const result = await fn();
@@ -115,6 +122,7 @@ export async function withAction<T>(
     return undefined;
   } finally {
     ctx.setActionLoading(false);
+    ctx.unlock();
   }
 }
 
@@ -126,6 +134,9 @@ export async function withBoolAction(
   errorMessage: string,
   fn: () => Promise<boolean>
 ): Promise<boolean> {
+  // Synchronous guard: prevents double-click before React re-renders disabled state
+  if (ctx.isLocked()) return false;
+  ctx.lock();
   ctx.setActionLoading(true);
   try {
     return await fn();
@@ -135,5 +146,6 @@ export async function withBoolAction(
     return false;
   } finally {
     ctx.setActionLoading(false);
+    ctx.unlock();
   }
 }
