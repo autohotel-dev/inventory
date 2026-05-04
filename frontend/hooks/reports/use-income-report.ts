@@ -93,6 +93,9 @@ export function useIncomeReport({
                 `)
                 .order("check_in_at", { ascending: true });
 
+            // Track the real shift_session_id for filtering items/payments later
+            let actualSessionId: string | undefined;
+
             if (reportType === "shift" && shiftId) {
                 const { data: closingData, error: closingError } = await supabase
                     .from("shift_closings")
@@ -145,13 +148,17 @@ export function useIncomeReport({
                     }
                 }
 
+                // Determine the actual shift_session_id to use for querying items/payments.
+                // shiftId may be a shift_closings.id (for historical shifts) or a shift_sessions.id (for active shifts).
+                // sales_order_items and payments reference shift_sessions.id, so we need the correct one.
+                actualSessionId = closingData?.shift_session_id || shiftId;
+
                 if (shift) {
                     setShiftInfo(shift);
-                    // NUEVA LÓGICA: En lugar de filtrar por check_in_at, buscamos todos los items y pagos de este turno
-                    // Optimización: queries en paralelo con Promise.all
+                    // Buscar todos los items y pagos usando el shift_session_id real
                     const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
-                        supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", shiftId),
-                        supabase.from("payments").select("sales_order_id").eq("shift_session_id", shiftId),
+                        supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", actualSessionId),
+                        supabase.from("payments").select("sales_order_id").eq("shift_session_id", actualSessionId),
                     ]);
 
                     const ids = new Set<string>();
@@ -209,10 +216,10 @@ export function useIncomeReport({
                     }
                 });
 
-                // NUEVA LÓGICA: Si es reporte de turno, filtramos SOLO lo cobrado/añadido en ese turno
-                if (reportType === "shift" && shiftId) {
-                    items = items.filter((item: any) => item.shift_session_id === shiftId);
-                    allObservedPayments = allObservedPayments.filter((payment: any) => payment.shift_session_id === shiftId);
+                // Filtramos SOLO lo cobrado/añadido en ese turno usando el session ID real
+                if (reportType === "shift" && actualSessionId) {
+                    items = items.filter((item: any) => item.shift_session_id === actualSessionId);
+                    allObservedPayments = allObservedPayments.filter((payment: any) => payment.shift_session_id === actualSessionId);
                 }
 
                 const idUniquePaymentsMap = new Map();
