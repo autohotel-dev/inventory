@@ -1213,9 +1213,24 @@ app.post('/print/hp', async (req, res) => {
             case 'closing':
                 document = buildHPClosingReport(data);
                 break;
-            case 'income':
-                document = await buildHPIncomeReportPDF(data);
+            case 'income': {
+                // Generate PDF and wrap in PJL envelope for HP LaserJet
+                const pdfBuffer = await buildHPIncomeReportPDF(data);
+
+                // PJL header tells the HP to interpret data as PDF
+                const pjlHeader = Buffer.from(
+                    '\x1B%-12345X@PJL\r\n' +
+                    '@PJL SET COPIES=1\r\n' +
+                    '@PJL ENTER LANGUAGE = PDF\r\n',
+                    'ascii'
+                );
+                // PJL footer / UEL (Universal Exit Language) to end the job
+                const pjlFooter = Buffer.from('\x1B%-12345X', 'ascii');
+
+                document = Buffer.concat([pjlHeader, pdfBuffer, pjlFooter]);
+                console.log(`[HP PDF] Wrapped in PJL: ${document.length} bytes total (PDF: ${pdfBuffer.length})`);
                 break;
+            }
             default:
                 return res.status(400).json({ error: 'Tipo no soportado para HP. Usa: closing, income' });
         }
