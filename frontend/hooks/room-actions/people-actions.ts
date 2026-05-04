@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils/formatters";
 import { getOrCreateServiceProduct, createServiceItem } from "@/lib/services/product-service";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { logFinancialAction } from "@/lib/audit-logger";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 import {
   getActiveStay,
   isToleranceExpired,
@@ -186,6 +187,17 @@ export function createPeopleActions(ctx: RoomActionContext) {
         extra: { previous_people: current, new_people: newCurrentPeople },
       });
 
+      // ─── Flow Event ───────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: "PERSON_REMOVED",
+            description: `Persona removida. Personas: ${current}→${newCurrentPeople}`,
+            metadata: { previous: current, new_count: newCurrentPeople },
+          });
+        }
+      });
+
       await notifyActiveValets(supabase, '👤 Persona Salió',
         `Habitación ${room.number}: Salió una persona. Total actual: ${newCurrentPeople}.`,
         { type: 'PERSON_EXIT', roomNumber: room.number, stayId: activeStay.id }
@@ -279,6 +291,17 @@ export function createPeopleActions(ctx: RoomActionContext) {
         description: `Tolerancia iniciada en Hab. ${room.number}. Tipo: ${toleranceType}. Personas: ${current}→${newCurrentPeople}. Límite: ${expiryTime}`,
         extra: { action: "START", tolerance_type: toleranceType, deadline: expiryTime, previous_people: current, new_people: newCurrentPeople },
         severity: "WARNING",
+      });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: "TOLERANCE_STARTED",
+            description: `Tolerancia iniciada (${toleranceType}). Personas: ${current}→${newCurrentPeople}. Límite: ${expiryTime}`,
+            metadata: { tolerance_type: toleranceType, deadline: expiryTime, previous: current, new_count: newCurrentPeople },
+          });
+        }
       });
 
       // Imprimir ticket de tolerancia (fire-and-forget)

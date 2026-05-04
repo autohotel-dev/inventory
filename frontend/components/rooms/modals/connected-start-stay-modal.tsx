@@ -14,6 +14,7 @@ import {
   useRoomActions,
   getActiveStay,
 } from "@/hooks/room-actions";
+import { startFlowWithEvent } from "@/lib/flow-logger";
 
 export const calculateExpectedCheckout = (
   roomType: RoomType,
@@ -190,6 +191,63 @@ export function ConnectedStartStayModal({
           extraPeopleCost > 0 ? ` - Total: $${totalPrice.toFixed(2)}` : ""
         }`,
       });
+
+      // ─── Crear flujo operativo ─────────────────────────────────────
+      // El RPC ya creó la estancia; obtenerla para enlazar el flujo
+      try {
+        const { data: freshRoom } = await supabase
+          .from("rooms")
+          .select("*, room_stays(id, sales_order_id, status)")
+          .eq("id", room.id)
+          .single();
+
+        const activeStay = freshRoom?.room_stays?.find(
+          (s: any) => s.status === "ACTIVA"
+        );
+
+        if (activeStay) {
+          // Obtener shift_session_id del recepcionista actual
+          const { data: { user } } = await supabase.auth.getUser();
+          let shiftSessionId: string | undefined;
+          if (user) {
+            const { data: session } = await supabase
+              .from("shift_sessions")
+              .select("id")
+              .eq("auth_user_id", user.id)
+              .eq("status", "active")
+              .is("clock_out_at", null)
+              .order("clock_in_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            shiftSessionId = session?.id;
+          }
+
+          startFlowWithEvent(
+            {
+              room_stay_id: activeStay.id,
+              sales_order_id: activeStay.sales_order_id,
+              room_id: room.id,
+              room_number: room.number,
+              shift_session_id: shiftSessionId,
+            },
+            {
+              event_type: "ROOM_ASSIGNED",
+              description: `Habitación ${room.number} asignada — ${roomType.name} (${initialPeople} persona${initialPeople > 1 ? "s" : ""})`,
+              metadata: {
+                room_number: room.number,
+                room_type: roomType.name,
+                initial_people: initialPeople,
+                base_price: basePrice,
+                total_price: totalPrice,
+                payment_methods: methodsSummary,
+                expected_checkout: expectedCheckout.toISOString(),
+              },
+            }
+          );
+        }
+      } catch (flowErr) {
+        console.error("[flow-logger] Error creating flow at checkin:", flowErr);
+      }
 
       // Imprimir ticket de entrada
       try {
