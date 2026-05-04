@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ShiftSession } from "@/components/employees/types";
+import { openIncomeReportPrintWindow } from "@/lib/utils/income-report-print";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense } from "@/types/expenses";
 
@@ -419,26 +420,14 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         });
       });
 
-      // 5. Send to HP printer as income report
-      const printData = {
-        employeeName,
+      // 5. Open HTML print window for HP LaserJet
+      openIncomeReportPrintWindow({
+        entries,
+        receptionistName: employeeName,
         periodStart,
         periodEnd,
-        entries,
         paymentBreakdown,
-      };
-
-      const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-      const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'income', data: printData })
       });
-
-      if (!response.ok) {
-        const err = await response.json();
-        console.error('HP print error:', err);
-      }
     } catch (error) {
       console.error('Error printing income report to HP:', error);
     }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { usePrintClosing } from "@/hooks/use-print-closing";
+import { openIncomeReportPrintWindow } from "@/lib/utils/income-report-print";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -141,23 +142,14 @@ async function printHPIncomeReport(
     });
   });
 
-  // 5. Send to HP printer as income report
-  const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-  const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'income',
-      data: { employeeName, periodStart, periodEnd, entries, paymentBreakdown },
-    }),
+  // 5. Open HTML print window for HP LaserJet
+  openIncomeReportPrintWindow({
+    entries,
+    receptionistName: employeeName,
+    periodStart,
+    periodEnd,
+    paymentBreakdown,
   });
-
-  if (!response.ok) {
-    const err = await response.json();
-    console.error('[HP Reprint] Error:', err);
-  } else {
-    console.log('[HP Reprint] Income report sent to HP printer');
-  }
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────
