@@ -216,7 +216,7 @@ export function useReprintCenter() {
       {
         let query = supabase
           .from("room_stays")
-          .select("id, check_in_at, expected_check_out_at, current_people, total_people, vehicle_plate, vehicle_brand, vehicle_model, tolerance_started_at, tolerance_type, rooms!inner(number, room_types(name, base_price, extra_person_price)), sales_orders(id, total, remaining_amount, payments(id, amount, payment_method))")
+          .select("id, check_in_at, expected_check_out_at, current_people, total_people, vehicle_plate, vehicle_brand, vehicle_model, tolerance_started_at, tolerance_type, rooms!inner(number, room_types(name, base_price, extra_person_price)), sales_orders(id, total, remaining_amount, payments(id, amount, payment_method), sales_order_items(concept_type, unit_price, qty))")
           .gte("check_in_at", fromISO)
           .lte("check_in_at", toISO)
           .in("status", ["ACTIVA", "FINALIZADA"])
@@ -235,8 +235,12 @@ export function useReprintCenter() {
           const order = Array.isArray(stay.sales_orders) ? stay.sales_orders[0] : stay.sales_orders;
           const firstPayment = order?.payments?.[0];
           const basePrice = roomType?.base_price || 0;
-          const extraPeople = Math.max(0, (stay.total_people || 1) - 1);
-          const extraCost = extraPeople * (roomType?.extra_person_price || 0);
+
+          // Use actual EXTRA_PERSON items from the order instead of calculating from total_people
+          const items = order?.sales_order_items || [];
+          const extraPersonItems = items.filter((i: any) => i.concept_type === 'EXTRA_PERSON');
+          const extraPeople = extraPersonItems.reduce((sum: number, i: any) => sum + (i.qty || 1), 0);
+          const extraCost = extraPersonItems.reduce((sum: number, i: any) => sum + ((i.unit_price || 0) * (i.qty || 1)), 0);
           const totalPrice = basePrice + extraCost;
 
           allTickets.push({
