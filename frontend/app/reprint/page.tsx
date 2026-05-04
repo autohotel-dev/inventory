@@ -19,6 +19,7 @@ export default function ReprintPage() {
     setRoomFilter,
     fetchTickets,
     reprintTicket,
+    reprintHPOnly,
     reprintSelected,
     toggleSelection,
     toggleSelectAll,
@@ -356,29 +357,52 @@ export default function ReprintPage() {
                   </div>
 
                   {/* Reprint Button */}
-                  <button
-                    onClick={() => reprintTicket(ticket)}
-                    disabled={isPrintingThis || isPrinting}
-                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                      isPrintingThis
-                        ? "bg-amber-500/20 text-amber-400 cursor-wait"
-                        : "bg-white/[0.06] hover:bg-amber-500/20 hover:text-amber-400 text-muted-foreground"
-                    } disabled:opacity-40`}
-                  >
-                    {isPrintingThis ? (
-                      <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="6 9 6 2 18 2 18 9" />
-                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                        <rect width="12" height="8" x="6" y="14" />
-                      </svg>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* HP-only button for closing tickets */}
+                    {ticket.type === "closing" && (
+                      <button
+                        onClick={() => reprintHPOnly(ticket)}
+                        disabled={isPrintingThis || isPrinting}
+                        title="Reimprimir solo en HP (tabla de ingresos)"
+                        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                          isPrintingThis
+                            ? "bg-blue-500/20 text-blue-400 cursor-wait"
+                            : "bg-white/[0.06] hover:bg-blue-500/20 hover:text-blue-400 text-muted-foreground"
+                        } disabled:opacity-40`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect width="18" height="18" x="3" y="3" rx="2" />
+                          <path d="M3 9h18" />
+                          <path d="M9 21V9" />
+                        </svg>
+                        <span className="hidden sm:inline">HP</span>
+                      </button>
                     )}
-                    <span className="hidden sm:inline">{isPrintingThis ? "Imprimiendo..." : "Reimprimir"}</span>
-                  </button>
+                    {/* Main reprint button (thermal + HP for closings) */}
+                    <button
+                      onClick={() => reprintTicket(ticket)}
+                      disabled={isPrintingThis || isPrinting}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                        isPrintingThis
+                          ? "bg-amber-500/20 text-amber-400 cursor-wait"
+                          : "bg-white/[0.06] hover:bg-amber-500/20 hover:text-amber-400 text-muted-foreground"
+                      } disabled:opacity-40`}
+                    >
+                      {isPrintingThis ? (
+                        <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 6 2 18 2 18 9" />
+                          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                          <rect width="12" height="8" x="6" y="14" />
+                        </svg>
+                      )}
+                      <span className="hidden sm:inline">{isPrintingThis ? "Imprimiendo..." : "Reimprimir"}</span>
+                    </button>
+                  </div>
                 </div>
               );
             })}

@@ -304,36 +304,135 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
     }
   };
 
-  // ─── Print HP (letter-size via print server) ───────────────────────
+  // ─── Print HP (letter-size income report via print server) ──────────
 
   const handlePrintHP = async () => {
-    if (!summary) return;
     try {
+      const employeeName = `${session.employees?.first_name} ${session.employees?.last_name}`;
+      const periodStart = session.clock_in_at;
+      const periodEnd = session.clock_out_at || new Date().toISOString();
+
+      // 1. Find all sales_order_ids linked to this shift session
+      const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
+        supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", session.id),
+        supabase.from("payments").select("sales_order_id").eq("shift_session_id", session.id),
+      ]);
+
+      const ids = new Set<string>();
+      (shiftItems || []).forEach((i: any) => i.sales_order_id && ids.add(i.sales_order_id));
+      (shiftPayments || []).forEach((p: any) => p.sales_order_id && ids.add(p.sales_order_id));
+      const salesOrderIds = Array.from(ids);
+
+      if (salesOrderIds.length === 0) {
+        console.log('[HP] No sales orders for this shift — skipping income report');
+        return;
+      }
+
+      // 2. Fetch room_stays that match those sales orders
+      const { data: staysData } = await supabase
+        .from("room_stays")
+        .select(`
+          id, check_in_at, vehicle_plate, status,
+          checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(first_name, last_name),
+          rooms!inner(number),
+          sales_orders!inner(
+            id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
+            sales_order_items(concept_type, unit_price, qty, shift_session_id)
+          )
+        `)
+        .in("sales_order_id", salesOrderIds)
+        .in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"])
+        .order("check_in_at", { ascending: true });
+
+      const filteredStays = (staysData || []).filter((stay: any) => {
+        const roomNum = stay.rooms?.number;
+        return roomNum !== '13' && roomNum !== '113';
+      });
+
+      // 3. Build income entries (same structure as the income report page)
+      const entries = filteredStays.map((stay: any, idx: number) => {
+        const order = stay.sales_orders;
+        let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
+        items = items.filter((item: any) => item.shift_session_id === session.id);
+
+        const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
+        let allPayments: any[] = [];
+        rawOrderData.forEach((o: any) => {
+          if (o?.payments) allPayments.push(...(Array.isArray(o.payments) ? o.payments : [o.payments]));
+        });
+        allPayments = allPayments.filter((p: any) =>
+          p.shift_session_id === session.id &&
+          p.status !== 'PENDIENTE' &&
+          p.concept?.toUpperCase() !== 'CHECKOUT' &&
+          p.payment_method !== 'PENDIENTE'
+        );
+
+        const roomPrice = items.filter((i: any) => i.concept_type === "ROOM_BASE")
+          .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+        const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(i.concept_type))
+          .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+        const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
+          .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+
+        let paymentMethod = "PENDIENTE";
+        if (allPayments.length === 1) paymentMethod = allPayments[0].payment_method;
+        else if (allPayments.length > 1) {
+          const uniqueMethods = new Set(allPayments.map((p: any) => p.payment_method));
+          paymentMethod = uniqueMethods.size > 1 ? "MIXTO" : allPayments[0].payment_method;
+        }
+
+        const valetName = stay.checkout_valet
+          ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim()
+          : "—";
+
+        return {
+          time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+          vehicle_plate: stay.vehicle_plate || '',
+          room_number: stay.rooms?.number || '',
+          checkout_valet_name: valetName,
+          room_price: roomPrice,
+          extra,
+          consumption,
+          total: roomPrice + extra + consumption,
+          payment_method: paymentMethod,
+        };
+      });
+
+      // 4. Build payment breakdown
+      const paymentBreakdown: Record<string, number> = {};
+      filteredStays.forEach((stay: any) => {
+        const order = stay.sales_orders;
+        const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
+        rawOrderData.forEach((o: any) => {
+          if (!o?.payments) return;
+          const pList = Array.isArray(o.payments) ? o.payments : [o.payments];
+          pList.filter((p: any) =>
+            p.shift_session_id === session.id &&
+            p.status !== 'PENDIENTE' &&
+            p.payment_method !== 'PENDIENTE'
+          ).forEach((p: any) => {
+            const key = p.payment_method === "TARJETA"
+              ? `TARJETA ${p.terminal_code || ""} ${p.card_type || ""}`.trim()
+              : p.payment_method;
+            paymentBreakdown[key] = (paymentBreakdown[key] || 0) + Number(p.amount);
+          });
+        });
+      });
+
+      // 5. Send to HP printer as income report
       const printData = {
-        employeeName: `${session.employees?.first_name} ${session.employees?.last_name}`,
-        shiftName: session.shift_definitions?.name || 'Turno',
-        periodStart: session.clock_in_at,
-        periodEnd: session.clock_out_at || new Date().toISOString(),
-        totalCash: summary.total_cash, totalCardBBVA: summary.total_card_bbva,
-        totalCardGetnet: summary.total_card_getnet, totalSales: summary.total_sales,
-        totalTransactions: summary.total_transactions,
-        totalExpenses: summary.total_expenses || 0,
-        expenses: summary.expenses || [],
-        notes: notes.trim() || undefined,
-        transactions: summary.payments.map((payment: any) => ({
-          time: new Date(payment.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-          amount: payment.amount, paymentMethod: payment.payment_method || 'N/A',
-          terminalCode: payment.payment_terminals?.code || payment.terminal_code,
-          concept: payment.itemsDescription || payment.concept || undefined,
-          items: payment.itemsRaw || undefined
-        }))
+        employeeName,
+        periodStart,
+        periodEnd,
+        entries,
+        paymentBreakdown,
       };
 
       const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
       const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'closing', data: printData })
+        body: JSON.stringify({ type: 'income', data: printData })
       });
 
       if (!response.ok) {
@@ -341,7 +440,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         console.error('HP print error:', err);
       }
     } catch (error) {
-      console.error('Error printing to HP:', error);
+      console.error('Error printing income report to HP:', error);
     }
   };
 

@@ -25,6 +25,141 @@ interface DateRange {
   to: Date;
 }
 
+// ─── HP Income Report Helper ─────────────────────────────────────────
+
+async function printHPIncomeReport(
+  supabase: any,
+  shiftSessionId: string,
+  employeeName: string,
+  periodStart: string,
+  periodEnd: string
+) {
+  // 1. Find all sales_order_ids linked to this shift session
+  const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
+    supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", shiftSessionId),
+    supabase.from("payments").select("sales_order_id").eq("shift_session_id", shiftSessionId),
+  ]);
+
+  const ids = new Set<string>();
+  (shiftItems || []).forEach((i: any) => i.sales_order_id && ids.add(i.sales_order_id));
+  (shiftPayments || []).forEach((p: any) => p.sales_order_id && ids.add(p.sales_order_id));
+  const salesOrderIds = Array.from(ids);
+
+  if (salesOrderIds.length === 0) {
+    console.log('[HP Reprint] No sales orders for this shift — skipping income report');
+    return;
+  }
+
+  // 2. Fetch room_stays that match those sales orders
+  const { data: staysData } = await supabase
+    .from("room_stays")
+    .select(`
+      id, check_in_at, vehicle_plate, status,
+      checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(first_name, last_name),
+      rooms!inner(number),
+      sales_orders!inner(
+        id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
+        sales_order_items(concept_type, unit_price, qty, shift_session_id)
+      )
+    `)
+    .in("sales_order_id", salesOrderIds)
+    .in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"])
+    .order("check_in_at", { ascending: true });
+
+  const filteredStays = (staysData || []).filter((stay: any) => {
+    const roomNum = stay.rooms?.number;
+    return roomNum !== '13' && roomNum !== '113';
+  });
+
+  // 3. Build income entries
+  const entries = filteredStays.map((stay: any) => {
+    const order = stay.sales_orders;
+    let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
+    items = items.filter((item: any) => item.shift_session_id === shiftSessionId);
+
+    const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
+    let allPayments: any[] = [];
+    rawOrderData.forEach((o: any) => {
+      if (o?.payments) allPayments.push(...(Array.isArray(o.payments) ? o.payments : [o.payments]));
+    });
+    allPayments = allPayments.filter((p: any) =>
+      p.shift_session_id === shiftSessionId &&
+      p.status !== 'PENDIENTE' &&
+      p.concept?.toUpperCase() !== 'CHECKOUT' &&
+      p.payment_method !== 'PENDIENTE'
+    );
+
+    const roomPrice = items.filter((i: any) => i.concept_type === "ROOM_BASE")
+      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+    const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(i.concept_type))
+      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+    const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
+      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+
+    let paymentMethod = "PENDIENTE";
+    if (allPayments.length === 1) paymentMethod = allPayments[0].payment_method;
+    else if (allPayments.length > 1) {
+      const uniqueMethods = new Set(allPayments.map((p: any) => p.payment_method));
+      paymentMethod = uniqueMethods.size > 1 ? "MIXTO" : allPayments[0].payment_method;
+    }
+
+    const valetName = stay.checkout_valet
+      ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim()
+      : "—";
+
+    return {
+      time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+      vehicle_plate: stay.vehicle_plate || '',
+      room_number: stay.rooms?.number || '',
+      checkout_valet_name: valetName,
+      room_price: roomPrice,
+      extra,
+      consumption,
+      total: roomPrice + extra + consumption,
+      payment_method: paymentMethod,
+    };
+  });
+
+  // 4. Build payment breakdown
+  const paymentBreakdown: Record<string, number> = {};
+  filteredStays.forEach((stay: any) => {
+    const order = stay.sales_orders;
+    const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
+    rawOrderData.forEach((o: any) => {
+      if (!o?.payments) return;
+      const pList = Array.isArray(o.payments) ? o.payments : [o.payments];
+      pList.filter((p: any) =>
+        p.shift_session_id === shiftSessionId &&
+        p.status !== 'PENDIENTE' &&
+        p.payment_method !== 'PENDIENTE'
+      ).forEach((p: any) => {
+        const key = p.payment_method === "TARJETA"
+          ? `TARJETA ${p.terminal_code || ""} ${p.card_type || ""}`.trim()
+          : p.payment_method;
+        paymentBreakdown[key] = (paymentBreakdown[key] || 0) + Number(p.amount);
+      });
+    });
+  });
+
+  // 5. Send to HP printer as income report
+  const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+  const response = await fetch(`${PRINT_SERVER_URL}/print/hp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'income',
+      data: { employeeName, periodStart, periodEnd, entries, paymentBreakdown },
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    console.error('[HP Reprint] Error:', err);
+  } else {
+    console.log('[HP Reprint] Income report sent to HP printer');
+  }
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useReprintCenter() {
@@ -282,7 +417,7 @@ export function useReprintCenter() {
       {
         const { data, error } = await supabase
           .from("shift_closings")
-          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, employees(first_name, last_name), shift_definitions(name)")
+          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, shift_session_id, employees(first_name, last_name), shift_definitions(name)")
           .in("status", ["pending", "approved", "rejected"])
           .gte("period_end", fromISO)
           .lte("period_end", toISO)
@@ -303,6 +438,7 @@ export function useReprintCenter() {
             amount: closing.total_sales || 0,
             rawData: {
               closingId: closing.id,
+              shiftSessionId: closing.shift_session_id,
               employeeName: empName,
               shiftName,
               periodStart: closing.period_start,
@@ -366,6 +502,7 @@ export function useReprintCenter() {
           // For closings, we need to load transactions on demand
           const supabase = createClient();
           const closingId = ticket.rawData.closingId;
+          const shiftSessionId = ticket.rawData.shiftSessionId;
 
           const { data: details } = await supabase
             .from("shift_closing_details")
@@ -386,10 +523,19 @@ export function useReprintCenter() {
             };
           }).filter(Boolean);
 
-          return await printClosing({
+          // 1. Print thermal ticket
+          const thermalResult = await printClosing({
             ...ticket.rawData,
             transactions,
           });
+
+          // 2. Print HP income report (fire-and-forget)
+          if (shiftSessionId) {
+            printHPIncomeReport(supabase, shiftSessionId, ticket.rawData.employeeName, ticket.rawData.periodStart, ticket.rawData.periodEnd)
+              .catch((err: any) => console.error('[Reprint] HP income error:', err));
+          }
+
+          return thermalResult;
         }
 
         default:
@@ -404,6 +550,34 @@ export function useReprintCenter() {
       setPrinting(null);
     }
   }, [printEntryTicket, printCheckoutTicket, printConsumptionTickets, printPaymentTicket, printToleranceTicket, printClosing]);
+
+  // ─── Reprint HP Income Report Only (for closing tickets) ────────────
+
+  const reprintHPOnly = useCallback(async (ticket: ReprintableTicket): Promise<boolean> => {
+    if (ticket.type !== "closing" || !ticket.rawData.shiftSessionId) {
+      toast.error("Solo disponible para cortes de caja");
+      return false;
+    }
+    setPrinting(ticket.id);
+    try {
+      const supabase = createClient();
+      await printHPIncomeReport(
+        supabase,
+        ticket.rawData.shiftSessionId,
+        ticket.rawData.employeeName,
+        ticket.rawData.periodStart,
+        ticket.rawData.periodEnd
+      );
+      toast.success("Reporte de ingresos enviado a impresora HP");
+      return true;
+    } catch (err) {
+      console.error("[Reprint HP] Error:", err);
+      toast.error("Error al reimprimir en HP");
+      return false;
+    } finally {
+      setPrinting(null);
+    }
+  }, []);
 
   // ─── Reprint Selected ──────────────────────────────────────────────
 
@@ -483,6 +657,7 @@ export function useReprintCenter() {
     // Actions
     fetchTickets,
     reprintTicket,
+    reprintHPOnly,
     reprintSelected,
     toggleSelection,
     toggleSelectAll,
