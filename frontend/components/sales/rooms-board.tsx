@@ -573,6 +573,12 @@ function RoomsBoardInternal() {
           <RoomCardGrid
             rooms={rooms}
             sensors={sensors}
+            highlightedRoomIds={plateSearch.length >= 2 ? new Set(
+              rooms.filter((r) => {
+                const stay = (r.room_stays || []).find((s: any) => s.status === "ACTIVA");
+                return stay?.vehicle_plate?.toUpperCase().includes(plateSearch);
+              }).map(r => r.id)
+            ) : undefined}
             getRemainingTimeLabel={getRemainingTimeLabel}
             renderStatusBadge={renderStatusBadge}
             openActionsDock={modals.openActionsDock}

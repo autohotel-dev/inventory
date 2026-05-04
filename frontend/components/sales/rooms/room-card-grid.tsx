@@ -10,6 +10,7 @@ import { ROOM_STATUS_BG, ROOM_STATUS_ACCENT } from "@/components/sales/room-type
 interface RoomCardGridProps {
   rooms: Room[];
   sensors: any[];
+  highlightedRoomIds?: Set<string>;
   getRemainingTimeLabel: (room: Room) => any;
   renderStatusBadge: (status: string, isSaliendo: boolean) => React.ReactNode;
   openActionsDock: (room: Room) => void;
@@ -24,6 +25,7 @@ interface RoomCardGridProps {
 export const RoomCardGrid = memo(function RoomCardGrid({
   rooms,
   sensors,
+  highlightedRoomIds,
   getRemainingTimeLabel,
   renderStatusBadge,
   openActionsDock,
@@ -105,7 +107,11 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             number={room.number}
             status={room.status as any}
             bgClass={isSaliendo ? "bg-gradient-to-br from-orange-950/60 to-amber-900/40" : ROOM_STATUS_BG[status as keyof typeof ROOM_STATUS_BG]}
-            accentClass={isSaliendo ? "ring-1 ring-orange-500/40 border-orange-500/20" : ROOM_STATUS_ACCENT[status as keyof typeof ROOM_STATUS_ACCENT]}
+            accentClass={
+              highlightedRoomIds?.has(room.id)
+                ? "ring-2 ring-blue-500 border-blue-500/50 shadow-[0_0_25px_rgba(59,130,246,0.5)] scale-105 z-10"
+                : isSaliendo ? "ring-1 ring-orange-500/40 border-orange-500/20" : ROOM_STATUS_ACCENT[status as keyof typeof ROOM_STATUS_ACCENT]
+            }
             statusBadge={renderStatusBadge(status, isSaliendo)}
             hasPendingPayment={!!hasPendingPayment}
             hasPendingService={hasPendingService}
