@@ -317,6 +317,7 @@ export default function PracticePage() {
                     onRequestVehicle={handleNoOp}
                     onAddDamageCharge={handleNoOp}
                     onNotifyCheckout={handleNoOp}
+                    onOpenPrintCenter={handleNoOp}
                 />
 
                 {/* MODALES DE PRÁCTICA */}
