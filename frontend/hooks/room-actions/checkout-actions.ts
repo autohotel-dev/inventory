@@ -9,6 +9,7 @@ import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
 import { updateAllUnpaidItems } from "@/lib/services/product-service";
 import { logFinancialAction } from "@/lib/audit-logger";
+import { findActiveFlow, logFlowEvent, completeFlow } from "@/lib/flow-logger";
 import {
   getActiveStay,
   withAction,
@@ -158,6 +159,21 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         extra: { remaining: remainingTotal, checkout_valet_id: checkoutValetId },
       });
 
+      // ─── Flow Event ─────────────────────────────────────────────
+      const stayForFlow = getActiveStay(room);
+      if (stayForFlow) {
+        findActiveFlow(stayForFlow.id).then(flowId => {
+          if (flowId) {
+            logFlowEvent(flowId, {
+              event_type: "CHECKOUT_COMPLETED",
+              description: `Checkout completado: $${totalPaid.toFixed(2)} cobrados`,
+              metadata: { amount: totalPaid, payment_method: paymentMethod, remaining: remainingTotal, checkout_valet_id: checkoutValetId },
+            });
+            completeFlow(flowId);
+          }
+        });
+      }
+
       await onRefresh();
       return true;
     });
@@ -209,6 +225,20 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         description: `Estado de Hab. ${room.number} cambiado a ${newStatus}`,
         extra: { new_status: newStatus, notes },
       });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      const stayForStatus = getActiveStay(room);
+      if (stayForStatus) {
+        findActiveFlow(stayForStatus.id).then(flowId => {
+          if (flowId) {
+            logFlowEvent(flowId, {
+              event_type: "ROOM_STATUS_CHANGED",
+              description: `Estado de habitación cambiado a ${newStatus}`,
+              metadata: { new_status: newStatus, notes },
+            });
+          }
+        });
+      }
     });
   };
 

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Room } from '@/components/sales/room-types';
+import { findActiveFlow, logFlowEvent } from '@/lib/flow-logger';
 
 /** Lightweight payment entry for valet operations (no id needed) */
 interface ValetPaymentEntry {
@@ -162,6 +163,24 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 duration: 5000
             });
 
+            // ─── Flow Event ─────────────────────────────────────────────
+            if (activeStay) {
+                findActiveFlow(activeStay.id).then(flowId => {
+                    if (flowId) {
+                        logFlowEvent(flowId, {
+                            event_type: 'VALET_VEHICLE_REGISTERED',
+                            description: `Vehículo registrado: ${vehicleData.plate} ${vehicleData.brand} ${vehicleData.model}`,
+                            metadata: { plate: vehicleData.plate, brand: vehicleData.brand, model: vehicleData.model, person_count: personCount },
+                        });
+                        logFlowEvent(flowId, {
+                            event_type: 'VALET_PAYMENT_COLLECTED',
+                            description: `Cobro por cochero: ${payments.length} pago(s)`,
+                            metadata: { payments: payments.map(p => ({ amount: p.amount, method: p.method })) },
+                        });
+                    }
+                });
+            }
+
             await onRefresh();
             return true;
 
@@ -282,6 +301,18 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             toast.success('¡Éxito!', {
                 description: `Te has asignado la Habitación ${roomNumber}`
             });
+
+            // ─── Flow Event ─────────────────────────────────────────────
+            findActiveFlow(stayId).then(flowId => {
+                if (flowId) {
+                    logFlowEvent(flowId, {
+                        event_type: 'VALET_ENTRY_ACCEPTED',
+                        description: `Cochero aceptó la entrada de Hab. ${roomNumber}`,
+                        metadata: { room_number: roomNumber },
+                    });
+                }
+            });
+
             await onRefresh();
             return true;
         } catch (error: any) {
@@ -430,6 +461,26 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             toast.success('✅ Entrega Informada', {
                 description: `Hab. ${roomNumber}: Lleva el cobro a recepción para corroborar.`
             });
+
+            // ─── Flow Event ─────────────────────────────────────────────
+            const { data: itemStay } = await supabase
+                .from('sales_order_items')
+                .select('sales_orders!inner(room_stays!inner(id))')
+                .eq('id', consumptionId)
+                .maybeSingle();
+            const stayIdForFlow = (itemStay as any)?.sales_orders?.room_stays?.[0]?.id;
+            if (stayIdForFlow) {
+                findActiveFlow(stayIdForFlow).then(flowId => {
+                    if (flowId) {
+                        logFlowEvent(flowId, {
+                            event_type: 'CONSUMPTION_DELIVERED',
+                            description: `Consumo entregado en Hab. ${roomNumber}`,
+                            metadata: { consumption_id: consumptionId, tip_amount: tipAmount },
+                        });
+                    }
+                });
+            }
+
             await onRefresh();
             return true;
         } catch (err) {

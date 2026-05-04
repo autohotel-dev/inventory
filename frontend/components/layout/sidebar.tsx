@@ -84,6 +84,7 @@ const adminLinks: readonly NavLink[] = [
   // 🏠 OPERACIONES PRINCIPALES
   { href: "/dashboard", label: "Dashboard", icon: "home", permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
   { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
+  { href: "/operacion", label: "Operación en Tiempo Real", icon: "activity", permissionId: "operacion", adminOnly: true },
   { divider: true },
   
   // 🏨 GESTIÓN HOTELERA
@@ -114,6 +115,7 @@ const adminLinks: readonly NavLink[] = [
   // 💰 FINANZAS Y REPORTES
   { href: "/reports/income", label: "Pre-Cortes de Caja", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
   { href: "/employees/closings", label: "Cortes de Caja (Cierre)", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
+  { href: "/reprint", label: "Reimprimir Tickets", icon: "fileText", permissionId: "reprint", allowedForReceptionist: true },
   { divider: true },
   
   { href: "/analytics", label: "Analytics", icon: "chart", permissionId: "analytics", adminOnly: true },

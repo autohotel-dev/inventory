@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils/formatters";
 import { getOrCreateServiceProduct, createServiceItem, createDamageItem } from "@/lib/services/product-service";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { logFinancialAction } from "@/lib/audit-logger";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 import {
   getActiveStay,
   getReceptionShiftId,
@@ -53,6 +54,17 @@ export function createTimeActions(ctx: RoomActionContext) {
         salesOrderId: activeStay.sales_order_id,
         description: `Daño registrado en Hab. ${room.number}: $${amount.toFixed(2)} - ${description}`,
         severity: "WARNING",
+      });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: "DAMAGE_REPORTED",
+            description: `Daño: ${description} - $${amount.toFixed(2)}`,
+            metadata: { amount, description },
+          });
+        }
       });
 
       await notifyActiveValets(supabase, '🛠️ Cargo por Daño',
@@ -113,6 +125,19 @@ export function createTimeActions(ctx: RoomActionContext) {
         extra: { hours, is_courtesy: !!isCourtesy, courtesy_reason: courtesyReason },
       });
 
+      // ─── Flow Event ─────────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: isCourtesy ? "COURTESY_APPLIED" : "EXTRA_HOUR_ADDED",
+            description: isCourtesy
+              ? `Cortesía: +${hours} hora(s). Motivo: ${courtesyReason || 'Sin motivo'}`
+              : `+${hours} hora(s) extra - $${totalPrice.toFixed(2)}`,
+            metadata: { hours, amount: totalPrice, is_courtesy: !!isCourtesy, courtesy_reason: courtesyReason },
+          });
+        }
+      });
+
       if (!isCourtesy && totalPrice > 0) {
         await notifyActiveValets(supabase, '⏰ Cobro de Horas Extra',
           `Habitación ${room.number}: Cobrar ${hours} hora(s) extra ($${totalPrice.toFixed(2)} MXN).`,
@@ -168,6 +193,17 @@ export function createTimeActions(ctx: RoomActionContext) {
         salesOrderId: activeStay.sales_order_id,
         description: `Renovación Hab. ${room.number}: $${basePrice.toFixed(2)} (+${renewalHours}h)`,
         extra: { renewal_hours: renewalHours, is_weekend: isWeekendPeriod },
+      });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: "RENEWAL_APPLIED",
+            description: `Renovación: $${basePrice.toFixed(2)} (+${renewalHours}h)`,
+            metadata: { amount: basePrice, renewal_hours: renewalHours, is_weekend: isWeekendPeriod },
+          });
+        }
       });
 
       await notifyActiveValets(supabase, '🔄 Cobro de Renovación',

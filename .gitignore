@@ -21,8 +21,9 @@ build/
 *.mobileprovision
 
 # Print Server
-print-server/logs/
-print-server/*.log
+frontend/print-server/logs/
+print-server.log
+tunnel.log
 
 # Entornos y Variables
 .env
