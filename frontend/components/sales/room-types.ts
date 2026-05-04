@@ -24,6 +24,11 @@ export const STATUS_CONFIG: Record<string, { label: string; shortLabel?: string;
     shortLabel: "Bloq.",
     color: "bg-emerald-950/50 text-emerald-100 border-emerald-400/40",
   },
+  LIMPIANDO: {
+    label: "Limpiando",
+    shortLabel: "Limp.",
+    color: "bg-sky-950/50 text-sky-100 border-sky-400/40",
+  },
 };
 
 // Fondo de las cards por estado
@@ -32,6 +37,7 @@ export const ROOM_STATUS_BG: Record<string, string> = {
   OCUPADA: "bg-gradient-to-br from-red-950/60 to-rose-900/40",
   SUCIA: "bg-gradient-to-br from-purple-950/60 to-fuchsia-900/40",
   BLOQUEADA: "bg-gradient-to-br from-emerald-950/60 to-teal-900/40",
+  LIMPIANDO: "bg-gradient-to-br from-sky-950/60 to-cyan-900/40",
 };
 
 // Anillo suave por estado para las cards
@@ -40,6 +46,7 @@ export const ROOM_STATUS_ACCENT: Record<string, string> = {
   OCUPADA: "ring-1 ring-red-500/40",
   SUCIA: "ring-1 ring-purple-500/40",
   BLOQUEADA: "ring-1 ring-emerald-500/40",
+  LIMPIANDO: "ring-1 ring-sky-500/40",
 };
 
 export interface RoomType {

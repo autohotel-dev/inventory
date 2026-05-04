@@ -50,6 +50,8 @@ const ROOM_STATUS_BG: Record<string, string> = {
     OCUPADA: 'bg-red-900/80',
     RESERVED: 'bg-yellow-900/80',
     RESERVADA: 'bg-yellow-900/80',
+    CLEANING: 'bg-sky-900/80',
+    LIMPIANDO: 'bg-sky-900/80',
 };
 
 // Mocks Visuales importados de @/components/training/mock-panels
@@ -61,6 +63,8 @@ const ROOM_STATUS_ACCENT: Record<string, string> = {
     OCUPADA: 'border-l-4 border-red-400',
     RESERVED: 'border-l-4 border-yellow-400',
     RESERVADA: 'border-l-4 border-yellow-400',
+    CLEANING: 'border-l-4 border-sky-400',
+    LIMPIANDO: 'border-l-4 border-sky-400',
 };
 
 // Mapping of Step IDs to DOM Element IDs for Tutorial Overlay

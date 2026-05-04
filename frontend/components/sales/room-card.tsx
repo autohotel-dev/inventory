@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle, Tv } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle, Tv, Flame, Wind, Lock, Sparkles, CheckCircle2, User, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
@@ -122,6 +122,98 @@ export function RoomCardComponent({
       {/* Glassmorphism subtle glow overlay */}
       <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none" />
+        
+        {/* Animated Bubbles for LIMPIANDO status */}
+        {status === "LIMPIANDO" && (
+          <div className="absolute inset-0 overflow-hidden rounded-xl opacity-60">
+            <div className="absolute bottom-1 left-[10%] w-2 h-2 rounded-full bg-cyan-300 animate-bubble" style={{ animationDelay: '0.2s', animationDuration: '3s' }} />
+            <div className="absolute bottom-2 left-[30%] w-3 h-3 rounded-full bg-cyan-200 animate-bubble" style={{ animationDelay: '1.5s', animationDuration: '4s' }} />
+            <div className="absolute bottom-0 left-[60%] w-2.5 h-2.5 rounded-full bg-white animate-bubble" style={{ animationDelay: '0.8s', animationDuration: '3.5s' }} />
+            <div className="absolute bottom-1 left-[80%] w-1.5 h-1.5 rounded-full bg-sky-300 animate-bubble" style={{ animationDelay: '2.1s', animationDuration: '2.8s' }} />
+          </div>
+        )}
+
+        {/* Realistic Shining Sparkle (Destello Reluciente) for LIBRE status */}
+        {status === "LIBRE" && (
+          <div className="absolute inset-0 overflow-hidden rounded-xl opacity-80 pointer-events-none">
+            {/* Reflejo de cristal pulido cruzando la tarjeta */}
+            <div className="absolute top-0 bottom-0 left-[-50%] w-[40%] bg-gradient-to-r from-transparent via-white/50 to-transparent animate-[sweepReflection_6s_ease-in-out_infinite]" />
+            
+            {/* Destello/Estrella principal pulsante */}
+            <div className="absolute top-[20%] left-[25%] w-6 h-6 animate-[flarePulse_4s_ease-in-out_infinite]">
+              <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white shadow-[0_0_8px_2px_rgba(255,255,255,0.8)] -translate-y-1/2" />
+              <div className="absolute left-1/2 top-0 h-full w-[1px] bg-white shadow-[0_0_8px_2px_rgba(255,255,255,0.8)] -translate-x-1/2" />
+              <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-white rounded-full shadow-[0_0_10px_4px_rgba(255,255,255,1)] -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            
+            {/* Destello secundario más pequeño */}
+            <div className="absolute bottom-[30%] right-[30%] w-3 h-3 animate-[flarePulse_5s_ease-in-out_infinite]" style={{ animationDelay: '2s' }}>
+              <div className="absolute top-1/2 left-0 w-full h-[1px] bg-cyan-200 shadow-[0_0_5px_1px_rgba(165,243,252,0.8)] -translate-y-1/2" />
+              <div className="absolute left-1/2 top-0 h-full w-[1px] bg-cyan-200 shadow-[0_0_5px_1px_rgba(165,243,252,0.8)] -translate-x-1/2" />
+              <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-white rounded-full shadow-[0_0_5px_2px_rgba(255,255,255,1)] -translate-x-1/2 -translate-y-1/2" />
+            </div>
+
+            {/* Aura de limpieza radial de fondo */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,_var(--tw-gradient-stops))] from-blue-400/10 via-transparent to-transparent" />
+            
+            {/* Soft Ambient Glows for premium feel */}
+            <div className="absolute -top-4 -right-4 w-24 h-24 bg-blue-400/10 blur-xl rounded-full" />
+            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-cyan-400/10 blur-xl rounded-full" />
+          </div>
+        )}
+
+        {/* Immersive Warm Aura for OCUPADA status */}
+        {status === "OCUPADA" && (
+          <div className="absolute inset-0 overflow-hidden rounded-xl opacity-40 pointer-events-none">
+            <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-rose-500/30 blur-[30px] rounded-full animate-[orbFloat_8s_ease-in-out_infinite]" />
+            <div className="absolute top-[10%] -left-8 w-24 h-24 bg-orange-500/20 blur-[25px] rounded-full animate-[orbFloat_10s_ease-in-out_infinite_reverse]" />
+            <div className="absolute top-[40%] left-[30%] w-32 h-32 bg-red-500/15 blur-[35px] rounded-full animate-[orbFloat_12s_ease-in-out_infinite]" style={{ animationDelay: '2s' }} />
+          </div>
+        )}
+
+        {/* Drifting Mist and Dust Motes for SUCIA status */}
+        {status === "SUCIA" && (
+          <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+            {/* Mist gradient at bottom */}
+            <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-purple-900/30 to-transparent opacity-60" />
+            
+            {/* Dust motes */}
+            <div className="absolute top-[10%] left-[20%] w-1.5 h-1.5 bg-amber-200/40 rounded-sm animate-[dustDrift_6s_linear_infinite]" />
+            <div className="absolute top-[20%] left-[60%] w-1 h-1 bg-white/30 rounded-sm animate-[dustDrift_8s_linear_infinite]" style={{ animationDelay: '1s' }} />
+            <div className="absolute top-[5%] left-[80%] w-2 h-2 bg-purple-200/30 rounded-sm animate-[dustDrift_7s_linear_infinite]" style={{ animationDelay: '2.5s' }} />
+            <div className="absolute top-[30%] left-[40%] w-1.5 h-1.5 bg-white/20 rounded-sm animate-[dustDrift_9s_linear_infinite]" style={{ animationDelay: '0.5s' }} />
+            <div className="absolute top-[15%] left-[10%] w-1 h-1 bg-amber-100/30 rounded-sm animate-[dustDrift_5s_linear_infinite]" style={{ animationDelay: '3s' }} />
+          </div>
+        )}
+
+        {/* Digital Grid and Scanner for BLOQUEADA status */}
+        {status === "BLOQUEADA" && (
+          <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+            {/* Caution stripes (faint overlay) */}
+            <div className="absolute inset-0 opacity-10 animate-stripes mix-blend-overlay" />
+            
+            {/* Scanning laser line */}
+            <div className="absolute left-0 right-0 h-[2px] bg-emerald-500/50 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-[scanLine_4s_ease-in-out_infinite]" />
+            
+            {/* Subtle digital lock node glow */}
+            <div className="absolute bottom-[-10%] right-[-10%] w-24 h-24 bg-emerald-500/15 blur-2xl rounded-full animate-pulse" />
+          </div>
+        )}
+        
+        {/* Animated Water for LIMPIANDO status */}
+        {status === "LIMPIANDO" && (
+          <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none opacity-80">
+            {/* Olas de agua rotando (técnica de fluido realista CSS) */}
+            <div className="absolute left-1/2 bottom-0 w-[400px] h-[400px] -ml-[200px] mb-[-330px] rounded-[40%] bg-cyan-400/20 animate-[waveSpin_8s_linear_infinite]" />
+            <div className="absolute left-1/2 bottom-0 w-[420px] h-[420px] -ml-[210px] mb-[-345px] rounded-[43%] bg-blue-500/20 animate-[waveSpin_11s_linear_infinite_reverse]" />
+            <div className="absolute left-1/2 bottom-0 w-[380px] h-[380px] -ml-[190px] mb-[-310px] rounded-[38%] bg-sky-300/30 animate-[waveSpin_14s_linear_infinite]" />
+            
+            {/* Burbujitas dentro del agua */}
+            <div className="absolute bottom-2 left-[20%] w-2 h-2 rounded-full bg-white/60 animate-bubble" style={{ animationDelay: '0.2s', animationDuration: '3s' }} />
+            <div className="absolute bottom-1 left-[50%] w-3 h-3 rounded-full bg-cyan-200/60 animate-bubble" style={{ animationDelay: '1.5s', animationDuration: '4s' }} />
+            <div className="absolute bottom-3 left-[80%] w-1.5 h-1.5 rounded-full bg-white/50 animate-bubble" style={{ animationDelay: '0.8s', animationDuration: '2.5s' }} />
+          </div>
+        )}
       </div>
       {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
       {hasPendingPayment && !showDoorAlert && (
