@@ -108,7 +108,7 @@ export function LiveOperationsBoard() {
           </div>
           <Button
             variant="outline"
-            onClick={() => refreshFlows(filters)}
+            onClick={() => refreshFlows()}
             disabled={refreshing}
             className="w-full sm:w-auto bg-background/50 backdrop-blur-sm"
           >
