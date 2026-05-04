@@ -84,6 +84,7 @@ const adminLinks: readonly NavLink[] = [
   // 🏠 OPERACIONES PRINCIPALES
   { href: "/dashboard", label: "Dashboard", icon: "home", permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
   { href: "/sales/pos", label: "Habitaciones (POS)", icon: "building", permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
+  { href: "/operacion-en-vivo", label: "Operación en Vivo", icon: "activity", permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
   { divider: true },
   
   // 🏨 GESTIÓN HOTELERA

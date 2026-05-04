@@ -32,6 +32,7 @@ import { useCheckoutReminders } from "@/hooks/rooms/use-checkout-reminders";
 import { useRoomTransitions } from "@/hooks/rooms/use-room-transitions";
 import { useValetPaymentMonitor } from "@/hooks/valet/use-valet-payment-monitor";
 import { useRoomModals } from "@/hooks/rooms/use-room-modals";
+import { usePrintCenter } from "@/contexts/print-center-context";
 
 // Dynamic imports para modales (reducción de bundle)
 const ConnectedStartStayModal = dynamic(() => import("@/components/rooms/modals/connected-start-stay-modal").then(m => ({ default: m.ConnectedStartStayModal })), { ssr: false });
@@ -83,6 +84,7 @@ function RoomsBoardInternal() {
   const supabase = createClient();
   const { rooms, isLoading: loading, refreshRooms: fetchRooms } = useRoomsQuery();
   const modals = useRoomModals();
+  const { openPrintCenter } = usePrintCenter();
   const { isValet, employeeId } = useUserRole();
 
   // Notificaciones de sonido
@@ -694,6 +696,10 @@ function RoomsBoardInternal() {
             await handleCancelValetCheckout(modals.selectedRoom);
             modals.closeModal("actions");
           }
+        }}
+        onOpenPrintCenter={() => {
+          modals.closeActionsDock();
+          openPrintCenter("recent");
         }}
       />
       <RoomReminderAlert

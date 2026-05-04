@@ -8,6 +8,7 @@ import { BottomNav } from "./bottom-nav";
 import { UserNav } from "./user-nav";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { ConnectionIndicator } from "./connection-indicator";
+import { PrintCenterTrigger } from "@/components/print-center/print-center-trigger";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -74,6 +75,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
             <Breadcrumbs />
             <div className="flex items-center gap-2">
               <ConnectionIndicator />
+              <PrintCenterTrigger />
               <NotificationCenter />
               <UserNav />
             </div>
