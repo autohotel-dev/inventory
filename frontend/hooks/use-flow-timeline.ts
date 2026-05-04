@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export interface FlowEvent {
   id: string;
+  flow_id: string;
   event_type: string;
   event_category: string;
   description: string;
