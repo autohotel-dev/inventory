@@ -204,7 +204,7 @@ export function RoomCardComponent({
       )}
 
       {/* Fila superior: Número + Estado */}
-      <div className="flex items-start justify-between gap-1 mb-2 relative z-10">
+      <div className="flex items-start justify-between gap-1 mb-2 relative z-50">
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="font-black text-xl leading-none tracking-tighter text-foreground drop-shadow-sm">{number}</span>
 
@@ -325,7 +325,7 @@ export function RoomCardComponent({
         )}
 
         {/* Botones de acción directos */}
-        <div className="flex items-center gap-0.5 z-20 flex-wrap justify-end">
+        <div className="flex items-center gap-0.5 z-50 relative flex-wrap justify-end mt-auto">
           {status === "OCUPADA" && (
             <>
               <Button

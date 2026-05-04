@@ -546,17 +546,17 @@ export function useReprintCenter() {
       {
         const { data, error } = await supabase
           .from("shift_closings")
-          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, shift_session_id, employees(first_name, last_name), shift_definitions(name)")
+          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, shift_session_id, employees:employees!shift_closings_employee_id_fkey(first_name, last_name), shift_sessions(shift_definitions(name))")
           .in("status", ["pending", "approved", "rejected"])
           .gte("period_end", fromISO)
           .lte("period_end", toISO)
           .order("period_end", { ascending: false });
 
-        if (error) console.error("[Reprint] Error fetching closings:", error);
+        if (error) console.error("[Reprint] Error fetching closings:", JSON.stringify(error, null, 2));
 
         (data || []).forEach((closing: any) => {
           const empName = `${closing.employees?.first_name || ""} ${closing.employees?.last_name || ""}`.trim();
-          const shiftName = closing.shift_definitions?.name || "Turno";
+          const shiftName = closing.shift_sessions?.shift_definitions?.name || "Turno";
 
           allTickets.push({
             id: `closing-${closing.id}`,
