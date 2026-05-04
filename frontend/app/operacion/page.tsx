@@ -357,7 +357,8 @@ function FilterInput({ placeholder, value, onChange, width, type = "text" }: {
 }) {
   return (
     <input type={type} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
-      className={`h-8 px-2.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-xs text-white placeholder:text-white/15 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition-all ${width || ""}`} />
+      style={{ backgroundColor: '#141420', color: '#e2e2e8', colorScheme: 'dark' }}
+      className={`h-8 px-2.5 rounded-lg border border-white/[0.08] text-xs placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition-all ${width || ""}`} />
   );
 }
 
@@ -366,9 +367,10 @@ function FilterSelect({ value, onChange, placeholder, options, width }: {
 }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)}
-      className={`h-8 px-2.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition-all ${width || ""}`}>
-      <option value="">{placeholder}</option>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      style={{ backgroundColor: '#141420', color: '#e2e2e8' }}
+      className={`h-8 px-2.5 rounded-lg border border-white/[0.08] text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition-all appearance-none cursor-pointer ${width || ""}`}>
+      <option value="" style={{ backgroundColor: '#141420', color: '#888' }}>{placeholder}</option>
+      {options.map((o) => <option key={o.value} value={o.value} style={{ backgroundColor: '#141420', color: '#e2e2e8' }}>{o.label}</option>)}
     </select>
   );
 }
