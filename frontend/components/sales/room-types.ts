@@ -7,7 +7,7 @@ export const STATUS_CONFIG: Record<string, { label: string; shortLabel?: string;
   LIBRE: {
     label: "Libre",
     shortLabel: "Libre",
-    color: "bg-blue-950/50 text-blue-100 border-blue-400/40",
+    color: "bg-emerald-950/50 text-emerald-100 border-emerald-400/40",
   },
   OCUPADA: {
     label: "Ocupada",
@@ -22,31 +22,31 @@ export const STATUS_CONFIG: Record<string, { label: string; shortLabel?: string;
   BLOQUEADA: {
     label: "Bloqueada",
     shortLabel: "Bloq.",
-    color: "bg-emerald-950/50 text-emerald-100 border-emerald-400/40",
+    color: "bg-amber-950/50 text-amber-100 border-amber-400/40",
   },
   LIMPIANDO: {
     label: "Limpiando",
     shortLabel: "Limp.",
-    color: "bg-sky-950/50 text-sky-100 border-sky-400/40",
+    color: "bg-cyan-950/50 text-cyan-100 border-cyan-400/40",
   },
 };
 
 // Fondo de las cards por estado
 export const ROOM_STATUS_BG: Record<string, string> = {
-  LIBRE: "bg-gradient-to-br from-blue-950/60 to-slate-900/40",
+  LIBRE: "bg-gradient-to-br from-emerald-950/60 to-teal-900/40",
   OCUPADA: "bg-gradient-to-br from-red-950/60 to-rose-900/40",
   SUCIA: "bg-gradient-to-br from-purple-950/60 to-fuchsia-900/40",
-  BLOQUEADA: "bg-gradient-to-br from-emerald-950/60 to-teal-900/40",
-  LIMPIANDO: "bg-gradient-to-br from-sky-950/60 to-cyan-900/40",
+  BLOQUEADA: "bg-gradient-to-br from-amber-950/60 to-orange-900/40",
+  LIMPIANDO: "bg-gradient-to-br from-cyan-950/60 to-sky-900/40",
 };
 
 // Anillo suave por estado para las cards
 export const ROOM_STATUS_ACCENT: Record<string, string> = {
-  LIBRE: "ring-1 ring-blue-500/40",
+  LIBRE: "ring-1 ring-emerald-500/40",
   OCUPADA: "ring-1 ring-red-500/40",
   SUCIA: "ring-1 ring-purple-500/40",
-  BLOQUEADA: "ring-1 ring-emerald-500/40",
-  LIMPIANDO: "ring-1 ring-sky-500/40",
+  BLOQUEADA: "ring-1 ring-amber-500/40",
+  LIMPIANDO: "ring-1 ring-cyan-500/40",
 };
 
 export interface RoomType {

@@ -189,14 +189,23 @@ export function RoomCardComponent({
         {/* Digital Grid and Scanner for BLOQUEADA status */}
         {status === "BLOQUEADA" && (
           <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-            {/* Caution stripes (faint overlay) */}
-            <div className="absolute inset-0 opacity-10 animate-stripes mix-blend-overlay" />
+            {/* Caution stripes (hardware accelerated transform) */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-xl">
+              <div 
+                className="absolute w-[200%] h-[200%] top-0 left-0"
+                style={{ 
+                  backgroundImage: 'linear-gradient(45deg, rgba(250, 204, 21, 0.4) 25%, transparent 25%, transparent 50%, rgba(250, 204, 21, 0.4) 50%, rgba(250, 204, 21, 0.4) 75%, transparent 75%, transparent)',
+                  backgroundSize: '60px 60px',
+                  animation: 'stripeTranslate 2s linear infinite'
+                }} 
+              />
+            </div>
             
             {/* Scanning laser line */}
-            <div className="absolute left-0 right-0 h-[2px] bg-emerald-500/50 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-[scanLine_4s_ease-in-out_infinite]" />
+            <div className="absolute left-0 right-0 h-[2px] bg-amber-500 z-10 shadow-[0_0_12px_3px_rgba(245,158,11,0.8)]" style={{ animation: 'scanLine 4s ease-in-out infinite' }} />
             
             {/* Subtle digital lock node glow */}
-            <div className="absolute bottom-[-10%] right-[-10%] w-24 h-24 bg-emerald-500/15 blur-2xl rounded-full animate-pulse" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-24 h-24 bg-amber-500/15 blur-2xl rounded-full animate-pulse" />
           </div>
         )}
         

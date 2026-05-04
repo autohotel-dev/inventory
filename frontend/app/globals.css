@@ -292,16 +292,20 @@
     0% { background-position: 0 0; }
     100% { background-position: 60px 60px; }
   }
-  .animate-stripes {
-    background-image: linear-gradient(45deg, rgba(16, 185, 129, 0.15) 25%, transparent 25%, transparent 50%, rgba(16, 185, 129, 0.15) 50%, rgba(16, 185, 129, 0.15) 75%, transparent 75%, transparent);
+  @keyframes stripeTranslate {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(-60px, -60px); }
+  }
+  .restriction-stripes {
+    background-image: linear-gradient(45deg, rgba(250, 204, 21, 0.4) 25%, transparent 25%, transparent 50%, rgba(250, 204, 21, 0.4) 50%, rgba(250, 204, 21, 0.4) 75%, transparent 75%, transparent);
     background-size: 60px 60px;
-    animation: stripeMove 3s linear infinite;
+    animation: stripeMove 2s linear infinite !important;
   }
 
   /* BLOQUEADA: Borde pulsante de seguridad */
   @keyframes blockedBorder {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3); border-color: rgba(16, 185, 129, 0.3); }
-    50% { box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.8), 0 0 12px rgba(52, 211, 153, 0.3); border-color: rgba(52, 211, 153, 0.8); }
+    0%, 100% { box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3); border-color: rgba(245, 158, 11, 0.3); }
+    50% { box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.8), 0 0 12px rgba(251, 191, 36, 0.3); border-color: rgba(251, 191, 36, 0.8); }
   }
   .animate-blocked-border {
     animation: blockedBorder 3s ease-in-out infinite;
