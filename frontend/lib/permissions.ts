@@ -176,58 +176,106 @@ export async function bulkUpdatePermissions(
 }
 
 /**
- * Get all available menu resources (for configuration UI)
+ * Group metadata for the permissions UI
  */
-export function getAllMenuResources(): Array<{ id: string; label: string; href: string }> {
+export const MENU_GROUPS: Record<string, { icon: string; label: string; description: string; order: number }> = {
+    'operaciones': { icon: '🏠', label: 'Operaciones Principales', description: 'Páginas principales de operación', order: 1 },
+    'hotelera': { icon: '🏨', label: 'Gestión Hotelera', description: 'Tipos de habitación y sensores', order: 2 },
+    'inventario': { icon: '📦', label: 'Inventario', description: 'Gestión de productos y almacenes', order: 3 },
+    'compras-ventas': { icon: '💰', label: 'Compras y Ventas', description: 'Gestión de ventas y compras', order: 4 },
+    'stock': { icon: '📊', label: 'Movimientos y Stock', description: 'Control de inventario y movimientos', order: 5 },
+    'finanzas': { icon: '💵', label: 'Finanzas y Reportes', description: 'Cortes de caja y reimpresión', order: 6 },
+    'analytics': { icon: '📈', label: 'Analytics y Auditoría', description: 'Reportes, análisis y auditoría', order: 7 },
+    'personal': { icon: '👥', label: 'Personal', description: 'Gestión de empleados y capacitación', order: 8 },
+    'sistema': { icon: '⚙️', label: 'Configuración y Sistema', description: 'Configuración, roles y notificaciones', order: 9 },
+};
+
+export interface MenuResource {
+    id: string;
+    label: string;
+    href: string;
+    group: string;
+}
+
+/**
+ * Get all available menu resources (for configuration UI).
+ * Single source of truth — add new modules here and they appear
+ * automatically in both the sidebar permissions and the config UI.
+ */
+export function getAllMenuResources(): MenuResource[] {
     return [
         // 🏠 OPERACIONES PRINCIPALES
-        { id: 'dashboard', label: 'Dashboard', href: '/dashboard' },
-        { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos' },
-        { id: 'operacion', label: 'Operación en Tiempo Real', href: '/operacion' },
+        { id: 'dashboard', label: 'Dashboard', href: '/dashboard', group: 'operaciones' },
+        { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos', group: 'operaciones' },
+        { id: 'operacion', label: 'Operación en Tiempo Real', href: '/operacion', group: 'operaciones' },
 
         // 🏨 GESTIÓN HOTELERA
-        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types' },
-        { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors' },
+        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types', group: 'hotelera' },
+        { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors', group: 'hotelera' },
 
-        // 📦 INVENTARIO Y COMPRAS
-        { id: 'products', label: 'Productos', href: '/products' },
-        { id: 'categories', label: 'Categorías', href: '/categories' },
-        { id: 'warehouses', label: 'Almacenes', href: '/warehouses' },
-        { id: 'suppliers', label: 'Proveedores', href: '/suppliers' },
-        { id: 'customers', label: 'Clientes', href: '/customers' },
+        // 📦 INVENTARIO
+        { id: 'products', label: 'Productos', href: '/products', group: 'inventario' },
+        { id: 'categories', label: 'Categorías', href: '/categories', group: 'inventario' },
+        { id: 'warehouses', label: 'Almacenes', href: '/warehouses', group: 'inventario' },
+        { id: 'suppliers', label: 'Proveedores', href: '/suppliers', group: 'inventario' },
+        { id: 'customers', label: 'Clientes', href: '/customers', group: 'inventario' },
 
-        // Compras y Ventas
-        { id: 'purchases-sales', label: 'Dashboard Compras/Ventas', href: '/purchases-sales' },
-        { id: 'purchases', label: 'Compras', href: '/purchases' },
-        { id: 'sales', label: 'Ventas', href: '/sales' },
+        // 💰 COMPRAS Y VENTAS
+        { id: 'purchases-sales', label: 'Dashboard Compras/Ventas', href: '/purchases-sales', group: 'compras-ventas' },
+        { id: 'purchases', label: 'Compras', href: '/purchases', group: 'compras-ventas' },
+        { id: 'sales', label: 'Ventas', href: '/sales', group: 'compras-ventas' },
 
-        // Control de Inventario
-        { id: 'movements', label: 'Movimientos', href: '/movements' },
-        { id: 'stock', label: 'Stock', href: '/stock' },
-        { id: 'kardex', label: 'Kardex', href: '/kardex' },
+        // 📊 MOVIMIENTOS Y STOCK
+        { id: 'movements', label: 'Movimientos', href: '/movements', group: 'stock' },
+        { id: 'stock', label: 'Stock', href: '/stock', group: 'stock' },
+        { id: 'kardex', label: 'Kardex', href: '/kardex', group: 'stock' },
 
-        // 💰 FINANZAS Y REPORTES
-        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/reports/income' },
-        { id: 'employees.closings', label: 'Cortes de Caja (Cierre)', href: '/employees/closings' },
-        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint' },
+        // 💵 FINANZAS Y REPORTES
+        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/reports/income', group: 'finanzas' },
+        { id: 'employees.closings', label: 'Cortes de Caja (Cierre)', href: '/employees/closings', group: 'finanzas' },
+        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint', group: 'finanzas' },
 
-        // 📊 ANALYTICS
-        { id: 'analytics', label: 'Analytics', href: '/analytics' },
-        { id: 'analytics.performance', label: 'Rendimiento y Tiempos', href: '/analytics/performance' },
-        { id: 'export', label: 'Exportar', href: '/export' },
-        { id: 'auditoria', label: 'Auditoría', href: '/auditoria' },
+        // 📈 ANALYTICS Y AUDITORÍA
+        { id: 'analytics', label: 'Analytics', href: '/analytics', group: 'analytics' },
+        { id: 'analytics.performance', label: 'Rendimiento y Tiempos', href: '/analytics/performance', group: 'analytics' },
+        { id: 'export', label: 'Exportar', href: '/export', group: 'analytics' },
+        { id: 'auditoria', label: 'Auditoría', href: '/auditoria', group: 'analytics' },
 
-        // 👥 RECURSOS HUMANOS
-        { id: 'employees', label: 'Empleados', href: '/employees' },
-        { id: 'employees.schedules', label: 'Horarios', href: '/employees/schedules' },
-        { id: 'training', label: 'Capacitación', href: '/training' },
+        // 👥 PERSONAL
+        { id: 'employees', label: 'Empleados', href: '/employees', group: 'personal' },
+        { id: 'employees.schedules', label: 'Horarios', href: '/employees/schedules', group: 'personal' },
+        { id: 'training', label: 'Capacitación', href: '/training', group: 'personal' },
 
         // ⚙️ CONFIGURACIÓN Y SISTEMA
-        { id: 'settings', label: 'Configuración', href: '/settings' },
-        { id: 'settings.roles', label: 'Gestión de Roles', href: '/settings/roles' },
-        { id: 'settings.permissions', label: 'Permisos de Roles', href: '/settings/permissions' },
-        { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media' },
-        { id: 'notifications-admin', label: 'Notificaciones', href: '/notifications-admin' },
-        { id: 'staff-notifications', label: 'Comunicados Staff', href: '/staff-notifications' },
+        { id: 'settings', label: 'Configuración', href: '/settings', group: 'sistema' },
+        { id: 'settings.roles', label: 'Gestión de Roles', href: '/settings/roles', group: 'sistema' },
+        { id: 'settings.permissions', label: 'Permisos de Roles', href: '/settings/permissions', group: 'sistema' },
+        { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media', group: 'sistema' },
+        { id: 'notifications-admin', label: 'Notificaciones', href: '/notifications-admin', group: 'sistema' },
+        { id: 'staff-notifications', label: 'Comunicados Staff', href: '/staff-notifications', group: 'sistema' },
     ];
 }
+
+/**
+ * Get menu resources grouped by category (for permissions UI).
+ * Automatically groups based on the `group` field — no manual grouping needed.
+ */
+export function getGroupedMenuResources(filterFn?: (item: MenuResource) => boolean) {
+    const items = getAllMenuResources();
+    const filtered = filterFn ? items.filter(filterFn) : items;
+
+    const groupMap = new Map<string, MenuResource[]>();
+    filtered.forEach(item => {
+        if (!groupMap.has(item.group)) groupMap.set(item.group, []);
+        groupMap.get(item.group)!.push(item);
+    });
+
+    return Array.from(groupMap.entries())
+        .map(([groupId, groupItems]) => ({
+            id: groupId,
+            ...(MENU_GROUPS[groupId] || { icon: '📁', label: groupId, description: '', order: 99 }),
+            items: groupItems,
+        }))
+        .sort((a, b) => a.order - b.order);
+}
+

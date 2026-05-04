@@ -3,7 +3,7 @@
 import * as React from "react";
 import { RoleSelector } from "@/components/permissions/role-selector";
 import { PermissionGroup } from "@/components/permissions/permission-group";
-import { getAllMenuResources } from "@/lib/permissions";
+import { getAllMenuResources, getGroupedMenuResources } from "@/lib/permissions";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useRouter } from "next/navigation";
 
@@ -166,63 +166,12 @@ export default function PermissionsPage() {
         )
         : allMenuItems;
 
-    // Group menu items by category
-    const menuGroups = [
-        {
-            title: "Principal",
-            icon: "🏠",
-            description: "Página principal del sistema",
-            items: filteredMenuItems.filter((item) => ["dashboard"].includes(item.id)),
-        },
-        {
-            title: "Inventario",
-            icon: "📦",
-            description: "Gestión de productos y almacenes",
-            items: filteredMenuItems.filter((item) =>
-                ["products", "categories", "warehouses", "suppliers", "customers"].includes(item.id)
-            ),
-        },
-        {
-            title: "Movimientos y Stock",
-            icon: "📊",
-            description: "Control de inventario y movimientos",
-            items: filteredMenuItems.filter((item) =>
-                ["movements", "stock", "kardex"].includes(item.id)
-            ),
-        },
-        {
-            title: "Análisis y Reportes",
-            icon: "📈",
-            description: "Reportes y análisis de datos",
-            items: filteredMenuItems.filter((item) =>
-                ["analytics", "export", "reports.income"].includes(item.id)
-            ),
-        },
-        {
-            title: "Ventas y Compras",
-            icon: "💰",
-            description: "Gestión de ventas y compras",
-            items: filteredMenuItems.filter((item) =>
-                ["purchases-sales", "purchases", "sales", "sales.pos"].includes(item.id)
-            ),
-        },
-        {
-            title: "Personal",
-            icon: "👥",
-            description: "Gestión de empleados y turnos",
-            items: filteredMenuItems.filter((item) =>
-                ["employees", "employees.schedules", "employees.closings"].includes(item.id)
-            ),
-        },
-        {
-            title: "Otros",
-            icon: "⚙️",
-            description: "Configuración y herramientas",
-            items: filteredMenuItems.filter((item) =>
-                ["notifications-admin", "sensors", "training", "settings", "settings.media", "settings.permissions", "settings.roles"].includes(item.id)
-            ),
-        },
-    ];
+    // Dynamic groups from permissions config — no manual grouping needed
+    const menuGroups = getGroupedMenuResources(
+        searchQuery
+            ? (item) => item.label.toLowerCase().includes(searchQuery.toLowerCase()) || item.href.toLowerCase().includes(searchQuery.toLowerCase())
+            : undefined
+    );
 
     const visibleGroups = menuGroups.filter(group => group.items.length > 0);
     const totalFiltered = filteredMenuItems.length;
@@ -365,11 +314,11 @@ export default function PermissionsPage() {
                             ) : (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {visibleGroups.map((group) => (
-                                        <div key={group.title} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                                        <div key={group.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                                             <div className="flex items-start gap-3 mb-4">
                                                 <div className="text-2xl">{group.icon}</div>
                                                 <div className="flex-1">
-                                                    <h3 className="font-semibold text-lg">{group.title}</h3>
+                                                    <h3 className="font-semibold text-lg">{group.label}</h3>
                                                     <p className="text-xs text-muted-foreground">{group.description}</p>
                                                 </div>
                                                 <div className="text-xs bg-muted px-2 py-1 rounded">
