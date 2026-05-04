@@ -93,6 +93,7 @@ function RoomsBoardInternal() {
   const [trackingFilter] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [assignRemoteRoom, setAssignRemoteRoom] = useState<Room | null>(null);
+  const [plateSearch, setPlateSearch] = useState("");
 
   // Sensores y Realtime
   const { sensors } = useSensors();
@@ -500,8 +501,71 @@ function RoomsBoardInternal() {
 
       <RoomMetricsBanner rooms={rooms} />
 
-
-
+      {/* ── Búsqueda por Placa ──────────────────────────────── */}
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-sm">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 text-sm">🚗</span>
+            <input
+              type="text"
+              placeholder="Buscar placa del vehículo..."
+              value={plateSearch}
+              onChange={(e) => setPlateSearch(e.target.value.toUpperCase())}
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40 transition-all"
+            />
+            {plateSearch && (
+              <button
+                onClick={() => setPlateSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground text-xs"
+              >✕</button>
+            )}
+          </div>
+        </div>
+        {plateSearch.length >= 2 && (() => {
+          const matches = rooms.filter((r) => {
+            const stay = (r.room_stays || []).find((s: any) => s.status === "ACTIVA");
+            if (!stay?.vehicle_plate) return false;
+            return stay.vehicle_plate.toUpperCase().includes(plateSearch);
+          });
+          if (matches.length === 0) {
+            return (
+              <div className="mt-2 px-3 py-2 rounded-lg border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
+                No se encontró ningún vehículo con placa &quot;{plateSearch}&quot;
+              </div>
+            );
+          }
+          return (
+            <div className="mt-2 space-y-1.5">
+              {matches.map((room) => {
+                const stay = (room.room_stays || []).find((s: any) => s.status === "ACTIVA")!;
+                return (
+                  <button
+                    key={room.id}
+                    onClick={() => modals.openActionsDock(room)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border border-border bg-background hover:bg-accent/50 hover:border-blue-500/30 transition-all group text-left"
+                  >
+                    <span className="text-xl">🚗</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-foreground text-sm">Habitación {room.number}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          {stay.vehicle_plate}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground/60 truncate">
+                        {[stay.vehicle_brand, stay.vehicle_model].filter(Boolean).join(" ") || "Sin marca/modelo"}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground/30 group-hover:text-foreground/50 transition-colors">
+                      Abrir →
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Grid único de habitaciones */}
       <Card>

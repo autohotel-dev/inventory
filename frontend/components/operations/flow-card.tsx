@@ -128,11 +128,14 @@ export function FlowCard({ flow, onSelect, isSelected }: FlowCardProps) {
           <span className="tabular-nums">{elapsed}</span>
         </div>
 
-        {flow._last_actor && (
-          <span className="truncate max-w-[120px]">
-            👤 {flow._last_actor}
-          </span>
-        )}
+        {flow.events?.length ? (() => {
+          const lastActor = flow.events[flow.events.length - 1]?.actor_name;
+          return lastActor ? (
+            <span className="truncate max-w-[120px]">
+              👤 {lastActor}
+            </span>
+          ) : null;
+        })() : null}
 
         <span className="tabular-nums">
           {new Date(flow.started_at).toLocaleTimeString("es-MX", {
