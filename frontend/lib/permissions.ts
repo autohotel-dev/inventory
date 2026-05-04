@@ -180,32 +180,54 @@ export async function bulkUpdatePermissions(
  */
 export function getAllMenuResources(): Array<{ id: string; label: string; href: string }> {
     return [
+        // 🏠 OPERACIONES PRINCIPALES
         { id: 'dashboard', label: 'Dashboard', href: '/dashboard' },
+        { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos' },
+        { id: 'operacion', label: 'Operación en Tiempo Real', href: '/operacion' },
+
+        // 🏨 GESTIÓN HOTELERA
+        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types' },
+        { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors' },
+
+        // 📦 INVENTARIO Y COMPRAS
         { id: 'products', label: 'Productos', href: '/products' },
         { id: 'categories', label: 'Categorías', href: '/categories' },
         { id: 'warehouses', label: 'Almacenes', href: '/warehouses' },
         { id: 'suppliers', label: 'Proveedores', href: '/suppliers' },
         { id: 'customers', label: 'Clientes', href: '/customers' },
-        { id: 'notifications-admin', label: 'Notificaciones', href: '/notifications-admin' },
-        { id: 'movements', label: 'Movimientos', href: '/movements' },
-        { id: 'stock', label: 'Stock', href: '/stock' },
-        { id: 'kardex', label: 'Kardex', href: '/kardex' },
-        { id: 'analytics', label: 'Analytics', href: '/analytics' },
-        { id: 'export', label: 'Exportar', href: '/export' },
+
+        // Compras y Ventas
         { id: 'purchases-sales', label: 'Dashboard Compras/Ventas', href: '/purchases-sales' },
         { id: 'purchases', label: 'Compras', href: '/purchases' },
         { id: 'sales', label: 'Ventas', href: '/sales' },
-        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types' },
-        { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos' },
-        { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors' },
+
+        // Control de Inventario
+        { id: 'movements', label: 'Movimientos', href: '/movements' },
+        { id: 'stock', label: 'Stock', href: '/stock' },
+        { id: 'kardex', label: 'Kardex', href: '/kardex' },
+
+        // 💰 FINANZAS Y REPORTES
+        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/reports/income' },
+        { id: 'employees.closings', label: 'Cortes de Caja (Cierre)', href: '/employees/closings' },
+        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint' },
+
+        // 📊 ANALYTICS
+        { id: 'analytics', label: 'Analytics', href: '/analytics' },
+        { id: 'analytics.performance', label: 'Rendimiento y Tiempos', href: '/analytics/performance' },
+        { id: 'export', label: 'Exportar', href: '/export' },
+        { id: 'auditoria', label: 'Auditoría', href: '/auditoria' },
+
+        // 👥 RECURSOS HUMANOS
         { id: 'employees', label: 'Empleados', href: '/employees' },
         { id: 'employees.schedules', label: 'Horarios', href: '/employees/schedules' },
-        { id: 'employees.closings', label: 'Cortes de Caja', href: '/employees/closings' },
-        { id: 'reports.income', label: 'Reporte de Ingresos', href: '/reports/income' },
         { id: 'training', label: 'Capacitación', href: '/training' },
+
+        // ⚙️ CONFIGURACIÓN Y SISTEMA
         { id: 'settings', label: 'Configuración', href: '/settings' },
-        { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media' },
+        { id: 'settings.roles', label: 'Gestión de Roles', href: '/settings/roles' },
         { id: 'settings.permissions', label: 'Permisos de Roles', href: '/settings/permissions' },
-        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint' },
+        { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media' },
+        { id: 'notifications-admin', label: 'Notificaciones', href: '/notifications-admin' },
+        { id: 'staff-notifications', label: 'Comunicados Staff', href: '/staff-notifications' },
     ];
 }
