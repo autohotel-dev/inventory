@@ -115,7 +115,7 @@ const adminLinks: readonly NavLink[] = [
   // 💰 FINANZAS Y REPORTES
   { href: "/reports/income", label: "Pre-Cortes de Caja", icon: "fileText", permissionId: "reports.income", allowedForReceptionist: true },
   { href: "/employees/closings", label: "Cortes de Caja (Cierre)", icon: "bag", permissionId: "employees.closings", allowedForReceptionist: true },
-  { href: "/reprint", label: "Reimprimir Tickets", icon: "fileText", permissionId: "reprint", allowedForReceptionist: true },
+  { href: "/reprint", label: "Reimprimir Tickets", icon: "fileText", permissionId: "reprint", allowedForNonAdmin: true, allowedForReceptionist: true },
   { divider: true },
   
   { href: "/analytics", label: "Analytics", icon: "chart", permissionId: "analytics", adminOnly: true },

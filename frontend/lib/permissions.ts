@@ -206,5 +206,6 @@ export function getAllMenuResources(): Array<{ id: string; label: string; href: 
         { id: 'settings', label: 'Configuración', href: '/settings' },
         { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media' },
         { id: 'settings.permissions', label: 'Permisos de Roles', href: '/settings/permissions' },
+        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint' },
     ];
 }
