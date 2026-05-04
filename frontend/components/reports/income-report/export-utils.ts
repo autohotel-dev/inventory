@@ -44,17 +44,16 @@ export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel
             payDetail = e.payment_method;
         }
 
-        return `<tr style="${idx % 2 === 0 ? "" : "background:#f9fafb;"}">
+        return `<tr>
             <td style="text-align:center;font-weight:600;">${e.no}</td>
             <td style="text-align:center;">${e.time}</td>
-            <td style="text-align:center;text-transform:uppercase;font-size:10px;">${e.vehicle_plate || "—"}</td>
-            <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === "CANCELADA" ? ' <span style="color:#dc2626;font-size:9px;">(CANC)</span>' : e.stay_status === "ACTIVA" ? ' <span style="color:#d97706;font-size:9px;">(ACT)</span>' : ""}</td>
-            <td style="text-align:center;font-size:10px;color:#4b5563;">${e.checkout_valet_name || "—"}</td>
+            <td style="text-align:center;text-transform:uppercase;">${e.vehicle_plate || "—"}</td>
+            <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === "CANCELADA" ? ' <span style="color:#dc2626;font-size:7px;">(C)</span>' : e.stay_status === "ACTIVA" ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : ""}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? "$" + Number(e.extra).toFixed(2) : "—"}</td>
             <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? "$" + Number(e.consumption).toFixed(2) : "—"}</td>
             <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
-            <td style="text-align:center;font-size:10px;">${payDetail}</td>
+            <td style="text-align:center;">${payDetail}</td>
         </tr>`;
     }).join("");
 
@@ -68,76 +67,72 @@ export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel
 <meta charset="UTF-8">
 <title>Corte de Caja — Luxor Auto Hotel</title>
 <style>
-    @page { size: portrait; margin: 8mm; }
+    @page { size: landscape; margin: 5mm; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 11px; color: #111; background: #fff; }
-    .header { text-align: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 16px; }
-    .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 2px; }
-    .header h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #444; margin-bottom: 8px; }
-    .meta { display: flex; justify-content: space-between; font-size: 10px; color: #555; margin-top: 6px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-    th { background: #111; color: #fff; padding: 6px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; border: 1px solid #111; }
-    td { padding: 5px 8px; border: 1px solid #d1d5db; font-size: 11px; }
-    .totals-row td { background: #f3f4f6; font-weight: 700; border-top: 2px solid #111; }
-    .footer { display: flex; justify-content: space-between; margin-top: 20px; gap: 20px; }
-    .footer-box { flex: 1; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px; }
-    .footer-box h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #666; margin-bottom: 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-    .signature { margin-top: 40px; display: flex; justify-content: space-around; }
-    .sig-line { text-align: center; width: 200px; }
-    .sig-line .line { border-top: 1px solid #111; margin-bottom: 4px; }
-    .sig-line span { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; background: #fff; line-height: 1.2; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 4px; }
+    .header h1 { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
+    .header .meta { font-size: 7px; color: #333; text-align: right; line-height: 1.4; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+    th { background: #222; color: #fff; padding: 2px 3px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border: 1px solid #222; white-space: nowrap; }
+    td { padding: 1px 3px; border: 1px solid #bbb; font-size: 8px; white-space: nowrap; }
+    tbody tr:nth-child(odd) { background: #f5f5f5; }
+    .totals-row td { background: #e5e5e5; font-weight: 700; border-top: 2px solid #111; font-size: 9px; }
+    .footer { display: flex; gap: 10px; margin-top: 6px; }
+    .footer-box { flex: 1; border: 1px solid #999; padding: 4px 6px; }
+    .footer-box h4 { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+    .footer-box td { font-size: 8px; padding: 1px 4px; border: none; border-bottom: 1px solid #eee; }
+    .signature { margin-top: 20px; display: flex; justify-content: space-around; }
+    .sig-line { text-align: center; width: 180px; }
+    .sig-line .line { border-top: 1px solid #111; margin-bottom: 2px; }
+    .sig-line span { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
 </style>
 </head>
 <body onload="setTimeout(()=>window.print(),300)">
 <div class="header">
-    <h1>Luxor Auto Hotel</h1>
-    <h2>Corte de Caja</h2>
+    <h1>Luxor Auto Hotel &mdash; Corte de Caja</h1>
     <div class="meta">
-        <span><b>Recepcionista:</b> ${receptionistName}</span>
-        <span><b>Periodo:</b> ${periodLabel}</span>
-        <span><b>Impreso:</b> ${new Date().toLocaleString("es-MX")}</span>
-        <span><b>Registros:</b> ${entries.length}</span>
+        <b>${receptionistName}</b> &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; ${entries.length} registros &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString("es-MX")}
     </div>
 </div>
 <table>
     <thead>
         <tr>
-            <th style="width:35px">No.</th>
-            <th style="width:55px">Hora</th>
-            <th style="width:80px">Placas</th>
-            <th style="width:50px">Hab.</th>
-            <th style="width:60px">Aprobó</th>
-            <th style="width:75px">Precio</th>
-            <th style="width:70px">Extra</th>
-            <th style="width:75px">Consumo</th>
-            <th style="width:80px">Total</th>
+            <th>#</th>
+            <th>Hora</th>
+            <th>Placas</th>
+            <th>Hab</th>
+            <th>Precio</th>
+            <th>Extra</th>
+            <th>Consumo</th>
+            <th>Total</th>
             <th>Forma de Pago</th>
         </tr>
     </thead>
     <tbody>
         ${tableRows}
         <tr class="totals-row">
-            <td colspan="4" style="text-align:right;text-transform:uppercase;letter-spacing:2px;font-size:10px;">Suma Total</td>
+            <td colspan="4" style="text-align:right;letter-spacing:1px;">TOTAL</td>
             <td style="text-align:right;font-family:monospace;">$${Number(totals.roomPrice).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(totals.extra).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(totals.consumption).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;font-size:13px;">$${Number(totals.total).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(totals.total).toFixed(2)}</td>
             <td></td>
         </tr>
     </tbody>
 </table>
 <div class="footer">
     <div class="footer-box">
-        <h4>Desglose por Método de Pago</h4>
+        <h4>Desglose por M&eacute;todo de Pago</h4>
         <table style="margin:0;"><tbody>${breakdownRows}</tbody></table>
     </div>
     <div class="footer-box">
         <h4>Resumen</h4>
         <table style="margin:0;"><tbody>
-            <tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">Habitaciones</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:600;border-bottom:1px solid #e5e7eb;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">Extras</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:600;border-bottom:1px solid #e5e7eb;">$${Number(totals.extra).toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 12px;font-size:11px;border-bottom:1px solid #e5e7eb;">Consumo</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:600;border-bottom:1px solid #e5e7eb;">$${Number(totals.consumption).toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 12px;font-size:12px;font-weight:700;border-top:2px solid #111;">TOTAL</td><td style="padding:4px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:14px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
+            <tr><td>Habitaciones</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>
+            <tr><td>Extras</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.extra).toFixed(2)}</td></tr>
+            <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>
+            <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
         </tbody></table>
     </div>
 </div>
