@@ -7,6 +7,7 @@ import { Room } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { logFinancialAction } from "@/lib/audit-logger";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 import {
   getActiveStay,
   getReceptionEmployeeId,
@@ -59,6 +60,17 @@ export function createCancelActions(ctx: RoomActionContext) {
         description: `Cargo cancelado: ${concept} - $${amount.toFixed(2)} en Hab. ${room.number}`,
         extra: { concept, payment_id: paymentId, hours_deducted: data?.hours_deducted, people_deducted: data?.people_deducted },
         severity: "WARNING",
+      });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: "PAYMENT_CANCELLED",
+            description: `Cargo cancelado: ${concept} - $${amount.toFixed(2)}`,
+            metadata: { concept, amount, payment_id: paymentId, hours_deducted: data?.hours_deducted, people_deducted: data?.people_deducted },
+          });
+        }
       });
 
       await notifyActiveValets(supabase, '🚫 Cargo Cancelado',
@@ -114,6 +126,17 @@ export function createCancelActions(ctx: RoomActionContext) {
         description: `Item cancelado en Hab. ${room.number}: $${Number(data.amount).toFixed(2)}. Motivo: ${reason}`,
         extra: { reason, refund_created: data.refund_created, inventory_returned: data.inventory_returned },
         severity: "WARNING",
+      });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      findActiveFlow(activeStay.id).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: "CONSUMPTION_CANCELLED",
+            description: `Item cancelado: $${Number(data.amount).toFixed(2)}. Motivo: ${reason}`,
+            metadata: { amount: Number(data.amount), reason, refund: data.refund_created, inventory_returned: data.inventory_returned },
+          });
+        }
       });
 
       await notifyActiveValets(supabase, '🚫 Item Cancelado',

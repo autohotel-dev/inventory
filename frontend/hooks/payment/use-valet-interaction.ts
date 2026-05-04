@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { VALET_CONCEPTS, CONCEPT_LABELS, VALET_TO_SYSTEM_MAP, OrderItem } from "@/components/sales/payment/payment-constants";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 
 interface UseValetInteractionProps {
   salesOrderId: string;
@@ -182,6 +183,31 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
       }));
 
       toast.success("Pago corroborado");
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      try {
+        const supabase2 = createClient();
+        const { data: stayForFlow } = await supabase2
+          .from("room_stays")
+          .select("id")
+          .eq("sales_order_id", salesOrderId)
+          .eq("status", "ACTIVA")
+          .maybeSingle();
+        if (stayForFlow) {
+          findActiveFlow(stayForFlow.id).then(flowId => {
+            if (flowId) {
+              logFlowEvent(flowId, {
+                event_type: "PAYMENT_CORROBORATED",
+                description: `Pago del cochero corroborado por recepción`,
+                metadata: { payment_ids: paymentIds },
+              });
+            }
+          });
+        }
+      } catch (flowErr) {
+        console.error("[flow-logger] corroborate:", flowErr);
+      }
+
       fetchValetData();
     } catch (error) {
       console.error("Error corroborating:", error);

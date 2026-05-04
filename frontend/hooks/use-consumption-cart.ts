@@ -15,6 +15,7 @@ import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { validatePromotionConditions } from "@/lib/promo-conditions";
 import { logFinancialAction } from "@/lib/audit-logger";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 import { validateStockAvailability } from "@/lib/utils/stock-helpers";
 import type { BottlePackageRule } from "@/lib/types/inventory";
 
@@ -656,6 +657,33 @@ export function useConsumptionCart({
           })),
         },
       });
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      try {
+        const { data: stayForFlow } = await supabase
+          .from("room_stays")
+          .select("id")
+          .eq("sales_order_id", salesOrderId)
+          .eq("status", "ACTIVA")
+          .maybeSingle();
+        if (stayForFlow) {
+          findActiveFlow(stayForFlow.id).then(flowId => {
+            if (flowId) {
+              logFlowEvent(flowId, {
+                event_type: "CONSUMPTION_ADDED",
+                description: `Consumo registrado: ${productNames} - ${formatCurrency(totalAmount)}`,
+                metadata: {
+                  amount: totalAmount,
+                  item_count: totalItems,
+                  products: Array.from(cartItems.values()).map(({ product, qty }) => ({ name: product.name, qty, price: product.price })),
+                },
+              });
+            }
+          });
+        }
+      } catch (flowErr) {
+        console.error("[flow-logger] consumption:", flowErr);
+      }
 
       onComplete();
     } catch (error) {

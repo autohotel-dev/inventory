@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { OrderItem } from "@/components/sales/payment/payment-constants";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 
 interface UsePaymentProcessingProps {
   salesOrderId: string;
@@ -331,6 +332,34 @@ export function usePaymentProcessing({
       }
 
       toast.success("Pago procesado correctamente");
+
+      // ─── Flow Event ─────────────────────────────────────────────
+      try {
+        const { data: stayForFlow } = await supabase
+          .from("room_stays")
+          .select("id")
+          .eq("sales_order_id", salesOrderId)
+          .eq("status", "ACTIVA")
+          .maybeSingle();
+        if (stayForFlow) {
+          findActiveFlow(stayForFlow.id).then(flowId => {
+            if (flowId) {
+              logFlowEvent(flowId, {
+                event_type: "PAYMENT_CONFIRMED",
+                description: `Pago procesado por recepción: $${selectedTotal.toFixed(2)} (${payments.map(p => p.method).join(', ')})`,
+                metadata: {
+                  amount: selectedTotal,
+                  payment_count: payments.filter(p => p.amount > 0).length,
+                  methods: payments.filter(p => p.amount > 0).map(p => ({ method: p.method, amount: p.amount })),
+                  tip: tipAmount > 0 ? tipAmount : undefined,
+                },
+              });
+            }
+          });
+        }
+      } catch (flowErr) {
+        console.error("[flow-logger] payment:", flowErr);
+      }
 
       // Imprimir comprobante de pago (fire-and-forget)
       try {
