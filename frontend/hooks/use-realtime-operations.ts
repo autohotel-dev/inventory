@@ -238,10 +238,9 @@ export function useRealtimeOperations() {
           }
         }
       )
-      .on("system", { event: "*" } as any, (status: string) => {
-        setIsConnected(status === "joined" || status === "ok");
-      })
-      .subscribe();
+      .subscribe((status: string) => {
+        setIsConnected(status === "SUBSCRIBED");
+      });
 
     channelRef.current = channel;
 
