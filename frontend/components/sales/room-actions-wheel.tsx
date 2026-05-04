@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter, Loader2 } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter, Loader2, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Room } from "@/components/sales/room-types";
 
@@ -45,10 +45,11 @@ export interface RoomActionsWheelProps {
   hasPendingValetPayment?: boolean; // Si hay pagos cobrados por valet sin confirmar
   hasValetCheckoutRequest?: boolean; // Si el valet propuso salida
   onCancelValetCheckout?: () => void; // Cancelar/Rechazar solicitud de salida
+  onOpenPrintCenter: () => void; // Abrir centro de impresión
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onCancelValetCheckout';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onCancelValetCheckout' | 'onOpenPrintCenter';
 
 interface ActionConfig {
   id: string;
@@ -78,6 +79,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
     { id: "granular", label: "Cobrar", icon: <ListChecks className="h-5 w-5" />, color: "text-lime-400", hoverBg: "hover:bg-lime-500/30", action: "onGranularPayment" },
     { id: "guestportal", label: "Portal", icon: <QrCode className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onShowGuestPortal" },
     { id: "details", label: "Detalles", icon: <Receipt className="h-5 w-5" />, color: "text-sky-400", hoverBg: "hover:bg-sky-500/30", action: "onViewDetails" },
+    { id: "print_center", label: "Tickets", icon: <Printer className="h-5 w-5" />, color: "text-slate-400", hoverBg: "hover:bg-slate-500/30", action: "onOpenPrintCenter" },
     // { id: "vehicle", label: "Vehículo", icon: <Car className="h-5 w-5" />, color: "text-blue-400", hoverBg: "hover:bg-blue-500/30", action: "onEditVehicle" },
     { id: "req_vehicle", label: "Solicitar Auto", icon: <BellRing className="h-5 w-5" />, color: "text-red-400", hoverBg: "hover:bg-red-500/30", action: "onRequestVehicle" },
     // { id: "valet", label: "Cochero", icon: <UserCog className="h-5 w-5" />, color: "text-orange-400", hoverBg: "hover:bg-orange-500/30", action: "onEditValet" },
@@ -192,6 +194,7 @@ export function RoomActionsWheel({
   hasValetCheckoutRequest = false,
   onAuthorizeValetCheckout,
   onCancelValetCheckout,
+  onOpenPrintCenter,
 }: RoomActionsWheelProps) {
   if (!isOpen || !room) return null;
 
@@ -268,6 +271,7 @@ export function RoomActionsWheel({
     onNotifyCheckout,
     onAuthorizeValetCheckout: onAuthorizeValetCheckout || (() => { }),
     onCancelValetCheckout: onCancelValetCheckout || (() => { }),
+    onOpenPrintCenter,
   };
 
   return (

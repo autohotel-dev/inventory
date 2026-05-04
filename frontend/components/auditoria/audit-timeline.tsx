@@ -7,13 +7,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Clock, User, CreditCard, AlertTriangle, CheckCircle, RefreshCw,
   PlusCircle, XCircle, Gift, RotateCcw, Timer, UserPlus, UserMinus,
-  LogOut, ShoppingBag, Wrench, Zap, DoorOpen, Home,
+  LogOut, ShoppingBag, Wrench, Zap, DoorOpen, Home, Printer
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { usePrintCenter } from "@/contexts/print-center-context";
 
 interface AuditEvent {
   id: string;
@@ -170,6 +171,7 @@ export function AuditTimeline() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
+  const { openPrintCenter } = usePrintCenter();
 
   const fetchEvents = useCallback(async () => {
     const supabase = createClient();
@@ -298,6 +300,17 @@ export function AuditTimeline() {
                         >
                           {event.severity}
                         </Badge>
+                        {["CHECKOUT", "CONSUMPTION_ADDED", "INSERT"].includes(event.action) && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={(e) => { e.stopPropagation(); openPrintCenter('advanced'); }}
+                            className="h-6 w-6 ml-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            title="Reimprimir Ticket"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                       <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                         {format(new Date(event.created_at), "HH:mm:ss", { locale: es })}

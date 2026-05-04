@@ -11,6 +11,8 @@ import { InteractiveOverlay } from "@/components/training/interactive-overlay";
 import { ChatProvider } from "@/contexts/chat-context";
 import { ChatWidget } from "@/components/chat/chat-widget";
 import { AuthListener } from "@/components/auth/auth-listener";
+import { PrintCenterProvider } from "@/contexts/print-center-context";
+import { PrintCenterModal } from "@/components/print-center/print-center-modal";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
@@ -115,18 +117,21 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <TrainingProvider>
-              <ChatProvider>
-                <ConditionalLayout>
-                  {children}
-                </ConditionalLayout>
-                <InteractiveOverlay />
-                <ChatWidget />
-                <ToastProvider />
-                <AuthListener />
-                <PWAInstaller />
-                <PWAStatus />
-                <DataDebug />
-              </ChatProvider>
+              <PrintCenterProvider>
+                <ChatProvider>
+                  <ConditionalLayout>
+                    {children}
+                  </ConditionalLayout>
+                  <InteractiveOverlay />
+                  <ChatWidget />
+                  <ToastProvider />
+                  <AuthListener />
+                  <PWAInstaller />
+                  <PWAStatus />
+                  <DataDebug />
+                  <PrintCenterModal />
+                </ChatProvider>
+              </PrintCenterProvider>
             </TrainingProvider>
           </ThemeProvider>
         </QueryProvider>
