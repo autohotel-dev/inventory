@@ -256,9 +256,13 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
             Cancelar
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => { handlePrintClosing(); handlePrintHP(); }} disabled={loading || !summary} size="sm">
+            <Button variant="outline" onClick={handlePrintClosing} disabled={loading || !summary} size="sm" title="Imprimir ticket térmico">
               <Printer className="h-4 w-4 mr-2" />
-              Pre-Corte
+              Ticket
+            </Button>
+            <Button variant="outline" onClick={handlePrintHP} disabled={loading || !summary} size="sm" title="Imprimir hoja de ingresos en HP">
+              <FileText className="h-4 w-4 mr-2" />
+              Hoja
             </Button>
             <Button
               onClick={handleSaveClosing}

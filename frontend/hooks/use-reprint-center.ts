@@ -502,8 +502,6 @@ export function useReprintCenter() {
           // For closings, we need to load transactions on demand
           const supabase = createClient();
           const closingId = ticket.rawData.closingId;
-          const shiftSessionId = ticket.rawData.shiftSessionId;
-
           const { data: details } = await supabase
             .from("shift_closing_details")
             .select("*, payments(id, amount, payment_method, reference, concept, terminal_code, created_at, payment_terminals(code, name))")
@@ -523,19 +521,11 @@ export function useReprintCenter() {
             };
           }).filter(Boolean);
 
-          // 1. Print thermal ticket
-          const thermalResult = await printClosing({
+          // 1. Print thermal ticket only
+          return await printClosing({
             ...ticket.rawData,
             transactions,
           });
-
-          // 2. Print HP income report (fire-and-forget)
-          if (shiftSessionId) {
-            printHPIncomeReport(supabase, shiftSessionId, ticket.rawData.employeeName, ticket.rawData.periodStart, ticket.rawData.periodEnd)
-              .catch((err: any) => console.error('[Reprint] HP income error:', err));
-          }
-
-          return thermalResult;
         }
 
         default:
