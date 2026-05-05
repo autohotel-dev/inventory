@@ -97,7 +97,7 @@ function TelemetryRow({ record }: { record: TelemetryRecord }) {
       {expanded && (
         <div className="px-4 pb-4 pt-1 ml-11 border-l-2 border-primary/20 pl-4 space-y-3">
           {/* Payload Viewer */}
-          {record.payload && (
+          {record.payload != null && (
             <div className="space-y-1">
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payload / Datos Enviados</div>
               <div className="bg-background/50 border border-border/30 rounded-lg p-2.5 overflow-x-auto">
@@ -109,7 +109,7 @@ function TelemetryRow({ record }: { record: TelemetryRecord }) {
           )}
 
           {/* Error Details */}
-          {record.error_details && (
+          {record.error_details != null && (
             <div className="space-y-1">
               <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">Detalles de Error</div>
               <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-2.5 overflow-x-auto">
@@ -123,7 +123,7 @@ function TelemetryRow({ record }: { record: TelemetryRecord }) {
           )}
 
           {/* Fallback if no details */}
-          {!record.payload && !record.error_details && (
+          {record.payload == null && record.error_details == null && (
             <div className="text-xs text-muted-foreground italic bg-muted/20 p-2 rounded">
               No hay datos adicionales (payload) registrados para esta interacción.
             </div>
