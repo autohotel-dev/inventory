@@ -40,6 +40,7 @@ async def startup_event():
     asyncio.create_task(listen_to_pg())
 
 @app.get("/")
+@app.head("/")
 def read_root():
     return {"message": "Luxor API is running!"}
 
