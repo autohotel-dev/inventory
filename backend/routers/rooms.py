@@ -127,8 +127,10 @@ def get_rooms_dashboard(db: Session = Depends(get_db)):
             # Construir el grafo legacy mínimo esperado por los modales de UI
             room_stays=[{
                 "id": str(active_stay.id),
+                "room_id": str(active_stay.room_id),
                 "sales_order_id": str(active_stay.sales_order_id),
                 "status": active_stay.status,
+                "created_at": active_stay.created_at.isoformat() if active_stay.created_at else None,
                 "check_in_at": active_stay.check_in_at.isoformat() if active_stay.check_in_at else None,
                 "expected_check_out_at": active_stay.expected_check_out_at.isoformat() if active_stay.expected_check_out_at else None,
                 "current_people": active_stay.current_people,
