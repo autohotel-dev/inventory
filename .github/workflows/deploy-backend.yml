@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - pos
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend.yml'
