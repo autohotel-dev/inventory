@@ -22,6 +22,9 @@ export interface TelemetryFilters {
   module: string;
   status: 'ALL' | 'SUCCESS' | 'ERROR';
   search: string;
+  user_id: string | 'ALL';
+  date_from: string | null;
+  date_to: string | null;
 }
 
 export function useTelemetry() {
@@ -31,11 +34,18 @@ export function useTelemetry() {
   const [pageIndex, setPageIndex] = useState(0);
   const PAGE_SIZE = 100;
 
+  // Metadata for dropdowns
+  const [employeesList, setEmployeesList] = useState<{id: string, name: string}[]>([]);
+  const [shiftsList, setShiftsList] = useState<{id: string, name: string, start: string, end: string | null}[]>([]);
+
   const [filters, setFilters] = useState<TelemetryFilters>({
     action_type: 'ALL',
     module: 'ALL',
     status: 'ALL',
     search: '',
+    user_id: 'ALL',
+    date_from: null,
+    date_to: null,
   });
 
   const [stats, setStats] = useState({
@@ -43,6 +53,38 @@ export function useTelemetry() {
     errors: 0,
     avgDuration: 0,
   });
+
+  // Fetch metadata once
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      const supabase = createClient();
+      
+      const { data: emps } = await supabase.from('employees').select('auth_user_id, first_name, last_name');
+      if (emps) {
+        setEmployeesList(
+          emps
+            .filter((e: any) => e.auth_user_id != null)
+            .map((e: any) => ({ id: e.auth_user_id, name: `${e.first_name} ${e.last_name}`.trim() }))
+        );
+      }
+
+      const { data: shifts } = await supabase
+        .from('shift_sessions')
+        .select('id, clock_in_at, clock_out_at, employees(first_name, last_name)')
+        .order('clock_in_at', { ascending: false })
+        .limit(20);
+      
+      if (shifts) {
+        setShiftsList(shifts.map((s: any) => ({
+          id: s.id,
+          name: `${s.employees?.first_name || 'Turno'} - ${new Date(s.clock_in_at).toLocaleDateString()}`,
+          start: s.clock_in_at,
+          end: s.clock_out_at
+        })));
+      }
+    };
+    fetchMetadata();
+  }, []);
 
   const fetchTelemetry = useCallback(async (isLoadMore = false) => {
     try {
@@ -68,6 +110,15 @@ export function useTelemetry() {
       }
       if (filters.status === 'ERROR') {
         query = query.eq('is_success', false);
+      }
+      if (filters.user_id !== 'ALL') {
+        query = query.eq('user_id', filters.user_id);
+      }
+      if (filters.date_from) {
+        query = query.gte('created_at', filters.date_from);
+      }
+      if (filters.date_to) {
+        query = query.lte('created_at', filters.date_to);
       }
       if (filters.search) {
         // ILIKE search on action_name or endpoint
@@ -146,6 +197,8 @@ export function useTelemetry() {
     hasMore,
     filters,
     stats,
+    employeesList,
+    shiftsList,
     updateFilter,
     loadMore,
     refresh

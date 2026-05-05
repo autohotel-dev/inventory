@@ -135,7 +135,7 @@ function TelemetryRow({ record }: { record: TelemetryRecord }) {
 }
 
 export default function TelemetryDashboard() {
-  const { data, loading, hasMore, filters, stats, updateFilter, loadMore, refresh } = useTelemetry();
+  const { data, loading, hasMore, filters, stats, employeesList, shiftsList, updateFilter, loadMore, refresh } = useTelemetry();
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
@@ -208,43 +208,75 @@ export default function TelemetryDashboard() {
               />
             </div>
             
-            <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
-              <Button 
-                size="sm" 
-                variant={filters.action_type === 'ALL' ? 'default' : 'secondary'}
-                onClick={() => updateFilter('action_type', 'ALL')}
-                className="h-9 whitespace-nowrap"
+            <div className="flex gap-2">
+              <select 
+                className="h-9 text-xs rounded-md border border-input bg-background px-3 py-1 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring max-w-[150px] sm:max-w-[200px]"
+                value={filters.user_id}
+                onChange={(e) => updateFilter('user_id', e.target.value)}
               >
-                Todos
-              </Button>
-              <Button 
-                size="sm" 
-                variant={filters.action_type === 'API_REQUEST' ? 'default' : 'secondary'}
-                onClick={() => updateFilter('action_type', 'API_REQUEST')}
-                className="h-9 whitespace-nowrap gap-1.5"
+                <option value="ALL">Todos los Usuarios</option>
+                {employeesList?.map((emp: {id: string, name: string}, index: number) => (
+                  <option key={emp.id || `emp-${index}`} value={emp.id || `emp-${index}`}>{emp.name}</option>
+                ))}
+              </select>
+
+              <select 
+                className="h-9 text-xs rounded-md border border-input bg-background px-3 py-1 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring max-w-[150px] sm:max-w-[250px]"
+                onChange={(e) => {
+                  const shift = shiftsList?.find((s: {id: string, name: string, start: string, end: string | null}) => s.id === e.target.value);
+                  if (shift) {
+                    updateFilter('date_from', shift.start);
+                    updateFilter('date_to', shift.end || new Date().toISOString());
+                  } else {
+                    updateFilter('date_from', '');
+                    updateFilter('date_to', '');
+                  }
+                }}
               >
-                <Server className="h-3.5 w-3.5" /> API
-              </Button>
-              <Button 
-                size="sm" 
-                variant={filters.action_type === 'UI_CLICK' ? 'default' : 'secondary'}
-                onClick={() => updateFilter('action_type', 'UI_CLICK')}
-                className="h-9 whitespace-nowrap gap-1.5"
-              >
-                <MousePointerClick className="h-3.5 w-3.5" /> Clicks
-              </Button>
-              
-              <div className="w-px h-9 bg-border/50 mx-1" />
-              
-              <Button 
-                size="sm" 
-                variant={filters.status === 'ERROR' ? 'destructive' : 'outline'}
-                onClick={() => updateFilter('status', filters.status === 'ERROR' ? 'ALL' : 'ERROR')}
-                className="h-9 whitespace-nowrap gap-1.5 border-red-500/20"
-              >
-                <XCircle className="h-3.5 w-3.5" /> Fallos
-              </Button>
+                <option value="ALL">Cualquier Turno</option>
+                {shiftsList?.map((shift: {id: string, name: string, start: string, end: string | null}, index: number) => (
+                  <option key={shift.id || `shift-${index}`} value={shift.id || `shift-${index}`}>{shift.name}</option>
+                ))}
+              </select>
             </div>
+          </div>
+          
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+            <Button 
+              size="sm" 
+              variant={filters.action_type === 'ALL' ? 'default' : 'secondary'}
+              onClick={() => updateFilter('action_type', 'ALL')}
+              className="h-9 whitespace-nowrap"
+            >
+              Todos
+            </Button>
+            <Button 
+              size="sm" 
+              variant={filters.action_type === 'API_REQUEST' ? 'default' : 'secondary'}
+              onClick={() => updateFilter('action_type', 'API_REQUEST')}
+              className="h-9 whitespace-nowrap gap-1.5"
+            >
+              <Server className="h-3.5 w-3.5" /> API
+            </Button>
+            <Button 
+              size="sm" 
+              variant={filters.action_type === 'UI_CLICK' ? 'default' : 'secondary'}
+              onClick={() => updateFilter('action_type', 'UI_CLICK')}
+              className="h-9 whitespace-nowrap gap-1.5"
+            >
+              <MousePointerClick className="h-3.5 w-3.5" /> Clicks
+            </Button>
+            
+            <div className="w-px h-9 bg-border/50 mx-1" />
+            
+            <Button 
+              size="sm" 
+              variant={filters.status === 'ERROR' ? 'destructive' : 'outline'}
+              onClick={() => updateFilter('status', filters.status === 'ERROR' ? 'ALL' : 'ERROR')}
+              className="h-9 whitespace-nowrap gap-1.5 border-red-500/20"
+            >
+              <XCircle className="h-3.5 w-3.5" /> Fallos
+            </Button>
           </div>
         </CardHeader>
         
