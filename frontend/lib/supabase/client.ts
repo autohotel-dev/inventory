@@ -20,7 +20,7 @@ const telemetryFetch = async (input: RequestInfo | URL, init?: RequestInit): Pro
   const urlStr = input.toString();
   
   // Ignore auth/realtime or non-REST requests to avoid spam and loops
-  if (urlStr.includes('/auth/v1/') || urlStr.includes('/realtime/v1/') || urlStr.includes('/api/telemetry')) {
+  if (urlStr.includes('/auth/v1/') || urlStr.includes('/realtime/v1/') || urlStr.includes('/api/ops-sync')) {
     return fetch(input, init);
   }
 

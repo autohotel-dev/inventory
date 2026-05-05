@@ -51,10 +51,10 @@ class TelemetryTracker {
     try {
       if (isUnload && navigator.sendBeacon) {
         // Use sendBeacon for more reliable delivery during page unload
-        navigator.sendBeacon('/api/telemetry', JSON.stringify({ events: batch }));
+        navigator.sendBeacon('/api/ops-sync', JSON.stringify({ events: batch }));
       } else {
         // Standard fetch
-        const response = await fetch('/api/telemetry', {
+        const response = await fetch('/api/ops-sync', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
