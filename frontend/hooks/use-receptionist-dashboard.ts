@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { invalidateReceptionCache } from "@/hooks/room-actions/shift-helpers";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -376,18 +377,23 @@ export function useReceptionistDashboard() {
 
   // Realtime subscription
   useEffect(() => {
-    const supabase = createClient();
     let debounceTimeout: NodeJS.Timeout;
-    const channel = supabase.channel('receptionist-dashboard-shifts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_sessions' }, () => {
-        clearTimeout(debounceTimeout);
-        debounceTimeout = setTimeout(() => {
-          fetchActiveSession();
-          fetchActiveValetCount();
-          if (canAdjustCash && !activeSession) fetchSystemActiveSession();
-        }, 500);
-      }).subscribe();
-    return () => { clearTimeout(debounceTimeout); supabase.removeChannel(channel); };
+    
+    const handleShiftUpdate = () => {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        fetchActiveSession();
+        fetchActiveValetCount();
+        if (canAdjustCash && !activeSession) fetchSystemActiveSession();
+      }, 500);
+    };
+
+    const unsubShifts = luxorRealtimeClient.subscribe('shift_sessions', handleShiftUpdate);
+
+    return () => { 
+      clearTimeout(debounceTimeout); 
+      unsubShifts(); 
+    };
   }, [fetchActiveSession, fetchActiveValetCount, fetchSystemActiveSession, canAdjustCash, activeSession]);
 
   // ─── Cash Adjustment ──────────────────────────────────────────────

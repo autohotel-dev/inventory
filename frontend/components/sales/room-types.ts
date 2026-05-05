@@ -69,20 +69,20 @@ export interface RoomStay {
   expected_check_out_at?: string | null;
   current_people?: number;
   total_people?: number;
-  actual_check_out_at?: string | null; // Hora real de salida definitiva
-  // Campos para tolerancia de salida (solo motel, no torre/hotel)
-  tolerance_started_at?: string | null; // Cuando inició la tolerancia de 1 hora
-  tolerance_type?: 'PERSON_LEFT' | 'ROOM_EMPTY' | null; // Tipo de tolerancia activa
-  // Datos del vehículo
+  actual_check_out_at?: string | null;
+  tolerance_started_at?: string | null;
+  tolerance_type?: 'PERSON_LEFT' | 'ROOM_EMPTY' | null;
   vehicle_plate?: string | null;
   vehicle_brand?: string | null;
   vehicle_model?: string | null;
-  // Cocheros
-  valet_employee_id?: string | null; // Cochero de entrada
-  checkout_valet_employee_id?: string | null; // Cochero de salida
-  vehicle_requested_at?: string | null; // Hora de solicitud de vehículo
-  valet_checkout_requested_at?: string | null; // Hora de propuesta de salida por el cochero
-  guest_access_token?: string | null; // Token de acceso al portal de huéspedes
+  valet_employee_id?: string | null;
+  checkout_valet_employee_id?: string | null;
+  vehicle_requested_at?: string | null;
+  valet_checkout_requested_at?: string | null;
+  guest_access_token?: string | null;
+  checkout_payment_data?: PaymentEntry[] | null;
+  
+  // Legacy fields para Modales (se irán eliminando poco a poco)
   sales_orders?: {
     id?: string;
     remaining_amount?: number;
@@ -98,14 +98,50 @@ export interface RoomStay {
       created_at?: string | null;
     }[];
   } | null;
-  checkout_payment_data?: PaymentEntry[] | null;
+}
+
+// NUEVO MODELO SIMPLIFICADO DESDE FASTAPI (BFF)
+export interface VehicleStatus {
+  has_vehicle: boolean;
+  is_ready: boolean;
+  plate?: string;
+  brand?: string;
+  model?: string;
+  is_waiting_authorization: boolean;
+}
+
+export interface SensorStatus {
+  is_open: boolean;
+  battery_level: number;
+  is_online: boolean;
+}
+
+export interface ActiveStayDashboard {
+  id: string;
+  sales_order_id: string;
+  check_in_at: string;
+  expected_check_out_at: string;
+  valet_employee_id?: string;
+  has_pending_payment: boolean;
+  has_pending_service: boolean;
+  is_critical_service: boolean;
+  is_valet_pending: boolean;
+  vehicle_status?: VehicleStatus;
 }
 
 export interface Room {
   id: string;
   number: string;
   status: "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
-  room_types: RoomType | null;
+  notes?: string | null;
+  room_type_name?: string | null;
+  is_hotel?: boolean;
+  tv_remote_status?: string;
+  active_stay?: ActiveStayDashboard | null;
+  sensor_status?: SensorStatus | null;
+  
+  // Fallback temporal para modales legacy
+  room_types?: RoomType | null;
   room_stays?: RoomStay[];
   room_assets?: {
     id: string;
@@ -113,7 +149,6 @@ export interface Room {
     status: string;
     assigned_employee_id: string | null;
   }[];
-  notes?: string | null;
 }
 
 export interface TimeInfo {

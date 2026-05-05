@@ -34,14 +34,11 @@ export function useRoomTransitions(
           // Solo llamamos al RPC si parece que ya pasó la tolerancia
           if (diffMs > EXIT_TOLERANCE_MS) {
             try {
-              const { data, error } = await supabase.rpc('process_extra_hours_v2', {
-                p_stay_id: activeStay.id
+              const { apiClient } = await import("@/lib/api/client");
+              const response = await apiClient.post(`/rooms/${room.id}/extra-hours`, {
+                stay_id: activeStay.id
               });
-
-              if (error) {
-                console.error(`[RPC EXTRA HOUR] Error en Hab. ${room.number}:`, error);
-                continue;
-              }
+              const data = response.data;
 
               if (data && data.success && data.hours_added > 0) {
                 console.log(`⏰ [AUTO EXTRA HOUR] Hab. ${room.number}: +${data.hours_added}h (vía RPC).`);

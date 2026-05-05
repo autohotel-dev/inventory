@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Git
+.git/
+.gitignore
+
+# Serverless
+.serverless/
+node_modules/
+package-lock.json
+package.json

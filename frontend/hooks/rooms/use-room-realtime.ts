@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 
 /**
  * Hook dedicado a la suscripción de eventos en tiempo real (Supabase WebSockets).
@@ -25,9 +25,7 @@ export function useRoomRealtime(
   useEffect(() => { playAlertRef.current = playAlert; }, [playAlert]);
 
   useEffect(() => {
-    const supabase = createClient();
     let isSubscribed = true;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     // Debounced fetch: coalesces multiple realtime events into 1 refetch
     const debouncedFetch = () => {
@@ -37,99 +35,36 @@ export function useRoomRealtime(
       }, 300);
     };
 
-    const setupRealtimeChannel = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.access_token) {
-          supabase.realtime.setAuth(session.access_token);
-        } else {
-          console.warn("⚠️ [Realtime] No hay sesión activa");
-        }
-
-        // Remove any pre-existing channel with the same name to prevent
-        // "cannot add callbacks after subscribe()" during StrictMode/hot reload
-        const existingChannel = supabase.channel("rooms-board-realtime");
-        await supabase.removeChannel(existingChannel);
-
-        channel = supabase
-          .channel("rooms-board-realtime")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "rooms" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "room_assets" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "room_stays" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "payments" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "sales_orders" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "sales_order_items" },
-            (payload: any) => {
-              if (!isSubscribed) return;
-
-              // Alerta sonora para nuevos pedidos de consumo
-              if (payload.eventType === "INSERT" && payload.new?.concept_type === "CONSUMPTION") {
-                playAlertRef.current();
-              }
-
-              debouncedFetch();
-            }
-          )
-          .subscribe((status: string, err?: Error) => {
-            if (status === "SUBSCRIBED") {
-              console.log("✅ [Realtime] Conexión activada");
-            } else if (status === "CHANNEL_ERROR") {
-              console.warn("⚠️ [Realtime] Error en canal:", err?.message || "");
-            } else if (status === "TIMED_OUT") {
-              console.warn("⏱️ [Realtime] Timeout");
-            }
-          });
-      } catch (error) {
-        console.error("❌ [Realtime] Error configurando:", error);
-      }
+    const handleGenericUpdate = () => {
+      if (!isSubscribed) return;
+      debouncedFetch();
     };
 
-    setupRealtimeChannel();
+    const handleSalesOrderItems = (payload: any) => {
+      if (!isSubscribed) return;
+      // Alerta sonora para nuevos pedidos de consumo
+      if (payload.type === "INSERT" && payload.record?.concept_type === "CONSUMPTION") {
+        playAlertRef.current();
+      }
+      debouncedFetch();
+    };
+
+    const unsubRooms = luxorRealtimeClient.subscribe("rooms", handleGenericUpdate);
+    const unsubAssets = luxorRealtimeClient.subscribe("room_assets", handleGenericUpdate);
+    const unsubStays = luxorRealtimeClient.subscribe("room_stays", handleGenericUpdate);
+    const unsubPayments = luxorRealtimeClient.subscribe("payments", handleGenericUpdate);
+    const unsubSales = luxorRealtimeClient.subscribe("sales_orders", handleGenericUpdate);
+    const unsubItems = luxorRealtimeClient.subscribe("sales_order_items", handleSalesOrderItems);
 
     return () => {
       isSubscribed = false;
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      unsubRooms();
+      unsubAssets();
+      unsubStays();
+      unsubPayments();
+      unsubSales();
+      unsubItems();
     };
   }, []); // Sin dependencias → se monta UNA sola vez
 }

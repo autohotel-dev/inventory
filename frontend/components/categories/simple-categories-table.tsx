@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -40,39 +40,21 @@ export function SimpleCategoriesTable() {
   const { success, error: showError } = useToast();
 
   const fetchCategories = async () => {
-    const supabase = createClient();
     try {
+      const { apiClient } = await import("@/lib/api/client");
+      
       // Obtener categorías
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from("categories")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (categoriesError) throw categoriesError;
+      const { data: categoriesData } = await apiClient.get("/catalogs/categories");
 
       // Obtener subcategorías
-      const { data: subcategoriesData, error: subcategoriesError } = await supabase
-        .from("subcategories")
-        .select("*")
-        .eq("is_active", true)
-        .order("name", { ascending: true });
-
-      if (subcategoriesError) {
-        console.warn("No se pudieron obtener subcategorías:", subcategoriesError);
-      }
+      const { data: subcategoriesData } = await apiClient.get("/catalogs/subcategories");
 
       // Obtener productos para calcular estadísticas por categoría y subcategoría
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("category_id, subcategory_id, price, is_active");
-
-      if (productsError) {
-        console.warn("No se pudo obtener información de productos:", productsError);
-      }
+      const { data: productsData } = await apiClient.get("/inventory/products");
 
       // Enriquecer subcategorías con estadísticas
       const enrichedSubcategories = (subcategoriesData || []).map((subcategory: any) => {
-        const subcategoryProducts = productsData?.filter((p: any) => p.subcategory_id === subcategory.id && p.is_active) || [];
+        const subcategoryProducts = (productsData || []).filter((p: any) => p.subcategory_id === subcategory.id && p.is_active) || [];
         return {
           ...subcategory,
           productCount: subcategoryProducts.length
@@ -81,7 +63,7 @@ export function SimpleCategoriesTable() {
 
       // Enriquecer categorías con estadísticas y subcategorías
       const enrichedCategories = (categoriesData || []).map((category: any) => {
-        const categoryProducts = productsData?.filter((p: any) => p.category_id === category.id && p.is_active) || [];
+        const categoryProducts = (productsData || []).filter((p: any) => p.category_id === category.id && p.is_active) || [];
         const productCount = categoryProducts.length;
         const totalValue = categoryProducts.reduce((sum: number, p: any) => sum + (p.price || 0), 0);
         const averagePrice = productCount > 0 ? totalValue / productCount : 0;
@@ -131,14 +113,9 @@ export function SimpleCategoriesTable() {
   };
 
   const handleDelete = async (categoryId: string) => {
-    const supabase = createClient();
     try {
-      const { error } = await supabase
-        .from("categories")
-        .delete()
-        .eq("id", categoryId);
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/catalogs/categories/${categoryId}`);
 
       success("Categoría eliminada", "La categoría y sus subcategorías se eliminaron correctamente");
       fetchCategories();
@@ -149,22 +126,13 @@ export function SimpleCategoriesTable() {
   };
 
   const handleSave = async (categoryData: any) => {
-    const supabase = createClient();
     try {
+      const { apiClient } = await import("@/lib/api/client");
       if (editingCategory) {
-        const { error } = await supabase
-          .from("categories")
-          .update(categoryData)
-          .eq("id", editingCategory.id);
-
-        if (error) throw error;
+        await apiClient.patch(`/catalogs/categories/${editingCategory.id}`, categoryData);
         success("Categoría actualizada", "La categoría se actualizó correctamente");
       } else {
-        const { error } = await supabase
-          .from("categories")
-          .insert([categoryData]);
-
-        if (error) throw error;
+        await apiClient.post("/catalogs/categories", categoryData);
         success("Categoría creada", "La categoría se creó correctamente");
       }
 
@@ -196,14 +164,9 @@ export function SimpleCategoriesTable() {
   };
 
   const handleDeleteSubcategory = async (subcategoryId: string) => {
-    const supabase = createClient();
     try {
-      const { error } = await supabase
-        .from("subcategories")
-        .delete()
-        .eq("id", subcategoryId);
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/catalogs/subcategories/${subcategoryId}`);
 
       success("Subcategoría eliminada", "La subcategoría se eliminó correctamente");
       fetchCategories();
@@ -214,22 +177,16 @@ export function SimpleCategoriesTable() {
   };
 
   const handleSaveSubcategory = async (subcategoryData: any) => {
-    const supabase = createClient();
     try {
+      const { apiClient } = await import("@/lib/api/client");
       if (editingSubcategory) {
-        const { error } = await supabase
-          .from("subcategories")
-          .update(subcategoryData)
-          .eq("id", editingSubcategory.id);
-
-        if (error) throw error;
+        await apiClient.patch(`/catalogs/subcategories/${editingSubcategory.id}`, subcategoryData);
         success("Subcategoría actualizada", "La subcategoría se actualizó correctamente");
       } else {
-        const { error } = await supabase
-          .from("subcategories")
-          .insert([{ ...subcategoryData, category_id: selectedCategoryForSubcategory?.id }]);
-
-        if (error) throw error;
+        await apiClient.post("/catalogs/subcategories", { 
+          ...subcategoryData, 
+          category_id: selectedCategoryForSubcategory?.id 
+        });
         success("Subcategoría creada", "La subcategoría se creó correctamente");
       }
 

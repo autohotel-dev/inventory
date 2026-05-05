@@ -36,8 +36,20 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
     token = credentials.credentials
     
     if not COGNITO_USER_POOL_ID:
-        # MODO DESARROLLO (Si no hay variables de entorno, regresamos un usuario dummy o ignoramos)
-        # Esto nos permite probar localmente sin haber levantado Cognito todavía
+        # Fallback a Supabase JWT si Cognito no está configurado
+        supabase_secret = os.getenv("SUPABASE_JWT_SECRET")
+        if supabase_secret:
+            try:
+                payload = jwt.decode(token, supabase_secret, algorithms=["HS256"], audience="authenticated")
+                return CurrentUser(
+                    id=payload.get("sub"),
+                    email=payload.get("email", ""),
+                    groups=[payload.get("role", "")]
+                )
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Supabase token: {str(e)}")
+        
+        # MODO DESARROLLO (Si no hay variables de entorno, regresamos un usuario dummy)
         return CurrentUser(id="dev-user-id", email="dev@luxor.com", groups=["admin"])
 
     try:

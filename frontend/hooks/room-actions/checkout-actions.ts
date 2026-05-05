@@ -39,18 +39,22 @@ export function createCheckoutActions(ctx: RoomActionContext) {
     const supabase = createClient();
 
     try {
-      // Sincronizar horas extra pendientes vía RPC atómico
+      // Sincronizar horas extra pendientes vía API
       if (room.room_types?.extra_hour_price && room.room_types.extra_hour_price > 0) {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('process_extra_hours_v2', {
-          p_stay_id: activeStay.id
-        });
-
-        if (rpcError) {
-          console.error("[prepareCheckout] Error calling RPC:", rpcError);
-        } else if (rpcResult?.success && rpcResult.hours_added > 0) {
-          toast.success("Horas extra registradas", {
-            description: `${rpcResult.hours_added} hora(s) extra en Hab. ${room.number}`,
+        const { apiClient } = await import("@/lib/api/client");
+        try {
+          const response = await apiClient.post(`/rooms/${room.id}/extra-hours`, {
+            stay_id: activeStay.id
           });
+          const rpcResult = response.data;
+          
+          if (rpcResult?.success && rpcResult.hours_added > 0) {
+            toast.success("Horas extra registradas", {
+              description: `${rpcResult.hours_added} hora(s) extra en Hab. ${room.number}`,
+            });
+          }
+        } catch (err: any) {
+          console.error("[prepareCheckout] Error calling API:", err);
         }
       }
 
@@ -122,17 +126,21 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       // Step 5: Build and reconcile payments
       const newPayments = await buildCheckoutPayments(supabase, checkoutInfo, payments, totalPaid);
 
-      // Step 6: Atomic RPC
-      const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout_transaction', {
-        p_stay_id: validation.stayId,
-        p_sales_order_id: checkoutInfo.salesOrderId,
-        p_payment_data: newPayments,
-        p_checkout_valet_id: checkoutValetId || null
-      });
-
-      if (rpcError) {
-        logger.error("RPC Checkout Failed", rpcError);
-        toast.error("Error crítico en checkout", { description: rpcError.message });
+      // Step 6: Atomic API call
+      const { apiClient } = await import("@/lib/api/client");
+      let rpcData;
+      try {
+        const response = await apiClient.post(`/rooms/${room.id}/checkout`, {
+          stay_id: validation.stayId,
+          sales_order_id: checkoutInfo.salesOrderId,
+          payment_data: newPayments,
+          checkout_valet_id: checkoutValetId || null,
+          employee_id: (await supabase.auth.getUser()).data.user?.id
+        });
+        rpcData = response.data;
+      } catch (err: any) {
+        logger.error("API Checkout Failed", err);
+        toast.error("Error crítico en checkout", { description: err.response?.data?.detail || err.message });
         return false;
       }
 

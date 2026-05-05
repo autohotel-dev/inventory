@@ -135,14 +135,21 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
         if (empData) actionByEmployeeId = empData.id;
       }
       
-      const { data, error } = await supabase.rpc('assign_asset_to_employee', {
-        p_room_id: room.id,
-        p_asset_type: assetType,
-        p_employee_id: selectedCochero,
-        p_action_by_employee_id: actionByEmployeeId
-      });
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      let data;
+      try {
+        const response = await apiClient.post(`/rooms/${room.id}/assign-asset`, {
+          asset_type: assetType,
+          employee_id: selectedCochero,
+          action_by_employee_id: actionByEmployeeId
+        });
+        data = response.data;
+      } catch (err: any) {
+        toast.error("Hubo un error al asignar el control en la base de datos.", {
+          description: err.response?.data?.detail || err.message
+        });
+        return;
+      }
       
       // Enviar notificación push al cochero asignado
       if (assetType === 'TV_REMOTE') {

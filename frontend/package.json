@@ -13,6 +13,7 @@
     "sensors": "node scripts/tuya-poll.js"
   },
   "dependencies": {
+    "@aws-amplify/auth": "^6.19.1",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@hookform/resolvers": "^5.2.2",
@@ -37,6 +38,8 @@
     "@types/canvas-confetti": "^1.9.0",
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
+    "aws-amplify": "^6.16.4",
+    "axios": "^1.16.0",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -213,8 +213,20 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
         if (error) console.error("Error inserting payment:", error);
       }
 
-      const { data, error } = await supabase.rpc("process_payment", { order_id: orderId, payment_amount: totalAmount });
-      if (error) { toast.error('Error al crear el pago'); return; }
+      const { apiClient } = await import("@/lib/api/client");
+      let data;
+      try {
+        const response = await apiClient.post('/sales/process-payment', {
+          order_id: orderId,
+          payment_amount: totalAmount
+        });
+        data = [response.data]; // Wrap in array to match old expected format `data[0]`
+      } catch (err: any) {
+        toast.error('Error al crear el pago', {
+          description: err.response?.data?.detail || err.message
+        });
+        return;
+      }
 
       const result = data[0] as any;
       if (result.success === true) {

@@ -118,6 +118,22 @@ class PaymentCreate(PaymentBase):
     collected_by: Optional[uuid.UUID] = None
     employee_id: Optional[uuid.UUID] = None
 
+class PaymentProcessInput(BaseModel):
+    amount: Decimal
+    method: str
+    terminal: Optional[str] = None
+    reference: Optional[str] = None
+    cardLast4: Optional[str] = None
+    cardType: Optional[str] = None
+    collected_by: Optional[uuid.UUID] = None
+    original_payment_id: Optional[uuid.UUID] = None
+
+class ProcessPaymentRequest(BaseModel):
+    item_ids: List[uuid.UUID]
+    payments: List[PaymentProcessInput]
+    tip_amount: Decimal = Decimal('0.00')
+    room_number: Optional[str] = None
+
 class PaymentUpdate(BaseModel):
     status: Optional[str] = None
     confirmed_by: Optional[uuid.UUID] = None

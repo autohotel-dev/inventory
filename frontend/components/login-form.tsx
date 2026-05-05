@@ -37,15 +37,26 @@ export function LoginForm({
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    const supabase = createClient();
-
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (error) throw error;
+      if (process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID) {
+        const { signIn } = await import('aws-amplify/auth');
+        const result = await signIn({
+          username: data.email,
+          password: data.password,
+        });
+        
+        if (result.nextStep.signInStep !== 'DONE') {
+          throw new Error(`Cognito Sign In Step: ${result.nextStep.signInStep}`);
+        }
+      } else {
+        // Fallback a Supabase
+        const supabase = createClient();
+        const { error } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        });
+        if (error) throw error;
+      }
 
       logAudit("LOGIN", { description: `Login exitoso: ${data.email}` });
       success("¡Bienvenido!", "Has iniciado sesión correctamente");

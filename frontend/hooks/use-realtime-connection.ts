@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 export function useRealtimeConnection() {
   const [isConnected, setIsConnected] = useState(true);
   const [isTabActive, setIsTabActive] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     // Set initial state
@@ -14,7 +12,7 @@ export function useRealtimeConnection() {
 
     const handleOnline = () => {
       setIsConnected(true);
-      window.dispatchEvent(new CustomEvent("supabase-reconnect"));
+      window.dispatchEvent(new CustomEvent("supabase-reconnect")); // Keep event name for backward compatibility
     };
     
     const handleOffline = () => setIsConnected(false);
@@ -36,16 +34,6 @@ export function useRealtimeConnection() {
       }
     };
 
-    // Keep-alive channel to monitor Supabase socket health
-    const channel = supabase.channel('system-keep-alive');
-    channel.subscribe((status: string) => {
-      if (status === 'SUBSCRIBED') {
-        setIsConnected(true);
-      } else if (status === 'CHANNEL_ERROR') {
-        setIsConnected(false);
-      }
-    });
-
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -54,9 +42,8 @@ export function useRealtimeConnection() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []);
 
   return { isConnected, isTabActive };
 }

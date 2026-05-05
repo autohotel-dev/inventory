@@ -107,3 +107,47 @@ class RoomStayResponse(RoomStayBase):
     shift_session_id: Optional[uuid.UUID] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+# --- DASHBOARD BFF (Backend For Frontend) ---
+class SensorStatus(BaseModel):
+    is_open: bool = False
+    battery_level: int = 100
+    is_online: bool = True
+
+class VehicleStatus(BaseModel):
+    has_vehicle: bool = False
+    is_ready: bool = False
+    plate: Optional[str] = None
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    is_waiting_authorization: bool = False
+
+class ActiveStayDashboard(BaseModel):
+    id: uuid.UUID
+    sales_order_id: uuid.UUID
+    check_in_at: datetime
+    expected_check_out_at: datetime
+    valet_employee_id: Optional[uuid.UUID] = None
+    has_pending_payment: bool = False
+    has_pending_service: bool = False
+    is_critical_service: bool = False
+    is_valet_pending: bool = False
+    vehicle_status: Optional[VehicleStatus] = None
+
+class RoomDashboardResponse(BaseModel):
+    id: uuid.UUID
+    number: str
+    status: str
+    notes: Optional[str] = None
+    room_type_name: Optional[str] = None
+    is_hotel: bool = False
+    tv_remote_status: str = "SIN_REGISTRO"
+    active_stay: Optional[ActiveStayDashboard] = None
+    sensor_status: Optional[SensorStatus] = None
+    
+    # Original data needed for Modals
+    room_types: Optional[RoomTypeResponse] = None
+    room_stays: Optional[List[RoomStayResponse]] = None
+    room_assets: Optional[List[dict]] = None
+    
+    model_config = ConfigDict(from_attributes=True)

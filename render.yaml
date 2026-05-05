@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: luxor-backend
+    env: docker
+    rootDir: backend
+    region: ohio # us-east (matches AWS RDS us-east-1 closely for latency)
+    plan: free # Can be upgraded to 'starter' or 'standard'
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AWS_COGNITO_USER_POOL_ID
+        sync: false
+      - key: AWS_COGNITO_APP_CLIENT_ID
+        sync: false
+      - key: AWS_REGION
+        sync: false

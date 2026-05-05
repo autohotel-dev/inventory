@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { luxorRealtimeClient } from '@/lib/api/websocket';
 import { ChatMessage } from './chat-types';
 
 const PAGE_SIZE = 50;
@@ -194,7 +195,6 @@ export function useChatMessages(conversationId: string | null) {
     // Realtime subscription for current conversation
     useEffect(() => {
         let isMounted = true;
-        let channel: ReturnType<typeof supabase.channel> | null = null;
         
         // Reset state when switching conversations
         setMessages([]);
@@ -204,58 +204,49 @@ export function useChatMessages(conversationId: string | null) {
         if (conversationId) {
             fetchMessages(false);
 
-            channel = supabase
-                .channel(`chat_messages_${conversationId}`)
-                .on(
-                    'postgres_changes',
-                    { 
-                        event: '*', 
-                        schema: 'public', 
-                        table: 'messages',
-                        filter: `conversation_id=eq.${conversationId}`
-                    },
-                    (payload: any) => {
-                        if (!isMounted) return;
-                        
-                        if (payload.eventType === 'INSERT') {
-                            const newMsg = payload.new as ChatMessage;
-                            setMessages(prev => {
-                                // Clean dedup: only check for temp-id messages with matching content
-                                const hasTempDuplicate = prev.some(
-                                    m => m.id.toString().startsWith('temp-') && m.content === newMsg.content && m.user_id === newMsg.user_id
-                                );
-                                if (hasTempDuplicate) {
-                                    // Replace the temp message with the real one
-                                    return prev
-                                        .filter(m => !(m.id.toString().startsWith('temp-') && m.content === newMsg.content && m.user_id === newMsg.user_id))
-                                        .concat(newMsg)
-                                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-                                }
-                                // Skip if already present (exact ID match)
-                                if (prev.some(m => m.id === newMsg.id)) return prev;
-                                return [...prev, newMsg];
-                            });
-                        } else if (payload.eventType === 'UPDATE') {
-                            const updatedMsg = payload.new as ChatMessage;
-                            setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
-                        } else if (payload.eventType === 'DELETE') {
-                            const deletedMsgId = payload.old.id as string;
-                            setMessages(prev => prev.filter(m => m.id !== deletedMsgId));
+            const handleMessagesUpdate = (payload: any) => {
+                if (!isMounted) return;
+                
+                // payload from luxorRealtimeClient is already parsed
+                const eventType = payload.type;
+                const newMsg = payload.record as ChatMessage | null;
+                const oldMsg = payload.old_record as ChatMessage | null;
+
+                if (eventType === 'INSERT' && newMsg && newMsg.conversation_id === conversationId) {
+                    setMessages(prev => {
+                        // Clean dedup: only check for temp-id messages with matching content
+                        const hasTempDuplicate = prev.some(
+                            m => m.id.toString().startsWith('temp-') && m.content === newMsg.content && m.user_id === newMsg.user_id
+                        );
+                        if (hasTempDuplicate) {
+                            // Replace the temp message with the real one
+                            return prev
+                                .filter(m => !(m.id.toString().startsWith('temp-') && m.content === newMsg.content && m.user_id === newMsg.user_id))
+                                .concat(newMsg)
+                                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
                         }
-                    }
-                )
-                .subscribe((status: string, err: any) => {
-                    if (err) {
-                        console.error("Realtime subscription error:", err);
-                    }
-                });
+                        // Skip if already present (exact ID match)
+                        if (prev.some(m => m.id === newMsg.id)) return prev;
+                        return [...prev, newMsg];
+                    });
+                } else if (eventType === 'UPDATE' && newMsg && newMsg.conversation_id === conversationId) {
+                    setMessages(prev => prev.map(m => m.id === newMsg.id ? newMsg : m));
+                } else if (eventType === 'DELETE' && oldMsg) {
+                    const deletedMsgId = oldMsg.id as string;
+                    setMessages(prev => prev.filter(m => m.id !== deletedMsgId));
+                }
+            };
+
+            const unsubMessages = luxorRealtimeClient.subscribe('messages', handleMessagesUpdate);
+
+            return () => {
+                isMounted = false;
+                unsubMessages();
+            };
         }
 
         return () => {
             isMounted = false;
-            if (channel) {
-                supabase.removeChannel(channel);
-            }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [supabase, conversationId]);

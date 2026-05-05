@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -131,55 +131,13 @@ export function SimpleProductsTable() {
   });
 
   // Fetch global statistics separate from pagination
+  // Fetch global statistics is now handled by fetchProducts via the BFF
   const fetchStats = async () => {
-    const supabase = createClient();
-    try {
-      // 1. Total Products
-      const { count: total, error: err1 } = await supabase
-        .from("products_view")
-        .select("*", { count: "exact", head: true });
-
-      // 2. Active Products
-      const { count: active, error: err2 } = await supabase
-        .from("products_view")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true);
-
-      // 3. Stock Status counts
-      const { count: low, error: err3 } = await supabase
-        .from("products_view")
-        .select("*", { count: "exact", head: true })
-        .or("stock_status.eq.low,stock_status.eq.critical");
-
-      const { count: critical, error: err4 } = await supabase
-        .from("products_view")
-        .select("*", { count: "exact", head: true })
-        .eq("stock_status", "critical");
-
-      // 4. Total Value
-      const { data: valueData, error: err5 } = await supabase
-        .from("products_view")
-        .select("inventory_value");
-
-      if (err1 || err2 || err3 || err4 || err5) throw new Error("Error fetching stats");
-
-      const totalVal = (valueData || []).reduce((sum: number, item: any) => sum + (item.inventory_value || 0), 0);
-
-      setStats({
-        totalProducts: total || 0,
-        activeProducts: active || 0,
-        lowStockProducts: low || 0,
-        criticalStockProducts: critical || 0,
-        totalValue: totalVal
-      });
-
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
+    // No-op: stats are updated automatically when fetchProducts runs
   };
 
   useEffect(() => {
-    fetchStats();
+    // Ya no es necesario hacer un fetch separado para las stats
   }, []);
 
   // Fetch Logic Effect
@@ -198,14 +156,14 @@ export function SimpleProductsTable() {
         setSubcategoryFilter("");
         return;
       }
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("subcategories")
-        .select("id, name")
-        .eq("category_id", categoryFilter)
-        .eq("is_active", true)
-        .order("name");
-      setSubcategories(data || []);
+      const { apiClient } = await import("@/lib/api/client");
+      try {
+        const { data } = await apiClient.get(`/catalogs/subcategories?category_id=${categoryFilter}`);
+        setSubcategories(data || []);
+      } catch (error) {
+        console.error("Error fetching subcategories:", error);
+        setSubcategories([]);
+      }
       setSubcategoryFilter(""); // Reset subcategory when category changes
     };
     fetchSubcategories();
@@ -223,62 +181,36 @@ export function SimpleProductsTable() {
   const fetchProducts = async (pageNumber: number, isReset: boolean = false) => {
     if (!isReset && (!hasMore || loadingMore)) return;
 
-    const supabase = createClient();
     if (pageNumber === 0) setLoading(true); // This sets 'loading' which we'll use for opacity
     else setLoadingMore(true);
 
     try {
-      let query = supabase
-        .from("products_view")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Usar apiClient en lugar de supabase
+      const { apiClient } = await import("@/lib/api/client");
+      
+      const params = new URLSearchParams();
+      params.append('page', pageNumber.toString());
+      
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (categoryFilter) params.append('category_id', categoryFilter);
+      if (subcategoryFilter) params.append('subcategory_id', subcategoryFilter);
+      if (supplierFilter) params.append('supplier_id', supplierFilter);
+      if (stockFilter) params.append('stock_filter', stockFilter);
+      if (statusFilter) params.append('status_filter', statusFilter);
+      if (debouncedPriceMin) params.append('price_min', debouncedPriceMin);
+      if (debouncedPriceMax) params.append('price_max', debouncedPriceMax);
 
-      // Aplicar filtros
-      if (debouncedSearch) {
-        query = query.or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%,description.ilike.%${debouncedSearch}%`);
-      }
-      if (categoryFilter) {
-        if (categoryFilter === "sin-categoria") query = query.is("category_id", null);
-        else query = query.eq("category_id", categoryFilter);
-      }
-      if (subcategoryFilter) {
-        if (subcategoryFilter === "sin-subcategoria") query = query.is("subcategory_id", null);
-        else query = query.eq("subcategory_id", subcategoryFilter);
-      }
-      if (supplierFilter) {
-        if (supplierFilter === "sin-proveedor") query = query.is("supplier_id", null);
-        else query = query.eq("supplier_id", supplierFilter);
-      }
-      if (stockFilter) {
-        if (stockFilter === "sin-stock") query = query.lte("total_stock", 0);
-        else if (stockFilter === "stock-critico") query = query.eq("stock_status", "critical");
-        else if (stockFilter === "stock-bajo") query = query.eq("stock_status", "low");
-        else if (stockFilter === "stock-normal") query = query.eq("stock_status", "normal");
-        else if (stockFilter === "stock-alto") query = query.eq("stock_status", "high");
-      }
-      if (statusFilter) {
-        if (statusFilter === "activo") query = query.eq("is_active", true);
-        else if (statusFilter === "inactivo") query = query.eq("is_active", false);
-      }
-      // Filtro de rango de precio (con debounce)
-      if (debouncedPriceMin) {
-        query = query.gte("price", parseFloat(debouncedPriceMin));
-      }
-      if (debouncedPriceMax) {
-        query = query.lte("price", parseFloat(debouncedPriceMax));
-      }
-
-      // Paginación
-      const from = pageNumber * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-
-      const { data, error } = await query.range(from, to);
-
-      if (error) throw error;
+      const { data } = await apiClient.get(`/inventory/dashboard/products?${params.toString()}`);
 
       if (data) {
-        if (data.length < ITEMS_PER_PAGE) setHasMore(false);
-        setProducts((prev: ProductView[]) => isReset ? data : [...prev, ...data]);
+        setHasMore(data.has_more);
+        setProducts((prev: ProductView[]) => isReset ? data.products : [...prev, ...data.products]);
+        
+        // Actualizar estadísticas también (ya vienen calculadas desde el BFF!)
+        if (data.stats) {
+           setStats(data.stats);
+        }
+        
         setPage(pageNumber);
       }
     } catch (error) {
@@ -297,24 +229,31 @@ export function SimpleProductsTable() {
   // Cargar datos iniciales auxiliares
   useEffect(() => {
     const fetchAuxCheck = async () => {
-      const supabase = createClient();
-      const { data: cat } = await supabase.from("categories").select("id, name").order("name");
-      if (cat) setCategories(cat);
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const { data: cat } = await apiClient.get("/catalogs/categories");
+        if (cat) setCategories(cat);
 
-      const { data: sup } = await supabase.from("suppliers").select("id, name").eq("is_active", true).order("name");
-      if (sup) setSuppliers(sup);
+        const { data: sup } = await apiClient.get("/inventory/suppliers");
+        if (sup) setSuppliers(sup);
+      } catch (error) {
+        console.error("Error fetching aux data:", error);
+      }
     };
     fetchAuxCheck();
   }, []);
 
   const handleEdit = async (viewProduct: ProductView) => {
-    const supabase = createClient();
-    const { data } = await supabase.from("products").select("*, category:categories(id, name)").eq("id", viewProduct.id).single();
-
-    if (data) {
-      setEditingProduct(data);
-      setIsModalOpen(true);
-    } else {
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/inventory/products/${viewProduct.id}`);
+      
+      if (data) {
+        setEditingProduct(data as any);
+        setIsModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Error loading product details:", error);
       showError("Error", "No se pudieron cargar los detalles del producto para editar");
     }
   };
@@ -323,18 +262,12 @@ export function SimpleProductsTable() {
     if (!deleteProduct) return;
 
     setIsDeleting(true);
-    const supabase = createClient();
     try {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", deleteProduct.id);
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/inventory/products/${deleteProduct.id}`);
 
       success("Producto eliminado", "El producto se eliminó correctamente");
       resetAndFetch();
-      fetchStats(); // Fix: Sync stats
     } catch (error) {
       console.error("Error deleting product:", error);
       showError("Error", "No se pudo eliminar el producto");
@@ -346,31 +279,21 @@ export function SimpleProductsTable() {
 
   const handleSave = async (productData: any) => {
     setIsSaving(true);
-    const supabase = createClient();
     try {
+      const { apiClient } = await import("@/lib/api/client");
       if (editingProduct) {
         // Actualizar producto existente
-        const { error } = await supabase
-          .from("products")
-          .update(productData)
-          .eq("id", editingProduct.id);
-
-        if (error) throw error;
+        await apiClient.patch(`/inventory/products/${editingProduct.id}`, productData);
         success("Producto actualizado", "El producto se actualizó correctamente");
       } else {
         // Crear nuevo producto
-        const { error } = await supabase
-          .from("products")
-          .insert([productData]);
-
-        if (error) throw error;
+        await apiClient.post("/inventory/products", productData);
         success("Producto creado", "El producto se creó correctamente");
       }
 
       setIsModalOpen(false);
       setEditingProduct(null);
       resetAndFetch();
-      fetchStats(); // Fix: Sync stats
     } catch (error) {
       console.error("Error saving product:", error);
       showError("Error", "No se pudo guardar el producto");

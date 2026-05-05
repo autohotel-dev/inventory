@@ -33,12 +33,21 @@ export function createCancelActions(ctx: RoomActionContext) {
       const supabase = createClient();
       const currentEmployeeId = await getReceptionEmployeeId(supabase);
 
-      const { data, error } = await supabase.rpc('cancel_reception_charge', {
-        p_payment_id: paymentId,
-        p_employee_id: currentEmployeeId
-      });
+      const { apiClient } = await import("@/lib/api/client");
+      let data;
+      try {
+        const response = await apiClient.post('/sales/cancel-charge', {
+          payment_id: paymentId,
+          employee_id: currentEmployeeId
+        });
+        data = response.data;
+      } catch (err: any) {
+        toast.error("Error al cancelar el cargo en la base de datos", {
+          description: err.response?.data?.detail || err.message
+        });
+        return false;
+      }
 
-      if (error) { toast.error("Error al cancelar el cargo en la base de datos"); return false; }
       if (data && !data.success) { toast.error(data.error || "No se pudo cancelar el cargo"); return false; }
 
       const parts: string[] = [];
@@ -98,13 +107,22 @@ export function createCancelActions(ctx: RoomActionContext) {
       const supabase = createClient();
       const currentEmployeeId = await getReceptionEmployeeId(supabase);
 
-      const { data, error } = await supabase.rpc('cancel_item_with_refund', {
-        p_item_id: itemId,
-        p_employee_id: currentEmployeeId,
-        p_reason: reason
-      });
+      const { apiClient } = await import("@/lib/api/client");
+      let data;
+      try {
+        const response = await apiClient.post('/sales/cancel-refund', {
+          item_id: itemId,
+          employee_id: currentEmployeeId,
+          reason: reason
+        });
+        data = response.data;
+      } catch (err: any) {
+        toast.error("Error al cancelar el item en la base de datos", {
+          description: err.response?.data?.detail || err.message
+        });
+        return false;
+      }
 
-      if (error) { toast.error("Error al cancelar el item en la base de datos"); return false; }
       if (!data.success) { toast.error(data.error || "No se pudo cancelar el item"); return false; }
 
       const parts: string[] = [];

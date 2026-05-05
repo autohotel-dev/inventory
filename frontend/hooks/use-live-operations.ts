@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 import { toast } from "sonner";
 
 export interface LiveOperationFlow {
@@ -403,27 +404,28 @@ export function useLiveOperations() {
 
   useEffect(() => {
     fetchFlows();
-
-    const supabase = createClient();
     
     // Subscribe to realtime changes in operations
-    const channel = supabase.channel('live-operations-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, () => {
+    const handleFlowsUpdate = () => {
+      fetchFlows(filters, true);
+    };
+
+    const handleAuditLogsUpdate = (payload: any) => {
+      if (payload.type === 'INSERT') {
         fetchFlows(filters, true);
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => {
-        fetchFlows(filters, true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        fetchFlows(filters, true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, () => {
-        fetchFlows(filters, true);
-      })
-      .subscribe();
+      }
+    };
+
+    const unsubStays = luxorRealtimeClient.subscribe('room_stays', handleFlowsUpdate);
+    const unsubLogs = luxorRealtimeClient.subscribe('audit_logs', handleAuditLogsUpdate);
+    const unsubPayments = luxorRealtimeClient.subscribe('payments', handleFlowsUpdate);
+    const unsubItems = luxorRealtimeClient.subscribe('sales_order_items', handleFlowsUpdate);
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubStays();
+      unsubLogs();
+      unsubPayments();
+      unsubItems();
     };
   }, [fetchFlows, filters]);
 

@@ -148,31 +148,35 @@ export function ConnectedStartStayModal({
       }));
 
       // ═══ RPC ATÓMICO: Todo-o-Nada ═══
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('process_checkin_transaction', {
-        p_room_id: room.id,
-        p_warehouse_id: defaultWarehouse.id,
-        p_room_type_name: roomType.name,
-        p_room_number: room.number,
-        p_base_price: basePrice,
-        p_extra_person_price: extraPersonPrice,
-        p_total_price: totalPrice,
-        p_total_paid: totalPaidAmount,
-        p_initial_people: initialPeople,
-        p_extra_people_count: extraPeopleCount,
-        p_check_in_at: now.toISOString(),
-        p_expected_checkout_at: expectedCheckout.toISOString(),
-        p_vehicle_plate: vehicle.plate || null,
-        p_vehicle_brand: vehicle.brand || null,
-        p_vehicle_model: vehicle.model || null,
-        p_is_hotel: roomType.is_hotel ?? false,
-        p_duration_nights: durationNights,
-        p_notes: `Estancia ${roomType.name} Hab. ${room.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ""} - Pago: ${methodsSummary}`,
-        p_payment_data: paymentData,
-      });
-
-      if (rpcError) {
+      const { apiClient } = await import("@/lib/api/client");
+      let rpcResult;
+      
+      try {
+        const response = await apiClient.post(`/rooms/${room.id}/checkin`, {
+          warehouse_id: defaultWarehouse.id,
+          room_type_name: roomType.name,
+          room_number: room.number,
+          base_price: basePrice,
+          extra_person_price: extraPersonPrice,
+          total_price: totalPrice,
+          total_paid: totalPaidAmount,
+          initial_people: initialPeople,
+          extra_people_count: extraPeopleCount,
+          check_in_at: now.toISOString(),
+          expected_checkout_at: expectedCheckout.toISOString(),
+          vehicle_plate: vehicle.plate || null,
+          vehicle_brand: vehicle.brand || null,
+          vehicle_model: vehicle.model || null,
+          is_hotel: roomType.is_hotel ?? false,
+          duration_nights: durationNights,
+          notes: `Estancia ${roomType.name} Hab. ${room.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ""} - Pago: ${methodsSummary}`,
+          payment_data: paymentData,
+          employee_id: (await supabase.auth.getUser()).data.user?.id
+        });
+        rpcResult = response.data;
+      } catch (err: any) {
         toast.error("Error al iniciar la estancia", {
-          description: rpcError.message,
+          description: err.response?.data?.detail || err.message || "Error desconocido",
         });
         return;
       }

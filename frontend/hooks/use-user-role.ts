@@ -44,26 +44,49 @@ export function useUserRole(): UserRoleData {
     const supabase = createClient();
 
     try {
-      // Obtener usuario autenticado
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      let authUser: any = null;
+      let authUserId: string | null = null;
+      let authUserEmail: string | null = null;
 
-      if (userError || !user) {
-        setRole(null);
-        setUserId(null);
-        setUserEmail(null);
-        setHasActiveShift(false);
-        setIsLoading(false);
-        return;
+      // Check if Cognito is configured
+      if (process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID) {
+        try {
+          const { getCurrentUser, fetchAuthSession } = await import('aws-amplify/auth');
+          const cognitoUser = await getCurrentUser();
+          const session = await fetchAuthSession();
+          
+          authUserId = cognitoUser.userId;
+          // Extract email from id token payload
+          authUserEmail = session.tokens?.idToken?.payload?.email?.toString() || null;
+          authUser = cognitoUser;
+        } catch (cognitoError) {
+          console.log("No active Cognito session, falling back to Supabase...", cognitoError);
+        }
       }
 
-      setUserId(user.id);
-      setUserEmail(user.email || null);
+      // Fallback to Supabase if Cognito is not configured or user not logged in via Cognito
+      if (!authUser) {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          setRole(null);
+          setUserId(null);
+          setUserEmail(null);
+          setHasActiveShift(false);
+          setIsLoading(false);
+          return;
+        }
+        authUserId = user.id;
+        authUserEmail = user.email || null;
+      }
+
+      setUserId(authUserId);
+      setUserEmail(authUserEmail);
 
       // PRIORIDAD 1: Buscar empleado vinculado por auth_user_id (más seguro)
       let { data: employee, error: employeeError } = await supabase
         .from("employees")
         .select("id, first_name, last_name, role, auth_user_id")
-        .eq("auth_user_id", user.id)
+        .eq("auth_user_id", authUserId)
         .eq("is_active", true)
         .single();
 
@@ -72,7 +95,7 @@ export function useUserRole(): UserRoleData {
         const { data: employeeByEmail } = await supabase
           .from("employees")
           .select("id, first_name, last_name, role, auth_user_id")
-          .eq("email", user.email)
+          .eq("email", authUserEmail)
           .eq("is_active", true)
           .single();
 
@@ -83,7 +106,7 @@ export function useUserRole(): UserRoleData {
           if (!employeeByEmail.auth_user_id) {
             await supabase
               .from("employees")
-              .update({ auth_user_id: user.id })
+              .update({ auth_user_id: authUserId })
               .eq("id", employeeByEmail.id);
             console.log("✅ Empleado vinculado automáticamente con auth_user_id");
           }
@@ -93,7 +116,7 @@ export function useUserRole(): UserRoleData {
       if (!employee) {
         setRole("admin");
         setEmployeeId(null);
-        setEmployeeName(user.email || "Admin");
+        setEmployeeName(authUserEmail || "Admin");
         setHasActiveShift(false);
       } else {
         // Usar el rol del empleado
@@ -126,14 +149,35 @@ export function useUserRole(): UserRoleData {
     const supabase = createClient();
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) return false;
+      let authUserId: string | null = null;
+      let authUserEmail: string | null = null;
+      
+      if (process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID) {
+         try {
+           const { getCurrentUser, fetchAuthSession } = await import('aws-amplify/auth');
+           const cognitoUser = await getCurrentUser();
+           const session = await fetchAuthSession();
+           authUserId = cognitoUser.userId;
+           authUserEmail = session.tokens?.idToken?.payload?.email?.toString() || null;
+         } catch {
+           // ignored
+         }
+      }
+
+      if (!authUserId) {
+         const { data: { user } } = await supabase.auth.getUser();
+         if (!user?.email) return false;
+         authUserId = user.id;
+         authUserEmail = user.email;
+      }
+
+      if (!authUserEmail || !authUserId) return false;
 
       // Buscar empleado por email que no tenga auth_user_id
       const { data: employee } = await supabase
         .from("employees")
         .select("id")
-        .eq("email", user.email)
+        .eq("email", authUserEmail)
         .is("auth_user_id", null)
         .eq("is_active", true)
         .single();
@@ -143,7 +187,7 @@ export function useUserRole(): UserRoleData {
       // Vincular
       const { error } = await supabase
         .from("employees")
-        .update({ auth_user_id: user.id })
+        .update({ auth_user_id: authUserId })
         .eq("id", employee.id);
 
       if (error) return false;

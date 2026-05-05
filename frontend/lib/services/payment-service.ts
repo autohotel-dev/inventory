@@ -173,15 +173,12 @@ export async function processPayment(
     const supabase = createClient();
 
     try {
-        const { data, error } = await supabase.rpc("process_payment", {
+        const { apiClient } = await import("@/lib/api/client");
+        const response = await apiClient.post('/sales/process-payment', {
             order_id: orderId,
-            payment_amount: paymentAmount,
+            payment_amount: paymentAmount
         });
-
-        if (error) {
-            logger.error("Error processing payment via RPC", error);
-            return failure("Error al procesar el pago", "PAYMENT_PROCESS_ERROR");
-        }
+        const data = [response.data]; // Wrap in array to match old expected format `data[0]`
 
         const result = (data as any)?.[0];
         if (result?.success === false) {

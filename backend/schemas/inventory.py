@@ -32,6 +32,36 @@ class ProductResponse(ProductBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+class ProductViewResponse(ProductBase):
+    id: uuid.UUID
+    category_name: Optional[str] = None
+    subcategory_name: Optional[str] = None
+    supplier_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    total_stock: Optional[Decimal] = Decimal('0.00')
+    inventory_value: Optional[Decimal] = Decimal('0.00')
+    stock_status: Optional[str] = None
+    
+    # Compatibilidad con frontend legacy:
+    category: Optional[dict] = None
+    subcategory: Optional[dict] = None
+    supplier: Optional[dict] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ProductDashboardStats(BaseModel):
+    totalProducts: int
+    activeProducts: int
+    lowStockProducts: int
+    criticalStockProducts: int
+    totalValue: Decimal
+
+class ProductDashboardResponse(BaseModel):
+    products: List[ProductViewResponse]
+    stats: ProductDashboardStats
+    has_more: bool
+
 # --- Warehouses ---
 class WarehouseBase(BaseModel):
     name: str

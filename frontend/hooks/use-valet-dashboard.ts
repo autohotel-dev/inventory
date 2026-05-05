@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 import { Room } from "@/components/sales/room-types";
 import { toast } from "sonner";
 import { useValetActions } from "@/hooks/use-valet-actions";
@@ -137,25 +138,20 @@ export function useValetDashboard(employeeId: string) {
     });
 
     useEffect(() => {
-        const supabase = createClient();
         console.log("Setting up realtime subscription for ValetDashboard");
-        const channel = supabase
-            .channel('valet-dashboard-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' },
-                () => fetchRooms(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' },
-                () => fetchRooms(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' },
-                () => fetchRooms(true))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' },
-                () => {
-                    fetchPendingConsumptions();
-                    fetchMyConsumptions();
-                })
-            .subscribe();
+        const unsubRooms = luxorRealtimeClient.subscribe('rooms', () => fetchRooms(true));
+        const unsubRoomStays = luxorRealtimeClient.subscribe('room_stays', () => fetchRooms(true));
+        const unsubPayments = luxorRealtimeClient.subscribe('payments', () => fetchRooms(true));
+        const unsubSales = luxorRealtimeClient.subscribe('sales_order_items', () => {
+            fetchPendingConsumptions();
+            fetchMyConsumptions();
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubRooms();
+            unsubRoomStays();
+            unsubPayments();
+            unsubSales();
         };
     }, [fetchRooms, fetchPendingConsumptions, fetchMyConsumptions]);
 

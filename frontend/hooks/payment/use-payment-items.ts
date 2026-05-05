@@ -109,12 +109,13 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
       const { data: userSession } = await supabase.auth.getSession();
       const employeeId = userSession.session?.user?.id || null;
 
-      const { data, error } = await supabase.rpc("cancel_reception_item_v1", {
-        p_item_id: itemId,
-        p_employee_id: employeeId
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.post('/sales/cancel-item', {
+        item_id: itemId,
+        employee_id: employeeId,
+        reason: "Eliminado desde panel de pagos"
       });
 
-      if (error) throw error;
       if (data && !data.success) {
         throw new Error(data.error || "Error al eliminar el ítem");
       }
