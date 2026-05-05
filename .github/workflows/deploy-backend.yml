@@ -1,0 +1,45 @@
+name: Deploy Luxor Backend to AWS Lambda
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+
+jobs:
+  deploy:
+    name: Deploy API to Serverless
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for Serverless Framework)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python 3.12 (for FastAPI)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Node Modules
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Inject Environment Variables
+        working-directory: ./backend
+        run: |
+          echo "STAGE=dev" > .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+
+      - name: Deploy to AWS Lambda
+        working-directory: ./backend
+        run: npx serverless deploy --stage dev
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

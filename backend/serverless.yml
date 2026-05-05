@@ -4,7 +4,7 @@ frameworkVersion: '3 || 4'
 
 provider:
   name: aws
-  runtime: python3.11
+  runtime: python3.12
   region: us-east-1
   stage: ${opt:stage, 'dev'}
   environment:
@@ -14,6 +14,9 @@ provider:
 
 plugins:
   - serverless-python-requirements
+  - serverless-dotenv-plugin
+
+useDotenv: true
 
 custom:
   pythonRequirements:
