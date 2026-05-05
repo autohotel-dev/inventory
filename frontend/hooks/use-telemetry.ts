@@ -1,0 +1,153 @@
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+export interface TelemetryRecord {
+  id: string;
+  user_id: string | null;
+  module: string | null;
+  page: string;
+  action_type: 'UI_CLICK' | 'API_REQUEST' | 'PAGE_VIEW';
+  action_name: string | null;
+  duration_ms: number | null;
+  payload: unknown;
+  endpoint: string | null;
+  is_success: boolean | null;
+  error_details: unknown;
+  created_at: string;
+  employee_name?: string; // Resolved from employees table
+}
+
+export interface TelemetryFilters {
+  action_type: 'ALL' | 'UI_CLICK' | 'API_REQUEST' | 'PAGE_VIEW';
+  module: string;
+  status: 'ALL' | 'SUCCESS' | 'ERROR';
+  search: string;
+}
+
+export function useTelemetry() {
+  const [data, setData] = useState<TelemetryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const PAGE_SIZE = 100;
+
+  const [filters, setFilters] = useState<TelemetryFilters>({
+    action_type: 'ALL',
+    module: 'ALL',
+    status: 'ALL',
+    search: '',
+  });
+
+  const [stats, setStats] = useState({
+    total: 0,
+    errors: 0,
+    avgDuration: 0,
+  });
+
+  const fetchTelemetry = useCallback(async (isLoadMore = false) => {
+    try {
+      if (!isLoadMore) {
+        setLoading(true);
+      }
+      
+      const supabase = createClient();
+      let query = supabase
+        .from("system_telemetry")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false });
+
+      // Apply Filters
+      if (filters.action_type !== 'ALL') {
+        query = query.eq('action_type', filters.action_type);
+      }
+      if (filters.module !== 'ALL') {
+        query = query.eq('module', filters.module);
+      }
+      if (filters.status === 'SUCCESS') {
+        query = query.eq('is_success', true);
+      }
+      if (filters.status === 'ERROR') {
+        query = query.eq('is_success', false);
+      }
+      if (filters.search) {
+        // ILIKE search on action_name or endpoint
+        query = query.or(`action_name.ilike.%${filters.search}%,endpoint.ilike.%${filters.search}%`);
+      }
+
+      // Pagination
+      const from = (isLoadMore ? pageIndex + 1 : 0) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      query = query.range(from, to);
+
+      const { data: rawData, error, count } = await query;
+
+      if (error) throw error;
+
+      // Try to resolve user IDs to employee names
+      let enrichedData: TelemetryRecord[] = rawData as TelemetryRecord[];
+      
+      const userIds = [...new Set(rawData.map((r: TelemetryRecord) => r.user_id).filter(Boolean))] as string[];
+      if (userIds.length > 0) {
+        const { data: employees } = await supabase
+          .from('employees')
+          .select('auth_user_id, first_name, last_name')
+          .in('auth_user_id', userIds);
+
+        if (employees) {
+          const empMap = new Map(employees.map((e: { auth_user_id: string; first_name: string; last_name: string }) => [e.auth_user_id, `${e.first_name} ${e.last_name}`.trim()]));
+          enrichedData = rawData.map((r: TelemetryRecord) => ({
+            ...r,
+            employee_name: r.user_id && empMap.has(r.user_id) ? empMap.get(r.user_id) : 'Sistema / Anónimo'
+          }));
+        }
+      }
+
+      if (isLoadMore) {
+        setData(prev => [...prev, ...enrichedData]);
+        setPageIndex(prev => prev + 1);
+      } else {
+        setData(enrichedData);
+        setPageIndex(0);
+        
+        // Calculate basic stats for the first page
+        const errs = enrichedData.filter(d => d.is_success === false).length;
+        const durations = enrichedData.map(d => d.duration_ms).filter(Boolean) as number[];
+        const avg = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+        
+        setStats({
+          total: count || enrichedData.length,
+          errors: errs,
+          avgDuration: avg,
+        });
+      }
+
+      setHasMore(count ? from + PAGE_SIZE < count : false);
+    } catch (error) {
+      console.error("Error fetching telemetry:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, pageIndex]);
+
+  useEffect(() => {
+    fetchTelemetry(false);
+  }, [filters, fetchTelemetry]);
+
+  const updateFilter = (key: keyof TelemetryFilters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const loadMore = () => fetchTelemetry(true);
+  const refresh = () => fetchTelemetry(false);
+
+  return {
+    data,
+    loading,
+    hasMore,
+    filters,
+    stats,
+    updateFilter,
+    loadMore,
+    refresh
+  };
+}

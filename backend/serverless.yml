@@ -1,0 +1,38 @@
+service: luxor-backend
+
+frameworkVersion: '3 || 4'
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage}
+    # Database URL se inyectará desde archivo .env o CI/CD
+    DATABASE_URL: ${env:DATABASE_URL, ''}
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    # Asegura que compila binarios compatibles con AWS Lambda si hay C-extensions
+    dockerizePip: non-linux 
+    zip: true 
+    slim: true
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - '!.serverless/**'
+    - '!venv/**'
+    - '!__pycache__/**'
+    - '!.pytest_cache/**'
+    - '!.env'
+
+functions:
+  api:
+    handler: main.handler
+    events:
+      - httpApi: '*'

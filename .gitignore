@@ -52,3 +52,22 @@ Thumbs.db
 
 # Documentación auto-generada
 docs/api/
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+
+# Serverless Framework
+.serverless/

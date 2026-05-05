@@ -124,6 +124,7 @@ const adminLinks: readonly NavLink[] = [
   { href: "/auditoria", label: "Auditoría", icon: "activity", permissionId: "auditoria", adminOnly: true },
   { href: "/auditoria/controles", label: "Auditoría Controles TV", icon: "activity", permissionId: "auditoria", adminOnly: true },
   { href: "/logs", label: "Registro de Actividad", icon: "fileText", permissionId: "auditoria", adminOnly: true },
+  { href: "/auditoria/telemetria", label: "Telemetría y Rendimiento", icon: "activity", permissionId: "auditoria", adminOnly: true },
   { divider: true, adminOnly: true },
   
   // 👥 RECURSOS HUMANOS

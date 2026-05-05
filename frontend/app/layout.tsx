@@ -13,6 +13,7 @@ import { ChatWidget } from "@/components/chat/chat-widget";
 import { AuthListener } from "@/components/auth/auth-listener";
 import { PrintCenterProvider } from "@/contexts/print-center-context";
 import { PrintCenterModal } from "@/components/print-center/print-center-modal";
+import { TelemetryProvider } from "@/components/providers/telemetry-provider";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
@@ -119,17 +120,19 @@ export default function RootLayout({
             <TrainingProvider>
               <PrintCenterProvider>
                 <ChatProvider>
-                  <ConditionalLayout>
-                    {children}
-                  </ConditionalLayout>
-                  <InteractiveOverlay />
-                  <ChatWidget />
-                  <ToastProvider />
-                  <AuthListener />
-                  <PWAInstaller />
-                  <PWAStatus />
-                  <DataDebug />
-                  <PrintCenterModal />
+                  <TelemetryProvider>
+                    <ConditionalLayout>
+                      {children}
+                    </ConditionalLayout>
+                    <InteractiveOverlay />
+                    <ChatWidget />
+                    <ToastProvider />
+                    <AuthListener />
+                    <PWAInstaller />
+                    <PWAStatus />
+                    <DataDebug />
+                    <PrintCenterModal />
+                  </TelemetryProvider>
                 </ChatProvider>
               </PrintCenterProvider>
             </TrainingProvider>
