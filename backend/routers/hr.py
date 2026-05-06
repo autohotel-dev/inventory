@@ -157,6 +157,13 @@ def create_shift(shift: ShiftDefinitionCreate, db: Session = Depends(get_db)):
     return db_shift
 
 # --- SHIFT SESSIONS ---
+@router.get("/sessions", response_model=list[ShiftSessionResponse])
+def get_sessions(status: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(ShiftSessions)
+    if status:
+        query = query.filter(ShiftSessions.status == status)
+    return query.all()
+
 @router.post("/sessions/clock-in", response_model=ShiftSessionResponse, status_code=status.HTTP_201_CREATED)
 def clock_in(session: ShiftSessionCreate, db: Session = Depends(get_db)):
     # Check if employee already has an active session

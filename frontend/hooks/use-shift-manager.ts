@@ -152,7 +152,16 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
       await loadData();
     } catch (err: any) {
       console.error("Error clocking in:", err);
-      const errorMessage = err.message || err.details || "";
+      let errorMessage = "";
+      if (err?.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          errorMessage = JSON.stringify(err.response.data.detail);
+        } else {
+          errorMessage = err.response.data.detail;
+        }
+      } else {
+        errorMessage = err.message || err.details || "";
+      }
 
       if (errorMessage.includes("ROLE_SHIFT_LIMIT_EXCEEDED")) {
         const parts = errorMessage.split("::");
