@@ -219,25 +219,19 @@ export function EmployeesTable() {
             return;
           }
 
-          const authResponse = await fetch("/api/employees/create-auth-user", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          try {
+            await apiClient.post("/hr/employees/create-auth-user", {
               email: formData.email.trim(),
               password: formData.password,
-              employeeId: editingEmployee.id,
-            }),
-          });
-
-          const authResult = await authResponse.json();
-
-          if (!authResponse.ok) {
-            showError("Advertencia", `Empleado actualizado, pero error al crear acceso: ${authResult.error}`);
-          } else {
+              employee_id: editingEmployee.id,
+            });
             success("Éxito", "Empleado actualizado y acceso al sistema creado");
             setIsModalOpen(false);
             loadEmployees();
             return;
+          } catch (authError: any) {
+            const errorMsg = authError?.response?.data?.detail || authError.message || "Error al crear acceso";
+            showError("Advertencia", `Empleado actualizado, pero error al crear acceso: ${errorMsg}`);
           }
         }
 
@@ -258,25 +252,19 @@ export function EmployeesTable() {
 
         // Crear usuario de auth si está habilitado
         if (formData.create_auth_user && newEmployee) {
-          const authResponse = await fetch("/api/employees/create-auth-user", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          try {
+            await apiClient.post("/hr/employees/create-auth-user", {
               email: formData.email.trim(),
               password: formData.password,
-              employeeId: newEmployee.id,
-            }),
-          });
-
-          const authResult = await authResponse.json();
-
-          if (!authResponse.ok) {
+              employee_id: newEmployee.id,
+            });
+            success("Éxito", "Empleado y usuario de acceso creados correctamente");
+          } catch (authError: any) {
+            const errorMsg = authError?.response?.data?.detail || authError.message || "Error al crear acceso";
             showError(
               "Advertencia",
-              `Empleado creado, pero error al crear usuario: ${authResult.error}. El empleado deberá iniciar sesión manualmente.`
+              `Empleado creado, pero error al crear usuario: ${errorMsg}. El empleado deberá iniciar sesión manualmente.`
             );
-          } else {
-            success("Éxito", "Empleado y usuario de acceso creados correctamente");
           }
         } else {
           success("Éxito", "Empleado creado correctamente");

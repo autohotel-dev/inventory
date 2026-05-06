@@ -31,6 +31,7 @@ class EmployeeUpdate(BaseModel):
 class EmployeeResponse(EmployeeBase):
     id: uuid.UUID
     created_at: datetime
+    auth_user_id: Optional[uuid.UUID] = None
     
     model_config = ConfigDict(from_attributes=True)
 
