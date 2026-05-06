@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Cancel-related room actions: cancel pending charge, cancel item.
  */

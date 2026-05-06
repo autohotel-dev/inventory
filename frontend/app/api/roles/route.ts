@@ -26,9 +26,9 @@ export async function GET(request: NextRequest) {
             const { data, error } = await supabase
                 .from('roles')
                 .select('*')
-                .eq('id', id)
-                .eq('is_active', true)
-                .single();
+                
+                
+                ;
 
             if (error) {
                 console.error('Error fetching role:', error);
@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
             const { data, error } = await supabase
                 .from('roles')
                 .select('*')
-                .eq('is_active', true)
-                .order('display_name');
+                
+                ;
 
             if (error) {
                 console.error('Error fetching roles:', error);
@@ -76,9 +76,9 @@ export async function POST(request: NextRequest) {
         const { data: employee } = await supabase
             .from('employees')
             .select('role')
-            .eq('auth_user_id', user.id)
-            .eq('is_active', true)
-            .single();
+            
+            
+            ;
 
         if (!employee || !['admin', 'manager'].includes(employee.role)) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
                 is_active: true,
             })
             .select()
-            .single();
+            ;
 
         if (error) {
             if (error.code === '23505') { // Unique violation
@@ -145,9 +145,9 @@ export async function PUT(request: NextRequest) {
         const { data: employee } = await supabase
             .from('employees')
             .select('role')
-            .eq('auth_user_id', user.id)
-            .eq('is_active', true)
-            .single();
+            
+            
+            ;
 
         if (!employee || !['admin', 'manager'].includes(employee.role)) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
@@ -174,9 +174,9 @@ export async function PUT(request: NextRequest) {
         const { data, error } = await supabase
             .from('roles')
             .update(updates)
-            .eq('id', id)
+            
             .select()
-            .single();
+            ;
 
         if (error) {
             console.error('Error updating role:', error);
@@ -209,9 +209,9 @@ export async function DELETE(request: NextRequest) {
         const { data: employee } = await supabase
             .from('employees')
             .select('role')
-            .eq('auth_user_id', user.id)
-            .eq('is_active', true)
-            .single();
+            
+            
+            ;
 
         if (!employee || !['admin', 'manager'].includes(employee.role)) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
@@ -228,7 +228,7 @@ export async function DELETE(request: NextRequest) {
         const { error } = await supabase
             .from('roles')
             .delete()
-            .eq('id', id);
+            ;
 
         if (error) {
             // Check if it's a trigger error

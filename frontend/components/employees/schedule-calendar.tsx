@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -125,14 +126,14 @@ export function ScheduleCalendar() {
         supabase
           .from("employees")
           .select("*")
-          .eq("is_active", true)
+          
           .in("role", ["receptionist", "manager"])
-          .order("first_name"),
+          ,
         supabase
           .from("shift_definitions")
           .select("*")
-          .eq("is_active", true)
-          .order("start_time"),
+          
+          ,
         supabase
           .from("employee_schedules")
           .select("*, shift_definitions:shift_definition_id(*)")
@@ -253,13 +254,13 @@ export function ScheduleCalendar() {
                 shift_definition_id: value.isDayOff ? null : shiftDef?.id,
                 is_day_off: value.isDayOff,
               })
-              .eq("id", existing.id)
+              
               .then()
           );
         } else {
           // Insertar
           operations.push(
-            supabase.from("employee_schedules").insert({
+            apiClient.post('/system/crud/employee_schedules', {
               employee_id: employeeId,
               schedule_date: date,
               shift_definition_id: value.isDayOff ? null : shiftDef?.id,

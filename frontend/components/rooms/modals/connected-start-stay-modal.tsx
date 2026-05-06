@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState } from "react";
@@ -125,9 +126,9 @@ export function ConnectedStartStayModal({
       const { data: defaultWarehouse, error: warehouseError } = await supabase
         .from("warehouses")
         .select("id, code, is_active")
-        .eq("code", "ALM002-R")
-        .eq("is_active", true)
-        .single();
+        
+        
+        ;
 
       if (warehouseError || !defaultWarehouse) {
         toast.error("No se encontró el almacén de recepción", {
@@ -202,8 +203,8 @@ export function ConnectedStartStayModal({
         const { data: freshRoom } = await supabase
           .from("rooms")
           .select("*, room_stays(id, sales_order_id, status)")
-          .eq("id", room.id)
-          .single();
+          
+          ;
 
         const activeStay = freshRoom?.room_stays?.find(
           (s: any) => s.status === "ACTIVA"
@@ -217,10 +218,10 @@ export function ConnectedStartStayModal({
             const { data: session } = await supabase
               .from("shift_sessions")
               .select("id")
-              .eq("auth_user_id", user.id)
-              .eq("status", "active")
+              
+              
               .is("clock_out_at", null)
-              .order("clock_in_at", { ascending: false })
+              
               .limit(1)
               .maybeSingle();
             shiftSessionId = session?.id;

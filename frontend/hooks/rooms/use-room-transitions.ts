@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";

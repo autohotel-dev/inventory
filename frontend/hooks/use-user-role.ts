@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useCallback } from "react";
+import { apiClient } from "@/lib/api/client";
+import { useLuxorRealtime } from "./use-luxor-realtime";
+import { Hub } from "aws-amplify/utils";
 
 export type UserRole = "admin" | "manager" | "supervisor" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
 
@@ -27,7 +29,6 @@ interface UserRoleData {
   canAccessRooms: boolean;
   canAccessShiftClosing: boolean;
   hasActiveShift: boolean;
-  linkEmployeeToUser: () => Promise<boolean>;
 }
 
 export function useUserRole(): UserRoleData {
@@ -38,206 +39,59 @@ export function useUserRole(): UserRoleData {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hasActiveShift, setHasActiveShift] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const instanceId = useRef(Math.random().toString(36).slice(2, 8));
 
   const fetchUserRole = useCallback(async () => {
-    const supabase = createClient();
-
     try {
-      let authUser: any = null;
-      let authUserId: string | null = null;
-      let authUserEmail: string | null = null;
+      // Intentamos obtener el usuario actual mediante el BFF API
+      const { data } = await apiClient.get('/system/auth/me').then(res => ({ data: res.data })).catch(() => ({ data: null }));
 
-      // Check if Cognito is configured
-      if (process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID) {
-        try {
-          const { getCurrentUser, fetchAuthSession } = await import('aws-amplify/auth');
-          const cognitoUser = await getCurrentUser();
-          const session = await fetchAuthSession();
-          
-          authUserId = cognitoUser.userId;
-          // Extract email from id token payload
-          authUserEmail = session.tokens?.idToken?.payload?.email?.toString() || null;
-          authUser = cognitoUser;
-        } catch (cognitoError) {
-          console.log("No active Cognito session, falling back to Supabase...", cognitoError);
-        }
-      }
-
-      // Fallback to Supabase if Cognito is not configured or user not logged in via Cognito
-      if (!authUser) {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          setRole(null);
-          setUserId(null);
-          setUserEmail(null);
-          setHasActiveShift(false);
-          setIsLoading(false);
-          return;
-        }
-        authUserId = user.id;
-        authUserEmail = user.email || null;
-      }
-
-      setUserId(authUserId);
-      setUserEmail(authUserEmail);
-
-      // PRIORIDAD 1: Buscar empleado vinculado por auth_user_id (más seguro)
-      let { data: employee, error: employeeError } = await supabase
-        .from("employees")
-        .select("id, first_name, last_name, role, auth_user_id")
-        .eq("auth_user_id", authUserId)
-        .eq("is_active", true)
-        .single();
-
-      // PRIORIDAD 2: Si no hay vinculación por auth_user_id, buscar por email
-      if (employeeError || !employee) {
-        const { data: employeeByEmail } = await supabase
-          .from("employees")
-          .select("id, first_name, last_name, role, auth_user_id")
-          .eq("email", authUserEmail)
-          .eq("is_active", true)
-          .single();
-
-        if (employeeByEmail) {
-          employee = employeeByEmail;
-
-          // Auto-vincular si el empleado no tiene auth_user_id
-          if (!employeeByEmail.auth_user_id) {
-            await supabase
-              .from("employees")
-              .update({ auth_user_id: authUserId })
-              .eq("id", employeeByEmail.id);
-            console.log("✅ Empleado vinculado automáticamente con auth_user_id");
-          }
-        }
-      }
-
-      if (!employee) {
-        setRole("admin");
-        setEmployeeId(null);
-        setEmployeeName(authUserEmail || "Admin");
-        setHasActiveShift(false);
+      if (data) {
+        setRole(data.role as UserRole);
+        setEmployeeId(data.employeeId);
+        setEmployeeName(data.employeeName);
+        setUserId(data.userId);
+        setUserEmail(data.userEmail);
+        setHasActiveShift(data.hasActiveShift);
       } else {
-        // Usar el rol del empleado
-        setRole(employee.role as UserRole);
-        setEmployeeId(employee.id);
-        setEmployeeName(`${employee.first_name} ${employee.last_name}`);
-
-        // Check for active shift
-        const { data: session } = await supabase
-          .from("shift_sessions")
-          .select("id")
-          .eq("employee_id", employee.id)
-          .eq("status", "active")
-          .limit(1)
-          .maybeSingle();
-        
-        setHasActiveShift(!!session);
+        // Usuario no autenticado o error
+        setRole(null);
+        setEmployeeId(null);
+        setEmployeeName(null);
+        setUserId(null);
+        setUserEmail(null);
+        setHasActiveShift(false);
       }
     } catch (err) {
       console.error("Error fetching user role:", err);
-      setRole("admin"); // Fallback a admin si hay error
+      setRole("admin"); // Fallback a admin si hay error crítico
       setHasActiveShift(false);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Función para vincular manualmente el usuario actual con un empleado
-  const linkEmployeeToUser = useCallback(async (): Promise<boolean> => {
-    const supabase = createClient();
-
-    try {
-      let authUserId: string | null = null;
-      let authUserEmail: string | null = null;
-      
-      if (process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID) {
-         try {
-           const { getCurrentUser, fetchAuthSession } = await import('aws-amplify/auth');
-           const cognitoUser = await getCurrentUser();
-           const session = await fetchAuthSession();
-           authUserId = cognitoUser.userId;
-           authUserEmail = session.tokens?.idToken?.payload?.email?.toString() || null;
-         } catch {
-           // ignored
-         }
-      }
-
-      if (!authUserId) {
-         const { data: { user } } = await supabase.auth.getUser();
-         if (!user?.email) return false;
-         authUserId = user.id;
-         authUserEmail = user.email;
-      }
-
-      if (!authUserEmail || !authUserId) return false;
-
-      // Buscar empleado por email que no tenga auth_user_id
-      const { data: employee } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("email", authUserEmail)
-        .is("auth_user_id", null)
-        .eq("is_active", true)
-        .single();
-
-      if (!employee) return false;
-
-      // Vincular
-      const { error } = await supabase
-        .from("employees")
-        .update({ auth_user_id: authUserId })
-        .eq("id", employee.id);
-
-      if (error) return false;
-
-      // Recargar datos
-      await fetchUserRole();
-      return true;
-    } catch {
-      return false;
-    }
-  }, [fetchUserRole]);
-
   useEffect(() => {
     fetchUserRole();
 
-    // Escuchar cambios de autenticación
-    const supabase = createClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchUserRole();
+    // Escuchar cambios de autenticación de Amplify
+    const unsubscribe = Hub.listen('auth', ({ payload }) => {
+      if (payload.event === 'signedIn' || payload.event === 'signedOut') {
+        fetchUserRole();
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, [fetchUserRole]);
 
   // Suscripción realtime para cambios en shift_sessions del empleado
-  useEffect(() => {
-    if (!employeeId) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`web-shift-sync-${employeeId}-${instanceId.current}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'shift_sessions',
-          filter: `employee_id=eq.${employeeId}`,
-        },
-        () => {
-          console.log('[WEB SHIFT SYNC] Shift change detected for employee:', employeeId);
-          fetchUserRole();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [employeeId, fetchUserRole]);
+  // Usamos el hook de WebSockets ya implementado
+  useLuxorRealtime('shift_sessions', (payload) => {
+    // Si la sesión de turno del empleado actual cambió, recargar su info
+    if (payload.record?.employee_id === employeeId || payload.old_record?.employee_id === employeeId) {
+      console.log('[WEB SHIFT SYNC] Shift change detected for employee:', employeeId);
+      fetchUserRole();
+    }
+  });
 
   const isAdmin = role === "admin";
   const isManager = role === "manager";
@@ -268,8 +122,7 @@ export function useUserRole(): UserRoleData {
     canAccessInventory: canAccessAdmin,
     canAccessPOS: true,
     canAccessRooms: true,
-    canAccessShiftClosing: !isValet && !isHousekeeping && !isMaintenance, // Solo recepción y admin hacen cortes
+    canAccessShiftClosing: !isValet && !isHousekeeping && !isMaintenance,
     hasActiveShift,
-    linkEmployeeToUser,
   };
 }

@@ -45,8 +45,8 @@ export function AdminQuickActions({ quickLinks }: AdminQuickActionsProps) {
           employees(*),
           shift_definitions(*)
         `)
-                .eq("status", "active")
-                .order("clock_in_at", { ascending: false })
+                
+                
                 .limit(1);
 
             if (sessions && sessions.length > 0) {

@@ -25,8 +25,8 @@ export function useValetPaymentMonitor(
           const { data: paymentsData } = await supabase
             .from("payments")
             .select("id")
-            .eq("sales_order_id", activeStay.sales_order_id)
-            .eq("status", "COBRADO_POR_VALET")
+            
+            
             .is("confirmed_at", null)
             .limit(1);
 
@@ -39,9 +39,9 @@ export function useValetPaymentMonitor(
           const { data: itemsData } = await supabase
             .from("sales_order_items")
             .select("id")
-            .eq("sales_order_id", activeStay.sales_order_id)
-            .eq("delivery_status", "DELIVERED")
-            .eq("is_paid", false)
+            
+            
+            
             .limit(1);
 
           setHasPendingValetPayment(!!itemsData && itemsData.length > 0);

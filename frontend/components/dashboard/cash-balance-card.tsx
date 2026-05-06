@@ -73,9 +73,9 @@ export function CashBalanceCard() {
                 const { data: sessions } = await supabase
                     .from("shift_sessions")
                     .select("id, employee_id, clock_in_at, status")
-                    .eq("employee_id", employeeId)
-                    .eq("status", "active")
-                    .order("clock_in_at", { ascending: false })
+                    
+                    
+                    
                     .limit(1);
 
                 if (sessions?.[0]) {
@@ -88,10 +88,10 @@ export function CashBalanceCard() {
                 const { data: anySessions } = await supabase
                     .from("shift_sessions")
                     .select("id, employee_id, clock_in_at, status, employees!inner(role, auth_user_id)")
-                    .eq("status", "active")
-                    .eq("employees.role", "receptionist")
+                    
+                    
                     .is("clock_out_at", null)
-                    .order("clock_in_at", { ascending: false })
+                    
                     .limit(1);
 
                 if (anySessions?.[0]) {
@@ -117,9 +117,9 @@ export function CashBalanceCard() {
                     const { data: payments } = await supabase
                         .from("payments")
                         .select("amount, payment_method")
-                        .eq("created_by", userIdForPayments)
+                        
                         .gte("created_at", sessionStart)
-                        .eq("status", "PAGADO");
+                        ;
 
                     const cash = (payments || [])
                         .filter((p: any) => p.payment_method === "CASH" || p.payment_method === "EFECTIVO")
@@ -133,8 +133,8 @@ export function CashBalanceCard() {
             const { count } = await supabase
                 .from("shift_sessions")
                 .select("*, employees!inner(*)", { count: "exact", head: true })
-                .eq("status", "active")
-                .eq("employees.role", "cochero")
+                
+                
                 .is("clock_out_at", null);
 
             setActiveValetCount(count || 0);

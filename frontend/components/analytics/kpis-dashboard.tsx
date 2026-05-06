@@ -286,7 +286,7 @@ export function KpisDashboard() {
         const { data: activeRooms } = await supabase
           .from('room_stays')
           .select('id')
-          .eq('status', 'ACTIVA');
+          ;
 
         const { data: roomsList } = await supabase
           .from('rooms')
@@ -303,7 +303,7 @@ export function KpisDashboard() {
           .select('amount, payment_method, type, stay_id')
           .gte('created_at', startStr)
           .lte('created_at', endStr)
-          .eq('status', 'PAGADO');
+          ;
 
         const currentRevenue = periodPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
         const roomRevenue = periodPayments?.filter((p: any) => p.stay_id || p.type === 'STAY').reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
@@ -315,7 +315,7 @@ export function KpisDashboard() {
           .select('amount')
           .gte('created_at', prevStartStr)
           .lte('created_at', prevEndStr)
-          .eq('status', 'PAGADO');
+          ;
 
         const prevRevenue = prevPeriodPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
 
@@ -341,7 +341,7 @@ export function KpisDashboard() {
         const { data: completedStays } = await supabase
           .from('room_stays')
           .select('check_in_at, check_out_at')
-          .eq('status', 'FINALIZADA')
+          
           .gte('check_out_at', startStr)
           .lte('check_out_at', endStr);
 
@@ -357,7 +357,7 @@ export function KpisDashboard() {
         const { count: pendingTickets } = await supabase
           .from('audit_logs')
           .select('*', { count: 'exact', head: true })
-          .eq('severity', 'ERROR')
+          
           .gte('created_at', startStr);
 
         // 🚀 8. EMPLEADO DEL DÍA (Basado en movimientos recientes)
@@ -383,7 +383,7 @@ export function KpisDashboard() {
         const { data: recentLogs } = await supabase
           .from('employee_movements')
           .select('movement_type, created_at, employees(first_name)')
-          .order('created_at', { ascending: false })
+          
           .limit(5);
 
         setActivities(recentLogs || []);

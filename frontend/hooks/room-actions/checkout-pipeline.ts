@@ -2,7 +2,8 @@
  * Checkout validation and payment pipeline.
  * Each step is independent and testable. Adding a new validation = adding 1 function.
  */
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client"; // Keep for now if needed by other imports
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
@@ -45,9 +46,9 @@ export async function validateStayForCheckout(
   const { data: freshStay, error } = await supabase
     .from("room_stays")
     .select("tolerance_started_at, tolerance_type, id, vehicle_plate, checkout_valet_employee_id")
-    .eq("sales_order_id", checkoutInfo.salesOrderId)
-    .eq("status", "ACTIVA")
-    .single();
+    
+    
+    ;
 
   if (error || !freshStay) {
     toast.error("No se encontró la estancia activa o ya fue finalizada.");
@@ -89,10 +90,10 @@ export async function validateNoBlockingDeliveries(
   const { data: pendingDeliveries } = await supabase
     .from("sales_order_items")
     .select("id")
-    .eq("sales_order_id", salesOrderId)
-    .eq("concept_type", "CONSUMPTION")
+    
+    
     .neq("is_cancelled", true)
-    .not("delivery_status", "is", null)
+    
     .neq("delivery_status", "DELIVERED")
     .neq("delivery_status", "COMPLETED")
     .neq("delivery_status", "CANCELLED");
@@ -152,8 +153,8 @@ export async function buildCheckoutPayments(
   const { count } = await supabase
     .from("payments")
     .select("id", { count: "exact", head: true })
-    .eq("sales_order_id", checkoutInfo.salesOrderId)
-    .eq("status", "PAGADO")
+    
+    
     .neq("concept", "CHECKOUT");
   hasExistingConfirmedPayments = (count || 0) > 0;
 
@@ -198,4 +199,21 @@ export async function buildCheckoutPayments(
     card_last_4: p.cardLast4,
     card_type: p.cardType
   }];
+}
+
+
+export async function validateCheckoutPipeline(roomId: string): Promise<any> {
+  const { data } = await apiClient.get(`/rooms/${roomId}/checkout-validation`) as any;
+  if (!data.ok) {
+    if (data.tolerance_expired) {
+      toast.error("La tolerancia ha expirado", { description: "Se requiere cobrar hora extra. Por favor, cierre y vuelva a abrir el checkout.", duration: 6000 });
+    } else if (data.missing_valet) {
+      toast.error("Salida de vehículo no verificada", { description: "El cochero debe verificar la salida del vehículo antes de finalizar.", duration: 6000 });
+    } else if (data.pending_deliveries) {
+      toast.error("Entregas pendientes", { description: "No se puede finalizar. Hay productos sin entregar por el valet.", duration: 5000 });
+    } else {
+      toast.error("Error validando checkout o estancia no activa.");
+    }
+  }
+  return data;
 }

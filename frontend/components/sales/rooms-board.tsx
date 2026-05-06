@@ -250,7 +250,7 @@ function RoomsBoardInternal() {
           valet_checkout_requested_at: new Date().toISOString(),
           valet_employee_id: currentEmployeeId // Asegurar que el valet que notifica se asigne si no lo estaba
         })
-        .eq("id", activeStay.id);
+        ;
 
       if (error) throw error;
 

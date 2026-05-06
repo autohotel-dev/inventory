@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -142,109 +143,60 @@ export function useLogCenter() {
   const PAGE_SIZE = 50;
 
   const fetchLogs = useCallback(async (reset = false) => {
-    const supabase = createClient();
+    const { apiClient } = await import("@/lib/api/client");
     const currentPage = reset ? 0 : page;
     if (reset) setPage(0);
 
-    let query = supabase
-      .from("audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+    try {
+      const { data: responseData } = await apiClient.get('/system/logs', {
+        params: {
+          page: currentPage,
+          limit: PAGE_SIZE,
+          category: filters.category,
+          severity: filters.severity,
+          search: filters.search || undefined,
+          employee_id: filters.employeeId || undefined,
+          room_number: filters.roomNumber || undefined,
+          date_from: filters.dateFrom || undefined,
+          date_to: filters.dateTo || undefined
+        }
+      }) as any;
+      
+      const newLogs = responseData.items || [];
+      setHasMore(newLogs.length === PAGE_SIZE);
 
-    // Category filter
-    if (filters.category === "alerts") {
-      query = query.in("severity", ["WARNING", "ERROR", "CRITICAL"]);
-    } else if (filters.category !== "all") {
-      const types = CATEGORY_EVENT_TYPES[filters.category];
-      if (types.length > 0) query = query.in("event_type", types);
-    }
-
-    // Severity filter
-    if (filters.severity !== "all") {
-      query = query.eq("severity", filters.severity);
-    }
-
-    // Search
-    if (filters.search) {
-      query = query.or(`description.ilike.%${filters.search}%,employee_name.ilike.%${filters.search}%,action.ilike.%${filters.search}%`);
-    }
-
-    // Employee
-    if (filters.employeeId) {
-      query = query.eq("employee_id", filters.employeeId);
-    }
-
-    // Room
-    if (filters.roomNumber) {
-      query = query.eq("room_number", filters.roomNumber);
-    }
-
-    // Date range
-    if (filters.dateFrom) {
-      query = query.gte("created_at", `${filters.dateFrom}T00:00:00`);
-    }
-    if (filters.dateTo) {
-      query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
-    }
-
-    const { data } = await query;
-    const newLogs = data || [];
-    setHasMore(newLogs.length === PAGE_SIZE);
-
-    if (reset) {
-      setLogs(newLogs);
-    } else {
-      setLogs(prev => [...prev, ...newLogs]);
-    }
-    setLoading(false);
-
-    // Resolve UUIDs in metadata to human names (fire-and-forget)
-    resolveUuids(newLogs, nameMapRef.current).then(resolved => {
-      if (resolved.size > nameMapRef.current.size) {
-        nameMapRef.current = resolved;
-        setNameMap(new Map(resolved));
+      if (reset) {
+        setLogs(newLogs);
+      } else {
+        setLogs(prev => [...prev, ...newLogs]);
       }
-    });
+      setLoading(false);
+
+      // Resolve UUIDs in metadata to human names (fire-and-forget)
+      resolveUuids(newLogs, nameMapRef.current).then(resolved => {
+        if (resolved.size > nameMapRef.current.size) {
+          nameMapRef.current = resolved;
+          setNameMap(new Map(resolved));
+        }
+      });
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
   }, [filters, page]);
 
   const fetchStats = useCallback(async () => {
-    const supabase = createClient();
+    const { apiClient } = await import("@/lib/api/client");
     const todayStart = filters.dateFrom || new Date().toISOString().split("T")[0];
 
-    const [
-      { count: total },
-      { count: reception },
-      { count: payments },
-      { count: auth },
-      { count: alerts },
-      { data: empData },
-    ] = await Promise.all([
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).eq("event_type", "RECEPTION_ACTION").gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).in("event_type", ["PAYMENT_CREATED", "PAYMENT_PROCESSED", "DATA_CHANGE"]).gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).eq("event_type", "AUTH_EVENT").gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).in("severity", ["WARNING", "ERROR", "CRITICAL"]).gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("employee_name").not("employee_name", "is", null).gte("created_at", `${todayStart}T00:00:00`),
-    ]);
-
-    const empMap = new Map<string, number>();
-    (empData || []).forEach((e: any) => {
-      if (e.employee_name) empMap.set(e.employee_name, (empMap.get(e.employee_name) || 0) + 1);
-    });
-    const byEmployee = Array.from(empMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    setStats({
-      total: total || 0,
-      reception: reception || 0,
-      payments: payments || 0,
-      auth: auth || 0,
-      alerts: alerts || 0,
-      byEmployee,
-    });
+    try {
+      const { data } = await apiClient.get('/system/logs/stats', {
+        params: { date_from: todayStart }
+      }) as any;
+      setStats(data);
+    } catch (e) {
+      console.error(e);
+    }
   }, [filters.dateFrom]);
 
   useEffect(() => {

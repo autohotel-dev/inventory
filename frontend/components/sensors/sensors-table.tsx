@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -55,7 +56,7 @@ export function SensorsTable() {
                 *,
                 room:rooms(id, number)
             `)
-                .order("created_at", { ascending: false });
+                ;
 
             if (sensorsError) throw sensorsError;
             setSensors(sensorsData || []);
@@ -64,7 +65,7 @@ export function SensorsTable() {
             const { data: roomsData, error: roomsError } = await supabase
                 .from("rooms")
                 .select("id, number")
-                .order("number");
+                ;
 
             if (roomsError) throw roomsError;
             setRooms(roomsData || []);
@@ -145,11 +146,11 @@ export function SensorsTable() {
                 const res = await supabase
                     .from("sensors")
                     .update(sensorData)
-                    .eq("id", editingId);
+                    ;
                 error = res.error;
             } else {
                 // Create
-                const res = await supabase.from("sensors").insert({
+                const res = await apiClient.post("/system/crud/sensors", {
                     ...sensorData,
                     status: 'ONLINE',
                     is_open: false,
@@ -178,7 +179,7 @@ export function SensorsTable() {
         if (!confirm("¿Seguro que deseas eliminar este sensor?")) return;
 
         try {
-            const { error } = await supabase.from("sensors").delete().eq("id", id);
+            const { error } = await apiClient.delete(`/system/crud/sensors/${id}`).then(() => ({ error: null })).catch(err => ({ error: err })) as any;
             if (error) throw error;
 
             success("Eliminado", "Sensor eliminado correctamente");

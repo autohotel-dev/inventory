@@ -39,24 +39,24 @@ export async function POST(request: NextRequest) {
             });
 
         if (subscription_id) {
-            query = query.eq('id', subscription_id);
+            query = query;
         } else if (endpoint) {
             // Find by endpoint in the JSONB column
             // subscription_data ->> 'endpoint'
             // We need to find the record first because filtering JSONB in update is tricky or we use a filter
             // Ideally we filter by subscription_data->>'endpoint'
-            // But supabase-js update().eq() works on columns.
+            // But supabase-js update() works on columns.
             // We should select id first.
 
             const { data: sub } = await supabase
                 .from('guest_subscriptions')
                 .select('id')
-                .eq('is_active', true)
+                
                 .filter('subscription_data->>endpoint', 'eq', endpoint)
-                .single();
+                ;
 
             if (sub) {
-                query = query.eq('id', sub.id);
+                query = query;
             } else {
                 return NextResponse.json({
                     success: true,

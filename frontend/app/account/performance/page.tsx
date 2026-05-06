@@ -43,8 +43,8 @@ export default function EmployeePerformancePage() {
         const { data: employee } = await supabase
           .from("employees")
           .select("id, first_name, last_name, role, auth_user_id")
-          .eq("auth_user_id", user.id)
-          .single();
+          
+          ;
 
         if (!employee) return;
 
@@ -64,15 +64,15 @@ export default function EmployeePerformancePage() {
         const { data: myStays } = await supabase
           .from("room_stays")
           .select("id, created_at, status")
-          .eq("created_by", user.id)
+          
           .gte("created_at", thirtyDaysAgo);
 
         // Get payments processed by this user
         const { data: myPayments } = await supabase
           .from("payments")
           .select("id, amount, created_at, status")
-          .eq("created_by", user.id)
-          .eq("status", "PAGADO")
+          
+          
           .gte("created_at", thirtyDaysAgo);
 
         const totalRevenue = myPayments?.reduce((s: number, p: any) => s + (p.amount || 0), 0) || 0;

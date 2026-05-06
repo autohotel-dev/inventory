@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         const { error } = await supabase
             .from('guest_notifications')
             .update(updateData)
-            .eq('id', notification_id);
+            ;
 
         if (error) {
             throw error;

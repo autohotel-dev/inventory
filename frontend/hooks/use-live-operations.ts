@@ -59,8 +59,8 @@ export function useLiveOperations() {
         const { data: shiftData } = await supabase
           .from('shift_sessions')
           .select('clock_in_at, clock_out_at')
-          .eq('id', activeFilters.shiftId)
-          .single();
+          
+          ;
           
         if (shiftData) {
           shiftStart = shiftData.clock_in_at;
@@ -98,11 +98,11 @@ export function useLiveOperations() {
             )
           )
         `)
-        .order('check_in_at', { ascending: false });
+        ;
 
       // Aplicar filtros
       if (activeFilters?.status && activeFilters.status !== 'ALL') {
-        query = query.eq('status', activeFilters.status);
+        query = query;
       }
       
       if (shiftStart) {
@@ -141,7 +141,7 @@ export function useLiveOperations() {
         .from('audit_logs')
         .select('*')
         .gte('created_at', oldestCheckIn)
-        .order('created_at', { ascending: false });
+        ;
 
       if (logsError) throw logsError;
 
@@ -152,7 +152,7 @@ export function useLiveOperations() {
         .select('id, clock_in_at, clock_out_at, employee_id, employees!inner(role)')
         .in('employees.role', ['receptionist', 'admin', 'manager'])
         .gte('clock_in_at', oldestCheckIn) // Actually, to be safe, maybe older, but let's just get the last 100
-        .order('clock_in_at', { ascending: false })
+        
         .limit(100);
         
       // Fallback query without dates just in case the active one is very old
@@ -160,7 +160,7 @@ export function useLiveOperations() {
         .from('shift_sessions')
         .select('id, clock_in_at, clock_out_at, employee_id, employees!inner(role)')
         .in('employees.role', ['receptionist', 'admin', 'manager'])
-        .eq('status', 'active');
+        ;
         
       const allRecShifts = [...(recShiftsData || []), ...(activeRecShiftsData || [])];
 
@@ -446,7 +446,7 @@ export async function fetchRecentReceptionShifts() {
     .from('shift_sessions')
     .select('id, clock_in_at, clock_out_at, status, employees!inner(first_name, last_name, role)')
     .in('employees.role', ['receptionist', 'admin', 'manager'])
-    .order('clock_in_at', { ascending: false })
+    
     .limit(20);
     
   if (error) {

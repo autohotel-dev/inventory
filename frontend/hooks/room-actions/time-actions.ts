@@ -107,7 +107,7 @@ export function createTimeActions(ctx: RoomActionContext) {
         }
       }
 
-      await extendCheckoutTime(supabase, activeStay.id, hours);
+      await extendCheckoutTime(activeStay.id, hours, activeStay.expected_check_out_at || "");
 
       toast.success("Horas agregadas", {
         description: `Hab. ${room.number}: +${hours} hora(s) - ${isCourtesy ? 'Cortesía' : `$${totalPrice.toFixed(2)} MXN`}`,
@@ -179,7 +179,7 @@ export function createTimeActions(ctx: RoomActionContext) {
         ? (room.room_types!.weekend_hours ?? 4)
         : (room.room_types!.weekday_hours ?? 4);
 
-      await extendCheckoutTime(supabase, activeStay.id, renewalHours);
+      await extendCheckoutTime(activeStay.id, renewalHours, activeStay.expected_check_out_at || "");
 
       toast.success("Habitación renovada", {
         description: `Hab. ${room.number}: Renovación completa - $${basePrice.toFixed(2)} MXN`,
@@ -229,8 +229,8 @@ export function createTimeActions(ctx: RoomActionContext) {
 
       const { data: pricingData, error: pricingError } = await supabase
         .from('pricing_config').select('price')
-        .eq('room_type_name', room.room_types!.name)
-        .eq('promo_type', '4H_PROMO').eq('is_active', true).single();
+        
+        ;
 
       if (pricingError || !pricingData) {
         toast.error("No hay precio de promoción configurado", { description: `Tipo: ${room.room_types!.name}. Contacta al administrador.` });
@@ -245,7 +245,7 @@ export function createTimeActions(ctx: RoomActionContext) {
       const itemRes = await createServiceItem(activeStay.sales_order_id, promoPrice, "PROMO_4H", 1, false, "", currentShiftId);
 
       await createPendingCharge(supabase, activeStay.sales_order_id, promoPrice, "PROMO_4H", "P4H", currentShiftId);
-      await extendCheckoutTime(supabase, activeStay.id, 4);
+      await extendCheckoutTime(activeStay.id, 4, activeStay.expected_check_out_at || "");
 
       toast.success("Promoción 4 horas aplicada", {
         description: `Hab. ${room.number}: +4 horas - $${promoPrice.toFixed(2)} MXN`,

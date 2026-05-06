@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +21,7 @@ async function createCustomerAction(formData: FormData) {
     is_active: formData.get("is_active") === "on",
   };
 
-  const { error } = await supabase.from("customers").insert(payload);
+  const { error } = await apiClient.post("/system/crud/customers", payload) as any;
 
   if (error) {
     if (error.code === "23505") {

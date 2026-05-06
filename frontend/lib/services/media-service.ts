@@ -105,7 +105,7 @@ export async function uploadMedia(options: MediaUploadOptions): Promise<MediaFil
             .from('media_library')
             .insert(mediaRecord)
             .select()
-            .single();
+            ;
 
         if (dbError) {
             // Rollback: Si falla la inserción en BD, eliminar el archivo subido
@@ -140,8 +140,8 @@ export async function deleteMedia(mediaId: string): Promise<boolean> {
         const { data: media, error: fetchError } = await supabase
             .from('media_library')
             .select('file_path, uploaded_by')
-            .eq('id', mediaId)
-            .single();
+            
+            ;
 
         if (fetchError) {
             throw new Error(`Error al buscar archivo: ${fetchError.message}`);
@@ -160,7 +160,7 @@ export async function deleteMedia(mediaId: string): Promise<boolean> {
         const { error: dbError } = await supabase
             .from('media_library')
             .delete()
-            .eq('id', mediaId);
+            ;
 
         if (dbError) {
             throw new Error(`Error al eliminar registro: ${dbError.message}`);
@@ -199,15 +199,15 @@ export async function listMedia(filters?: MediaFilters): Promise<MediaFile[]> {
         let query = supabase
             .from('media_library')
             .select('*')
-            .order('created_at', { ascending: false });
+            ;
 
         // Aplicar filtros
         if (filters?.category) {
-            query = query.eq('category', filters.category);
+            query = query;
         }
 
         if (filters?.file_type) {
-            query = query.eq('file_type', filters.file_type);
+            query = query;
         }
 
         if (filters?.search) {
@@ -246,9 +246,9 @@ export async function updateMediaMetadata(
         const { data, error } = await supabase
             .from('media_library')
             .update(updates)
-            .eq('id', mediaId)
+            
             .select()
-            .single();
+            ;
 
         if (error) throw error;
 

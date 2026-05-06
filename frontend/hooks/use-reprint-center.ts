@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { usePrintClosing } from "@/hooks/use-print-closing";
@@ -28,52 +28,21 @@ interface DateRange {
 // ─── HP Income Report Helper (browser print dialog) ─────────────────
 
 async function printHPIncomeReport(
-  supabase: any,
   shiftSessionId: string,
   employeeName: string,
   periodStart: string,
   periodEnd: string
 ) {
   // 1. Find all sales_order_ids linked to this shift session
-  const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
-    supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", shiftSessionId),
-    supabase.from("payments").select("sales_order_id").eq("shift_session_id", shiftSessionId),
-  ]);
-
-  const ids = new Set<string>();
-  (shiftItems || []).forEach((i: any) => i.sales_order_id && ids.add(i.sales_order_id));
-  (shiftPayments || []).forEach((p: any) => p.sales_order_id && ids.add(p.sales_order_id));
-  const salesOrderIds = Array.from(ids);
-
-  if (salesOrderIds.length === 0) {
+  const { data } = await apiClient.get(`/system/analytics/hp-income-report/${shiftSessionId}`) as any;
+  const filteredStays = data?.stays || [];
+  if (filteredStays.length === 0) {
     console.log('[HP Reprint] No sales orders for this shift — skipping income report');
     return;
   }
-
-  // 2. Fetch room_stays that match those sales orders
-  const { data: staysData } = await supabase
-    .from("room_stays")
-    .select(`
-      id, check_in_at, vehicle_plate, status,
-      checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(first_name, last_name),
-      rooms!inner(number),
-      sales_orders!inner(
-        id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
-        sales_order_items(concept_type, unit_price, qty, shift_session_id)
-      )
-    `)
-    .in("sales_order_id", salesOrderIds)
-    .in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"])
-    .order("check_in_at", { ascending: true });
-
-  const filteredStays = (staysData || []).filter((stay: any) => {
-    const roomNum = stay.rooms?.number;
-    return roomNum !== '13' && roomNum !== '113';
-  });
-
-  // 3. Build income entries
+  
   const entries = filteredStays.map((stay: any, idx: number) => {
-    const order = stay.sales_orders;
+    const order = stay.sales_orders?.[0];
     let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
     items = items.filter((item: any) => item.shift_session_id === shiftSessionId);
 
@@ -317,274 +286,170 @@ export function useReprintCenter() {
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const allTickets: ReprintableTicket[] = [];
-
-    const fromISO = dateRange.from.toISOString();
-    const toISO = dateRange.to.toISOString();
-
     try {
-      // 1. ENTRIES (Check-ins)
-      {
-        let query = supabase
-          .from("room_stays")
-          .select("id, check_in_at, expected_check_out_at, current_people, total_people, vehicle_plate, vehicle_brand, vehicle_model, tolerance_started_at, tolerance_type, rooms!inner(number, room_types(name, base_price, extra_person_price)), sales_orders(id, total, remaining_amount, payments(id, amount, payment_method), sales_order_items(concept_type, unit_price, qty))")
-          .gte("check_in_at", fromISO)
-          .lte("check_in_at", toISO)
-          .in("status", ["ACTIVA", "FINALIZADA"])
-          .order("check_in_at", { ascending: false });
+      const { data } = await apiClient.get(`/system/analytics/reprint-tickets`, {
+        params: { from_date: fromISO, to_date: toISO }
+      }) as any;
 
-        if (roomFilter.trim()) {
-          query = query.eq("rooms.number", roomFilter.trim());
-        }
+      // Map backend data to old format to avoid breaking UI logic
+      const mapRoom = (r: any) => ({ number: r.room_number, room_types: { name: r.room_type_name, base_price: r.base_price, extra_person_price: r.extra_person_price } });
+      const mapOrder = (r: any, isCheck = false) => ({ 
+        id: r.so_id, total: r.total, remaining_amount: r.remaining_amount,
+        payments: data.extra_payments?.filter((p:any) => p.sales_order_id === r.so_id),
+        sales_order_items: data.extra_items?.filter((i:any) => i.sales_order_id === r.so_id)
+      });
 
-        const { data, error } = await query;
-        if (error) console.error("[Reprint] Error fetching entries:", error);
+      // 1. ENTRIES
+      (data.entries || []).forEach((stay: any) => {
+        const roomType = { name: stay.room_type_name, base_price: stay.base_price, extra_person_price: stay.extra_person_price };
+        const order = mapOrder(stay);
+        const firstPayment = order?.payments?.[0];
+        const basePrice = roomType?.base_price || 0;
+        const items = order?.sales_order_items || [];
+        const extraPersonItems = items.filter((i: any) => i.concept_type === 'EXTRA_PERSON');
+        const extraPeople = extraPersonItems.reduce((sum: number, i: any) => sum + (i.qty || 1), 0);
+        const extraCost = extraPersonItems.reduce((sum: number, i: any) => sum + ((i.unit_price || 0) * (i.qty || 1)), 0);
+        const totalPrice = basePrice + extraCost;
 
-        (data || []).forEach((stay: any) => {
-          const room = Array.isArray(stay.rooms) ? stay.rooms[0] : stay.rooms;
-          const roomType = room?.room_types;
-          const order = Array.isArray(stay.sales_orders) ? stay.sales_orders[0] : stay.sales_orders;
-          const firstPayment = order?.payments?.[0];
-          const basePrice = roomType?.base_price || 0;
+        if (roomFilter.trim() && stay.room_number !== roomFilter.trim()) return;
 
-          // Use actual EXTRA_PERSON items from the order instead of calculating from total_people
-          const items = order?.sales_order_items || [];
-          const extraPersonItems = items.filter((i: any) => i.concept_type === 'EXTRA_PERSON');
-          const extraPeople = extraPersonItems.reduce((sum: number, i: any) => sum + (i.qty || 1), 0);
-          const extraCost = extraPersonItems.reduce((sum: number, i: any) => sum + ((i.unit_price || 0) * (i.qty || 1)), 0);
-          const totalPrice = basePrice + extraCost;
-
-          allTickets.push({
-            id: `entry-${stay.id}`,
-            type: "entry",
-            date: stay.check_in_at,
-            roomNumber: room?.number || null,
-            description: `Entrada - ${roomType?.name || "N/A"} - ${stay.total_people || 1} persona(s)`,
-            amount: totalPrice,
-            rawData: {
-              roomNumber: room?.number || "N/A",
-              roomTypeName: roomType?.name || "N/A",
-              date: new Date(stay.check_in_at),
-              people: stay.total_people || 1,
-              vehiclePlate: stay.vehicle_plate || undefined,
-              vehicleBrand: stay.vehicle_brand || undefined,
-              vehicleModel: stay.vehicle_model || undefined,
-              basePrice,
-              extraPeopleCount: extraPeople,
-              extraPeopleCost: extraCost,
-              totalPrice,
-              paymentMethod: firstPayment?.payment_method || "EFECTIVO",
-              expectedCheckout: stay.expected_check_out_at ? new Date(stay.expected_check_out_at) : new Date(),
-            },
-          });
+        allTickets.push({
+          id: `entry-${stay.id}`,
+          type: "entry",
+          date: stay.check_in_at,
+          roomNumber: stay.room_number || null,
+          description: `Entrada - ${roomType?.name || "N/A"} - ${stay.total_people || 1} persona(s)`,
+          amount: totalPrice,
+          rawData: {
+            roomNumber: stay.room_number || "N/A",
+            roomTypeName: roomType?.name || "N/A",
+            date: new Date(stay.check_in_at),
+            people: stay.total_people || 1,
+            vehiclePlate: stay.vehicle_plate || undefined,
+            basePrice,
+            extraPeopleCount: extraPeople,
+            extraPeopleCost: extraCost,
+            totalPrice,
+            paymentMethod: firstPayment?.payment_method || "EFECTIVO",
+            expectedCheckout: stay.expected_check_out_at ? new Date(stay.expected_check_out_at) : new Date(),
+          },
         });
-      }
+      });
 
       // 2. CHECKOUTS
-      {
-        let query = supabase
-          .from("room_stays")
-          .select("id, check_in_at, actual_check_out_at, total_people, vehicle_plate, sales_order_id, rooms!inner(number, room_types(name)), sales_orders(id, total, remaining_amount, payments(id, amount, payment_method, created_at)), checkout_valet_employee_id, valet_employee_id")
-          .not("actual_check_out_at", "is", null)
-          .gte("actual_check_out_at", fromISO)
-          .lte("actual_check_out_at", toISO)
-          .eq("status", "FINALIZADA")
-          .order("actual_check_out_at", { ascending: false });
+      (data.checkouts || []).forEach((stay: any) => {
+        if (roomFilter.trim() && stay.room_number !== roomFilter.trim()) return;
+        const order = mapOrder(stay);
+        const totalPaid = order?.payments?.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0;
 
-        if (roomFilter.trim()) {
-          query = query.eq("rooms.number", roomFilter.trim());
-        }
-
-        const { data, error } = await query;
-        if (error) console.error("[Reprint] Error fetching checkouts:", error);
-
-        (data || []).forEach((stay: any) => {
-          const room = Array.isArray(stay.rooms) ? stay.rooms[0] : stay.rooms;
-          const order = Array.isArray(stay.sales_orders) ? stay.sales_orders[0] : stay.sales_orders;
-          const totalPaid = order?.payments?.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0;
-
-          allTickets.push({
-            id: `checkout-${stay.id}`,
-            type: "checkout",
-            date: stay.actual_check_out_at,
-            roomNumber: room?.number || null,
-            description: `Salida - ${room?.room_types?.name || "N/A"}`,
-            amount: totalPaid,
-            rawData: {
-              roomNumber: room?.number || "N/A",
-              folio: stay.sales_order_id?.substring(0, 8) || "",
-              date: new Date(stay.actual_check_out_at),
-              items: [],
-              subtotal: totalPaid,
-              total: totalPaid,
-            },
-          });
+        allTickets.push({
+          id: `checkout-${stay.id}`,
+          type: "checkout",
+          date: stay.actual_check_out_at,
+          roomNumber: stay.room_number || null,
+          description: `Salida - ${stay.room_type_name || "N/A"}`,
+          amount: totalPaid,
+          rawData: {
+            roomNumber: stay.room_number || "N/A",
+            folio: stay.sales_order_id?.substring(0, 8) || "",
+            date: new Date(stay.actual_check_out_at),
+            items: [],
+            subtotal: totalPaid,
+            total: totalPaid,
+          },
         });
-      }
+      });
 
       // 3. CONSUMPTIONS
-      {
-        const { data, error } = await supabase
-          .from("sales_order_items")
-          .select("id, qty, unit_price, total, created_at, concept_type, is_courtesy, products(name), sales_orders!inner(id, room_stays(rooms(number)))")
-          .eq("concept_type", "CONSUMPTION")
-          .gte("created_at", fromISO)
-          .lte("created_at", toISO)
-          .order("created_at", { ascending: false });
+      const grouped = new Map<string, any[]>();
+      (data.consumptions || []).forEach((item: any) => {
+        const orderId = item.so_id || "unknown";
+        const timestamp = new Date(item.created_at).getTime();
+        const bucketKey = `${orderId}-${Math.floor(timestamp / 120000)}`;
+        if (!grouped.has(bucketKey)) grouped.set(bucketKey, []);
+        grouped.get(bucketKey)!.push(item);
+      });
 
-        if (error) console.error("[Reprint] Error fetching consumptions:", error);
+      grouped.forEach((items, bucketKey) => {
+        const first = items[0];
+        const roomNum = first.room_number;
+        if (roomFilter.trim() && roomNum !== roomFilter.trim()) return;
 
-        // Group consumptions by sales_order_id + approximate time (within 2 minutes)
-        const grouped = new Map<string, any[]>();
-        (data || []).forEach((item: any) => {
-          const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
-          const orderId = order?.id || "unknown";
-          const timestamp = new Date(item.created_at).getTime();
-          const bucketKey = `${orderId}-${Math.floor(timestamp / 120000)}`; // 2-min buckets
+        const totalAmount = items.reduce((sum: number, i: any) => sum + (i.total || i.qty * i.unit_price || 0), 0);
+        const itemNames = items.map((i: any) => `${i.qty}x ${i.product_name || "Producto"}`).join(", ");
+        const folio = `COM-${new Date(first.created_at).getFullYear().toString().slice(-2)}${(new Date(first.created_at).getMonth() + 1).toString().padStart(2, "0")}${new Date(first.created_at).getDate().toString().padStart(2, "0")}-${bucketKey.substring(bucketKey.length - 4)}`;
 
-          if (!grouped.has(bucketKey)) grouped.set(bucketKey, []);
-          grouped.get(bucketKey)!.push(item);
+        allTickets.push({
+          id: `consumption-${bucketKey}`,
+          type: "consumption",
+          date: first.created_at,
+          roomNumber: roomNum || null,
+          description: `Consumo - ${itemNames}`,
+          amount: totalAmount,
+          rawData: {
+            roomNumber: roomNum || "N/A",
+            folio,
+            date: new Date(first.created_at),
+            items: items.map((i: any) => ({ name: i.product_name || "Producto", qty: i.qty, price: i.unit_price, total: i.total || i.qty * i.unit_price })),
+            subtotal: totalAmount,
+            total: totalAmount,
+          },
         });
-
-        grouped.forEach((items, bucketKey) => {
-          const first = items[0];
-          const order = Array.isArray(first.sales_orders) ? first.sales_orders[0] : first.sales_orders;
-          const roomStay = order?.room_stays?.[0];
-          const room = roomStay?.rooms;
-          const roomNum = Array.isArray(room) ? room[0]?.number : room?.number;
-
-          // Filter by room if needed
-          if (roomFilter.trim() && roomNum !== roomFilter.trim()) return;
-
-          const totalAmount = items.reduce((sum: number, i: any) => sum + (i.total || i.qty * i.unit_price || 0), 0);
-          const itemNames = items.map((i: any) => {
-            const prod = Array.isArray(i.products) ? i.products[0] : i.products;
-            return `${i.qty}x ${prod?.name || "Producto"}`;
-          }).join(", ");
-
-          const folio = `COM-${new Date(first.created_at).getFullYear().toString().slice(-2)}${(new Date(first.created_at).getMonth() + 1).toString().padStart(2, "0")}${new Date(first.created_at).getDate().toString().padStart(2, "0")}-${bucketKey.substring(bucketKey.length - 4)}`;
-
-          allTickets.push({
-            id: `consumption-${bucketKey}`,
-            type: "consumption",
-            date: first.created_at,
-            roomNumber: roomNum || null,
-            description: `Consumo - ${itemNames}`,
-            amount: totalAmount,
-            rawData: {
-              roomNumber: roomNum || "N/A",
-              folio,
-              date: new Date(first.created_at),
-              items: items.map((i: any) => {
-                const prod = Array.isArray(i.products) ? i.products[0] : i.products;
-                return {
-                  name: prod?.name || "Producto",
-                  qty: i.qty,
-                  price: i.unit_price,
-                  total: i.total || i.qty * i.unit_price,
-                };
-              }),
-              subtotal: totalAmount,
-              total: totalAmount,
-            },
-          });
-        });
-      }
+      });
 
       // 4. PAYMENTS
-      {
-        const { data, error } = await supabase
-          .from("payments")
-          .select("id, amount, payment_method, concept, created_at, status, sales_order_id, sales_orders(id, room_stays(rooms(number)), sales_order_items(id, qty, unit_price, concept_type, products(name)))")
-          .eq("status", "confirmed")
-          .gte("created_at", fromISO)
-          .lte("created_at", toISO)
-          .order("created_at", { ascending: false });
+      (data.payments || []).forEach((payment: any) => {
+        const roomNum = payment.room_number;
+        if (roomFilter.trim() && roomNum !== roomFilter.trim()) return;
 
-        if (error) console.error("[Reprint] Error fetching payments:", error);
-
-        (data || []).forEach((payment: any) => {
-          const order = Array.isArray(payment.sales_orders) ? payment.sales_orders[0] : payment.sales_orders;
-          const roomStay = order?.room_stays?.[0];
-          const room = roomStay?.rooms;
-          const roomNum = Array.isArray(room) ? room[0]?.number : room?.number;
-
-          // Filter by room if needed
-          if (roomFilter.trim() && roomNum !== roomFilter.trim()) return;
-
-          const items = order?.sales_order_items || [];
-          const paymentItems = items.map((i: any) => {
-            const prod = Array.isArray(i.products) ? i.products[0] : i.products;
-            return {
-              name: prod?.name || i.concept_type || "Servicio",
-              qty: i.qty || 1,
-              total: i.qty * i.unit_price || 0,
-            };
-          });
-
-          allTickets.push({
-            id: `payment-${payment.id}`,
-            type: "payment",
-            date: payment.created_at,
-            roomNumber: roomNum || null,
-            description: `Pago ${payment.payment_method} - ${payment.concept || "N/A"}`,
-            amount: payment.amount,
-            rawData: {
-              roomNumber: roomNum || undefined,
-              date: new Date(payment.created_at),
-              items: paymentItems,
-              total: payment.amount,
-              paymentMethod: payment.payment_method || "EFECTIVO",
-              remainingAmount: undefined,
-            },
-          });
+        allTickets.push({
+          id: `payment-${payment.id}`,
+          type: "payment",
+          date: payment.created_at,
+          roomNumber: roomNum || null,
+          description: `Pago ${payment.payment_method} - ${payment.concept || "N/A"}`,
+          amount: payment.amount,
+          rawData: {
+            roomNumber: roomNum || undefined,
+            date: new Date(payment.created_at),
+            items: [{ name: payment.product_name || payment.concept_type || "Servicio", qty: payment.qty || 1, total: (payment.qty || 1) * (payment.unit_price || 0) }],
+            total: payment.amount,
+            paymentMethod: payment.payment_method || "EFECTIVO",
+          },
         });
-      }
+      });
 
-      // 5. SHIFT CLOSINGS
-      {
-        const { data, error } = await supabase
-          .from("shift_closings")
-          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, shift_session_id, employees:employees!shift_closings_employee_id_fkey(first_name, last_name), shift_sessions(shift_definitions(name))")
-          .in("status", ["pending", "approved", "rejected"])
-          .gte("period_end", fromISO)
-          .lte("period_end", toISO)
-          .order("period_end", { ascending: false });
+      // 5. CLOSINGS
+      (data.closings || []).forEach((closing: any) => {
+        const empName = `${closing.first_name || ""} ${closing.last_name || ""}`.trim();
+        const shiftName = closing.shift_name || "Turno";
 
-        if (error) console.error("[Reprint] Error fetching closings:", JSON.stringify(error, null, 2));
-
-        (data || []).forEach((closing: any) => {
-          const empName = `${closing.employees?.first_name || ""} ${closing.employees?.last_name || ""}`.trim();
-          const shiftName = closing.shift_sessions?.shift_definitions?.name || "Turno";
-
-          allTickets.push({
-            id: `closing-${closing.id}`,
-            type: "closing",
-            date: closing.period_end,
-            roomNumber: null,
-            description: `Corte de Caja - ${shiftName} - ${empName}`,
-            amount: closing.total_sales || 0,
-            rawData: {
-              closingId: closing.id,
-              shiftSessionId: closing.shift_session_id,
-              employeeName: empName,
-              shiftName,
-              periodStart: closing.period_start,
-              periodEnd: closing.period_end,
-              totalCash: closing.total_cash || 0,
-              totalCardBBVA: closing.total_card_bbva || 0,
-              totalCardGetnet: closing.total_card_getnet || 0,
-              totalSales: closing.total_sales || 0,
-              totalTransactions: closing.total_transactions || 0,
-              countedCash: closing.counted_cash || 0,
-              cashDifference: closing.cash_difference || 0,
-              notes: closing.notes || undefined,
-              transactions: [], // Will be loaded on demand
-            },
-          });
+        allTickets.push({
+          id: `closing-${closing.id}`,
+          type: "closing",
+          date: closing.period_end,
+          roomNumber: null,
+          description: `Corte de Caja - ${shiftName} - ${empName}`,
+          amount: closing.total_sales || 0,
+          rawData: {
+            closingId: closing.id,
+            shiftSessionId: closing.shift_session_id,
+            employeeName: empName,
+            shiftName,
+            periodStart: closing.period_start,
+            periodEnd: closing.period_end,
+            totalCash: closing.total_cash || 0,
+            totalCardBBVA: closing.total_card_bbva || 0,
+            totalCardGetnet: closing.total_card_getnet || 0,
+            totalSales: closing.total_sales || 0,
+            totalTransactions: closing.total_transactions || 0,
+            countedCash: closing.counted_cash || 0,
+            cashDifference: closing.cash_difference || 0,
+            notes: closing.notes || undefined,
+            transactions: [],
+          },
         });
-      }
+      });
 
       // Sort all by date descending
       allTickets.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -629,13 +494,9 @@ export function useReprintCenter() {
 
         case "closing": {
           // For closings, we need to load transactions on demand
-          const supabase = createClient();
           const closingId = ticket.rawData.closingId;
-          const { data: details } = await supabase
-            .from("shift_closing_details")
-            .select("*, payments(id, amount, payment_method, reference, concept, terminal_code, created_at, payment_terminals(code, name))")
-            .eq("shift_closing_id", closingId)
-            .order("created_at", { ascending: true });
+          const { data } = await apiClient.get(`/hr/shift-closings/${closingId}/details`) as any;
+          const details = data?.details;
 
           const transactions = (details || []).map((detail: any) => {
             const payment = detail.payments;
@@ -681,7 +542,6 @@ export function useReprintCenter() {
     try {
       const supabase = createClient();
       await printHPIncomeReport(
-        supabase,
         ticket.rawData.shiftSessionId,
         ticket.rawData.employeeName,
         ticket.rawData.periodStart,

@@ -71,9 +71,9 @@ export default function StaffNotificationsPage() {
       const { data } = await supabase
         .from("employees")
         .select("id, first_name, last_name, role")
-        .eq("is_active", true)
-        .not("auth_user_id", "is", null)
-        .order("first_name");
+        
+        
+        ;
       if (data) {
         setEmployees(data.map((e: any) => ({
           id: e.id,

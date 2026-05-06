@@ -28,9 +28,9 @@ export async function getPermissionsByRole(role: UserRole): Promise<Permission[]
     const { data, error } = await supabase
         .from('role_permissions')
         .select('*')
-        .eq('role', role)
-        .eq('allowed', true)
-        .order('resource');
+        
+        
+        ;
 
     if (error) {
         console.error('Error fetching permissions:', error);
@@ -49,9 +49,9 @@ export async function getMenuPermissions(role: UserRole): Promise<string[]> {
     const { data, error } = await supabase
         .from('role_permissions')
         .select('resource')
-        .eq('role', role)
-        .eq('permission_type', 'menu')
-        .eq('allowed', true);
+        
+        
+        ;
 
     if (error) {
         console.error('Error fetching menu permissions:', error);
@@ -71,9 +71,9 @@ export async function getPagePermissions(role: UserRole): Promise<string[]> {
     const { data, error } = await supabase
         .from('role_permissions')
         .select('resource')
-        .eq('role', role)
-        .eq('permission_type', 'page')
-        .eq('allowed', true);
+        
+        
+        ;
 
     if (error) {
         console.error('Error fetching page permissions:', error);
@@ -100,10 +100,10 @@ export async function hasPermission(
     const { data, error } = await supabase
         .from('role_permissions')
         .select('allowed')
-        .eq('role', role)
-        .eq('resource', fullResource)
-        .eq('permission_type', type)
-        .single();
+        
+        
+        
+        ;
 
     if (error) {
         console.error('Error checking permission:', error);

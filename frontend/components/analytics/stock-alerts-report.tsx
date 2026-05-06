@@ -61,7 +61,7 @@ export function StockAlertsReport() {
                         warehouse:warehouses(name, code)
                     )
                 `)
-                .eq("is_active", true);
+                ;
 
             if (!products) {
                 setLoading(false);

@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,8 +11,8 @@ async function getProduct(id: string) {
   const { data, error } = await supabase
     .from("products")
     .select("id, sku, name, price, min_stock, is_active")
-    .eq("id", id)
-    .single();
+    
+    ;
   if (error) throw error;
   return data;
 }
@@ -27,7 +28,7 @@ async function updateProductAction(formData: FormData) {
     min_stock: Number(formData.get("min_stock") || 0),
     is_active: formData.get("is_active") === "on",
   };
-  const { error } = await supabase.from("products").update(payload).eq("id", id);
+  const { error } = await apiClient.patch(`/system/crud/products/${id}`, payload) as any;
   if (error) throw error;
   revalidatePath("/products");
   redirect("/products");

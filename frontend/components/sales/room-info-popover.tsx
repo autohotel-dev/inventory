@@ -72,7 +72,7 @@ export function RoomInfoPopover({
     const { data, error } = await supabase
       .from("sales_order_items")
       .select("concept_type, total, is_paid")
-      .eq("sales_order_id", salesOrderId);
+      ;
 
     if (!error && data) {
       // Agrupar por concepto
@@ -99,8 +99,8 @@ export function RoomInfoPopover({
     const { data, error } = await supabase
       .from("payments")
       .select("*")
-      .eq("sales_order_id", salesOrderId)
-      .order("created_at", { ascending: false });
+      
+      ;
 
     if (!error && data) {
       setPayments(data);

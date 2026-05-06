@@ -59,9 +59,9 @@ export function ProductModalForm({
                 const { data, error } = await supabase
                     .from("subcategories")
                     .select("*")
-                    .eq("category_id", formData.category_id)
-                    .eq("is_active", true)
-                    .order("name", { ascending: true });
+                    
+                    
+                    ;
 
                 if (error) {
                     console.warn("Error fetching subcategories:", error);

@@ -94,7 +94,7 @@ export async function POST(req: Request) {
             .from('employees')
             .select('id, push_token')
             .in('role', payload.roles)
-            .not('push_token', 'is', null);
+            ;
 
         if (employeesWithTokens?.length) {
             const expoMessages = employeesWithTokens

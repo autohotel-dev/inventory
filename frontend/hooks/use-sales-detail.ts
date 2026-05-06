@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Hook for sales order detail: fetching, payments, item management, and status updates.
  * Extracted from advanced-sales-detail.tsx for separation of concerns.
@@ -103,7 +104,7 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
     try {
       const { data: orderData, error: orderError } = await supabase
-        .from("sales_orders").select("*").eq("id", orderId).single();
+        .from("sales_orders").select("*");
       if (orderError) throw orderError;
       if (!orderData) return;
 
@@ -112,28 +113,28 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
       if (orderData.customer_id) {
         const { data: customer } = await supabase
-          .from("customers").select("name, email, phone").eq("id", orderData.customer_id).single();
+          .from("customers").select("name, email, phone");
         customerData = customer;
       }
       if (orderData.warehouse_id) {
         const { data: warehouse } = await supabase
-          .from("warehouses").select("code, name").eq("id", orderData.warehouse_id).single();
+          .from("warehouses").select("code, name");
         warehouseData = warehouse;
       }
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("sales_order_items")
         .select("id, product_id, qty, unit_price, total, payment_method, is_paid, paid_at, concept_type, products:product_id(name, sku)")
-        .eq("sales_order_id", orderId);
+        ;
       if (itemsError) throw itemsError;
 
       const { data: productsData } = await supabase
-        .from("products").select("id, name, sku, price").eq("is_active", true).order("name");
+        .from("products").select("id, name, sku, price");
 
       const { data: paymentsData } = await supabase
         .from("payments")
         .select("id, amount, payment_method, reference, concept, status, created_at")
-        .eq("sales_order_id", orderId).order("created_at", { ascending: false });
+        ;
 
       setOrder({ ...orderData, customers: customerData, warehouses: warehouseData } as any);
       setItems(itemsData as any || []);
@@ -191,7 +192,7 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
         const { data: mainPayment, error: mainError } = await supabase
           .from("payments")
           .insert({ sales_order_id: orderId, amount: totalAmount, payment_method: "PENDIENTE", reference: generatePaymentReference("ABN"), concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO" })
-          .select("id").single();
+          .select("id");
 
         if (mainError) console.error("Error inserting main payment:", mainError);
         else if (mainPayment) {
@@ -200,14 +201,14 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
             reference: p.reference || generatePaymentReference("SUB"),
             concept: "ABONO", status: "PAGADO", payment_type: "PARCIAL", parent_payment_id: mainPayment.id,
           }));
-          const { error: subError } = await supabase.from("payments").insert(subpayments);
+          const { error: subError } = await apiClient.post("/system/crud/payments", subpayments) as any;
           if (subError) console.error("Error inserting subpayments:", subError);
         }
       } else if (validPayments.length === 1) {
         const p = validPayments[0];
-        const { error } = await supabase.from("payments").insert({
+        const { error } = await apiClient.post("/system/crud/payments", {
           sales_order_id: orderId, amount: p.amount, payment_method: p.method,
-          reference: p.reference || generatePaymentReference("ABN"),
+          reference: p.reference || generatePaymentReference("ABN") as any,
           concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO",
         });
         if (error) console.error("Error inserting payment:", error);
@@ -250,7 +251,7 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
     try {
       if ((newStatus === 'COMPLETED' || newStatus === 'PARTIAL') && order) {
         const { data: existingMovements } = await supabase
-          .from("inventory_movements").select("id").eq("reference_id", orderId).eq("reference_table", "sales_orders").limit(1);
+          .from("inventory_movements").select("id").limit(1);
 
         if (!existingMovements || existingMovements.length === 0) {
           const { data: { user } } = await supabase.auth.getUser();
@@ -260,12 +261,12 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
             notes: `Vendido en orden ${orderId}`, reference_table: 'sales_orders',
             reference_id: orderId, created_by: user?.id || null
           }));
-          const { error: movError } = await supabase.from("inventory_movements").insert(movements);
+          const { error: movError } = await apiClient.post("/system/crud/inventory_movements", movements) as any;
           if (movError) console.error('Error creating inventory movements:', movError);
         }
       }
 
-      const { error } = await supabase.from("sales_orders").update({ status: newStatus }).eq("id", orderId);
+      const { error } = await apiClient.patch(`/system/crud/sales_orders/${orderId}`, { status: newStatus }) as any;
       if (error) throw error;
       await fetchOrderDetail();
       toast.success("Estado actualizado", { description: `La orden ahora está en estado: ${newStatus}` });
@@ -298,44 +299,19 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
       const newItemsTotal = newItems.reduce((sum, i) => sum + (i.quantity * i.unit_price), 0);
       const productosNota = newItems.map(i => `${i.quantity}x ${i.product.name}`).join(", ");
 
-      const { error } = await supabase.from("sales_order_items").insert(
-        newItems.map(i => ({
-          sales_order_id: orderId, product_id: i.product.id, qty: i.quantity, unit_price: i.unit_price,
-          is_courtesy: i.is_courtesy || false, courtesy_reason: i.courtesy_reason || null
-        }))
-      );
-      if (error) throw error;
-
-      // Inventory movements
-      if (order.warehouse_id) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const { error: movError } = await supabase.from("inventory_movements").insert(
-          newItems.map(i => ({
-            product_id: i.product.id, warehouse_id: order.warehouse_id,
-            quantity: i.quantity, movement_type: 'OUT', reason_id: 6, reason: 'SALE',
-            notes: `Consumo vendido en orden ${orderId}`, reference_table: 'sales_orders',
-            reference_id: orderId, created_by: user?.id || null
-          }))
-        );
-        if (movError) {
-          console.error('Error creating inventory movements:', movError);
-          toast.error("Advertencia", { description: "Productos agregados pero hubo un error al actualizar el inventario" });
-        }
-      }
-
-      await supabase.from("payments").insert({
-        sales_order_id: orderId, amount: newItemsTotal, payment_method: "PENDIENTE",
-        reference: generatePaymentReference("CON"), concept: "CONSUMO", status: "PENDIENTE",
-        payment_type: "COMPLETO", notes: productosNota,
+      const { apiClient } = await import("@/lib/api/client");
+      const sessionUser = await supabase.auth.getUser();
+      await apiClient.post(`/sales/orders/${orderId}/items/bulk`, {
+        items: newItems.map(i => ({
+          product_id: i.product.id,
+          qty: i.quantity,
+          unit_price: i.unit_price,
+          is_courtesy: i.is_courtesy || false,
+          courtesy_reason: i.courtesy_reason || null
+        })),
+        warehouse_id: order.warehouse_id,
+        employee_id: sessionUser.data?.user?.id
       });
-
-      const currentSubtotal = Number(order.subtotal) || 0;
-      const currentTotal = Number(order.total) || 0;
-      const currentRemaining = Number(order.remaining_amount) || 0;
-      await supabase.from("sales_orders").update({
-        subtotal: currentSubtotal + newItemsTotal, total: currentTotal + newItemsTotal,
-        remaining_amount: currentRemaining + newItemsTotal,
-      }).eq("id", orderId);
 
       await fetchOrderDetail();
       setShowAddProduct(false);
@@ -355,16 +331,16 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
     const supabase = createClient();
     try {
       const { data: orderData } = await supabase
-        .from("sales_orders").select("subtotal, tax, total, paid_amount, remaining_amount").eq("id", orderId).single();
+        .from("sales_orders").select("subtotal, tax, total, paid_amount, remaining_amount");
       if (!orderData) return;
 
       const { data: itemsData } = await supabase
-        .from("sales_order_items").select("qty, unit_price").eq("sales_order_id", orderId);
+        .from("sales_order_items").select("qty, unit_price");
       const itemsSubtotal = itemsData?.reduce((sum: number, item: any) =>
         sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0), 0) || 0;
 
       const { data: paymentsData } = await supabase
-        .from("payments").select("amount, concept").eq("sales_order_id", orderId).is("parent_payment_id", null);
+        .from("payments").select("amount, concept").is("parent_payment_id", null);
       const nonItemCharges = paymentsData?.reduce((sum: number, p: any) =>
         p.concept !== "CONSUMO" ? sum + (Number(p.amount) || 0) : sum, 0) || 0;
 
@@ -372,9 +348,9 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
       const tax = Number(orderData.tax) || 0;
       const total = subtotal + tax;
       const paid_amount = Number(orderData.paid_amount) || 0;
-      await supabase.from("sales_orders").update({
+      await apiClient.patch(`/system/crud/sales_orders/${orderId}`, {
         subtotal, tax, total, remaining_amount: Math.max(total - paid_amount, 0)
-      }).eq("id", orderId);
+      });
     } catch (error) {
       console.error('Error recalculating totals:', error);
     }
@@ -387,9 +363,8 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
   const removeItemFromOrder = async () => {
     const supabase = createClient();
     try {
-      const { error } = await supabase.from("sales_order_items").delete().eq("id", confirmDialog.itemId);
-      if (error) throw error;
-      await recalculateOrderTotals();
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/sales/orders/items/${confirmDialog.itemId}`);
       await fetchOrderDetail();
       toast.success("Producto eliminado", { description: "El producto ha sido removido de la orden" });
     } catch (error) {

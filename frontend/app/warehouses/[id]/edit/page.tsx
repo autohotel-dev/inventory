@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,8 +11,8 @@ async function getWarehouse(id: string) {
   const { data, error } = await supabase
     .from("warehouses")
     .select("id, code, name, address, is_active")
-    .eq("id", id)
-    .single();
+    
+    ;
   if (error) throw error;
   return data;
 }
@@ -26,7 +27,7 @@ async function updateWarehouseAction(formData: FormData) {
     address: String(formData.get("address") || "").trim(),
     is_active: formData.get("is_active") === "on",
   };
-  const { error } = await supabase.from("warehouses").update(payload).eq("id", id);
+  const { error } = await apiClient.patch(`/system/crud/warehouses/${id}`, payload) as any;
   if (error) throw error;
   revalidatePath("/warehouses");
   redirect("/warehouses");

@@ -25,7 +25,7 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
       const { data: stayData } = await supabase
         .from("room_stays")
         .select("status, checkout_payment_data, id")
-        .eq("sales_order_id", salesOrderId)
+        
         .maybeSingle();
 
       const { data: paymentsData } = await supabase
@@ -37,9 +37,9 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
             last_name
           )
         `)
-        .eq("sales_order_id", salesOrderId)
+        
         .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"])
-        .not("collected_by", "is", null);
+        ;
 
       if (stayData || (paymentsData && paymentsData.length > 0)) {
         const hasValetConcept = items.some(i => VALET_CONCEPTS.includes(i.concept_type || ''));
@@ -164,9 +164,9 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
                 confirmed_at: new Date().toISOString(),
                 confirmed_by: employeeId
             })
-            .eq("sales_order_id", salesOrderId)
-            .eq("status", "COBRADO_POR_VALET")
-            .not("collected_by", "is", null);
+            
+            
+            ;
           
           if (error) console.error("Error corroborating virtual report payments:", error);
       }
@@ -190,8 +190,8 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
         const { data: stayForFlow } = await supabase2
           .from("room_stays")
           .select("id")
-          .eq("sales_order_id", salesOrderId)
-          .eq("status", "ACTIVA")
+          
+          
           .maybeSingle();
         if (stayForFlow) {
           findActiveFlow(stayForFlow.id).then(flowId => {

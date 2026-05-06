@@ -2,28 +2,37 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { Hub } from "aws-amplify/utils";
+import { configureAmplify } from "@/lib/amplify";
 
-import { type AuthChangeEvent } from "@supabase/supabase-js";
+// Configure Amplify globally
+configureAmplify();
 
 export function AuthListener() {
     const router = useRouter();
-    const supabase = createClient();
 
     useEffect(() => {
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
-            if (event === "PASSWORD_RECOVERY") {
-                console.log("Password recovery event detected, redirecting to update password");
-                router.push("/auth/update-password");
+        const unsubscribe = Hub.listen('auth', ({ payload }) => {
+            switch (payload.event) {
+                case 'signedIn':
+                    console.log('User signed in successfully');
+                    // Add any global signed-in logic here
+                    break;
+                case 'signedOut':
+                    console.log('User signed out, redirecting to login');
+                    router.push('/auth/login');
+                    break;
+                case 'tokenRefresh_failure':
+                    console.error('Token refresh failed, redirecting to login');
+                    router.push('/auth/login');
+                    break;
             }
         });
 
         return () => {
-            subscription.unsubscribe();
+            unsubscribe();
         };
-    }, [router, supabase]);
+    }, [router]);
 
     return null;
 }

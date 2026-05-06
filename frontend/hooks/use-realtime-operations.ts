@@ -96,7 +96,7 @@ export function useRealtimeOperations() {
     const { data } = await supabase
       .from("employees")
       .select("id, first_name, last_name, role")
-      .order("first_name");
+      ;
 
     if (data) {
       setEmployees(
@@ -119,7 +119,7 @@ export function useRealtimeOperations() {
       .from("shift_sessions")
       .select("id, clock_in_at, status, employees!shift_sessions_employee_id_fkey(first_name, last_name)")
       .gte("clock_in_at", todayStart)
-      .order("clock_in_at", { ascending: false })
+      
       .limit(20);
 
     if (data) {
@@ -155,22 +155,22 @@ export function useRealtimeOperations() {
       let query = supabase
         .from("operation_flows")
         .select("*")
-        .order("started_at", { ascending: false })
+        
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
       // Status filter
       if (filters.status !== "all") {
-        query = query.eq("status", filters.status);
+        query = query;
       }
 
       // Room number filter
       if (filters.roomNumber) {
-        query = query.eq("room_number", filters.roomNumber);
+        query = query;
       }
 
       // Shift filter
       if (filters.shiftId) {
-        query = query.eq("shift_session_id", filters.shiftId);
+        query = query;
       }
 
       // Search by flow_number or room_number
@@ -211,7 +211,7 @@ export function useRealtimeOperations() {
           .from("flow_events")
           .select("*")
           .in("flow_id", flowIds)
-          .order("sequence_number", { ascending: true });
+          ;
 
         if (allEvents) {
           const eventsByFlow = new Map<string, FlowEvent[]>();
@@ -261,22 +261,22 @@ export function useRealtimeOperations() {
         supabase
           .from("operation_flows")
           .select("*", { count: "exact", head: true })
-          .eq("status", "ACTIVO"),
+          ,
         supabase
           .from("operation_flows")
           .select("*", { count: "exact", head: true })
-          .eq("status", "COMPLETADO")
+          
           .gte("completed_at", todayStart),
         supabase
           .from("operation_flows")
           .select("*", { count: "exact", head: true })
-          .eq("status", "CANCELADO")
+          
           .gte("completed_at", todayStart),
         supabase
           .from("operation_flows")
           .select("started_at, completed_at")
-          .eq("status", "COMPLETADO")
-          .not("completed_at", "is", null)
+          
+          
           .gte("completed_at", todayStart)
           .limit(50),
       ]);

@@ -61,8 +61,8 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
       const { data: order, error: orderError } = await supabase
         .from("sales_orders")
         .select("id, created_at, total, paid_amount, remaining_amount, currency, status")
-        .eq("id", orderId)
-        .single();
+        
+        ;
 
       if (orderError) throw orderError;
 
@@ -73,14 +73,14 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
           id, qty, unit_price, total, concept_type, is_paid, payment_method,
           products:product_id(name, sku)
         `)
-        .eq("sales_order_id", orderId);
+        ;
 
       // Obtener pagos
       const { data: payments } = await supabase
         .from("payments")
         .select("id, amount, payment_method, reference, created_at, tip_amount")
-        .eq("sales_order_id", orderId)
-        .order("created_at", { ascending: true });
+        
+        ;
 
       setReceiptData({
         order: order as any,

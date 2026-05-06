@@ -48,7 +48,7 @@ export function EmergencyCodeViewer() {
                 .from("system_config")
                 .select("emergency_code, emergency_code_expires_at")
                 .limit(1)
-                .single();
+                ;
 
             if (error) {
                 console.error("Error fetching emergency code:", error);
@@ -93,7 +93,7 @@ export function EmergencyCodeViewer() {
                     emergency_code: newCode,
                     emergency_code_expires_at: expiryDate.toISOString(),
                 })
-                .not("id", "is", null);
+                ;
 
             if (error) throw error;
 
@@ -120,7 +120,7 @@ export function EmergencyCodeViewer() {
                     emergency_code: null,
                     emergency_code_expires_at: null,
                 })
-                .not("id", "is", null);
+                ;
 
             if (error) throw error;
 

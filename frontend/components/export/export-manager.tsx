@@ -95,7 +95,7 @@ export function ExportManager() {
               product:products(name, sku),
               warehouse:warehouses(name, code)
             `)
-            .order("created_at", { ascending: false });
+            ;
 
           data = (movementsData || []).map((movement: any) => ({
             'Fecha': new Date(movement.created_at).toLocaleDateString(),

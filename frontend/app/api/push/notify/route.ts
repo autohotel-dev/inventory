@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+
 import { NextResponse } from 'next/server';
 import webpush from 'web-push';
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         }
 
         const payload: WebhookPayload = await req.json();
-        const supabase = await createClient();
+        
 
         const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
         const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
@@ -47,7 +47,12 @@ export async function POST(req: Request) {
 
         // 1. Determine notification content based on the event
         if (payload.table === 'room_stays') {
-            const { data: room } = await supabase.from('rooms').select('number').eq('id', payload.record.room_id).single();
+            
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const roomRes = await fetch(`${apiUrl}/system/crud/rooms/${payload.record.room_id}`);
+            const roomData = roomRes.ok ? await roomRes.json() : null;
+            const room = { number: roomData?.number };
+        
             const roomNum = room?.number || '??';
 
             if (payload.type === 'INSERT') {
@@ -94,20 +99,23 @@ export async function POST(req: Request) {
         }
 
         // 2. Fetch subscribers based on roles
-        const { data: employees } = await supabase
-            .from('employees')
-            .select('id')
-            .in('role', notificationContent.roles);
+        
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const empRes = await fetch(`${apiUrl}/system/crud/employees`);
+        const allEmps = empRes.ok ? await empRes.json() : [];
+        const employees = allEmps.filter((e:any) => notificationContent.roles.includes(e.role));
+        
 
         if (!employees?.length) {
             return NextResponse.json({ message: 'No target employees' });
         }
 
         const employeeIds = employees.map(e => e.id);
-        const { data: subs } = await supabase
-            .from('push_subscriptions')
-            .select('*')
-            .in('employee_id', employeeIds);
+        
+        const subsRes = await fetch(`${apiUrl}/system/crud/push_subscriptions`);
+        const allSubs = subsRes.ok ? await subsRes.json() : [];
+        const subs = allSubs.filter((s:any) => employeeIds.includes(s.employee_id));
+        
 
         if (!subs?.length) {
             return NextResponse.json({ message: 'No active subscriptions' });

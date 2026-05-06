@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -241,8 +242,10 @@ export function useSoundNotifications(
                     const newData = payload.new as any;
                     let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
                     if (!roomNumber) {
-                        const { data } = await supabase.from('rooms').select('number').eq('id', newData.room_id).single();
-                        roomNumber = data?.number || '??';
+                        try {
+                            const { data } = await apiClient.get(`/system/info/room/${newData.room_id}`) as any;
+                            roomNumber = data?.number || '??';
+                        } catch { roomNumber = '??'; }
                     }
 
                     if (role === 'valet') {
@@ -264,8 +267,10 @@ export function useSoundNotifications(
                     const oldData = payload.old as any;
                     let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
                     if (!roomNumber) {
-                        const { data } = await supabase.from('rooms').select('number').eq('id', newData.room_id).single();
-                        roomNumber = data?.number || '??';
+                        try {
+                            const { data } = await apiClient.get(`/system/info/room/${newData.room_id}`) as any;
+                            roomNumber = data?.number || '??';
+                        } catch { roomNumber = '??'; }
                     }
 
                     if (role === 'valet' && !oldData.vehicle_requested_at && newData.vehicle_requested_at) {
@@ -278,11 +283,7 @@ export function useSoundNotifications(
                             // Buscar el nombre del cochero
                             let valetName = 'Cochero';
                             try {
-                                const { data: emp } = await supabase
-                                    .from('employees')
-                                    .select('first_name')
-                                    .eq('id', newData.checkout_valet_employee_id)
-                                    .single();
+                                const { data: emp } = await apiClient.get(`/system/info/employee/${newData.checkout_valet_employee_id}`) as any;
                                 if (emp?.first_name) valetName = emp.first_name;
                             } catch { /* fallback a 'Cochero' */ }
 
@@ -295,11 +296,7 @@ export function useSoundNotifications(
                             try {
                                 const valetId = newData.checkout_valet_employee_id;
                                 if (valetId) {
-                                    const { data: emp } = await supabase
-                                        .from('employees')
-                                        .select('first_name')
-                                        .eq('id', valetId)
-                                        .single();
+                                    const { data: emp } = await apiClient.get(`/system/info/employee/${valetId}`) as any;
                                     if (emp?.first_name) valetName = emp.first_name;
                                 }
                             } catch { /* fallback a 'Cochero' */ }
@@ -325,12 +322,8 @@ export function useSoundNotifications(
                             notifiedConsumptionIdsRef.current.add(itemId);
                             setTimeout(() => notifiedConsumptionIdsRef.current.delete(itemId), 60_000);
                             try {
-                                const { data: orderData } = await supabase
-                                    .from('sales_orders')
-                                    .select('room_stays(rooms(number))')
-                                    .eq('id', newData.sales_order_id)
-                                    .single();
-                                const roomNumber = (orderData?.room_stays as any)?.rooms?.number || '??';
+                                const { data } = await apiClient.get(`/system/info/order-room/${newData.sales_order_id}`) as any;
+                                const roomNumber = data?.number || '??';
                                 soundEngine.playSound('new_consumption');
                                 toast.info(`🛎️ Nuevo consumo: Habitación ${roomNumber}`, { duration: 10000 });
                             } catch {

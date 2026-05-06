@@ -8,7 +8,7 @@ async function run() {
   const { data: logs, error } = await supabase
     .from('audit_logs')
     .select('*')
-    .order('created_at', { ascending: false })
+    
     .limit(50);
   
   if (error) { console.error(error); return; }

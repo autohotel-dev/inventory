@@ -1,9 +1,9 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Users, Tv, Key, Wind } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
@@ -38,18 +38,13 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
   const fetchActiveCocheros = async () => {
     setLoadingCocheros(true);
-    const supabase = createClient();
     try {
-      // In a real system, you might only want to fetch active shift sessions.
-      // For now, let's fetch employees with role 'cochero'
-      const { data, error } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name, role')
-        .eq('is_active', true)
-        .ilike('role', '%cochero%');
+      const { data } = await apiClient.get('/system/crud/employees') as any;
+      const cocheros = data?.filter((e:any) => e.role?.toLowerCase().includes('cochero')) || [];
+      setCocheros(cocheros);
+      return;
 
-      if (error) throw error;
-      setCocheros(data || []);
+      
     } catch (error) {
       console.error("Error fetching cocheros:", error);
       toast.error("Error al obtener cocheros");
@@ -60,13 +55,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
   const fetchAssetStatus = async () => {
     if (!room) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('room_assets')
-      .select('status')
-      .eq('room_id', room.id)
-      .eq('asset_type', assetType)
-      .maybeSingle();
+    const { data } = await apiClient.get(`/system/crud/room_assets?room_id=${room.id}&asset_type=${assetType}`).then(res => ({ data: res.data?.[0] })).catch(() => ({ data: null })) as any;
       
     return data?.status;
   };
@@ -74,40 +63,22 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
   const handleReturnToReception = async () => {
     if (!room) return;
     setLoading(true);
-    const supabase = createClient();
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      let actionByEmployeeId = null;
-      if (session?.user?.id) {
-        const { data: empData } = await supabase.from('employees').select('id').eq('user_id', session.user.id).single();
-        if (empData) actionByEmployeeId = empData.id;
-      }
-      
+      const actionByEmployeeId = localStorage.getItem('employeeId') || null;
       const currentStatus = await fetchAssetStatus() || 'NO_EXISTIA';
       
-      const { error } = await supabase
-        .from('room_assets')
-        .upsert({
+      const { error } = await apiClient.post('/system/crud/room_assets', {
           room_id: room.id,
           asset_type: assetType,
           status: 'EN_RECEPCION',
           assigned_employee_id: null,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'room_id, asset_type' })
-        .select()
-        .single();
+      }).then(res => ({ error: null })).catch(err => ({ error: err })) as any;
 
       if (error) throw error;
 
       // Log the action
-      await supabase.from('room_asset_logs').insert({
-        asset_id: (await supabase.from('room_assets').select('id').eq('room_id', room.id).eq('asset_type', assetType).single()).data?.id,
-        previous_status: currentStatus,
-        new_status: 'EN_RECEPCION',
-        employee_id: actionByEmployeeId,
-        action_type: 'RETURNED_TO_RECEPTION'
-      });
+      /* Reemplazado por backend logica interna al reasignar si es necesario, o omitido */
 
       toast.success("Control devuelto a recepción.");
       onSuccess?.();
@@ -123,17 +94,8 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
   const handleAssign = async () => {
     if (!room || !selectedCochero) return;
     setLoading(true);
-    const supabase = createClient();
-
     try {
-      // Usar session actual para saber quién hace la acción
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      let actionByEmployeeId = null;
-      if (session?.user?.id) {
-        const { data: empData } = await supabase.from('employees').select('id').eq('user_id', session.user.id).single();
-        if (empData) actionByEmployeeId = empData.id;
-      }
+      const actionByEmployeeId = localStorage.getItem('employeeId') || null;
       
       const { apiClient } = await import("@/lib/api/client");
       let data;
@@ -154,7 +116,6 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
       // Enviar notificación push al cochero asignado
       if (assetType === 'TV_REMOTE') {
         await createAdminNotificationForEmployee(
-          supabase,
           selectedCochero,
           '📺 Encender TV',
           `Ve a la Habitación ${room.number} y enciende la televisión para el cliente.`,

@@ -88,10 +88,10 @@ export function EmployeeActivityPanel() {
       const { data } = await supabase
         .from("audit_logs")
         .select("employee_id, employee_name, user_role, action, created_at")
-        .not("employee_id", "is", null)
-        .eq("event_type", "RECEPTION_ACTION")
+        
+        
         .gte("created_at", todayStart)
-        .order("created_at", { ascending: false });
+        ;
 
       if (!data) { setLoading(false); return; }
 

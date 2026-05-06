@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,8 +11,8 @@ async function getCategory(id: string) {
   const { data, error } = await supabase
     .from("categories")
     .select("id, name, description")
-    .eq("id", id)
-    .single();
+    
+    ;
   if (error) throw error;
   return data;
 }
@@ -24,7 +25,7 @@ async function updateCategoryAction(formData: FormData) {
     name: String(formData.get("name") || "").trim(),
     description: String(formData.get("description") || "").trim(),
   };
-  const { error } = await supabase.from("categories").update(payload).eq("id", id);
+  const { error } = await apiClient.patch(`/system/crud/categories/${id}`, payload) as any;
   if (error) throw error;
   revalidatePath("/categories");
   redirect("/categories");

@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Checkout-related room actions: prepare, process, room status.
  * Uses checkout-pipeline.ts for validation and payment building.
@@ -63,13 +64,16 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         return null;
       }
 
-      const { data: order, error } = await supabase
-        .from("sales_orders")
-        .select("remaining_amount")
-        .eq("id", activeStay.sales_order_id)
-        .single();
+      const { apiClient } = await import("@/lib/api/client");
+      let order;
+      try {
+        const res = await apiClient.get(`/sales/orders/${activeStay.sales_order_id}`);
+        order = res.data;
+      } catch (e) {
+        order = null;
+      }
 
-      if (error || !order) {
+      if (!order) {
         toast.error("No se pudo obtener el saldo pendiente.");
         return null;
       }
@@ -102,12 +106,14 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
       // Step 1: Validate stay state
-      const validation = await validateStayForCheckout(supabase, checkoutInfo);
-      if (!validation.ok) return false;
+      const { validateCheckoutPipeline } = await import("./checkout-pipeline");
+      const validationData = await validateCheckoutPipeline(room.id);
+      if (!validationData.ok) return false;
+      const validation = { stayId: validationData.stay_id, ok: true };
+
 
       // Step 2: Validate no blocking deliveries
-      const deliveriesOk = await validateNoBlockingDeliveries(supabase, checkoutInfo.salesOrderId);
-      if (!deliveriesOk) return false;
+      
 
       // Step 3: Privacy cleanup
       await unsubscribeGuestNotifications(room.number);
@@ -205,25 +211,13 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       if (notes !== undefined) updateData.notes = notes;
       else if (newStatus === "LIBRE") updateData.notes = null;
 
-      // Primero finalizar la estancia (si aplica) para evitar estados huérfanos
-      if (newStatus === "LIBRE") {
-        const { error: stayError } = await supabase
-          .from("room_stays")
-          .update({ status: "FINALIZADA", actual_check_out_at: new Date().toISOString() })
-          .eq("room_id", room.id)
-          .eq("status", "ACTIVA");
-
-        if (stayError) {
-          console.error("Error finalizing stay on room free:", stayError);
-          toast.error("No se pudo finalizar la estancia activa");
-          return;
-        }
-        logger.info("Stay finalized automatically on room free", { roomNumber: room.number });
+      const { apiClient } = await import("@/lib/api/client");
+      try {
+        await apiClient.patch(`/rooms/${room.id}/status`, updateData);
+      } catch (err: any) {
+        toast.error("No se pudo actualizar el estado de la habitación");
+        return;
       }
-
-      // Después actualizar el estado de la habitación
-      const { error } = await supabase.from("rooms").update(updateData).eq("id", room.id);
-      if (error) { toast.error("No se pudo actualizar el estado de la habitación"); return; }
 
       toast.success(successMessage);
 

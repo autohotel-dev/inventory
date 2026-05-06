@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 import { logger } from "@/lib/utils/logger";
 
@@ -12,17 +13,19 @@ import { logger } from "@/lib/utils/logger";
  * la Edge Function para enviar push notifications.
  */
 export async function notifyActiveValets(
-    supabase: ReturnType<typeof createClient>,
+    supabase: any,
     title: string,
     message: string,
     data: any
 ) {
     try {
-        const { data: result, error } = await supabase.rpc("send_valet_notification", {
-            p_title: title,
-            p_message: message,
-            p_data: data || {},
+        const response = await apiClient.post("/system/notifications/valets", {
+            title: title,
+            message: message,
+            data: data || {},
         });
+        const result = response.data;
+        const error = null;
 
         if (error) {
             logger.error("Error calling notify_valets RPC", error);
@@ -63,8 +66,8 @@ export async function createAdminNotificationForEmployee(
         const { data: emp, error: empError } = await supabase
             .from('employees')
             .select('auth_user_id, push_token')
-            .eq('id', employeeId)
-            .single();
+            
+            ;
 
         if (empError || !emp?.auth_user_id) {
             logger.error("No se encontró auth_user_id para el empleado", { employeeId, empError });

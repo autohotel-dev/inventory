@@ -20,7 +20,7 @@ export async function getCustomerResult(id: string): Promise<Result<Customer>> {
         const { data: customersData, error: customersError } = await supabase
             .from("customers")
             .select("*")
-            .eq("id", id)
+            
             .maybeSingle();
 
         if (customersError) {
@@ -64,7 +64,7 @@ export async function getCustomersResult(): Promise<Result<Customer[]>> {
         const { data: customersData, error: customersError } = await supabase
             .from("customers")
             .select("*")
-            .order("name", { ascending: true });
+            ;
 
         if (customersError) {
             logger.error("Error fetching customers", customersError);
@@ -102,8 +102,8 @@ export async function getCustomerSalesResult(customerId: string): Promise<Result
         const { data: customerSalesData, error: customerSalesError } = await supabase
             .from("sales_orders")
             .select("*")
-            .eq("customer_id", customerId)
-            .order("created_at", { ascending: false });
+            
+            ;
 
         if (customerSalesError) {
             logger.error("Error fetching customer sales", { customerId, error: customerSalesError });

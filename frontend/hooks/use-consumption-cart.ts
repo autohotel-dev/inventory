@@ -6,6 +6,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
@@ -126,9 +127,9 @@ export function useConsumptionCart({
       const { data, error } = await supabase
         .from("products")
         .select("id, name, sku, price, barcode, unit, category_id, subcategory_id")
-        .eq("is_active", true)
+        
         .neq("sku", "SVC-ROOM")
-        .order("name");
+        ;
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
@@ -146,7 +147,7 @@ export function useConsumptionCart({
       const { data, error } = await supabase
         .from("product_promotions")
         .select("id, name, promo_type, buy_quantity, pay_quantity, discount_percent, fixed_price, product_id, category_id, subcategory_id, conditions")
-        .eq("is_active", true)
+        
         .or(`start_date.is.null,start_date.lte.${now}`)
         .or(`end_date.is.null,end_date.gte.${now}`);
       if (error) console.error("Error fetching promotions:", error);
@@ -162,14 +163,14 @@ export function useConsumptionCart({
       const { data: currentOrder } = await supabase
         .from("sales_orders")
         .select("booking_id")
-        .eq("id", salesOrderId)
-        .single();
+        
+        ;
 
       if (currentOrder?.booking_id) {
         const { count, error } = await supabase
           .from("sales_orders")
           .select("id", { count: 'exact', head: true })
-          .eq("booking_id", currentOrder.booking_id)
+          
           .neq("id", salesOrderId)
           .gt("total", 0);
         if (!error) setPreviousOrdersCount(count || 0);
@@ -177,7 +178,7 @@ export function useConsumptionCart({
         const { data: itemsData, error: itemsError } = await supabase
           .from("sales_order_items")
           .select(`product_id, products:products(category_id, subcategory_id), sales_orders!inner(booking_id)`)
-          .eq("sales_orders.booking_id", currentOrder.booking_id)
+          
           .neq("sales_order_id", salesOrderId);
 
         if (!itemsError && itemsData) {
@@ -375,17 +376,17 @@ export function useConsumptionCart({
         const { data: prodData } = await supabase
           .from("products")
           .select("category_id, subcategory_id")
-          .eq("id", product.id)
-          .single();
+          
+          ;
 
         if (prodData?.subcategory_id) {
           const { data: ruleData } = await supabase
             .from("bottle_package_rules")
             .select("*, included_category:categories!included_category_id(name)")
-            .eq("unit_type", product.unit)
-            .eq("subcategory_id", prodData.subcategory_id)
-            .eq("is_active", true)
-            .single();
+            
+            
+            
+            ;
 
           if (ruleData) {
             setPendingBottle(product);
@@ -516,7 +517,7 @@ export function useConsumptionCart({
     try {
       // Validate warehouse
       const { data: orderInfo } = await supabase
-        .from("sales_orders").select("warehouse_id").eq("id", salesOrderId).single();
+        .from("sales_orders").select("warehouse_id");
       if (!orderInfo?.warehouse_id) {
         toast.error("Error de configuración", { description: "La orden no tiene almacén asignado" });
         return;
@@ -538,11 +539,11 @@ export function useConsumptionCart({
       let currentSessionId = null;
       if (user) {
         const { data: employee } = await supabase
-          .from('employees').select('id').eq('auth_user_id', user.id).single();
+          .from('employees').select('id');
         if (employee) {
           const { data: activeSession } = await supabase
             .from('shift_sessions').select('id')
-            .eq('employee_id', employee.id)
+            
             .in('status', ['active', 'open'])
             .maybeSingle();
           currentSessionId = activeSession?.id || null;
@@ -556,7 +557,7 @@ export function useConsumptionCart({
               .select('id, employees!inner(role)')
               .in('status', ['active', 'open'])
               .or('role.eq.receptionist,role.eq.admin,role.eq.manager', { foreignTable: 'employees' })
-              .order('clock_in_at', { ascending: false })
+              
               .limit(1)
               .maybeSingle();
             currentSessionId = receptionSession?.id || null;
@@ -569,52 +570,31 @@ export function useConsumptionCart({
         const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
         const effectiveUnitPrice = is_courtesy ? 0 : (qty > 0 ? total / qty : product.price);
         return {
-          sales_order_id: salesOrderId, product_id: product.id, qty,
+          product_id: product.id,
+          qty,
           unit_price: Math.round(effectiveUnitPrice * 100) / 100,
-          concept_type: "CONSUMPTION", is_paid: false,
-          is_courtesy: is_courtesy || false, courtesy_reason: courtesy_reason || null,
-          delivery_status: 'PENDING_VALET', shift_session_id: currentSessionId
+          is_courtesy: is_courtesy || false,
+          courtesy_reason: courtesy_reason || null,
         };
       });
 
-      const { error: itemsError } = await supabase.from("sales_order_items").insert(itemsToInsert);
-      if (itemsError) throw itemsError;
-
-      // Inventory movements
-      const movements = Array.from(cartItems.values()).map(({ product, qty }) => ({
-        product_id: product.id, warehouse_id: orderInfo.warehouse_id,
-        quantity: qty, movement_type: 'OUT', reason_id: 6, reason: 'SALE',
-        notes: `Consumo vendido - Habitación ${roomNumber || 'N/A'}`,
-        reference_table: 'sales_orders', reference_id: salesOrderId,
-        created_by: user?.id || null
-      }));
-      const { error: movError } = await supabase.from("inventory_movements").insert(movements);
-      if (movError) {
-        console.error('Error creating inventory movements:', movError);
-        toast.error("Advertencia", { description: "Consumo agregado pero hubo un error al actualizar el inventario" });
-      }
-
-      // Update order totals
-      const { data: orderData } = await supabase
-        .from("sales_orders").select("subtotal, total, paid_amount, remaining_amount").eq("id", salesOrderId).single();
-      if (orderData) {
-        await supabase.from("sales_orders").update({
-          subtotal: (orderData.subtotal || 0) + totalAmount,
-          total: (orderData.total || 0) + totalAmount,
-          status: "PARTIAL",
-        }).eq("id", salesOrderId);
-
-        // Notify valets
-        try {
-          const productNames = Array.from(cartItems.values())
-            .map(({ product, qty }) => `${qty}x ${product.name}`).join(", ");
-          await notifyActiveValets(supabase, '🛒 Nuevo Consumo Registrado',
-            `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Nuevo cargo: $${totalAmount.toFixed(2)} MXN.`,
-            { type: 'REGULAR_CONSUMPTION', salesOrderId, roomNumber: roomNumber || 'N/A' }
-          );
-        } catch (pushErr) {
-          console.error("Error sending consumption push notification:", pushErr);
-        }
+      const { apiClient } = await import("@/lib/api/client");
+      const { data: addData } = await apiClient.post(`/sales/orders/${salesOrderId}/items/bulk`, {
+        items: itemsToInsert,
+        warehouse_id: orderInfo.warehouse_id,
+        employee_id: user?.id
+      }) as any;
+      
+      // Notify valets
+      try {
+        const productNames = Array.from(cartItems.values())
+          .map(({ product, qty }) => `${qty}x ${product.name}`).join(", ");
+        await notifyActiveValets(null as any, '🛒 Nuevo Consumo Registrado',
+          `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Nuevo cargo: $${totalAmount.toFixed(2)} MXN.`,
+          { type: 'REGULAR_CONSUMPTION', salesOrderId, roomNumber: roomNumber || 'N/A' }
+        );
+      } catch (pushErr) {
+        console.error("Error sending consumption push notification:", pushErr);
       }
 
       // Print tickets
@@ -666,8 +646,8 @@ export function useConsumptionCart({
         const { data: stayForFlow } = await supabase
           .from("room_stays")
           .select("id")
-          .eq("sales_order_id", salesOrderId)
-          .eq("status", "ACTIVA")
+          
+          
           .maybeSingle();
         if (stayForFlow) {
           findActiveFlow(stayForFlow.id).then(flowId => {

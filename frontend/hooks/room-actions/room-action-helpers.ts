@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
@@ -63,27 +63,24 @@ export function getToleranceRemainingMinutes(toleranceStartedAt: string | null |
 // ─── Extend Checkout Time ───────────────────────────────────────────
 
 export async function extendCheckoutTime(
-  supabase: ReturnType<typeof createClient>,
   stayId: string,
-  hours: number
+  hours: number,
+  currentCheckoutAt: string
 ): Promise<boolean> {
-  const { data: freshStay } = await supabase
-    .from("room_stays")
-    .select("expected_check_out_at")
-    .eq("id", stayId)
-    .single();
+  if (!currentCheckoutAt) return false;
 
-  if (!freshStay?.expected_check_out_at) return false;
-
-  const checkout = new Date(freshStay.expected_check_out_at);
+  const checkout = new Date(currentCheckoutAt);
   checkout.setHours(checkout.getHours() + hours);
 
-  const { error } = await supabase
-    .from("room_stays")
-    .update({ expected_check_out_at: checkout.toISOString() })
-    .eq("id", stayId);
-
-  return !error;
+  try {
+    await apiClient.patch(`/rooms/stays/${stayId}`, {
+      expected_check_out_at: checkout.toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error extending checkout time", error);
+    return false;
+  }
 }
 
 // ─── Types ───────────────────────────────────────────────────────────

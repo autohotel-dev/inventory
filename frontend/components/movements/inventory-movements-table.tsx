@@ -64,11 +64,11 @@ export function InventoryMovementsTable() {
           product:products(id, name, sku, unit),
           warehouse:warehouses(id, name, code)
         `, { count: "exact" })
-        .order("created_at", { ascending: false });
+        ;
 
       // Server-side filters
-      if (typeFilter) query = query.eq("movement_type", typeFilter);
-      if (productFilter) query = query.eq("product_id", productFilter);
+      if (typeFilter) query = query;
+      if (productFilter) query = query;
       if (dateFilter) {
         const dayStart = new Date(dateFilter);
         const dayEnd = new Date(dateFilter);
@@ -121,8 +121,8 @@ export function InventoryMovementsTable() {
       const { data, error } = await supabase
         .from("products")
         .select("id, name, sku")
-        .eq("is_active", true)
-        .order("name");
+        
+        ;
 
       if (error) throw error;
       setProducts(data || []);

@@ -29,8 +29,8 @@ export function GuestList() {
         const { data, error } = await supabase
             .from('guest_subscriptions')
             .select('*')
-            .eq('is_active', true)
-            .order('subscribed_at', { ascending: false })
+            
+            
             .limit(10);
 
         if (!error && data) {

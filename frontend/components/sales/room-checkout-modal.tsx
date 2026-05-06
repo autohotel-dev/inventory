@@ -88,9 +88,9 @@ export function RoomCheckoutModal({
       const { data } = await supabase
         .from('employees')
         .select('id, first_name, last_name')
-        .eq('role', 'cochero')
-        .eq('is_active', true)
-        .order('first_name');
+        
+        
+        ;
 
       if (data) {
         setValets(data);

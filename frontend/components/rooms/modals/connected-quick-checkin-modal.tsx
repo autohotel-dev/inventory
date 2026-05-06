@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState } from "react";
@@ -94,9 +95,9 @@ export function ConnectedQuickCheckinModal({
       const { data: defaultWarehouse, error: warehouseError } = await supabase
         .from("warehouses")
         .select("id, code, is_active")
-        .eq("code", "ALM002-R")
-        .eq("is_active", true)
-        .single();
+        
+        
+        ;
 
       if (warehouseError || !defaultWarehouse) {
         toast.error("No se encontró el almacén de recepción");
@@ -131,7 +132,7 @@ export function ConnectedQuickCheckinModal({
           shift_session_id: currentShiftId,
         })
         .select("id")
-        .single();
+        ;
 
       if (orderError) {
         console.error("Error creating sales order:", orderError);
@@ -144,7 +145,7 @@ export function ConnectedQuickCheckinModal({
       const { data: serviceProducts } = await supabase
         .from("products")
         .select("id")
-        .eq("sku", "SVC-ROOM")
+        
         .limit(1);
 
       if (serviceProducts && serviceProducts.length > 0) {
@@ -184,7 +185,7 @@ export function ConnectedQuickCheckinModal({
           }
         }
 
-        const { error: itemsError } = await supabase.from("sales_order_items").insert(orderItems);
+        const { error: itemsError } = await apiClient.post("/system/crud/sales_order_items", orderItems) as any;
         if (itemsError) {
            console.error("Error inserting order items:", itemsError);
            // Podríamos hacer rollback aquí, pero la orden de venta quedaría en OPEN con importe 0
@@ -192,11 +193,11 @@ export function ConnectedQuickCheckinModal({
       }
 
       // Crear pago pendiente (para que aparezca en el cobro granular)
-      const { error: paymentError } = await supabase.from("payments").insert({
+      const { error: paymentError } = await apiClient.post("/system/crud/payments", {
         sales_order_id: salesOrder.id,
         amount: totalPrice,
         payment_method: "PENDIENTE",
-        reference: generatePaymentReference("QCK"),
+        reference: generatePaymentReference("QCK") as any,
         concept: "ESTANCIA",
         status: "PENDIENTE",
         payment_type: "COMPLETO",
@@ -230,7 +231,7 @@ export function ConnectedQuickCheckinModal({
           guest_access_token: guestToken,
         })
         .select()
-        .single();
+        ;
 
       if (stayError || !stayData) {
         console.error("Error creating room stay:", stayError);
@@ -242,7 +243,7 @@ export function ConnectedQuickCheckinModal({
       await supabase
         .from("rooms")
         .update({ status: "OCUPADA" })
-        .eq("id", selectedRoom.id);
+        ;
 
       const timeDiff = Math.round(
         (new Date().getTime() - entryTime.getTime()) / 60000

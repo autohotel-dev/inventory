@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, X, KeyRound, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/use-user-role";
 
@@ -102,12 +102,7 @@ export function AuthorizationGate({
     setError(null);
 
     try {
-      const supabase = createClient();
-      const { data, error: fetchError } = await supabase
-        .from("system_config")
-        .select("emergency_code, emergency_code_expires_at")
-        .limit(1)
-        .single();
+      const { data, error: fetchError } = await apiClient.get('/system/crud/system_config').then(res => ({ data: res.data?.[0], error: null })).catch(err => ({ data: null, error: err }));
 
       if (fetchError || !data) {
         setError("Error al validar. Intenta de nuevo.");

@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { createClient } from "./supabase/client";
 
 // ─── Event Type Catalog ──────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ export async function logFlowEvent(flowId: string, options: FlowEventOptions): P
 
     const category = options.event_category || EVENT_CATEGORY_MAP[options.event_type] || "SYSTEM";
 
-    const { error } = await supabase.from("flow_events").insert({
+    const { error } = await apiClient.post("/system/crud/flow_events", {
       flow_id: flowId,
       event_type: options.event_type,
       event_category: category,
@@ -181,7 +182,7 @@ export async function logFlowEvent(flowId: string, options: FlowEventOptions): P
       actor_name: options.actor_name || null,
       actor_role: options.actor_role || null,
       metadata: options.metadata || {},
-    });
+    }) as any;
 
     if (error) {
       console.error("[flow-logger] Error logging event:", error.message);
@@ -201,7 +202,7 @@ export async function completeFlow(flowId: string): Promise<void> {
     const { error } = await supabase
       .from("operation_flows")
       .update({ status: "COMPLETADO", completed_at: new Date().toISOString() })
-      .eq("id", flowId);
+      ;
 
     if (error) {
       console.error("[flow-logger] Error completing flow:", error.message);
@@ -221,7 +222,7 @@ export async function cancelFlow(flowId: string): Promise<void> {
     const { error } = await supabase
       .from("operation_flows")
       .update({ status: "CANCELADO", completed_at: new Date().toISOString() })
-      .eq("id", flowId);
+      ;
 
     if (error) {
       console.error("[flow-logger] Error cancelling flow:", error.message);
@@ -256,9 +257,9 @@ export async function findActiveFlow(roomStayId: string): Promise<string | null>
     const { data, error } = await supabase
       .from("operation_flows")
       .select("id")
-      .eq("room_stay_id", roomStayId)
-      .eq("status", "ACTIVO")
-      .order("created_at", { ascending: false })
+      
+      
+      
       .limit(1)
       .maybeSingle();
 

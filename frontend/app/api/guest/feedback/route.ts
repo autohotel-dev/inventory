@@ -10,23 +10,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
-
-    // Store feedback in a generic metadata approach using the existing audit log
-    // or create feedback entry directly
-    const { error } = await supabase.from("guest_feedback").insert({
-      room_number,
-      stay_id: stay_id || null,
-      ratings,
-      comment: comment || null,
-      average_rating: average_rating || 0,
-      created_at: new Date().toISOString(),
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const res = await fetch(`${apiUrl}/system/crud/guest_feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        room_number,
+        stay_id: stay_id || null,
+        ratings,
+        comment: comment || null,
+        average_rating: average_rating || 0,
+        created_at: new Date().toISOString(),
+      }),
     });
 
-    // If table doesn't exist yet, silently succeed (feedback logged)
-    if (error) {
-      // Table might not exist yet — store in logs as fallback
-      console.warn("guest_feedback table not available, feedback logged:", {
+    if (!res.ok) {
+      console.warn("guest_feedback backend error, feedback logged:", {
         room_number,
         average_rating,
         ratings,

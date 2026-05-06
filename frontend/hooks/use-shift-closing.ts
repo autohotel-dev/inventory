@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 import { ShiftSession } from "@/components/employees/types";
@@ -119,104 +120,8 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   const loadPaymentSummary = async () => {
     setLoading(true);
     try {
-      const periodEnd = session.clock_out_at || new Date().toISOString();
-      const employeeUuid = (session as any).employee_id || (session as any).employees?.id || (session as any).employeeId || "null";
-
-      let { data: initialPayments, error } = await supabase
-        .from("payments")
-        .select("*, payment_terminals(code, name), sales_orders(id, total, status), collected_by")
-        .or(`shift_session_id.eq.${session.id},shift_session_id.eq.${employeeUuid},and(collected_by.eq.${employeeUuid},created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd}),and(shift_session_id.is.null,created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd})`)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-
-      let payments = initialPayments || [];
-      let salesOrders: any[] = [];
-      const shiftSalesOrderIds = [...new Set(payments.filter((p: any) => p.sales_order_id).map((p: any) => p.sales_order_id))];
-
-      if (shiftSalesOrderIds.length > 0) {
-        const { data: ordersData } = await supabase
-          .from("sales_orders")
-          .select("id, created_at, total, paid_amount, remaining_amount, status, currency, room_stays(id, rooms(number, room_types(name))), sales_order_items(id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method, products(name, sku))")
-          .in("id", shiftSalesOrderIds).order("created_at", { ascending: false });
-        salesOrders = ordersData || [];
-      }
-
-      let total_cash = 0, total_card_bbva = 0, total_card_getnet = 0;
-      const unassigned_card_payments: EnrichedPayment[] = [];
-      const unhandled_payment_methods: Array<{payment: EnrichedPayment, method: string}> = [];
-
-      (payments || []).forEach((payment: any) => {
-        if (payment.status === "PENDIENTE" || payment.payment_method === "PENDIENTE" || payment.payment_method === "MIXTO") return;
-        if (payment.amount < 0) return;
-
-        if (payment.payment_method === "EFECTIVO") total_cash += payment.amount;
-        else if (payment.payment_method === "TARJETA_BBVA") total_card_bbva += payment.amount;
-        else if (payment.payment_method === "TARJETA_GETNET") total_card_getnet += payment.amount;
-        else if (payment.payment_method === "TARJETA") {
-          const terminalCode = payment.terminal_code || payment.payment_terminals?.code;
-          if (terminalCode === "BBVA") total_card_bbva += payment.amount;
-          else if (terminalCode === "GETNET") total_card_getnet += payment.amount;
-          else {
-            if (payment.collected_by) total_card_bbva += payment.amount;
-            else { unassigned_card_payments.push(payment as EnrichedPayment); total_card_bbva += payment.amount; }
-          }
-        } else {
-          unhandled_payment_methods.push({ payment: payment as EnrichedPayment, method: payment.payment_method });
-        }
-      });
-
-      // Enrich payments with items
-      const salesOrderIds = (payments || []).filter((p: any) => p.sales_order_id).map((p: any) => p.sales_order_id);
-      let allItems: any[] = [];
-      if (salesOrderIds.length > 0) {
-        const { data } = await supabase
-          .from("sales_order_items")
-          .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, sales_order_id, products(name, sku)")
-          .in("sales_order_id", salesOrderIds).eq("is_paid", true).not("paid_at", "is", null);
-        allItems = data || [];
-      }
-
-      const itemsBySalesOrder = allItems.reduce((acc: any, item: any) => {
-        if (!acc[item.sales_order_id]) acc[item.sales_order_id] = [];
-        acc[item.sales_order_id].push(item);
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      const enrichedPayments = (payments || []).map((payment: any) => {
-        if (!payment.sales_order_id) return { ...payment, itemsDescription: null, itemsCount: 0, itemsRaw: null };
-        const items = itemsBySalesOrder[payment.sales_order_id] || [];
-        const paymentTime = new Date(payment.created_at).getTime();
-        const relatedItems = items.filter((item: any) => {
-          if (!item.paid_at) return false;
-          return Math.abs(paymentTime - new Date(item.paid_at).getTime()) / 1000 / 60 <= 5;
-        });
-        if (relatedItems.length === 0) return { ...payment, itemsDescription: null, itemsCount: 0, itemsRaw: null };
-        const itemsRawData = relatedItems.map((item: any) => {
-          const product = Array.isArray(item.products) ? item.products[0] : item.products;
-          return { name: product?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"] || "Item", qty: item.qty, unitPrice: item.unit_price, total: item.qty * item.unit_price };
-        });
-        return { ...payment, itemsDescription: itemsRawData.map((i: any) => i.qty > 1 ? `${i.qty}x ${i.name}` : i.name).join(", "), itemsCount: relatedItems.length, itemsRaw: itemsRawData };
-      });
-
-      // Expenses
-      const { data: expenses } = await supabase.from("shift_expenses").select("*")
-        .eq("shift_session_id", session.id).neq("status", "rejected").order("created_at", { ascending: false });
-      const totalExpenses = expenses?.reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
-      const total_sales = total_cash + total_card_bbva + total_card_getnet;
-
-      // Accrual
-      const { data: accrualItemsData } = await supabase
-        .from("sales_order_items").select("*, products(name, sku), sales_orders(id, room_stays(rooms(number, room_types(name))))")
-        .eq("shift_session_id", session.id);
-      const accrual_items = accrualItemsData || [];
-      const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
-
-      setSummary({
-        total_cash, total_card_bbva, total_card_getnet, total_sales,
-        total_transactions: enrichedPayments.length, payments: enrichedPayments,
-        salesOrders: salesOrders || [], expenses: expenses || [], total_expenses: totalExpenses,
-        total_accrual_sales, accrual_items, unassigned_card_payments, unhandled_payment_methods
-      });
+      const response = await apiClient.get(`/hr/closings/${session.id}/summary`);
+      setSummary(response.data);
     } catch (err) {
       console.error("Error loading payment summary:", err);
       showError("Error", "No se pudo cargar el resumen de pagos");
@@ -240,57 +145,53 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
   const handleSaveClosing = async () => {
     if (!summary) return;
-    if (savingLockRef.current) return; // Synchronous double-click guard
+    if (savingLockRef.current) return;
     savingLockRef.current = true;
     if (summary.total_transactions === 0) { showError("Error", "No hay transacciones en este turno para crear un corte"); savingLockRef.current = false; return; }
 
     setSaving(true);
     try {
-      const { data: existingClosing } = await supabase.from("shift_closings").select("id")
-        .eq("shift_session_id", session.id).maybeSingle();
-      if (existingClosing) { showError("Error", "Ya existe un corte registrado para este turno"); setSaving(false); return; }
+      const payload = {
+        shift_session_id: session.id,
+        employee_id: session.employee_id,
+        shift_definition_id: session.shift_definition_id,
+        period_start: session.clock_in_at,
+        period_end: session.clock_out_at || new Date().toISOString(),
+        total_cash: summary.total_cash,
+        total_card_bbva: summary.total_card_bbva,
+        total_card_getnet: summary.total_card_getnet,
+        total_sales: summary.total_sales,
+        total_transactions: summary.total_transactions,
+        total_expenses: summary.total_expenses || 0,
+        expenses_count: summary.expenses?.length || 0,
+        counted_cash: summary.total_cash,
+        cash_difference: 0,
+        declared_card_bbva: summary.total_card_bbva,
+        declared_card_getnet: summary.total_card_getnet,
+        card_difference_bbva: 0,
+        card_difference_getnet: 0,
+        notes: notes.trim() || null,
+        status: "pending",
+        details: summary.payments.map((p: any) => ({
+          payment_id: p.id,
+          sales_order_id: p.sales_order_id,
+          amount: p.amount,
+          payment_method: p.payment_method,
+          terminal_code: p.payment_terminals?.code || null
+        }))
+      };
 
-      const { data: closing, error: closingError } = await supabase.from("shift_closings")
-        .insert({
-          shift_session_id: session.id, employee_id: session.employee_id,
-          shift_definition_id: session.shift_definition_id,
-          period_start: session.clock_in_at, period_end: session.clock_out_at || new Date().toISOString(),
-          total_cash: summary.total_cash, total_card_bbva: summary.total_card_bbva,
-          total_card_getnet: summary.total_card_getnet, total_sales: summary.total_sales,
-          total_transactions: summary.total_transactions, total_expenses: summary.total_expenses || 0,
-          expenses_count: summary.expenses?.length || 0, counted_cash: summary.total_cash,
-          cash_difference: 0, declared_card_bbva: summary.total_card_bbva,
-          declared_card_getnet: summary.total_card_getnet, card_difference_bbva: 0,
-          card_difference_getnet: 0, cash_breakdown: null, notes: notes.trim() || null, status: "pending",
-        }).select().single();
-      if (closingError) throw closingError;
-
-      if (summary.payments.length > 0) {
-        const details = summary.payments.map((payment: any) => ({
-          shift_closing_id: closing.id, payment_id: payment.id, sales_order_id: payment.sales_order_id,
-          amount: payment.amount, payment_method: payment.payment_method,
-          terminal_code: payment.payment_terminals?.code || null,
-        }));
-        const { error: detailsError } = await supabase.from("shift_closing_details").insert(details);
-        if (detailsError) throw detailsError;
-      }
-
-      const { error: sessionError } = await supabase.from("shift_sessions").update({ status: "closed" }).eq("id", session.id);
-      if (sessionError) throw sessionError;
+      await apiClient.post('/hr/closings', payload);
 
       success("Corte completado", "El corte de caja se ha registrado correctamente");
 
-      // Print both reports (fire-and-forget, non-blocking)
-      // 1. Thermal ticket (ESC/POS via print server)
       handlePrintClosing();
-
-      // 2. HP letter-size report (PCL via print server)
       handlePrintHP();
 
       onComplete();
     } catch (err: any) {
       console.error("Error saving closing:", err);
-      showError("Error", err.message || "No se pudo guardar el corte");
+      showError("Error", err.response?.data?.detail || err.message || "No se pudo guardar el corte");
     } finally {
       setSaving(false);
       savingLockRef.current = false;
@@ -317,7 +218,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
             const { data: orderItems } = await supabase
               .from("sales_order_items")
               .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, products(name, sku)")
-              .eq("sales_order_id", payment.sales_order_id).eq("is_paid", true).not("paid_at", "is", null);
+              ;
             const paymentTime = new Date(payment.created_at).getTime();
             const relatedItems = (orderItems || []).filter((item: any) => {
               if (!item.paid_at) return false;
@@ -356,8 +257,8 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
       // 1. Find all sales_order_ids linked to this shift session
       const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
-        supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", session.id),
-        supabase.from("payments").select("sales_order_id").eq("shift_session_id", session.id),
+        apiClient.get("/system/crud/sales_order_items").then(res => ({ data: res.data, error: null })),
+        apiClient.get("/system/crud/payments").then(res => ({ data: res.data, error: null })),
       ]);
 
       const ids = new Set<string>();
@@ -388,7 +289,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         `)
         .in("sales_order_id", salesOrderIds)
         .in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"])
-        .order("check_in_at", { ascending: true });
+        ;
 
       const filteredStays = (staysData || []).filter((stay: any) => {
         const roomNum = stay.rooms?.number;

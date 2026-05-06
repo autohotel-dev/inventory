@@ -37,8 +37,8 @@ export function PendingClosingsIndicator({
             const { data: employee } = await supabase
                 .from("employees")
                 .select("id")
-                .eq("auth_user_id", user.id)
-                .single();
+                
+                ;
 
             if (!employee) {
                 setLoading(false);
@@ -49,9 +49,9 @@ export function PendingClosingsIndicator({
             const { data, error } = await supabase
                 .from("shift_sessions")
                 .select("*, shift_definitions(*), employees(first_name, last_name)")
-                .eq("employee_id", employee.id)
-                .eq("status", "pending_closing")
-                .order("clock_out_at", { ascending: false });
+                
+                
+                ;
 
             if (error) throw error;
 

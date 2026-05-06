@@ -149,7 +149,7 @@ export function ProductPromotions() {
                 category:categories!product_promotions_category_id_fkey(id, name),
                 subcategory:subcategories(id, name)
             `)
-            .order("created_at", { ascending: false });
+            ;
 
         if (error) {
             console.error("Error fetching promotions:", error);
@@ -170,24 +170,24 @@ export function ProductPromotions() {
             const { data: prodData } = await supabase
                 .from("products")
                 .select("id, name, price, sku")
-                .eq("is_active", true)
+                
                 .neq("sku", "SVC-ROOM")
                 .neq("sku", "SVC-DAMAGE")
-                .order("name");
+                ;
             setProducts(prodData || []);
 
             // Fetch categories
             const { data: catData } = await supabase
                 .from("categories")
                 .select("id, name")
-                .order("name");
+                ;
             setCategories(catData || []);
 
             // Fetch subcategories
             const { data: subData } = await supabase
                 .from("subcategories")
                 .select("id, name, category_id")
-                .order("name");
+                ;
             setSubcategories(subData || []);
 
             setLoading(false);
@@ -288,7 +288,7 @@ export function ProductPromotions() {
                 const { error } = await supabase
                     .from("product_promotions")
                     .update(payload)
-                    .eq("id", editingPromo.id);
+                    ;
                 if (error) throw error;
                 toast.success("Promoción actualizada");
             } else {
@@ -316,7 +316,7 @@ export function ProductPromotions() {
         const { error } = await supabase
             .from("product_promotions")
             .delete()
-            .eq("id", deleteConfirm.id);
+            ;
 
         if (error) {
             toast.error("Error al eliminar la promoción");
@@ -332,7 +332,7 @@ export function ProductPromotions() {
         const { error } = await supabase
             .from("product_promotions")
             .update({ is_active: !promo.is_active, updated_at: new Date().toISOString() })
-            .eq("id", promo.id);
+            ;
 
         if (error) {
             toast.error("Error al cambiar el estado");

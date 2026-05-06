@@ -39,8 +39,8 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
     const { data: room } = await supabase
         .from('rooms')
         .select('id')
-        .eq('number', roomNumber)
-        .single();
+        
+        ;
 
     if (!room) {
         notFound();
@@ -70,9 +70,9 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
         )
       )
     `)
-        .eq('room_id', room.id)
-        .eq('status', 'ACTIVA')
-        .eq('guest_access_token', token)
+        
+        
+        
         .maybeSingle();
 
     if (error || !roomStay) {
@@ -84,7 +84,7 @@ export default async function GuestPortalPage({ params, searchParams }: PageProp
     const { data: surveys } = await supabase
         .from('surveys')
         .select('*')
-        .eq('is_active', true)
+        
         .in('target_audience', ['all', 'specific']);
 
     return (

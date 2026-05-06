@@ -31,8 +31,8 @@ export async function updateSalesOrderTotals(
         const { data: orderData, error: orderError } = await supabase
             .from("sales_orders")
             .select("subtotal, tax, paid_amount, remaining_amount")
-            .eq("id", salesOrderId)
-            .single();
+            
+            ;
 
         if (orderError || !orderData) {
             logger.error("Error fetching sales order", { salesOrderId, error: orderError });
@@ -55,7 +55,7 @@ export async function updateSalesOrderTotals(
                 total: newTotal,
                 remaining_amount: newRemaining,
             })
-            .eq("id", salesOrderId);
+            ;
 
         if (updateError) {
             logger.error("Error updating sales order totals", { salesOrderId, error: updateError });
@@ -87,8 +87,8 @@ export async function getRemainingAmount(
         const { data, error } = await supabase
             .from("sales_orders")
             .select("remaining_amount")
-            .eq("id", salesOrderId)
-            .single();
+            
+            ;
 
         if (error || !data) {
             logger.error("Error fetching remaining amount", { salesOrderId, error });
@@ -118,7 +118,7 @@ export async function updateSalesOrderStatus(
         const { error } = await supabase
             .from("sales_orders")
             .update({ status })
-            .eq("id", salesOrderId);
+            ;
 
         if (error) {
             logger.error("Error updating sales order status", { salesOrderId, status, error });
@@ -146,8 +146,8 @@ export async function getSalesOrder(
         const { data, error } = await supabase
             .from("sales_orders")
             .select("*")
-            .eq("id", salesOrderId)
-            .single();
+            
+            ;
 
         if (error || !data) {
             logger.error("Error fetching sales order", { salesOrderId, error });

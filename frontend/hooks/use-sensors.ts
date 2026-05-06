@@ -25,7 +25,7 @@ export function useSensors() {
             const { data, error } = await supabase
                 .from("sensors")
                 .select("*")
-                .order("created_at", { ascending: true });
+                ;
 
             if (error) throw error;
             setSensors(data || []);

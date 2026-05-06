@@ -21,8 +21,8 @@ export async function getAvailableStock(
         const { data, error } = await supabase
             .from("stock")
             .select("qty")
-            .eq("product_id", productId)
-            .eq("warehouse_id", warehouseId)
+            
+            
             .maybeSingle(); // Usar maybeSingle para evitar error si no existe
 
         if (error) {
@@ -68,7 +68,7 @@ export async function validateStockAvailability(
                 const { data: warehouses } = await supabase
                     .from('warehouses')
                     .select('id, name')
-                    .eq('is_active', true);
+                    ;
 
                 if (warehouses && warehouses.length > 0) {
                     let totalAvailable = 0;

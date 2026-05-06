@@ -29,55 +29,23 @@ export function AuditMetrics() {
 
   useEffect(() => {
     const fetchMetrics = async () => {
-      const supabase = createClient();
-      const todayStart = new Date().toISOString().split("T")[0];
+      try {
+        const { data } = await apiClient.get("/system/logs/metrics-dashboard");
+        
+        const eventTrend = data.todayEvents && data.yesterdayEvents
+          ? ((data.todayEvents - data.yesterdayEvents) / data.yesterdayEvents) * 100
+          : 0;
 
-      // Ejecutar todas las queries en paralelo
-      const [
-        { count: todayEvents },
-        { count: receptionActions },
-        { count: cancellations },
-        { data: activeUsersData },
-        { count: yesterdayEvents },
-      ] = await Promise.all([
-        // Total de eventos hoy
-        supabase.from("audit_logs")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", todayStart),
-        // Acciones de recepción hoy
-        supabase.from("audit_logs")
-          .select("*", { count: "exact", head: true })
-          .eq("event_type", "RECEPTION_ACTION")
-          .gte("created_at", todayStart),
-        // Cancelaciones hoy (items + cargos)
-        supabase.from("audit_logs")
-          .select("*", { count: "exact", head: true })
-          .in("action", ["CANCEL_ITEM", "CANCEL_CHARGE", "COURTESY"])
-          .gte("created_at", todayStart),
-        // Usuarios activos hoy
-        supabase.from("audit_logs")
-          .select("employee_id")
-          .not("employee_id", "is", null)
-          .gte("created_at", todayStart),
-        // Eventos de ayer (para trend)
-        supabase.from("audit_logs")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", new Date(Date.now() - 86400000).toISOString().split("T")[0])
-          .lt("created_at", todayStart),
-      ]);
-
-      const activeUsers = new Set(activeUsersData?.map((u: any) => u.employee_id)).size;
-      const eventTrend = todayEvents && yesterdayEvents
-        ? ((todayEvents - yesterdayEvents) / yesterdayEvents) * 100
-        : 0;
-
-      setMetrics({
-        todayEvents: todayEvents || 0,
-        receptionActions: receptionActions || 0,
-        cancellations: cancellations || 0,
-        activeUsers,
-        eventTrend,
-      });
+        setMetrics({
+          todayEvents: data.todayEvents || 0,
+          receptionActions: data.receptionActions || 0,
+          cancellations: data.cancellations || 0,
+          activeUsers: data.activeUsers || 0,
+          eventTrend,
+        });
+      } catch (error) {
+        console.error("Error fetching audit metrics", error);
+      }
     };
 
     fetchMetrics();

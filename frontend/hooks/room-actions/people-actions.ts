@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * People-related room actions: add, remove, tolerance.
  */
@@ -80,21 +81,21 @@ export function createPeopleActions(ctx: RoomActionContext) {
           });
         }
 
-        await supabase.from("room_stays").update({
+        await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
           current_people: newCurrentPeople,
           tolerance_started_at: null,
           tolerance_type: null,
-        }).eq("id", activeStay.id);
+        });
       } else {
         // Persona NUEVA
         const previousTotalPeople = activeStay.total_people ?? current;
         const newTotalPeople = previousTotalPeople + 1;
         const shouldChargeExtra = newCurrentPeople > 2 || previousTotalPeople >= 2;
 
-        await supabase.from("room_stays").update({
+        await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
           current_people: newCurrentPeople,
           total_people: newTotalPeople,
-        }).eq("id", activeStay.id);
+        });
 
         if (shouldChargeExtra) {
           const extraPrice = room.room_types!.extra_person_price ?? 0;
@@ -173,7 +174,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
       const supabase = createClient();
       const newCurrentPeople = current - 1;
 
-      await supabase.from("room_stays").update({ current_people: newCurrentPeople }).eq("id", activeStay.id);
+      await apiClient.patch(`/rooms/stays/single/${activeStay.id}`, { current_people: newCurrentPeople });
 
       toast.success("Persona removida", {
         description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}`,
@@ -229,11 +230,11 @@ export function createPeopleActions(ctx: RoomActionContext) {
         const minutesElapsed = Math.floor((Date.now() - toleranceStart.getTime()) / 60000);
         const minutesRemaining = Math.max(0, 60 - minutesElapsed);
 
-        await supabase.from("room_stays").update({
+        await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
           current_people: newCurrentPeople,
           tolerance_started_at: null,
           tolerance_type: null,
-        }).eq("id", activeStay.id);
+        });
 
         toast.success("✅ Persona regresó a tiempo", {
           description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Regresó en ${minutesElapsed} min (quedaban ${minutesRemaining} min).`,
@@ -261,11 +262,11 @@ export function createPeopleActions(ctx: RoomActionContext) {
       const newCurrentPeople = current - 1;
       const toleranceType = newCurrentPeople === 0 ? 'ROOM_EMPTY' : 'PERSON_LEFT';
 
-      await supabase.from("room_stays").update({
+      await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
         current_people: newCurrentPeople,
         tolerance_started_at: new Date().toISOString(),
         tolerance_type: toleranceType,
-      }).eq("id", activeStay.id);
+      });
 
       const exitTime = new Date();
       const returnDeadline = new Date(Date.now() + 3600000);

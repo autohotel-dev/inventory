@@ -108,8 +108,8 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
           suppliers:supplier_id(name, email, phone),
           warehouses:warehouse_id(code, name)
         `)
-        .eq("id", orderId)
-        .single();
+        
+        ;
 
       if (orderError) {
         console.error('Error fetching order:', orderError);
@@ -127,7 +127,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
           total,
           products:product_id(name, sku)
         `)
-        .eq("purchase_order_id", orderId);
+        ;
 
       if (itemsError) throw itemsError;
 
@@ -135,8 +135,8 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       const { data: productsData } = await supabase
         .from("products")
         .select("id, name, sku, cost")
-        .eq("is_active", true)
-        .order("name");
+        
+        ;
 
       setOrder(orderData as any);
       setItems(itemsData as any || []);
@@ -232,7 +232,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       const { data: itemsData } = await supabase
         .from("purchase_order_items")
         .select("total")
-        .eq("purchase_order_id", orderId);
+        ;
 
       const subtotal = itemsData?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
       const tax = 0; // Simplificado por ahora
@@ -241,7 +241,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       await supabase
         .from("purchase_orders")
         .update({ subtotal, tax, total })
-        .eq("id", orderId);
+        ;
 
     } catch (error) {
       console.error('Error recalculating totals:', error);
@@ -263,7 +263,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       const { error } = await supabase
         .from("purchase_order_items")
         .delete()
-        .eq("id", confirmDialog.itemId);
+        ;
 
       if (error) throw error;
 
@@ -292,7 +292,7 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
       const { error } = await supabase
         .from("purchase_orders")
         .update({ status: newStatus })
-        .eq("id", orderId);
+        ;
 
       if (error) throw error;
       // Create inventory movements for received orders

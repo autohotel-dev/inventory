@@ -4,7 +4,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { createClient } from "@/lib/supabase/client";
+
 import { useUserRole } from "@/hooks/use-user-role";
 import { getMenuPermissions, type UserRole } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -233,9 +233,13 @@ export function Sidebar() {
   }, []);
 
   const handleLogout = React.useCallback(async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/auth/login");
+    try {
+      const { signOut } = await import('aws-amplify/auth');
+      await signOut();
+      router.push("/auth/login");
+    } catch (err) {
+      console.error(err);
+    }
   }, [router]);
 
   if (!mounted) {

@@ -88,7 +88,7 @@ export function BottlePackageRules() {
       subcategory:subcategories(id, name, category:categories(id, name)),
       included_category:categories!included_category_id(id, name)
     `)
-            .order("unit_type");
+            ;
 
         if (rulesError) {
             console.error("Error fetching rules:", rulesError);
@@ -101,8 +101,8 @@ export function BottlePackageRules() {
         const { data: subData } = await supabase
             .from("subcategories")
             .select("*, category:categories(id, name)")
-            .eq("is_active", true)
-            .order("name");
+            
+            ;
 
         setSubcategories(subData || []);
         setLoading(false);
@@ -152,7 +152,7 @@ export function BottlePackageRules() {
                         is_active: formData.is_active,
                         updated_at: new Date().toISOString(),
                     })
-                    .eq("id", editingRule.id);
+                    ;
 
                 if (error) throw error;
                 showSuccess("Actualizado", "La regla se actualizó correctamente");
@@ -180,7 +180,7 @@ export function BottlePackageRules() {
           subcategory:subcategories(id, name, category:categories(id, name)),
           included_category:categories!included_category_id(id, name)
         `)
-                .order("unit_type");
+                ;
 
             setRules(rulesData || []);
             setIsModalOpen(false);
@@ -199,7 +199,7 @@ export function BottlePackageRules() {
         const { error } = await supabase
             .from("bottle_package_rules")
             .delete()
-            .eq("id", deleteConfirm.id);
+            ;
 
         if (error) {
             showError("Error", "No se pudo eliminar la regla");
@@ -215,7 +215,7 @@ export function BottlePackageRules() {
         const { error } = await supabase
             .from("bottle_package_rules")
             .update({ is_active: !rule.is_active, updated_at: new Date().toISOString() })
-            .eq("id", rule.id);
+            ;
 
         if (error) {
             showError("Error", "No se pudo actualizar el estado");

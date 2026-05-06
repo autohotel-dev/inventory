@@ -48,7 +48,7 @@ export function ConnectedEditVehicleModal({
           vehicle_brand: vehicle.brand.trim() || null,
           vehicle_model: vehicle.model.trim() || null,
         })
-        .eq("id", activeStay.id);
+        ;
 
       if (error) {
         console.error("Error updating vehicle:", error);

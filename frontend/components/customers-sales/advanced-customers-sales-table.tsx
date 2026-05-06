@@ -109,7 +109,7 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         payment_type: "COMPLETO",
                     })
                     .select("id")
-                    .single();
+                    ;
 
                 if (mainError) {
                     console.error("Error inserting main payment:", mainError);

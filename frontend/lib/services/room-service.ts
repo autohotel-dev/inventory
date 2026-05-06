@@ -24,7 +24,7 @@ export async function updateRoomStatus(
         const { error } = await supabase
             .from("rooms")
             .update({ status })
-            .eq("id", roomId);
+            ;
 
         if (error) {
             logger.error("Error updating room status", { roomId, status, error });
@@ -53,8 +53,8 @@ export async function getActiveStay(
         const { data, error } = await supabase
             .from("room_stays")
             .select("*")
-            .eq("room_id", roomId)
-            .eq("status", STAY_STATUS.ACTIVA)
+            
+            
             .maybeSingle();
 
         if (error) {
@@ -85,7 +85,7 @@ export async function updateStay(
         const { error } = await supabase
             .from("room_stays")
             .update(updates)
-            .eq("id", stayId);
+            ;
 
         if (error) {
             logger.error("Error updating stay", { stayId, updates, error });
@@ -123,7 +123,7 @@ export async function finalizeStay(
                 status: STAY_STATUS.FINALIZADA,
                 actual_check_out_at: now,
             })
-            .eq("id", stayId);
+            ;
 
         if (stayError) {
             logger.error("Error finalizing stay", { stayId, error: stayError });
@@ -136,7 +136,7 @@ export async function finalizeStay(
         const { error: roomError } = await supabase
             .from("rooms")
             .update({ status: ROOM_STATUS.SUCIA })
-            .eq("id", roomId);
+            ;
 
         if (roomError) {
             logger.error("Error updating room to SUCIA", { roomId, error: roomError });
@@ -147,7 +147,7 @@ export async function finalizeStay(
         const { error: orderError } = await supabase
             .from("sales_orders")
             .update({ status: "ENDED" })
-            .eq("id", salesOrderId);
+            ;
 
         if (orderError) {
             logger.error("Error updating sales order", { salesOrderId, error: orderError });

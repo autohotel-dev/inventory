@@ -32,8 +32,8 @@ export function NotificationComposer() {
             const { data } = await supabase
                 .from('guest_subscriptions')
                 .select('room_number')
-                .eq('is_active', true)
-                .order('room_number');
+                
+                ;
 
             if (data) {
                 // Deduplicate rooms

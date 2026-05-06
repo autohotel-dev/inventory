@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { Employee, ShiftDefinition, ShiftSession, EMPLOYEE_ROLES } from "@/components/employees/types";
@@ -37,32 +38,20 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
   const loadData = useCallback(async () => {
     try {
-      const [shiftsRes, employeesRes, sessionRes] = await Promise.all([
-        supabase.from("shift_definitions").select("*").eq("is_active", true).order("start_time"),
-        supabase.from("employees").select("*").eq("is_active", true).in("role", ["receptionist", "manager", "cochero", "camarista", "mantenimiento"]).order("first_name"),
-        supabase.from("shift_sessions").select("*, employees(*), shift_definitions(*)").eq("status", "active").is("clock_out_at", null).order("clock_in_at", { ascending: false }).limit(1),
-      ]);
-
-      if (shiftsRes.error) throw shiftsRes.error;
-      if (employeesRes.error) throw employeesRes.error;
-      if (sessionRes.error) throw sessionRes.error;
-
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await apiClient.get('/hr/manager/data') as any;
+      
+      const allShifts = data.shifts || [];
+      setEmployees(data.employees || []);
+      
       let allActiveSessions: ShiftSession[] = [];
-
-      if (user) {
-        const { data: roleData } = await supabase.from("employees").select("role").eq("auth_user_id", user.id).single();
-        const role = roleData?.role;
-        const isAdminOrManager = role === 'admin' || role === 'manager' || role === 'supervisor';
-
-        if (isAdminOrManager) {
-          const { data: allSessions } = await supabase.from("shift_sessions").select("*, employees(*), shift_definitions(*)").eq("status", "active").is("clock_out_at", null).order("clock_in_at", { ascending: false });
-          if (allSessions) allActiveSessions = allSessions;
-        }
+      const role = data.user_role;
+      const isAdminOrManager = role === 'admin' || role === 'manager' || role === 'supervisor';
+      
+      if (isAdminOrManager) {
+        allActiveSessions = data.active_sessions || [];
       }
-
-      const allShifts = shiftsRes.data || [];
-      setEmployees(employeesRes.data || []);
+      
+      const sessionRes = { data: data.active_sessions && data.active_sessions.length > 0 ? [data.active_sessions[0]] : [] };
 
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 8);
@@ -146,8 +135,8 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
         const { data: activeSessions, error: checkError } = await supabase
           .from("shift_sessions")
           .select("*, employees!inner(*)")
-          .eq("status", "active")
-          .eq("employees.role", employeeRole)
+          
+          
           .is("clock_out_at", null);
 
         if (checkError) throw checkError;
@@ -168,18 +157,13 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
         }
       }
 
-      const { data, error } = await supabase
-        .from("shift_sessions")
-        .insert({
+      const response = await apiClient.post('/hr/sessions/clock-in', {
           employee_id: selectedEmployeeId,
           shift_definition_id: currentShift.id,
           clock_in_at: new Date().toISOString(),
           status: "active",
-        })
-        .select("*, employees(*), shift_definitions(*)")
-        .single();
-
-      if (error) throw error;
+      });
+      const data = response.data;
 
       success("Entrada registrada", "Se ha registrado tu entrada al turno");
       setActiveSession(data);
@@ -229,15 +213,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
     setActionLoading(true);
     try {
-      const { error } = await supabase
-        .from("shift_sessions")
-        .update({
-          clock_out_at: new Date().toISOString(),
-          status: "pending_closing",
-        })
-        .eq("id", activeSession.id);
-
-      if (error) throw error;
+      await apiClient.post(`/hr/sessions/${activeSession.id}/clock-out`);
 
       const updatedSession = {
         ...activeSession,
@@ -260,15 +236,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
     setActionLoading(true);
     try {
-      const { error } = await supabase
-        .from("shift_sessions")
-        .update({
-          clock_out_at: new Date().toISOString(),
-          status: "pending_closing",
-        })
-        .eq("id", targetSession.id);
-
-      if (error) throw error;
+      await apiClient.post(`/hr/sessions/${targetSession.id}/clock-out`);
 
       success("Turno cerrado", "El turno se ha cerrado correctamente.");
 

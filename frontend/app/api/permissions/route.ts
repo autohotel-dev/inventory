@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
             const { data: roleData, error: roleError } = await supabase
                 .from('roles')
                 .select('id')
-                .eq('name', roleName)
-                .single();
+                
+                ;
 
             if (roleError || !roleData) {
                 return NextResponse.json({ error: 'Role not found' }, { status: 404 });
@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
             const { data, error } = await supabase
                 .from('role_permissions')
                 .select('*')
-                .eq('role_id', roleData.id)
-                .order('resource');
+                
+                ;
 
             if (error) {
                 console.error('Error fetching permissions:', error);
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
             display_name
           )
         `)
-                .order('resource');
+                ;
 
             if (error) {
                 console.error('Error fetching permissions:', error);
@@ -93,9 +93,9 @@ export async function POST(request: NextRequest) {
         const { data: employee } = await supabase
             .from('employees')
             .select('role')
-            .eq('auth_user_id', user.id)
-            .eq('is_active', true)
-            .single();
+            
+            
+            ;
 
         if (!employee || !['admin', 'manager'].includes(employee.role)) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
@@ -112,8 +112,8 @@ export async function POST(request: NextRequest) {
         const { data: roleData, error: roleError } = await supabase
             .from('roles')
             .select('id')
-            .eq('name', roleName)
-            .single();
+            
+            ;
 
         if (roleError || !roleData) {
             return NextResponse.json({ error: `Role '${roleName}' not found` }, { status: 404 });
@@ -168,9 +168,9 @@ export async function DELETE(request: NextRequest) {
         const { data: employee } = await supabase
             .from('employees')
             .select('role')
-            .eq('auth_user_id', user.id)
-            .eq('is_active', true)
-            .single();
+            
+            
+            ;
 
         if (!employee || !['admin', 'manager'].includes(employee.role)) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
@@ -187,8 +187,8 @@ export async function DELETE(request: NextRequest) {
         const { data: roleData, error: roleError } = await supabase
             .from('roles')
             .select('id')
-            .eq('name', roleName)
-            .single();
+            
+            ;
 
         if (roleError || !roleData) {
             return NextResponse.json({ error: `Role '${roleName}' not found` }, { status: 404 });
@@ -199,9 +199,9 @@ export async function DELETE(request: NextRequest) {
         const { error } = await supabase
             .from('role_permissions')
             .delete()
-            .eq('role_id', roleData.id)
-            .eq('resource', fullResource)
-            .eq('permission_type', type);
+            
+            
+            ;
 
         if (error) {
             console.error('Error deleting permission:', error);

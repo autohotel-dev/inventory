@@ -181,17 +181,17 @@ export function AuditTimeline() {
     let query = supabase
       .from("audit_logs")
       .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
+      
       .range(from, to);
 
     if (filter === "reception") {
-      query = query.eq("event_type", "RECEPTION_ACTION");
+      query = query;
     } else if (filter === "payments") {
-      query = query.eq("entity_type", "PAYMENT");
+      query = query;
     } else if (filter === "anomalies") {
       query = query.in("severity", ["ERROR", "CRITICAL", "WARNING"]);
     } else if (filter === "auth") {
-      query = query.eq("event_type", "AUTH_EVENT");
+      query = query;
     }
 
     const { data, count } = await query;

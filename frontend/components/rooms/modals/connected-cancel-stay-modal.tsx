@@ -50,7 +50,7 @@ export function ConnectedCancelStayModal({
           status: "CANCELADA",
           actual_check_out_at: new Date().toISOString(),
         })
-        .eq("id", activeStay.id);
+        ;
       
       if (stayError) throw stayError;
 
@@ -60,7 +60,7 @@ export function ConnectedCancelStayModal({
       const { error: roomError } = await supabase
         .from("rooms")
         .update({ status: "SUCIA" })
-        .eq("id", room.id);
+        ;
       
       if (roomError) throw roomError;
 
@@ -75,7 +75,7 @@ export function ConnectedCancelStayModal({
         const { data: valetPayments } = await supabase
           .from("payments")
           .select("amount, status")
-          .eq("sales_order_id", activeStay.sales_order_id)
+          
           .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"]);
 
         valetMoneyWarning = (valetPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
@@ -87,7 +87,7 @@ export function ConnectedCancelStayModal({
             status: "CANCELADO",
             notes: `Cancelado por cancelación de estancia: ${data.reason}`
           })
-          .eq("sales_order_id", activeStay.sales_order_id)
+          
           .in("status", ["PENDIENTE", "COBRADO_POR_VALET", "CORROBORADO_RECEPCION"]);
 
         if (cancelPaymentsError) {
@@ -110,7 +110,7 @@ export function ConnectedCancelStayModal({
             vehicle_requested_at: null,
             valet_checkout_requested_at: null,
           })
-          .eq("id", activeStay.id);
+          ;
       } catch (stayCleanupErr) {
         console.error("Stay data cleanup failed (non-blocking):", stayCleanupErr);
       }
@@ -126,8 +126,8 @@ export function ConnectedCancelStayModal({
             delivery_status: "CANCELLED",
             is_paid: false
           })
-          .eq("sales_order_id", activeStay.sales_order_id)
-          .eq("is_paid", false);
+          
+          ;
       } catch (itemsCleanupErr) {
         console.error("Items cleanup failed (non-blocking):", itemsCleanupErr);
       }
@@ -138,8 +138,8 @@ export function ConnectedCancelStayModal({
       const { data: currentOrder } = await supabase
         .from("sales_orders")
         .select("paid_amount")
-        .eq("id", activeStay.sales_order_id)
-        .single();
+        
+        ;
 
       const totalPaid = currentOrder?.paid_amount || 0;
       let retainedAmount = 0;
@@ -166,7 +166,7 @@ export function ConnectedCancelStayModal({
           remaining_amount: 0,
           notes: orderUpdateNote
         })
-        .eq("id", activeStay.sales_order_id);
+        ;
       
       if (orderError) throw orderError;
 
@@ -178,7 +178,7 @@ export function ConnectedCancelStayModal({
         await supabase
           .from("room_status_history")
           .delete()
-          .eq("sales_order_id", activeStay.sales_order_id);
+          ;
       } catch (historyErr) {
         console.error("History cleanup failed (non-blocking):", historyErr);
       }
@@ -191,8 +191,8 @@ export function ConnectedCancelStayModal({
         const { data: orderData } = await supabase
           .from("sales_orders")
           .select("notes")
-          .eq("id", activeStay.sales_order_id)
-          .single();
+          
+          ;
 
         const oldNotes = orderData?.notes ? orderData.notes.replace(orderUpdateNote, "").trim() : "";
         const newNotes = `${oldNotes}\n${orderUpdateNote}`.trim();
@@ -200,7 +200,7 @@ export function ConnectedCancelStayModal({
         await supabase
           .from("sales_orders")
           .update({ notes: newNotes })
-          .eq("id", activeStay.sales_order_id);
+          ;
       } catch (notesErr) {
         console.error("Notes update failed (non-blocking):", notesErr);
       }

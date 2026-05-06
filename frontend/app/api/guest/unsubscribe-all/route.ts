@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
                 is_active: false,
                 updated_at: new Date().toISOString(),
             })
-            .eq('room_number', room_number)
-            .eq('is_active', true);
+            
+            ;
 
         if (error) {
             throw error;

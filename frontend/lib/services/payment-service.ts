@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Servicio para operaciones relacionadas con pagos
  */
@@ -75,7 +76,7 @@ export async function createPayment(
                 ...(data.terminalCode && { terminal_code: data.terminalCode }),
             })
             .select("id")
-            .single();
+            ;
 
         if (error) {
             logger.error("Error creating payment", error);
@@ -121,7 +122,7 @@ export async function createMultiPayment(
                 payment_type: PAYMENT_TYPE.COMPLETO,
             })
             .select("id")
-            .single();
+            ;
 
         if (mainError || !mainPayment) {
             logger.error("Error creating main payment", mainError);

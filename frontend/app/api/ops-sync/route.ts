@@ -1,41 +1,29 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { TelemetryEvent } from '@/lib/telemetry';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const events: TelemetryEvent[] = body.events;
+    const events = body.events;
 
     if (!events || !Array.isArray(events) || events.length === 0) {
       return NextResponse.json({ success: true, message: 'No events provided' });
     }
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // Forward to FastAPI (Backend) instead of Supabase
+    // This allows telemetry to still work via Next.js proxy without needing active client tokens in the browser unload event
+    const response = await fetch(`${API_BASE_URL}/system/ops-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ events })
+    });
 
-    const insertPayload = events.map(event => ({
-      user_id: user?.id || null,
-      module: event.module || null,
-      page: event.page,
-      action_type: event.action_type,
-      action_name: event.action_name,
-      duration_ms: event.duration_ms || null,
-      payload: event.payload || null,
-      endpoint: event.endpoint || null,
-      is_success: event.is_success,
-      error_details: event.error_details || null,
-      created_at: event.timestamp || new Date().toISOString()
-    }));
-
-    // Insert the batch
-    const { error } = await supabase
-      .from('system_telemetry')
-      .insert(insertPayload);
-
-    if (error) {
-      console.error('[Telemetry API] Error inserting events:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (!response.ok) {
+      console.error('[Telemetry API] Error from FastAPI:', await response.text());
+      return NextResponse.json({ success: false, error: 'FastAPI Error' }, { status: response.status });
     }
 
     return NextResponse.json({ success: true, count: events.length });

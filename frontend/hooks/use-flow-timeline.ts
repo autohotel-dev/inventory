@@ -130,8 +130,8 @@ export function useFlowTimeline(flowId: string | null) {
       const { data: flowData } = await supabase
         .from("operation_flows")
         .select("id, flow_number, room_number, status, current_stage, started_at, completed_at")
-        .eq("id", flowId)
-        .single();
+        
+        ;
 
       if (flowData) {
         setFlowDetail(flowData as FlowDetail);

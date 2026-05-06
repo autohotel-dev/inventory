@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -57,117 +58,7 @@ export function PurchasesSalesDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>('30d');
 
   const fetchDashboardData = async () => {
-    setLoading(true);
-    const supabase = createClient();
-
-    try {
-      // Fechas para comparación
-      const now = new Date();
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-
-      // Consultas paralelas para purchases
-      const [
-        { data: allPurchases },
-        { data: thisMonthPurchases },
-        { data: lastMonthPurchases },
-        { data: topSupplierData },
-        { data: pendingPurchases }
-      ] = await Promise.all([
-        supabase.from("purchase_orders").select("total, currency"),
-        supabase.from("purchase_orders").select("total, currency").gte("created_at", thisMonthStart.toISOString()),
-        supabase.from("purchase_orders").select("total, currency").gte("created_at", lastMonthStart.toISOString()).lt("created_at", lastMonthEnd.toISOString()),
-        supabase.from("purchase_orders").select("suppliers:supplier_id(name), total").not("supplier_id", "is", null),
-        supabase.from("purchase_orders").select("id").eq("status", "OPEN")
-      ]);
-
-      // Consultas paralelas para sales
-      const [
-        { data: allSales },
-        { data: thisMonthSales },
-        { data: lastMonthSales },
-        { data: topCustomerData },
-        { data: pendingSales }
-      ] = await Promise.all([
-        supabase.from("sales_orders").select("total, currency"),
-        supabase.from("sales_orders").select("total, currency").gte("created_at", thisMonthStart.toISOString()),
-        supabase.from("sales_orders").select("total, currency").gte("created_at", lastMonthStart.toISOString()).lt("created_at", lastMonthEnd.toISOString()),
-        supabase.from("sales_orders").select("customers:customer_id(name), total").not("customer_id", "is", null),
-        supabase.from("sales_orders").select("id").eq("status", "OPEN")
-      ]);
-
-      // Calcular estadísticas de purchases
-      const purchasesTotal = allPurchases?.length || 0;
-      const purchasesThisMonth = thisMonthPurchases?.length || 0;
-      const purchasesLastMonth = lastMonthPurchases?.length || 0;
-      const purchasesTotalAmount = allPurchases?.reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0) || 0;
-      const purchasesThisMonthAmount = thisMonthPurchases?.reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0) || 0;
-      const purchasesAvgOrderValue = purchasesTotal > 0 ? purchasesTotalAmount / purchasesTotal : 0;
-
-      // Top supplier
-      const supplierTotals = topSupplierData?.reduce((acc: any, order: any) => {
-        const supplierName = order.suppliers?.name || 'Sin proveedor';
-        acc[supplierName] = (acc[supplierName] || 0) + (Number(order.total) || 0);
-        return acc;
-      }, {});
-      const topSupplier = supplierTotals ? Object.keys(supplierTotals).reduce((a: string, b: string) => supplierTotals[a] > supplierTotals[b] ? a : b, '') : 'N/A';
-
-      // Calcular estadísticas de sales
-      const salesTotal = allSales?.length || 0;
-      const salesThisMonth = thisMonthSales?.length || 0;
-      const salesLastMonth = lastMonthSales?.length || 0;
-      const salesTotalAmount = allSales?.reduce((sum: number, s: any) => sum + (Number(s.total) || 0), 0) || 0;
-      const salesThisMonthAmount = thisMonthSales?.reduce((sum: number, s: any) => sum + (Number(s.total) || 0), 0) || 0;
-      const salesAvgOrderValue = salesTotal > 0 ? salesTotalAmount / salesTotal : 0;
-
-      // Top customer
-      const customerTotals = topCustomerData?.reduce((acc: any, order: any) => {
-        const customerName = order.customers?.name || 'Cliente general';
-        acc[customerName] = (acc[customerName] || 0) + (Number(order.total) || 0);
-        return acc;
-      }, {});
-      const topCustomer = customerTotals ? Object.keys(customerTotals).reduce((a: string, b: string) => customerTotals[a] > customerTotals[b] ? a : b, '') : 'N/A';
-
-      // Calcular tendencias
-      const purchasesTrend = purchasesLastMonth > 0 ? ((purchasesThisMonth - purchasesLastMonth) / purchasesLastMonth) * 100 : 0;
-      const salesTrend = salesLastMonth > 0 ? ((salesThisMonth - salesLastMonth) / salesLastMonth) * 100 : 0;
-      const revenueTrend = purchasesThisMonthAmount > 0 ? ((salesThisMonthAmount - purchasesThisMonthAmount) / purchasesThisMonthAmount) * 100 : 0;
-      const profitMargin = salesThisMonthAmount > 0 ? ((salesThisMonthAmount - purchasesThisMonthAmount) / salesThisMonthAmount) * 100 : 0;
-
-      setStats({
-        purchases: {
-          total: purchasesTotal,
-          thisMonth: purchasesThisMonth,
-          lastMonth: purchasesLastMonth,
-          totalAmount: purchasesTotalAmount,
-          thisMonthAmount: purchasesThisMonthAmount,
-          avgOrderValue: purchasesAvgOrderValue,
-          topSupplier,
-          pendingOrders: pendingPurchases?.length || 0
-        },
-        sales: {
-          total: salesTotal,
-          thisMonth: salesThisMonth,
-          lastMonth: salesLastMonth,
-          totalAmount: salesTotalAmount,
-          thisMonthAmount: salesThisMonthAmount,
-          avgOrderValue: salesAvgOrderValue,
-          topCustomer,
-          pendingOrders: pendingSales?.length || 0
-        },
-        trends: {
-          purchasesTrend,
-          salesTrend,
-          revenueTrend,
-          profitMargin
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   useEffect(() => {

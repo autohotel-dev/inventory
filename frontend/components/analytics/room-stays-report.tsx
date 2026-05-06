@@ -69,7 +69,7 @@ export function RoomStaysReport() {
                 `)
                 .gte("created_at", startDate)
                 .lte("created_at", endDate + 'T23:59:59')
-                .order("created_at", { ascending: false });
+                ;
 
             if (error) {
                 console.error("Error fetching room stays report:", error);

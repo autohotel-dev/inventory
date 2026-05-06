@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -158,7 +159,7 @@ export function SimpleProductsTable() {
       }
       const { apiClient } = await import("@/lib/api/client");
       try {
-        const { data } = await apiClient.get(`/catalogs/subcategories?category_id=${categoryFilter}`);
+        const { data } = await apiClient.get(`/catalogs/subcategories?category_id=${categoryFilter}`) as any;
         setSubcategories(data || []);
       } catch (error) {
         console.error("Error fetching subcategories:", error);
@@ -200,7 +201,7 @@ export function SimpleProductsTable() {
       if (debouncedPriceMin) params.append('price_min', debouncedPriceMin);
       if (debouncedPriceMax) params.append('price_max', debouncedPriceMax);
 
-      const { data } = await apiClient.get(`/inventory/dashboard/products?${params.toString()}`);
+      const { data } = await apiClient.get(`/inventory/dashboard/products?${params.toString() as any}`);
 
       if (data) {
         setHasMore(data.has_more);
@@ -231,10 +232,10 @@ export function SimpleProductsTable() {
     const fetchAuxCheck = async () => {
       try {
         const { apiClient } = await import("@/lib/api/client");
-        const { data: cat } = await apiClient.get("/catalogs/categories");
+        const { data: cat } = await apiClient.get("/catalogs/categories") as any;
         if (cat) setCategories(cat);
 
-        const { data: sup } = await apiClient.get("/inventory/suppliers");
+        const { data: sup } = await apiClient.get("/inventory/suppliers") as any;
         if (sup) setSuppliers(sup);
       } catch (error) {
         console.error("Error fetching aux data:", error);
@@ -246,7 +247,7 @@ export function SimpleProductsTable() {
   const handleEdit = async (viewProduct: ProductView) => {
     try {
       const { apiClient } = await import("@/lib/api/client");
-      const { data } = await apiClient.get(`/inventory/products/${viewProduct.id}`);
+      const { data } = await apiClient.get(`/inventory/products/${viewProduct.id}`) as any;
       
       if (data) {
         setEditingProduct(data as any);

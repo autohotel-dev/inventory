@@ -70,7 +70,7 @@ export function AdvancedCustomersTable() {
       const { data: customersWithStats, error } = await supabase
         .from("customer_statistics_view")
         .select("*")
-        .order("customer_created_at", { ascending: false });
+        ;
 
       if (error) {
         console.error("Error con vista, intentando procedimiento almacenado:", error);
@@ -79,7 +79,7 @@ export function AdvancedCustomersTable() {
         const { data: customersData, error: customersError } = await supabase
           .from("customers")
           .select("*")
-          .order("created_at", { ascending: false });
+          ;
 
         if (customersError) throw customersError;
 
@@ -151,7 +151,7 @@ export function AdvancedCustomersTable() {
       const { error } = await supabase
         .from("customers")
         .delete()
-        .eq("id", customerId);
+        ;
 
       if (error) throw error;
 
@@ -171,7 +171,7 @@ export function AdvancedCustomersTable() {
         const { error } = await supabase
           .from("customers")
           .update(customerData)
-          .eq("id", editingCustomer.id);
+          ;
 
         if (error) throw error;
         success("Cliente actualizado", "El cliente se actualizó correctamente");

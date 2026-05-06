@@ -65,11 +65,11 @@ export function AuditLogsViewer() {
             let query = supabase
                 .from("audit_logs")
                 .select("id, action, table_name, record_id, description, employee_name, metadata, created_at", { count: "exact" })
-                .order("created_at", { ascending: false })
+                
                 .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
             if (actionFilter !== "all") {
-                query = query.eq("action", actionFilter);
+                query = query;
             }
 
             if (searchTerm.trim()) {

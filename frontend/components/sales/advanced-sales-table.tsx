@@ -99,8 +99,8 @@ export function AdvancedSalesTable() {
     const { data } = await supabase
       .from("employees")
       .select("id, first_name, last_name, auth_user_id")
-      .eq("is_active", true)
-      .order("first_name");
+      
+      ;
     
     setEmployees(data || []);
   };
@@ -125,11 +125,11 @@ export function AdvancedSalesTable() {
           customers!customer_id(name),
           warehouses!warehouse_id(code, name)
         `)
-        .order("created_at", { ascending: false });
+        ;
 
       // FILTRO POR ROL: Recepcionistas solo ven sus propias ventas
       if (!canAccessAdmin && userId) {
-        query = query.eq('created_by', userId);
+        query = query;
       }
 
       // Filtro por empleado específico (solo para admins)
@@ -137,13 +137,13 @@ export function AdvancedSalesTable() {
         // Buscar el auth_user_id del empleado seleccionado
         const selectedEmployee = employees.find(e => e.id === filters.employeeId);
         if (selectedEmployee?.auth_user_id) {
-          query = query.eq('created_by', selectedEmployee.auth_user_id);
+          query = query;
         }
       }
 
       // Aplicar filtros
       if (filters.status !== 'ALL') {
-        query = query.eq('status', filters.status);
+        query = query;
       }
       
       if (filters.dateFrom) {

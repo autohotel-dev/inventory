@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -13,8 +14,8 @@ async function getAvailableStockServer(productId: string, warehouseId: string): 
   const { data, error } = await supabase
     .from("stock")
     .select("qty")
-    .eq("product_id", productId)
-    .eq("warehouse_id", warehouseId)
+    
+    
     .maybeSingle();
 
   if (error) {
@@ -28,9 +29,9 @@ async function getAvailableStockServer(productId: string, warehouseId: string): 
 async function getFormData() {
   const supabase = await createClient();
   const [{ data: products }, { data: warehouses }, { data: reasons }] = await Promise.all([
-    supabase.from("products").select("id, sku, name").eq("is_active", true).order("name"),
-    supabase.from("warehouses").select("id, code, name").eq("is_active", true).order("name"),
-    supabase.from("movement_reasons").select("id, code, description, movement_type").order("code")
+    apiClient.get("/system/crud/products").then(res => ({ data: res.data, error: null })),
+    apiClient.get("/system/crud/warehouses").then(res => ({ data: res.data, error: null })),
+    apiClient.get("/system/crud/movement_reasons").then(res => ({ data: res.data, error: null }))
   ]);
   return { products: products ?? [], warehouses: warehouses ?? [], reasons: reasons ?? [] };
 }
@@ -56,8 +57,8 @@ async function createMovementAction(formData: FormData) {
   const { data: reason, error: reasonErr } = await supabase
     .from("movement_reasons")
     .select("id, code")
-    .eq("code", reason_code)
-    .single();
+    
+    ;
   if (reasonErr || !reason) throw new Error("Invalid reason");
 
   if (type === "transfer") {
@@ -73,7 +74,7 @@ async function createMovementAction(formData: FormData) {
     }
 
     // two inserts: out from origin, in to destination
-    const { error: e1 } = await supabase.from("inventory_movements").insert({
+    const { error: e1 } = await apiClient.post("/system/crud/inventory_movements", {
       product_id,
       warehouse_id,
       quantity: qty,
@@ -82,9 +83,9 @@ async function createMovementAction(formData: FormData) {
       reference_table: "TRANSFER",
       notes: note,
       created_by,
-    });
+    }) as any;
     if (e1) throw e1;
-    const { error: e2 } = await supabase.from("inventory_movements").insert({
+    const { error: e2 } = await apiClient.post("/system/crud/inventory_movements", {
       product_id,
       warehouse_id: to_warehouse_id,
       quantity: qty,
@@ -93,7 +94,7 @@ async function createMovementAction(formData: FormData) {
       reference_table: "TRANSFER",
       notes: note,
       created_by,
-    });
+    }) as any;
     if (e2) throw e2;
     revalidatePath("/movements");
     redirect("/movements");
@@ -121,7 +122,7 @@ async function createMovementAction(formData: FormData) {
       }
     }
 
-    const { error } = await supabase.from("inventory_movements").insert({
+    const { error } = await apiClient.post("/system/crud/inventory_movements", {
       product_id,
       warehouse_id,
       quantity: qty,
@@ -129,7 +130,7 @@ async function createMovementAction(formData: FormData) {
       reason_id: reason.id,
       notes: note,
       created_by,
-    });
+    }) as any;
     if (error) throw error;
     revalidatePath("/movements");
     redirect("/movements");
@@ -164,8 +165,8 @@ async function createBatchMovementsAction(formData: FormData) {
   const { data: reason, error: reasonErr } = await supabase
     .from("movement_reasons")
     .select("id, code, name")
-    .eq("code", reasonCode)
-    .single();
+    
+    ;
 
   if (reasonErr || !reason) throw new Error("Invalid reason");
 
@@ -221,10 +222,10 @@ async function createBatchMovementsAction(formData: FormData) {
     }));
 
     // Insertar todos los movimientos
-    const { error: outError } = await supabase.from("inventory_movements").insert(outMovements);
+    const { error: outError } = await apiClient.post("/system/crud/inventory_movements", outMovements) as any;
     if (outError) throw outError;
 
-    const { error: inError } = await supabase.from("inventory_movements").insert(inMovements);
+    const { error: inError } = await apiClient.post("/system/crud/inventory_movements", inMovements) as any;
     if (inError) throw inError;
 
     revalidatePath("/movements");
@@ -267,7 +268,7 @@ async function createBatchMovementsAction(formData: FormData) {
     created_by,
   }));
 
-  const { error } = await supabase.from("inventory_movements").insert(movements);
+  const { error } = await apiClient.post("/system/crud/inventory_movements", movements) as any;
 
   if (error) throw error;
 
@@ -285,8 +286,8 @@ export default async function NewMovementPage() {
   const { data: employee } = await supabase
     .from("employees")
     .select("role")
-    .eq("auth_user_id", user.id)
-    .single();
+    
+    ;
 
   const role = employee?.role as UserRole;
   const isAuthorized = role === "receptionist" || role === "admin" || role === "manager";

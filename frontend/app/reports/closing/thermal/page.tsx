@@ -61,8 +61,8 @@ function ThermalReceiptContent() {
         employees!shift_closings_employee_id_fkey(first_name, last_name),
         shift_definitions(name)
       `)
-            .eq("id", shiftId)
-            .single();
+            
+            ;
 
         if (closingData) {
             setClosing(closingData);
@@ -82,7 +82,7 @@ function ThermalReceiptContent() {
         `)
                 .gte("check_in_at", closingData.period_start)
                 .lte("check_in_at", closingData.period_end)
-                .order("check_in_at", { ascending: true });
+                ;
 
             if (staysData) {
                 const itemsMap = new Map<string, AdditionalItem>();

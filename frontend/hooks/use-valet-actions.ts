@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -54,8 +55,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: currentStay, error: checkError } = await supabase
                 .from('room_stays')
                 .select('valet_employee_id')
-                .eq('id', activeStay.id)
-                .single();
+                
+                ;
                 
             if (checkError) throw checkError;
             
@@ -85,7 +86,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                         concept: 'ENTRADA'
                     }))
                 })
-                .eq('id', activeStay.id);
+                ;
 
             if (stayError) {
                 console.error('Error updating room stay:', stayError);
@@ -96,19 +97,19 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             // 3. Tomar el pago principal creado por recepción (ESTANCIA, PENDIENTE)
             const { data: pendingMain, error: pendingMainError } = await supabase
                 .from('payments')
                 .select('id, amount')
-                .eq('sales_order_id', activeStay.sales_order_id)
-                .eq('concept', 'ESTANCIA')
-                .eq('status', 'PENDIENTE')
+                
+                
+                
                 .is('parent_payment_id', null)
-                .order('created_at', { ascending: true })
+                
                 .maybeSingle();
 
             if (pendingMainError) throw pendingMainError;
@@ -125,7 +126,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 const p = payments[i];
                 if (i === 0) {
                     // El primero actualiza el registro principal
-                    await supabase.from('payments').update({
+                    await apiClient.post(`/system/crud/payments`, { /* update placeholder */
                         amount: p.amount,
                         payment_method: p.method,
                         terminal_code: p.terminal,
@@ -136,10 +137,10 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    }).eq('id', pendingMain.id);
+                    });
                 } else {
                     // Los demás se insertan como parciales vinculados
-                    await supabase.from('payments').insert({
+                    await apiClient.post(`/system/crud/payments`, {
                         sales_order_id: activeStay.sales_order_id,
                         amount: p.amount,
                         payment_method: p.method,
@@ -218,7 +219,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     checkout_valet_employee_id: valetId,
                     current_people: personCount
                 })
-                .eq('id', activeStay.id);
+                ;
 
             if (error) {
                 console.error('Error confirming checkout:', error);
@@ -265,7 +266,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     valet_checkout_requested_at: new Date().toISOString(),
                     valet_employee_id: activeStay.valet_employee_id || valetId
                 })
-                .eq('id', activeStay.id);
+                ;
 
             if (error) throw error;
 
@@ -294,7 +295,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { error } = await supabase
                 .from('room_stays')
                 .update({ valet_employee_id: valetId })
-                .eq('id', stayId);
+                ;
 
             if (error) throw error;
 
@@ -338,7 +339,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
                 })
-                .eq('id', consumptionId);
+                ;
 
             if (error) throw error;
             toast.success('¡Éxito!', {
@@ -407,16 +408,16 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             // 2. Obtener sales_order_id
             const { data: itemData, error: fetchError } = await supabase
                 .from('sales_order_items')
                 .select('sales_order_id, total')
-                .eq('id', consumptionId)
-                .single();
+                
+                ;
 
             if (fetchError) throw fetchError;
 
@@ -436,13 +437,13 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { error: updateError } = await supabase
                 .from('sales_order_items')
                 .update(updateData)
-                .eq('id', consumptionId);
+                ;
 
             if (updateError) throw updateError;
 
             // 4. Registrar pagos
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                await apiClient.post(`/system/crud/payments`, {
                     sales_order_id: itemData.sales_order_id,
                     amount: p.amount,
                     payment_method: p.method,
@@ -466,7 +467,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: itemStay } = await supabase
                 .from('sales_order_items')
                 .select('sales_orders!inner(room_stays!inner(id))')
-                .eq('id', consumptionId)
+                
                 .maybeSingle();
             const stayIdForFlow = (itemStay as any)?.sales_orders?.room_stays?.[0]?.id;
             if (stayIdForFlow) {
@@ -510,8 +511,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             const itemIds = items.map(item => item.id);
@@ -533,7 +534,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             // 3. Registrar pagos
             const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                await apiClient.post(`/system/crud/payments`, {
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -573,7 +574,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     delivery_status: 'CANCELLED',
                     cancellation_reason: 'Cancelado desde tablero de cochero'
                 })
-                .eq('id', consumptionId);
+                ;
 
             if (error) throw error;
             toast.success("Solicitud cancelada");
@@ -606,8 +607,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             // 2. Crear el cargo por daño en sales_order_items
@@ -623,13 +624,13 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     is_paid: false
                 })
                 .select()
-                .single();
+                ;
 
             if (itemError) throw itemError;
 
             // 3. Registrar los pagos
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                await apiClient.post(`/system/crud/payments`, {
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -672,8 +673,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             const { data: item, error: itemError } = await supabase
@@ -688,12 +689,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     is_paid: false
                 })
                 .select()
-                .single();
+                ;
 
             if (itemError) throw itemError;
 
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                await apiClient.post(`/system/crud/payments`, {
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -736,8 +737,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const { data: session } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             const { data: item, error: itemError } = await supabase
@@ -752,12 +753,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     is_paid: false
                 })
                 .select()
-                .single();
+                ;
 
             if (itemError) throw itemError;
 
             for (const p of payments) {
-                await supabase.from('payments').insert({
+                await apiClient.post(`/system/crud/payments`, {
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,

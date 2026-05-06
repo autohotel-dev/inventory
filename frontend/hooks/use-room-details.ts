@@ -122,8 +122,8 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
       const { data } = await supabase
         .from('room_assets')
         .select('id, asset_type, status, assigned_employee_id')
-        .eq('room_id', room.id)
-        .eq('asset_type', 'TV_REMOTE')
+        
+        
         .maybeSingle();
 
       setTvRemoteAsset(data);
@@ -160,18 +160,18 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
         supabase
           .from("payments")
           .select("id, payment_number, amount, payment_method, reference, concept, status, payment_type, parent_payment_id, notes, created_at")
-          .eq("sales_order_id", salesOrderId)
-          .order("created_at", { ascending: true }),
+          
+          ,
         supabase
           .from("sales_order_items")
           .select("id, qty, unit_price, products(name, sku), is_courtesy, courtesy_reason, concept_type, delivery_status, is_paid, is_cancelled, cancellation_reason, cancelled_at")
-          .eq("sales_order_id", salesOrderId)
-          .order("created_at", { ascending: true }),
+          
+          ,
         supabase
           .from("sales_orders")
           .select("id, notes, subtotal, total, paid_amount, remaining_amount, status, created_at")
-          .eq("id", salesOrderId)
-          .single(),
+          
+          ,
       ]);
 
       setPayments((paymentsRes.data || []) as Payment[]);

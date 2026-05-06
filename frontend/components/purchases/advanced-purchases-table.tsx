@@ -97,11 +97,11 @@ export function AdvancedPurchasesTable() {
           suppliers!supplier_id(name),
           warehouses!warehouse_id(code, name)
         `)
-        .order("created_at", { ascending: false });
+        ;
 
       // Aplicar filtros
       if (filters.status !== 'ALL') {
-        query = query.eq('status', filters.status);
+        query = query;
       }
 
       if (filters.dateFrom) {

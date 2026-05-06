@@ -89,7 +89,7 @@ export function EmployeesTable() {
         .from("employees")
         .select("*, auth_user_id")
         .is("deleted_at", null) // Filter out soft-deleted employees
-        .order("first_name", { ascending: true });
+        ;
 
       if (error) throw error;
       setEmployees(data || []);
@@ -220,7 +220,7 @@ export function EmployeesTable() {
             pin_code: formData.pin_code.trim() || null,
             is_active: formData.is_active,
           })
-          .eq("id", editingEmployee.id);
+          ;
 
         if (error) throw error;
 
@@ -269,7 +269,7 @@ export function EmployeesTable() {
             is_active: formData.is_active,
           })
           .select("id")
-          .single();
+          ;
 
         if (error) {
           if (error.code === "23505" || error.message?.includes("duplicate") || error.message?.includes("unique")) {
@@ -334,7 +334,7 @@ export function EmployeesTable() {
           email: deletedEmail, // Liberar el email original
           // Opcional: Desvincular usuario de auth si se desea
         })
-        .eq("id", editingEmployee.id);
+        ;
 
       if (error) throw error;
       success("Éxito", "Empleado eliminado correctamente");

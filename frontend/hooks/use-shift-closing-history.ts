@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Hook for shift closing history: list, filter, detail, approve/reject, correction.
  * Extracted from shift-closing.tsx (ShiftClosingHistory).
@@ -5,7 +6,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ShiftClosing } from "@/components/employees/types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
@@ -18,8 +18,7 @@ export const formatCurrency = (amount: number) =>
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useShiftClosingHistory() {
-  const supabase = createClient();
-  const { success, error: showError } = useToast();
+    const { success, error: showError } = useToast();
   const { printClosing } = usePrintClosing();
 
   const [closings, setClosings] = useState<ShiftClosing[]>([]);
@@ -50,32 +49,26 @@ export function useShiftClosingHistory() {
 
   const loadClosings = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-
-    const { data: employee } = await supabase.from("employees").select("id, role").eq("auth_user_id", user.id).limit(1);
-    const employeeData = employee?.[0];
-    const employeeId = employeeData?.id;
-    const userIsAdmin = employeeData?.role === "admin" || employeeData?.role === "manager";
-    setCurrentEmployeeId(employeeId);
-    setIsAdmin(userIsAdmin);
-
-    let countQuery = supabase.from("shift_closings").select("id", { count: 'exact', head: true });
-    if (!userIsAdmin && employeeId) countQuery = countQuery.eq("employee_id", employeeId);
-    if (statusFilter !== "all") countQuery = countQuery.eq("status", statusFilter);
-    const { count } = await countQuery;
-    setTotalCount(count || 0);
-
-    const offset = (currentPage - 1) * pageSize;
-    let query = supabase.from("shift_closings")
-      .select("*, employees!shift_closings_employee_id_fkey(*), shift_definitions(*)")
-      .order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
-    if (!userIsAdmin && employeeId) query = query.eq("employee_id", employeeId);
-
-    const { data, error } = await query;
-    if (!error) setClosings(data || []);
-    else console.error("Error loading closings:", error);
-    setLoading(false);
+    try {
+      const authRes = await apiClient.get('/hr/manager/data') as any;
+      const isAdminUser = authRes.data?.user_role in ['admin', 'manager'];
+      
+      const { data } = await apiClient.get('/hr/shift-closings/history', {
+        params: {
+          page: currentPage,
+          limit: pageSize,
+          status_filter: statusFilter,
+          employee_id: currentEmployeeId
+        }
+      }) as any;
+      
+      setClosings(data.data || []);
+      setTotalCount(data.total || 0);
+    } catch (error) {
+      console.error("Error loading closings:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadClosings(); }, [statusFilter, currentPage, pageSize]);
@@ -84,17 +77,13 @@ export function useShiftClosingHistory() {
 
   const loadClosingDetails = async (closingId: string, periodStart: string, periodEnd: string) => {
     setLoadingDetails(true);
-    const { data, error } = await supabase.from("shift_closing_details")
-      .select("*, payments(id, amount, payment_method, reference, concept, status, payment_type, terminal_code, created_at, sales_order_id, sales_orders(id, total, remaining_amount, status, room_stays(id, rooms(number, room_types(name)))))")
-      .eq("shift_closing_id", closingId).order("created_at", { ascending: false });
+    const { data, error } = await apiClient.get(`/hr/shift-closings/${closingId}/details`).then(res => ({ data: res.data?.details, error: null })).catch(err => ({ data: null, error: err })) as any;
     if (!error) setClosingDetails(data || []);
 
     const detailSalesOrderIds = [...new Set((data || []).filter((d: any) => d.sales_order_id).map((d: any) => d.sales_order_id))];
     let salesOrders: any[] = [];
     if (detailSalesOrderIds.length > 0) {
-      const { data: ordersData } = await supabase.from("sales_orders")
-        .select("id, created_at, total, paid_amount, remaining_amount, status, currency, room_stays(id, rooms(number, room_types(name))), sales_order_items(id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method, products(name, sku))")
-        .in("id", detailSalesOrderIds).order("created_at", { ascending: false });
+      const { data: ordersData } = await apiClient.post(`/system/crud/sales_orders/batch`, { ids: detailSalesOrderIds }).then(res => ({ data: res.data })).catch(() => ({ data: null })) as any;
       salesOrders = ordersData || [];
     }
     setClosingSalesOrders(salesOrders);
@@ -102,9 +91,7 @@ export function useShiftClosingHistory() {
   };
 
   const loadClosingReviews = async (closingId: string) => {
-    const { data } = await supabase.from("shift_closing_reviews")
-      .select("*, employees(first_name, last_name)").eq("shift_closing_id", closingId)
-      .order("created_at", { ascending: false });
+    const { data } = await apiClient.get(`/hr/shift-closings/${closingId}/reviews`).then(res => ({ data: res.data?.reviews })) as any;
     setClosingReviews(data || []);
   };
 
@@ -119,7 +106,7 @@ export function useShiftClosingHistory() {
   // ─── Review Actions ───────────────────────────────────────────────
 
   const recordReview = async (closingId: string, action: string, reason?: string) => {
-    await supabase.from("shift_closing_reviews").insert({
+    await apiClient.post(`/system/crud/shift_closing_reviews`, {
       shift_closing_id: closingId, reviewer_id: currentEmployeeId, action, reason
     });
   };
@@ -127,9 +114,8 @@ export function useShiftClosingHistory() {
   const approveClosing = async (closingId: string) => {
     setProcessingAction(true);
     try {
-      const { error } = await supabase.from("shift_closings")
-        .update({ status: "approved", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString() })
-        .eq("id", closingId);
+      await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id || closingId}`, { status: "approved", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString() })
+        ;
       if (error) throw error;
       await recordReview(closingId, "approved");
       await loadClosings();
@@ -147,9 +133,8 @@ export function useShiftClosingHistory() {
     if (!selectedClosing || !rejectionReason.trim()) { showError("Error", "Debe proporcionar un motivo de rechazo"); return; }
     setProcessingAction(true);
     try {
-      const { error } = await supabase.from("shift_closings")
-        .update({ status: "rejected", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString(), rejection_reason: rejectionReason.trim() })
-        .eq("id", selectedClosing.id);
+      await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id || closingId}`, { status: "rejected", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString(), rejection_reason: rejectionReason.trim() })
+        ;
       if (error) throw error;
       await recordReview(selectedClosing.id, "rejected", rejectionReason.trim());
       await loadClosings();
@@ -186,13 +171,13 @@ export function useShiftClosingHistory() {
       const diffBBVA = bbvaAmount - (correctionClosing.total_card_bbva || 0);
       const diffGetnet = getnetAmount - (correctionClosing.total_card_getnet || 0);
 
-      const { error } = await supabase.from("shift_closings").update({
+      await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id || closingId}`, {
         counted_cash: correctionCashTotal, cash_difference: cashDifference, cash_breakdown: null,
         notes: correctionNotes.trim() || null, declared_card_bbva: bbvaAmount,
         declared_card_getnet: getnetAmount, card_difference_bbva: diffBBVA,
         card_difference_getnet: diffGetnet, status: "pending", rejection_reason: null,
         reviewed_by: null, reviewed_at: null, is_correction: true,
-      }).eq("id", correctionClosing.id).select().single();
+      });
       if (error) throw error;
 
       success("Corrección enviada", "El corte ha sido actualizado y enviado para revisión");
@@ -212,42 +197,20 @@ export function useShiftClosingHistory() {
 
   const exportClosing = async (closing: ShiftClosing) => {
     try {
-      // Cargar todos los detalles del corte con pagos e items
-      const { data: details } = await supabase
-        .from("shift_closing_details")
-        .select("*, payments(id, amount, payment_method, reference, concept, terminal_code, created_at, sales_order_id, payment_terminals(code, name))")
-        .eq("shift_closing_id", closing.id)
-        .order("created_at", { ascending: true });
-
-      // Obtener IDs de órdenes para buscar items
-      const salesOrderIds = [...new Set(
-        (details || []).filter((d: any) => d.sales_order_id).map((d: any) => d.sales_order_id)
-      )];
-
-      let allItems: any[] = [];
-      if (salesOrderIds.length > 0) {
-        const { data } = await supabase
-          .from("sales_order_items")
-          .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, sales_order_id, products(name, sku)")
-          .in("sales_order_id", salesOrderIds)
-          .eq("is_paid", true)
-          .not("paid_at", "is", null);
-        allItems = data || [];
-      }
-
-      // Agrupar items por orden
+      const { data } = await apiClient.get(`/hr/shift-closings/${closing.id}/details`) as any;
+      const details = data.details || [];
+      const allItems = data.sales_orders?.flatMap((so: any) => so.sales_order_items || []) || [];
+      
       const itemsBySalesOrder = allItems.reduce((acc: any, item: any) => {
         if (!acc[item.sales_order_id]) acc[item.sales_order_id] = [];
         acc[item.sales_order_id].push(item);
         return acc;
       }, {} as Record<string, any[]>);
 
-      // Construir transacciones detalladas (mismo formato que el corte original)
-      const transactions = (details || []).map((detail: any) => {
+      const transactions = details.map((detail: any) => {
         const payment = detail.payments;
         if (!payment) return null;
 
-        // Buscar items relacionados a este pago por timestamp
         let items: any[] = [];
         if (payment.sales_order_id && itemsBySalesOrder[payment.sales_order_id]) {
           const paymentTime = new Date(payment.created_at).getTime();

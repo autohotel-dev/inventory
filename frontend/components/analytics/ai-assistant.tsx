@@ -149,7 +149,7 @@ export function AIAssistant() {
       const { data: activeStays, error: staysError } = await supabase
         .from('room_stays')
         .select('id, status, check_in_at')
-        .eq('status', 'ACTIVA');
+        ;
       
       console.log('🏠 Estancias activas:', activeStays?.length || 0, staysError);
       
@@ -165,7 +165,7 @@ export function AIAssistant() {
         .from('payments')
         .select('amount, status, created_at')
         .gte('created_at', today)
-        .eq('status', 'PAGADO');
+        ;
       
       console.log('💰 Pagos de hoy:', todayPayments?.length || 0, paymentsError);
       
@@ -174,7 +174,7 @@ export function AIAssistant() {
         .select('amount, status')
         .gte('created_at', yesterdayStr)
         .lt('created_at', today)
-        .eq('status', 'PAGADO');
+        ;
       
       // 4. Check-ins de hoy
       const { data: todayCheckins, error: checkinsError } = await supabase
@@ -202,7 +202,7 @@ export function AIAssistant() {
         .from('audit_logs')
         .select('id, severity, event_type, created_at')
         .gte('created_at', oneHourAgo.toISOString())
-        .eq('severity', 'ERROR');
+        ;
       
       // 7. Calcular métricas avanzadas
       const occupancyRate = totalRooms && totalRooms.length > 0 

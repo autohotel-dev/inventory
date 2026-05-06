@@ -90,8 +90,8 @@ function PrintClosingContent() {
         const { data: closingData } = await supabase
             .from("shift_closings")
             .select(`*, employees!shift_closings_employee_id_fkey(first_name, last_name), shift_definitions(name)`)
-            .eq("id", shiftId)
-            .single();
+            
+            ;
 
         if (!closingData) { setLoading(false); return; }
         setClosing(closingData);
@@ -100,9 +100,9 @@ function PrintClosingContent() {
         const { data: expensesData } = await supabase
             .from("shift_expenses")
             .select("*")
-            .eq("shift_session_id", closingData.shift_session_id || shiftId)
+            
             .neq("status", "rejected")
-            .order("created_at", { ascending: true });
+            ;
         setExpenses(expensesData || []);
 
         // Fetch room stays
@@ -119,7 +119,7 @@ function PrintClosingContent() {
             `)
             .gte("check_in_at", closingData.period_start)
             .lte("check_in_at", closingData.period_end)
-            .order("check_in_at", { ascending: true });
+            ;
 
         if (staysData) {
             const processed = staysData.map((stay: any) => {

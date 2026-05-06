@@ -79,7 +79,7 @@ export function AnalyticsDashboardOverview() {
                     min_stock,
                     stock:stock(qty)
                 `)
-                .eq("is_active", true);
+                ;
 
             // Calcular cuántos productos tienen stock crítico (stock total < min_stock)
             let criticalStockCount = 0;

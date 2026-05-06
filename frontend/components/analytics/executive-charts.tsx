@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -55,24 +56,16 @@ export function ExecutiveCharts() {
         const from = subDays(new Date(), periodDays).toISOString();
 
         // Parallel queries
-        const [roomsRes, staysRes, paymentsRes, shiftsRes] = await Promise.all([
-          supabase.from("rooms").select("id"),
-          supabase.from("room_stays")
-            .select("id, created_at, check_in_at, check_out_at, status, room_id")
-            .gte("created_at", from),
-          supabase.from("payments")
-            .select("id, amount, created_at, status, payment_method")
-            .gte("created_at", from)
-            .eq("status", "PAGADO"),
-          supabase.from("shifts")
-            .select("id, shift_type, start_time, end_time, created_at")
-            .gte("created_at", from),
+        const [roomsRes, rawDataRes] = await Promise.all([
+          apiClient.get("/system/crud/rooms").then(res => ({ data: res.data, error: null })),
+          apiClient.get(`/system/analytics/executive-raw?days=${periodDays}`).then(res => ({ data: res.data, error: null }))
         ]);
 
         const rooms = roomsRes.data || [];
-        const stays = staysRes.data || [];
-        const payments = paymentsRes.data || [];
-        const shifts = shiftsRes.data || [];
+        const stays = rawDataRes.data?.room_stays || [];
+        const payments = rawDataRes.data?.payments || [];
+        const shifts = rawDataRes.data?.shifts || [];
+
         
         setTotalRooms(rooms.length || 1);
 

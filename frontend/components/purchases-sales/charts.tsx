@@ -61,14 +61,14 @@ export function PurchasesSalesCharts() {
         supabase
           .from("purchase_orders")
           .select("total, suppliers!supplier_id(name)")
-          .not("supplier_id", "is", null)
+          
           .gte("created_at", sixMonthsAgo.toISOString()),
         
         // Top clientes
         supabase
           .from("sales_orders")
           .select("total, customers!customer_id(name)")
-          .not("customer_id", "is", null)
+          
           .gte("created_at", sixMonthsAgo.toISOString()),
         
         // Compras diarias (últimos 30 días)

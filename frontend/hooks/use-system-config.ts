@@ -54,7 +54,7 @@ async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: System
         .from('system_config')
         .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, auto_charge_extra_hours, thermal_printer_ip, thermal_printer_port, hp_printer_ip, hp_printer_port, updated_at, updated_by')
         .limit(1)
-        .single();
+        ;
 
     if (error || !data) {
         console.warn('Could not fetch system_config from Supabase, using defaults:', error?.message);
@@ -181,7 +181,7 @@ export function useSystemConfig() {
             const { error } = await supabase
                 .from('system_config')
                 .update(dbUpdate)
-                .not('id', 'is', null); // matches all rows (singleton)
+                ; // matches all rows (singleton)
 
             if (error) {
                 console.error('Error saving system config:', error);

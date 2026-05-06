@@ -46,7 +46,7 @@ export function SimpleWarehousesTable() {
       const { data: warehousesData, error: warehousesError } = await supabase
         .from("warehouses")
         .select("*")
-        .order("created_at", { ascending: false });
+        ;
 
       if (warehousesError) throw warehousesError;
 
@@ -111,7 +111,7 @@ export function SimpleWarehousesTable() {
       const { error } = await supabase
         .from("warehouses")
         .delete()
-        .eq("id", warehouseId);
+        ;
 
       if (error) throw error;
 
@@ -131,7 +131,7 @@ export function SimpleWarehousesTable() {
         const { error } = await supabase
           .from("warehouses")
           .update(warehouseData)
-          .eq("id", editingWarehouse.id);
+          ;
 
         if (error) throw error;
         success("Almacén actualizado", "El almacén se actualizó correctamente");
@@ -523,9 +523,9 @@ function WarehouseStockDetailContent({
               category:categories(name)
             )
           `)
-          .eq("warehouse_id", warehouse.id)
+          
           .gt("qty", 0)
-          .order("qty", { ascending: false });
+          ;
 
         if (error) throw error;
         setStockDetails(data || []);

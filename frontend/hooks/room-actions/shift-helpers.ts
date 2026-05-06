@@ -39,7 +39,7 @@ export async function getReceptionContext(supabase: any): Promise<{ shiftId: str
       `)
       .in("status", ["active", "open"])
       .or("role.eq.receptionist,role.eq.admin,role.eq.manager", { foreignTable: "employees" })
-      .order("clock_in_at", { ascending: false })
+      
       .limit(1);
 
     const result: ReceptionContext = {
@@ -80,15 +80,15 @@ export async function getCurrentShiftId(supabase: any): Promise<string | null> {
     const { data: employee } = await supabase
       .from("employees")
       .select("id")
-      .eq("auth_user_id", user.id)
-      .single();
+      
+      ;
 
     if (!employee) return null;
 
     const { data: session } = await supabase
       .from("shift_sessions")
       .select("id")
-      .eq("employee_id", employee.id)
+      
       .in("status", ["active", "open"])
       .maybeSingle();
 
@@ -116,8 +116,8 @@ export async function getCurrentEmployeeId(supabase: any): Promise<string | null
     const { data: employee } = await supabase
       .from("employees")
       .select("id")
-      .eq("auth_user_id", user.id)
-      .single();
+      
+      ;
 
     return employee?.id || null;
   } catch (err) {

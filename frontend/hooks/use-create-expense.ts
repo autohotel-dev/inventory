@@ -22,8 +22,8 @@ export function useCreateExpense() {
             const { data: session, error: sessionError } = await supabase
                 .from('shift_sessions')
                 .select('*')
-                .eq('id', data.shift_session_id)
-                .eq('status', 'active')
+                
+                
                 .maybeSingle();
 
             if (sessionError) throw sessionError;
@@ -54,7 +54,7 @@ export function useCreateExpense() {
                     status: 'pending'
                 })
                 .select()
-                .single();
+                ;
 
             if (insertError) throw insertError;
 

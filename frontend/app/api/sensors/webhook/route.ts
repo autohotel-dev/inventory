@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js"; // Usar cliente directo para Service Role
 
@@ -28,8 +29,8 @@ export async function POST(req: NextRequest) {
         const { data: sensor } = await supabase
             .from("sensors")
             .select("id, room_id")
-            .eq("device_id", deviceId)
-            .single();
+            
+            ;
 
         if (!sensor) {
             console.log(`Sensor unknown: ${deviceId}`);
@@ -74,10 +75,10 @@ export async function POST(req: NextRequest) {
                     status: 'ONLINE',
                     ...(battery !== null ? { battery_level: battery } : {})
                 })
-                .eq("id", sensor.id);
+                ;
 
             // Registrar evento
-            await supabase.from("sensor_events").insert({
+            await apiClient.post("/system/crud/sensor_events", {
                 sensor_id: sensor.id,
                 event_type: isOpen ? 'OPEN' : 'CLOSE',
                 payload: body

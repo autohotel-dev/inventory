@@ -22,8 +22,8 @@ export function SalesOrderDebug() {
       const { data: basicData, error: basicError } = await supabase
         .from("sales_orders")
         .select("*")
-        .eq("id", orderId)
-        .single();
+        
+        ;
       
       console.log('Basic query result:', { basicData, basicError });
       
@@ -44,8 +44,8 @@ export function SalesOrderDebug() {
           customers:customer_id(name, email, phone),
           warehouses:warehouse_id(code, name)
         `)
-        .eq("id", orderId)
-        .single();
+        
+        ;
       
       console.log('Related query result:', { relatedData, relatedError });
       
@@ -53,7 +53,7 @@ export function SalesOrderDebug() {
       const { data: itemsData, error: itemsError } = await supabase
         .from("sales_order_items")
         .select("*")
-        .eq("sales_order_id", orderId);
+        ;
       
       console.log('Items query result:', { itemsData, itemsError });
       

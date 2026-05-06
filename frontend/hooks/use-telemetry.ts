@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 
 export interface TelemetryRecord {
@@ -57,30 +58,13 @@ export function useTelemetry() {
   // Fetch metadata once
   useEffect(() => {
     const fetchMetadata = async () => {
-      const supabase = createClient();
-      
-      const { data: emps } = await supabase.from('employees').select('auth_user_id, first_name, last_name');
-      if (emps) {
-        setEmployeesList(
-          emps
-            .filter((e: any) => e.auth_user_id != null)
-            .map((e: any) => ({ id: e.auth_user_id, name: `${e.first_name} ${e.last_name}`.trim() }))
-        );
-      }
-
-      const { data: shifts } = await supabase
-        .from('shift_sessions')
-        .select('id, clock_in_at, clock_out_at, employees(first_name, last_name)')
-        .order('clock_in_at', { ascending: false })
-        .limit(20);
-      
-      if (shifts) {
-        setShiftsList(shifts.map((s: any) => ({
-          id: s.id,
-          name: `${s.employees?.first_name || 'Turno'} - ${new Date(s.clock_in_at).toLocaleDateString()}`,
-          start: s.clock_in_at,
-          end: s.clock_out_at
-        })));
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const { data } = await apiClient.get('/system/telemetry/metadata') as any;
+        setEmployeesList(data.employees || []);
+        setShiftsList(data.shifts || []);
+      } catch (e) {
+        console.error(e);
       }
     };
     fetchMetadata();
@@ -92,66 +76,24 @@ export function useTelemetry() {
         setLoading(true);
       }
       
-      const supabase = createClient();
-      let query = supabase
-        .from("system_telemetry")
-        .select("*", { count: "exact" })
-        .order("created_at", { ascending: false });
-
-      // Apply Filters
-      if (filters.action_type !== 'ALL') {
-        query = query.eq('action_type', filters.action_type);
-      }
-      if (filters.module !== 'ALL') {
-        query = query.eq('module', filters.module);
-      }
-      if (filters.status === 'SUCCESS') {
-        query = query.eq('is_success', true);
-      }
-      if (filters.status === 'ERROR') {
-        query = query.eq('is_success', false);
-      }
-      if (filters.user_id !== 'ALL') {
-        query = query.eq('user_id', filters.user_id);
-      }
-      if (filters.date_from) {
-        query = query.gte('created_at', filters.date_from);
-      }
-      if (filters.date_to) {
-        query = query.lte('created_at', filters.date_to);
-      }
-      if (filters.search) {
-        // ILIKE search on action_name or endpoint
-        query = query.or(`action_name.ilike.%${filters.search}%,endpoint.ilike.%${filters.search}%`);
-      }
-
-      // Pagination
-      const from = (isLoadMore ? pageIndex + 1 : 0) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      query = query.range(from, to);
-
-      const { data: rawData, error, count } = await query;
-
-      if (error) throw error;
-
-      // Try to resolve user IDs to employee names
-      let enrichedData: TelemetryRecord[] = rawData as TelemetryRecord[];
-      
-      const userIds = [...new Set(rawData.map((r: TelemetryRecord) => r.user_id).filter(Boolean))] as string[];
-      if (userIds.length > 0) {
-        const { data: employees } = await supabase
-          .from('employees')
-          .select('auth_user_id, first_name, last_name')
-          .in('auth_user_id', userIds);
-
-        if (employees) {
-          const empMap = new Map(employees.map((e: { auth_user_id: string; first_name: string; last_name: string }) => [e.auth_user_id, `${e.first_name} ${e.last_name}`.trim()]));
-          enrichedData = rawData.map((r: TelemetryRecord) => ({
-            ...r,
-            employee_name: r.user_id && empMap.has(r.user_id) ? empMap.get(r.user_id) : 'Sistema / Anónimo'
-          }));
+      const { apiClient } = await import("@/lib/api/client");
+      const from = isLoadMore ? pageIndex + 1 : 0;
+      const { data: responseData } = await apiClient.get('/system/telemetry', {
+        params: {
+          page: from,
+          limit: PAGE_SIZE,
+          action_type: filters.action_type,
+          module: filters.module,
+          status: filters.status,
+          search: filters.search || undefined,
+          user_id: filters.user_id,
+          date_from: filters.date_from || undefined,
+          date_to: filters.date_to || undefined
         }
-      }
+      }) as any;
+      
+      let enrichedData: TelemetryRecord[] = responseData.items || [];
+      const count = responseData.total || 0;
 
       if (isLoadMore) {
         setData(prev => [...prev, ...enrichedData]);

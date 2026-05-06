@@ -102,8 +102,8 @@ export function SupervisorAuthDialog({
             const { data: supervisor, error: dbError } = await supabase
                 .from("employees")
                 .select("id, first_name, last_name, role, pin_code")
-                .eq("pin_code", trimmedPin)
-                .eq("is_active", true)
+                
+                
                 .in("role", ["admin", "manager", "supervisor"])
                 .maybeSingle();
 
@@ -125,7 +125,7 @@ export function SupervisorAuthDialog({
                 .from("system_config")
                 .select("emergency_code, emergency_code_expires_at")
                 .limit(1)
-                .single();
+                ;
 
             if (!configError && configData?.emergency_code) {
                 const expiresAt = new Date(configData.emergency_code_expires_at);

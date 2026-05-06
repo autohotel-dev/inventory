@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
+
 import { ChatContextType } from '@/lib/chat/chat-types';
 import { useChatMessages } from '@/lib/chat/use-chat-messages';
 import { useChatNotifications } from '@/lib/chat/use-chat-notifications';
@@ -19,14 +19,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const { playNewMessage } = useSoundEngine();
     const { error: toastError } = useToast();
 
-    const supabase = useMemo(() => createClient(), []);
-
     // Get current user on mount
     useEffect(() => {
         const init = async () => {
-            const { data } = await supabase.auth.getUser();
-            if (data.user) {
-                setCurrentUser(data.user);
+            try {
+                const { getCurrentUser } = await import('aws-amplify/auth');
+                const user = await getCurrentUser();
+                setCurrentUser({ id: user.userId });
+            } catch (error) {
+                // Es normal no tener usuario activo en la pantalla de login
+                console.debug("No active user for chat (expected if on login screen)");
             }
         };
         init();
@@ -69,16 +71,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 .map(m => m.id);
             
             if (unreadIds.length > 0) {
-                supabase
-                    .from('messages')
-                    .update({ is_read: true })
-                    .in('id', unreadIds)
-                    .then(({ error }: { error: any }) => {
-                        if (error) console.error('Error marking messages as read:', error);
+                // Import apiClient dynamically to avoid circular dependency issues at the top level
+                import('@/lib/api/client').then(({ apiClient }) => {
+                    apiClient.post('/system/crud/messages/batch-update', { 
+                        ids: unreadIds, 
+                        data: { is_read: true } 
+                    }).catch(error => {
+                        console.error('Error marking messages as read:', error);
                     });
+                });
             }
         }
-    }, [isOpen, messages, currentUser, supabase]);
+    }, [isOpen, messages, currentUser]);
 
     const retryMessage = async (failedId: string) => {
         if (!currentUser) return;

@@ -195,9 +195,9 @@ export function ConsumptionTrackingModal({
                     products:product_id ( name, sku ),
                     valet_employee:delivery_accepted_by ( first_name, last_name )
                 `)
-                .eq('sales_order_id', salesOrderId)
-                .eq('concept_type', 'CONSUMPTION')
-                .order('created_at', { ascending: true });
+                
+                
+                ;
 
             if (error) throw error;
             setConsumptions(data || []);
@@ -262,7 +262,7 @@ export function ConsumptionTrackingModal({
                     delivery_picked_up_at: new Date().toISOString(),
                     delivery_picked_up_by: receptionistId
                 })
-                .eq('id', item.id);
+                ;
 
             if (error) throw error;
             toast.success('Recogida confirmada');
@@ -297,7 +297,7 @@ export function ConsumptionTrackingModal({
                     payment_amount_received: receivedAmount,
                     delivery_notes: paymentNotes || confirmPaymentItem.delivery_notes
                 })
-                .eq('id', confirmPaymentItem.id);
+                ;
 
             if (error) throw error;
 
@@ -326,7 +326,7 @@ export function ConsumptionTrackingModal({
                     delivery_status: 'ISSUE',
                     issue_description: description
                 })
-                .eq('id', item.id);
+                ;
 
             if (error) throw error;
             toast.warning('Problema reportado');

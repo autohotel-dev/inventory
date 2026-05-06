@@ -69,7 +69,7 @@ export function AdvancedKardexView() {
           unit,
           stock:stock(qty)
         `)
-        .eq("is_active", true);
+        ;
 
       if (productsError) throw productsError;
 
@@ -77,7 +77,7 @@ export function AdvancedKardexView() {
       const { data: movementsData, error: movementsError } = await supabase
         .from("inventory_movements")
         .select("product_id, created_at")
-        .order("created_at", { ascending: false });
+        ;
 
       const lastMovementMap = new Map();
       const movementCountMap = new Map();
@@ -130,8 +130,8 @@ export function AdvancedKardexView() {
           product:products(name, sku),
           warehouse:warehouses(name, code)
         `)
-        .eq("product_id", productId)
-        .order("created_at", { ascending: true });
+        
+        ;
 
       if (movementsError) throw movementsError;
 

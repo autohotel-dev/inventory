@@ -9,7 +9,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
-  const { data, error } = await supabase.from('audit_logs').select('*').limit(10).order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('audit_logs').select('*').limit(10);
   if (error) {
     console.error(error);
   } else {

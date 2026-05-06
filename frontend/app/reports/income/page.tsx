@@ -37,7 +37,7 @@ function IncomeReportContent() {
         const { data: allSessions, error: allSessionsError } = await supabase
             .from("shift_sessions")
             .select("id, clock_in_at, employee_id, status")
-            .order("clock_in_at", { ascending: false })
+            
             .limit(10);
 
         console.log("🔍 All recent sessions (for debugging):", { allSessions, allSessionsError });
@@ -58,7 +58,7 @@ function IncomeReportContent() {
                 )
             `)
             .in("status", ["active", "open"])
-            .order("clock_in_at", { ascending: false });
+            ;
 
         console.log("🔍 Open sessions query result:", { activeSessions, sessionError });
 
@@ -103,7 +103,7 @@ function IncomeReportContent() {
                     role
                 )
             `)
-            .order("created_at", { ascending: false })
+            
             .limit(50);
 
         if (error) {
@@ -168,7 +168,7 @@ function IncomeReportContent() {
         const { data } = await supabase
             .from("rooms")
             .select("number")
-            .order("number");
+            ;
 
         if (data) setRooms(data.map((r: any) => r.number));
     }, []);

@@ -16,7 +16,7 @@ export async function fetchOne<T>(
     errorMessage: string = "Error al obtener registro"
 ): Promise<Result<T>> {
     try {
-        const { data, error } = await queryBuilder.single();
+        const { data, error } = await queryBuilder;
 
         if (error) {
             logger.error(errorMessage, error);
@@ -103,7 +103,7 @@ export async function insertOne<T>(
             .from(table)
             .insert(data)
             .select()
-            .single();
+            ;
 
         if (error) {
             logger.error(errorMessage, { table, error });
@@ -137,7 +137,7 @@ export async function updateOne(
         const { error } = await supabase
             .from(table)
             .update(updates)
-            .eq("id", id);
+            ;
 
         if (error) {
             logger.error(errorMessage, { table, id, error });
@@ -169,7 +169,7 @@ export async function deleteOne(
         const { error } = await supabase
             .from(table)
             .delete()
-            .eq("id", id);
+            ;
 
         if (error) {
             logger.error(errorMessage, { table, id, error });

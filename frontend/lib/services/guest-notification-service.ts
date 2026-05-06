@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Guest Notification Service (Backend)
  * Handles sending push notifications to guests using Web Push API
@@ -57,9 +58,9 @@ export async function sendNotificationToGuest(
         const { data: subscription, error } = await supabase
             .from('guest_subscriptions')
             .select('*')
-            .eq('id', subscriptionId)
-            .eq('is_active', true)
-            .single();
+            
+            
+            ;
 
         if (error || !subscription) {
             return { success: false, error: 'Subscription not found' };
@@ -69,8 +70,8 @@ export async function sendNotificationToGuest(
         const { data: roomStay } = await supabase
             .from('room_stays')
             .select('guest_access_token')
-            .eq('id', subscription.room_stay_id)
-            .single();
+            
+            ;
 
         let finalActionUrl = payload.action_url;
 
@@ -102,7 +103,7 @@ export async function sendNotificationToGuest(
             );
 
             // Log notification in database
-            await supabase.from('guest_notifications').insert({
+            await apiClient.post('/system/crud/guest_notifications', {
                 guest_subscription_id: subscriptionId,
                 room_number: subscription.room_number,
                 title: payload.title,
@@ -119,7 +120,7 @@ export async function sendNotificationToGuest(
             await supabase
                 .from('guest_subscriptions')
                 .update({ last_notified_at: new Date().toISOString() })
-                .eq('id', subscriptionId);
+                ;
 
             return { success: true };
         } catch (pushError: any) {
@@ -129,7 +130,7 @@ export async function sendNotificationToGuest(
                 await supabase
                     .from('guest_subscriptions')
                     .update({ is_active: false })
-                    .eq('id', subscriptionId);
+                    ;
 
                 return { success: false, error: 'Subscription expired' };
             }
@@ -161,8 +162,8 @@ export async function sendNotificationToRoom(
     const { data: subscriptions, error } = await supabase
         .from('guest_subscriptions')
         .select('id')
-        .eq('room_number', roomNumber)
-        .eq('is_active', true);
+        
+        ;
 
     if (error || !subscriptions || subscriptions.length === 0) {
         return { sent: 0, failed: 0 };
@@ -198,7 +199,7 @@ export async function sendNotificationToAll(
     const { data: subscriptions, error } = await supabase
         .from('guest_subscriptions')
         .select('id')
-        .eq('is_active', true);
+        ;
 
     if (error || !subscriptions || subscriptions.length === 0) {
         return { sent: 0, failed: 0 };
@@ -234,9 +235,9 @@ export async function renderTemplate(
     const { data: template, error } = await supabase
         .from('notification_templates')
         .select('*')
-        .eq('id', templateId)
-        .eq('is_active', true)
-        .single();
+        
+        
+        ;
 
     if (error || !template) {
         return null;
@@ -279,7 +280,7 @@ export async function sendCheckoutReminders(hoursBeforeCheckout: number = 2): Pr
         number
       )
     `)
-        .eq('status', 'ACTIVA')
+        
         .gte('expected_check_out_at', futureTime.toISOString())
         .lt('expected_check_out_at', maxTime.toISOString());
 
@@ -291,9 +292,9 @@ export async function sendCheckoutReminders(hoursBeforeCheckout: number = 2): Pr
     const { data: template } = await supabase
         .from('notification_templates')
         .select('*')
-        .eq('template_type', 'checkout_reminder')
-        .eq('is_active', true)
-        .single();
+        
+        
+        ;
 
     for (const stay of roomStays) {
         if (!stay.rooms || !stay.expected_check_out_at) continue;

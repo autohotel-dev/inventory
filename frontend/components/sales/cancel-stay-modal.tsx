@@ -55,7 +55,7 @@ export function CancelStayModal({
         const { data } = await supabase
           .from("payments")
           .select("amount, status")
-          .eq("sales_order_id", salesOrderId);
+          ;
 
         if (data) {
           const paid = data.filter((p: any) => p.status === 'PAGADO').reduce((sum: number, p: any) => sum + p.amount, 0);

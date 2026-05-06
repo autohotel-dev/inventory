@@ -119,7 +119,7 @@ export function AnomalyDetector() {
       .select("id, payment_method, amount, created_at")
       .is("collected_by", null)
       .neq("payment_method", "EFECTIVO")
-      .eq("status", "PAGADO")
+      
       .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
     paymentsWithoutCollector?.forEach((payment: any) => {

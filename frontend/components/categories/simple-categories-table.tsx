@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -44,13 +45,13 @@ export function SimpleCategoriesTable() {
       const { apiClient } = await import("@/lib/api/client");
       
       // Obtener categorías
-      const { data: categoriesData } = await apiClient.get("/catalogs/categories");
+      const { data: categoriesData } = await apiClient.get("/catalogs/categories") as any;
 
       // Obtener subcategorías
-      const { data: subcategoriesData } = await apiClient.get("/catalogs/subcategories");
+      const { data: subcategoriesData } = await apiClient.get("/catalogs/subcategories") as any;
 
       // Obtener productos para calcular estadísticas por categoría y subcategoría
-      const { data: productsData } = await apiClient.get("/inventory/products");
+      const { data: productsData } = await apiClient.get("/inventory/products") as any;
 
       // Enriquecer subcategorías con estadísticas
       const enrichedSubcategories = (subcategoriesData || []).map((subcategory: any) => {

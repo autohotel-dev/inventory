@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState } from "react";
@@ -71,7 +72,7 @@ export function ConnectedChangeRoomModal({
           expected_check_out_at: newExpectedCheckout,
           ...(data.keepTime ? {} : { check_in_at: new Date().toISOString() }),
         })
-        .eq("id", activeStay.id);
+        ;
 
       if (stayError) throw stayError;
 
@@ -79,13 +80,13 @@ export function ConnectedChangeRoomModal({
       await supabase
         .from("rooms")
         .update({ status: "SUCIA" })
-        .eq("id", room.id);
+        ;
 
       // 3. Marcar nueva habitación como OCUPADA
       await supabase
         .from("rooms")
         .update({ status: "OCUPADA" })
-        .eq("id", data.newRoomId);
+        ;
 
       // 4. Calcular diferencia de precio (positivo = cobro, negativo = devolución)
       const oldPrice = room.room_types?.base_price || 0;
@@ -97,7 +98,7 @@ export function ConnectedChangeRoomModal({
         const { data: svcProducts, error: svcError } = await supabase
           .from("products")
           .select("id")
-          .eq("sku", "SVC-ROOM")
+          
           .limit(1);
 
         const svcProductId = svcProducts?.[0]?.id;
@@ -107,7 +108,7 @@ export function ConnectedChangeRoomModal({
           const absAmount = Math.abs(priceDifference);
 
           // Insertar Item de Diferencia con PENDING_VALET
-          const { data: insertedItem, error: insertError } = await supabase.from("sales_order_items").insert({
+          const { data: insertedItem, error: insertError } = await apiClient.post("/system/crud/sales_order_items", {
             sales_order_id: activeStay.sales_order_id,
             product_id: svcProductId,
             qty: 1,
@@ -125,8 +126,8 @@ export function ConnectedChangeRoomModal({
               newRoomType: newRoom.room_types?.name || "---",
               isRefund: isRefund,
               amount: absAmount
-            })
-          }).select('id').single();
+            }) as any
+          }).select('id');
 
           if (insertError) {
             console.error("Error inserting ROOM_CHANGE_ADJUSTMENT:", insertError);
@@ -139,8 +140,8 @@ export function ConnectedChangeRoomModal({
             const { data: currentOrder } = await supabase
               .from("sales_orders")
               .select("subtotal, total, remaining_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
+              
+              ;
 
             if (currentOrder) {
               await supabase
@@ -150,7 +151,7 @@ export function ConnectedChangeRoomModal({
                   total: (currentOrder.total || 0) + absAmount,
                   remaining_amount: (currentOrder.remaining_amount || 0) + absAmount
                 })
-                .eq("id", activeStay.sales_order_id);
+                ;
             }
           }
 
@@ -203,8 +204,8 @@ export function ConnectedChangeRoomModal({
       const { data: orderData } = await supabase
         .from("sales_orders")
         .select("notes")
-        .eq("id", activeStay.sales_order_id)
-        .single();
+        
+        ;
 
       const chargeNote = priceDifference !== 0
         ? (priceDifference > 0 ? ` (Cobro pendiente: $${priceDifference.toFixed(2)})` : ` (Devolución pendiente: $${Math.abs(priceDifference).toFixed(2)})`)
@@ -214,7 +215,7 @@ export function ConnectedChangeRoomModal({
       await supabase
         .from("sales_orders")
         .update({ notes: newNotes.trim() })
-        .eq("id", activeStay.sales_order_id);
+        ;
 
       toast.success("Habitación cambiada", {
         description: `${room.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"})`,

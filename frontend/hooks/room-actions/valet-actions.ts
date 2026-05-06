@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 /**
  * Valet-related room actions: authorize checkout, cancel checkout request, request vehicle.
  */
@@ -24,15 +25,16 @@ export function createValetActions(ctx: RoomActionContext) {
       const { data: stay, error: stayError } = await supabase
         .from('room_stays')
         .select('valet_employee_id, vehicle_requested_at, vehicle_plate, room:rooms(number)')
-        .eq('id', stayId)
-        .single();
+        
+        ;
 
       if (stayError || !stay) throw new Error("No se encontró la estancia");
 
       if (!stay.vehicle_requested_at) {
-        await supabase.from('room_stays')
-          .update({ vehicle_requested_at: new Date().toISOString() })
-          .eq('id', stayId);
+        const { apiClient } = await import("@/lib/api/client");
+        await apiClient.patch(`/rooms/stays/${stayId}`, {
+          vehicle_requested_at: new Date().toISOString()
+        });
       }
 
       const roomNumber = (stay.room as any)?.number || "Desconocida";
@@ -62,9 +64,10 @@ export function createValetActions(ctx: RoomActionContext) {
     return withBoolAction(ctx, "Error al autorizar la salida", async () => {
       const supabase = createClient();
 
-      await supabase.from('room_stays')
-        .update({ vehicle_requested_at: new Date().toISOString() })
-        .eq('id', activeStay.id);
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.patch(`/rooms/stays/${activeStay.id}`, {
+        vehicle_requested_at: new Date().toISOString()
+      });
 
       await notifyActiveValets(supabase, '✅ Salida Autorizada',
         `Habitación ${room.number}: Recepción autorizó la salida.`,
@@ -87,11 +90,12 @@ export function createValetActions(ctx: RoomActionContext) {
     return withBoolAction(ctx, "Error al cancelar la solicitud", async () => {
       const supabase = createClient();
 
-      await supabase.from('room_stays').update({
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.patch(`/rooms/stays/${activeStay.id}`, {
         valet_checkout_requested_at: null,
         vehicle_requested_at: null,
         checkout_valet_employee_id: null
-      }).eq('id', activeStay.id);
+      });
 
       await notifyActiveValets(supabase, '🚫 Solicitud Cancelada',
         `Recepción canceló la solicitud de salida de la Habitación ${room.number}.`,

@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,9 +102,9 @@ export function AdvancedPurchaseForm() {
         { data: warehousesData },
         { data: productsData }
       ] = await Promise.all([
-        supabase.from("suppliers").select("*").eq("is_active", true).order("name"),
-        supabase.from("warehouses").select("*").eq("is_active", true).order("name"),
-        supabase.from("products").select("id, name, sku, cost").eq("is_active", true).order("name")
+        apiClient.get("/system/crud/suppliers").then(res => ({ data: res.data, error: null })),
+        apiClient.get("/system/crud/warehouses").then(res => ({ data: res.data, error: null })),
+        apiClient.get("/system/crud/products").then(res => ({ data: res.data, error: null }))
       ]);
 
       setSuppliers(suppliersData || []);
@@ -215,7 +216,7 @@ export function AdvancedPurchaseForm() {
           status: "OPEN"
         })
         .select("id")
-        .single();
+        ;
 
       if (orderError) throw orderError;
 

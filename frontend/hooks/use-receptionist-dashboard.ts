@@ -1,9 +1,10 @@
+"use client";
+
+import { apiClient } from "@/lib/api/client";
 /**
  * Hook for receptionist dashboard: shift management, summary data, and clock in/out.
  * Extracted from receptionist-dashboard.tsx for separation of concerns.
  */
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -99,8 +100,7 @@ export function useReceptionistDashboard() {
 
   const fetchCurrentShift = async () => {
     const supabase = createClient();
-    const { data: shifts } = await supabase
-      .from("shift_definitions").select("*").eq("is_active", true).order("start_time");
+    const { data: shifts } = await apiClient.get("/system/crud/shift_definitions") as any;
     if (!shifts?.length) return;
 
     const now = new Date();
@@ -117,17 +117,14 @@ export function useReceptionistDashboard() {
   const fetchEmployeePin = useCallback(async () => {
     if (!employeeId) return;
     const supabase = createClient();
-    const { data } = await supabase.from("employees").select("pin_code").eq("id", employeeId).single();
+    const { data } = await apiClient.get("/system/crud/employees") as any;
     setEmployeePin(data?.pin_code || null);
   }, [employeeId]);
 
   const fetchActiveSession = useCallback(async () => {
     if (!employeeId) return;
     const supabase = createClient();
-    const { data: sessions } = await supabase
-      .from("shift_sessions").select("*, employees(*), shift_definitions(*)")
-      .eq("employee_id", employeeId).eq("status", "active")
-      .order("clock_in_at", { ascending: false }).limit(1);
+    const { data: sessions } = await apiClient.get("/hr/manager/data").then((res: any) => ({ data: res.data?.active_sessions })) as any;
     setActiveSession(sessions?.[0] || null);
   }, [employeeId]);
 
@@ -135,16 +132,14 @@ export function useReceptionistDashboard() {
     const supabase = createClient();
     const { count } = await supabase
       .from("shift_sessions").select("*, employees!inner(*)", { count: "exact", head: true })
-      .eq("status", "active").eq("employees.role", "cochero").is("clock_out_at", null);
+      .is("clock_out_at", null);
     setActiveValetCount(count || 0);
   }, []);
 
   const fetchSystemActiveSession = useCallback(async () => {
     if (!canAdjustCash) return;
     const supabase = createClient();
-    const { data: sessions } = await supabase
-      .from("shift_sessions").select("*, employees(*), shift_definitions(*)")
-      .eq("status", "active").order("clock_in_at", { ascending: false }).limit(1);
+    const { data: sessions } = await apiClient.get("/hr/manager/data").then((res: any) => ({ data: res.data?.active_sessions })) as any;
     const found = sessions?.[0];
     if (found && found.employee_id !== employeeId) setSystemActiveSession(found);
   }, [canAdjustCash, employeeId]);
@@ -173,9 +168,8 @@ export function useReceptionistDashboard() {
 
       const roleLimit = getRoleLimitForDashboard(role);
       if (roleLimit !== undefined && role) {
-        const { data: activeSessions, error: checkError } = await supabase
-          .from("shift_sessions").select("*, employees!inner(*)")
-          .eq("status", "active").eq("employees.role", role).is("clock_out_at", null);
+        const { data: managerData, error: checkError } = await apiClient.get("/hr/manager/data").then(res => ({ data: res.data, error: null })).catch(err => ({ data: null, error: err })) as any;
+        const activeSessions = managerData?.active_sessions;
 
         if (!checkError) {
           const activeCount = activeSessions?.length || 0;
@@ -189,9 +183,7 @@ export function useReceptionistDashboard() {
         }
       }
 
-      const { data, error } = await supabase.from("shift_sessions")
-        .insert({ employee_id: employeeId, shift_definition_id: currentShift.id, clock_in_at: new Date().toISOString(), status: "active" })
-        .select("*, employees(*), shift_definitions(*)").single();
+      const { data, error } = await apiClient.post("/hr/sessions/clock-in", { employee_id: employeeId, shift_definition_id: currentShift.id, clock_in_at: new Date().toISOString(), status: "active" }).then(res => ({ data: res.data, error: null })).catch(err => ({ data: null, error: err })) as any;
       if (error) throw error;
 
       success("¡Turno iniciado!", `Bienvenido al turno de ${currentShift.name}`);
@@ -228,9 +220,7 @@ export function useReceptionistDashboard() {
     setActionLoading(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("shift_sessions")
-        .update({ clock_out_at: new Date().toISOString(), status: "pending_closing" })
-        .eq("id", activeSession.id);
+      const { error } = await apiClient.patch(`/system/crud/shift_sessions/${activeSession.id}`, { clock_out_at: new Date().toISOString(), status: "pending_closing" }).then(res => ({ error: null })).catch(err => ({ error: err })) as any;
       if (error) throw error;
 
       const updatedSession = { ...activeSession, clock_out_at: new Date().toISOString(), status: "pending_closing" as const };
@@ -249,9 +239,7 @@ export function useReceptionistDashboard() {
     setActionLoading(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("shift_sessions")
-        .update({ clock_out_at: new Date().toISOString(), status: "pending_closing" })
-        .eq("id", activeSession.id);
+      const { error } = await apiClient.patch(`/system/crud/shift_sessions/${activeSession.id}`, { clock_out_at: new Date().toISOString(), status: "pending_closing" }).then(res => ({ error: null })).catch(err => ({ error: err })) as any;
       if (error) throw error;
       success("Turno cerrado", "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo");
       invalidateReceptionCache();
@@ -285,28 +273,11 @@ export function useReceptionistDashboard() {
       if (activeSession) { startDate = activeSession.clock_in_at; }
       else { const today = new Date(); today.setHours(0, 0, 0, 0); startDate = today.toISOString(); }
 
-      let salesQuery = supabase.from("sales_orders").select("id, total, status").gte("created_at", startDate);
-      if (!posConfig.includeGlobalSalesInShift) salesQuery = salesQuery.eq("created_by", userId);
-
-      let paymentsQuery = supabase.from("payments").select("amount, payment_method, terminal_code").gte("created_at", startDate).eq("status", "PAGADO");
-      if (!posConfig.includeGlobalSalesInShift) paymentsQuery = paymentsQuery.eq("created_by", userId);
-
-      let itemsQuery = supabase.from("sales_order_items").select("concept_type, total, is_paid");
-      if (activeSession) itemsQuery = itemsQuery.eq("shift_session_id", activeSession.id);
-      else itemsQuery = itemsQuery.gte("created_at", startDate);
-
-      // Run all 4 queries in parallel (they are independent)
-      const [salesRes, paymentsRes, openRoomsRes, shiftItemsRes] = await Promise.all([
-        salesQuery,
-        paymentsQuery,
-        supabase.from("rooms").select("id", { count: "exact", head: true }).eq("status", "OCUPADA"),
-        itemsQuery,
-      ]);
-
-      const sales = salesRes.data;
-      const payments = paymentsRes.data;
-      const openRooms = openRoomsRes.count;
-      const shiftItems = shiftItemsRes.data;
+const { data } = await apiClient.get(`/system/analytics/dashboard-summary`, { params: { start_date: startDate } }) as any;
+      const sales = data?.sales;
+      const payments = data?.payments;
+      const openRooms = data?.openRooms;
+      const shiftItems = data?.shiftItems;
 
       const totalSales = sales?.length || 0;
       const totalAmount = shiftItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
@@ -403,14 +374,15 @@ export function useReceptionistDashboard() {
     if (isNaN(amount) || amount === 0) { showError("Error", "Ingresa un monto válido"); return; }
 
     const supabase = createClient();
-    const { error } = await supabase.from("shift_expenses").insert({
-      shift_session_id: activeSession?.id, employee_id: employeeId,
-      expense_type: "CASH_ADJUSTMENT",
-      description: amount > 0 ? "Ajuste: Ingreso de efectivo" : "Ajuste: Retiro de efectivo",
-      amount: Math.abs(amount) * (amount > 0 ? -1 : 1),
-      status: "approved"
-    });
-    if (error) { showError("Error", "No se pudo registrar el ajuste"); console.error(error); return; }
+    try {
+      await apiClient.post("/system/crud/shift_expenses", {
+        shift_session_id: activeSession?.id, employee_id: employeeId,
+        expense_type: "CASH_ADJUSTMENT",
+        description: amount > 0 ? "Ajuste: Ingreso de efectivo" : "Ajuste: Retiro de efectivo",
+        amount: Math.abs(amount) * (amount > 0 ? -1 : 1),
+        status: "approved"
+      });
+    } catch (error) { showError("Error", "No se pudo registrar el ajuste"); console.error(error); return; }
     success(amount > 0 ? "Efectivo agregado" : "Efectivo retirado",
       `Se ${amount > 0 ? "agregaron" : "retiraron"} ${formatCurrency(Math.abs(amount))}`);
     refetchExpenses();

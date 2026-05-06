@@ -57,9 +57,9 @@ export function EditValetModal({
             const { data } = await supabase
                 .from("employees")
                 .select("id, first_name, last_name")
-                .eq("role", "cochero")
-                .eq("is_active", true)
-                .order("first_name");
+                
+                
+                ;
 
             if (data) {
                 setValets(data);
@@ -83,7 +83,7 @@ export function EditValetModal({
                 .update({
                     valet_employee_id: selectedValetId === "none" ? null : selectedValetId,
                 })
-                .eq("id", stayId);
+                ;
 
             if (error) throw error;
 

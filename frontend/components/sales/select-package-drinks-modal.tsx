@@ -86,9 +86,9 @@ export function SelectPackageDrinksModal({
             const { data, error } = await supabase
                 .from("products")
                 .select("id, name, sku, price, barcode")
-                .eq("category_id", includedCategoryId)
-                .eq("is_active", true)
-                .order("name");
+                
+                
+                ;
 
             if (error) {
                 console.error("Error fetching drinks:", error);

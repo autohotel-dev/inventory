@@ -31,7 +31,7 @@ export function ProductsDebug() {
       const { data: activeProducts, error: activeError } = await supabase
         .from("products")
         .select("*")
-        .eq("is_active", true)
+        
         .limit(10);
       
       if (activeError) throw activeError;

@@ -15,8 +15,8 @@ export async function GET() {
         const { data: surveys, error } = await supabase
             .from('surveys')
             .select('*')
-            .eq('is_active', true)
-            .order('created_at', { ascending: false });
+            
+            ;
 
         if (error) {
             throw error;
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
                 submitted_at: new Date().toISOString(),
             })
             .select()
-            .single();
+            ;
 
         if (error) {
             throw error;

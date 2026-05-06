@@ -73,8 +73,8 @@ export function ConnectedCheckoutModal({
       const { data } = await supabase
         .from("room_stays")
         .select("checkout_valet_employee_id")
-        .eq("id", activeStay.id)
-        .single();
+        
+        ;
       
       if (data?.checkout_valet_employee_id && data.checkout_valet_employee_id !== confirmedValetId) {
         console.log("✅ [Checkout Modal] Cochero confirmó revisión:", data.checkout_valet_employee_id);
@@ -99,7 +99,7 @@ export function ConnectedCheckoutModal({
     const { data: itemsData } = await supabase
       .from("sales_order_items")
       .select("concept_type, total, is_paid, delivery_status, is_cancelled")
-      .eq("sales_order_id", info.salesOrderId);
+      ;
 
     const items = itemsData || [];
     const { pendingItems } = summarizePendingItems(items);

@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,9 +124,9 @@ export function AdvancedSalesForm() {
         { data: warehousesData },
         { data: productsData }
       ] = await Promise.all([
-        supabase.from("customers").select("*").eq("is_active", true).order("name"),
-        supabase.from("warehouses").select("*").eq("is_active", true).order("name"),
-        supabase.from("products").select("id, name, sku, price").eq("is_active", true).order("name")
+        apiClient.get("/system/crud/customers").then(res => ({ data: res.data, error: null })),
+        apiClient.get("/system/crud/warehouses").then(res => ({ data: res.data, error: null })),
+        apiClient.get("/system/crud/products").then(res => ({ data: res.data, error: null }))
       ]);
 
       setCustomers(customersData || []);
@@ -267,7 +268,7 @@ export function AdvancedSalesForm() {
           created_by: user?.id || null
         })
         .select("id")
-        .single();
+        ;
 
       if (orderError) throw orderError;
 
@@ -292,7 +293,7 @@ export function AdvancedSalesForm() {
               created_by: user?.id || null,
             })
             .select("id")
-            .single();
+            ;
 
           if (mainError) {
             console.error("Error inserting main payment:", mainError);

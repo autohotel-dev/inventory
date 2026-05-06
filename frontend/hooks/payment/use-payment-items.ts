@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -32,8 +33,8 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
           *,
           products(name, sku)
         `)
-        .eq("sales_order_id", salesOrderId)
-        .order("created_at", { ascending: true });
+        
+        ;
 
       if (itemsError) throw itemsError;
 
@@ -114,7 +115,7 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
         item_id: itemId,
         employee_id: employeeId,
         reason: "Eliminado desde panel de pagos"
-      });
+      }) as any;
 
       if (data && !data.success) {
         throw new Error(data.error || "Error al eliminar el ítem");

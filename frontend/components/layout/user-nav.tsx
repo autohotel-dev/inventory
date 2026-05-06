@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useUserRole } from "@/hooks/use-user-role";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,76 +31,41 @@ export function UserNav() {
     const [initials, setInitials] = useState("U");
     const { error: showError } = useToast();
     const router = useRouter();
-    const supabase = createClient();
-
-    // Fetch current user
-    useEffect(() => {
-        const fetchUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-        };
-        fetchUser();
-    }, [supabase]);
+    const { userEmail, employeeName, employeeId, role } = useUserRole();
 
     // Calculate initials whenever user data changes
     useEffect(() => {
-        if (!user) {
+        if (!userEmail && !employeeName) {
             setInitials("U");
             return;
         }
 
-        const name = user.user_metadata?.full_name || user.email || "";
-        if (!name) {
-            setInitials("U");
-            return;
-        }
-
+        const name = employeeName || userEmail || "";
         const parts = name.split(" ").filter(Boolean);
         if (parts.length >= 2) {
             setInitials(`${parts[0][0]}${parts[1][0]}`.toUpperCase());
         } else {
             setInitials(name.slice(0, 2).toUpperCase());
         }
-    }, [user]);
+    }, [employeeName, userEmail]);
 
     const handleLogout = async () => {
         try {
             // FIX: Auto-cerrar turno si es cochero
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: employee } = await supabase
-                    .from("employees")
-                    .select("id, role")
-                    .eq("auth_user_id", user.id)
-                    .single();
-
-                if (employee && employee.role === 'cochero') {
-                    // Buscar sesión activa
-                    const { data: session } = await supabase
-                        .from("shift_sessions")
-                        .select("id")
-                        .eq("employee_id", employee.id)
-                        .eq("status", "active")
-                        .is("clock_out_at", null)
-                        .maybeSingle();
-
-                    if (session) {
-                        // Cerrar sesión automáticamente
-                        await supabase
-                            .from("shift_sessions")
-                            .update({
-                                clock_out_at: new Date().toISOString(),
-                                status: "pending_closing"
-                            })
-                            .eq("id", session.id);
-
-                        console.log("🚗 Turno de cochero cerrado automáticamente al salir.");
-                    }
-                }
+            if (role === 'cochero' && employeeId) {
+                // Cerramos sesión vía API
+                import('@/lib/api/client').then(({ apiClient }) => {
+                    apiClient.post('/hr/clock-out', {
+                        employee_id: employeeId
+                    }).catch(console.error);
+                });
             }
 
-            logAudit("LOGOUT", { description: `Logout: ${user?.email}` });
-            await supabase.auth.signOut();
+            logAudit("LOGOUT", { description: `Logout: ${userEmail}` });
+            
+            const { signOut } = await import('aws-amplify/auth');
+            await signOut();
+            
             router.push("/auth/login");
         } catch (error) {
             console.error("Logout error", error);

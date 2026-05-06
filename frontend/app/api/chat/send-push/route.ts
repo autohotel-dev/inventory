@@ -75,7 +75,7 @@ export async function POST(req: Request) {
                     await supabaseAdmin
                         .from('chat_subscriptions')
                         .delete()
-                        .eq('id', sub.id);
+                        ;
                 } else {
                     console.error('Error sending push:', err);
                 }

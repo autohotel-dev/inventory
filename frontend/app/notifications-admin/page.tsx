@@ -26,8 +26,8 @@ export default async function NotificationsAdminPage() {
     const { data: employee } = await supabase
         .from('employees')
         .select('role')
-        .eq('auth_user_id', user.id)
-        .single();
+        
+        ;
 
     if (!employee || !['admin', 'manager', 'recepcionista'].includes(employee.role)) {
         redirect('/dashboard');
@@ -37,7 +37,7 @@ export default async function NotificationsAdminPage() {
     const { count: totalSubscriptions } = await supabase
         .from('guest_subscriptions')
         .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
+        ;
 
     const { count: totalNotifications } = await supabase
         .from('guest_notifications')

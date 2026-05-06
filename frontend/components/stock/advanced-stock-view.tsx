@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -61,10 +61,12 @@ export function AdvancedStockView() {
   const { success, error: showError } = useToast();
 
   const fetchStock = async () => {
-    const supabase = createClient();
+    
     setLoading(true);
 
-    try {
+    const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      try {
       // Obtener productos con stock
       const { data: productsData, error: productsError } = await supabase
         .from("products")
@@ -83,7 +85,7 @@ export function AdvancedStockView() {
             warehouse:warehouses(id, name, code)
           )
         `)
-        .eq("is_active", true);
+        ;
 
       if (productsError) throw productsError;
 
@@ -91,8 +93,8 @@ export function AdvancedStockView() {
       const { data: warehousesData, error: warehousesError } = await supabase
         .from("warehouses")
         .select("id, name, code")
-        .eq("is_active", true)
-        .order("name");
+        
+        ;
 
       if (!warehousesError && warehousesData) {
         setWarehouses(warehousesData);
@@ -102,7 +104,7 @@ export function AdvancedStockView() {
       const { data: lastMovements, error: movementsError } = await supabase
         .from("inventory_movements")
         .select("product_id, created_at")
-        .order("created_at", { ascending: false });
+        ;
 
       const lastMovementMap = new Map();
       if (!movementsError && lastMovements) {

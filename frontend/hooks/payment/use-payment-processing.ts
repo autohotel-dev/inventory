@@ -78,7 +78,7 @@ export function usePaymentProcessing({
 
       // ─── Flow Event ─────────────────────────────────────────────
       try {
-        const { data: stayForFlow } = await apiClient.get(`/rooms/stays/by_order/${salesOrderId}`);
+        const { data: stayForFlow } = await apiClient.get(`/rooms/stays/by_order/${salesOrderId}`) as any;
         if (stayForFlow?.id) {
           findActiveFlow(stayForFlow.id).then(flowId => {
             if (flowId) {

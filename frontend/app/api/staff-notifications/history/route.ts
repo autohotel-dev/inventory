@@ -22,8 +22,8 @@ export async function GET() {
         const { data: employee } = await adminSupabase
             .from('employees')
             .select('role')
-            .eq('auth_user_id', user.id)
-            .single();
+            
+            ;
 
         const senderRole = employee?.role || 'admin';
         if (!['admin', 'manager', 'supervisor'].includes(senderRole)) {
@@ -35,9 +35,9 @@ export async function GET() {
         const { data: notifications, error } = await adminSupabase
             .from('notifications')
             .select('id, title, message, data, created_at, is_read')
-            .eq('type', 'system_alert')
-            .eq('data->>type', 'STAFF_BROADCAST')
-            .order('created_at', { ascending: false })
+            
+            
+            
             .limit(100);
 
         if (error) {

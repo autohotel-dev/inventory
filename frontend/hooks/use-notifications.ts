@@ -48,9 +48,9 @@ export function useNotifications(): UseNotificationsReturn {
             const { data, error } = await supabase
                 .from("notifications")
                 .select("*")
-                .eq("user_id", user.id)
-                .eq("is_archived", false)
-                .order("created_at", { ascending: false })
+                
+                
+                
                 .limit(50);
 
             if (error) {
@@ -112,8 +112,8 @@ export function useNotifications(): UseNotificationsReturn {
                     is_read: true,
                     read_at: new Date().toISOString()
                 })
-                .eq("id", id)
-                .eq("user_id", user.id) // Ensure we own the notification
+                
+                 // Ensure we own the notification
                 .select();
 
             if (error) throw error;
@@ -142,8 +142,8 @@ export function useNotifications(): UseNotificationsReturn {
                     is_read: true,
                     read_at: new Date().toISOString()
                 })
-                .eq("user_id", user.id)
-                .eq("is_read", false);
+                
+                ;
 
             if (error) throw error;
 
@@ -163,8 +163,8 @@ export function useNotifications(): UseNotificationsReturn {
             const { data, error } = await supabase
                 .from("notifications")
                 .update({ is_archived: true })
-                .eq("id", id)
-                .eq("user_id", user.id)
+                
+                
                 .select();
 
             if (error) throw error;
@@ -185,8 +185,8 @@ export function useNotifications(): UseNotificationsReturn {
             const { data, error } = await supabase
                 .from("notifications")
                 .delete()
-                .eq("id", id)
-                .eq("user_id", user.id)
+                
+                
                 .select();
 
             if (error) throw error;

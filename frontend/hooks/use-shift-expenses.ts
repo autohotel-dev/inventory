@@ -24,9 +24,9 @@ export function useShiftExpenses(sessionId: string | null) {
             const { data, error } = await supabase
                 .from('shift_expenses')
                 .select('*')
-                .eq('shift_session_id', sessionId)
+                
                 .neq('status', 'rejected')
-                .order('created_at', { ascending: false });
+                ;
 
             if (error) throw error;
 

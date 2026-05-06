@@ -32,7 +32,7 @@ export function RoomTypesTable() {
             const { data, error } = await supabase
                 .from("room_types")
                 .select("*")
-                .order("name");
+                ;
 
             if (error) throw error;
             setRoomTypes(data || []);
@@ -67,7 +67,7 @@ export function RoomTypesTable() {
                 const { error } = await supabase
                     .from("room_types")
                     .update(data)
-                    .eq("id", selectedRoomType.id);
+                    ;
 
                 if (error) throw error;
                 success("Actualizado", "Tipo de habitación actualizado correctamente.");

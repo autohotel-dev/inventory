@@ -1,5 +1,5 @@
+
 import axios from 'axios';
-import { createClient } from '@/lib/supabase/client';
 import { telemetry } from '@/lib/telemetry';
 
 // Helper for telemetry module detection (copied from supabase wrapper)
@@ -32,7 +32,7 @@ apiClient.interceptors.request.use(
     if (typeof window !== 'undefined') {
       let accessToken: string | null = null;
       
-      if (process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID) {
+      if (process.env.NEXT_PUBLIC_AWS_COGNITO_USER_POOL_ID) {
         try {
           const { fetchAuthSession } = await import('aws-amplify/auth');
           const session = await fetchAuthSession();
@@ -40,12 +40,6 @@ apiClient.interceptors.request.use(
         } catch {
           // ignore
         }
-      }
-
-      if (!accessToken) {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        accessToken = session?.access_token || null;
       }
       
       if (accessToken) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Printer, Clock, DoorOpen, ShoppingBag, ArrowRight } from "lucide-react";
@@ -19,24 +19,20 @@ export function PrintHistoryTable({ limit }: PrintHistoryTableProps) {
   const [loading, setLoading] = useState(true);
 
   const fetchPrintableEvents = useCallback(async () => {
-    const supabase = createClient();
-    
-    // Solo traemos eventos que generaron un ticket históricamente
-    let query = supabase
-      .from("audit_logs")
-      .select("*")
-      .in("action", ["CHECKOUT", "CONSUMPTION_ADDED", "INSERT"])
-      .order("created_at", { ascending: false });
-
-    if (limit) {
-      query = query.limit(limit);
-    } else {
-      query = query.limit(50);
+    try {
+      const { apiClient } = await import('@/lib/api/client');
+      const { data } = await apiClient.get('/system/crud/audit_logs', {
+        params: { limit: limit || 50 }
+      });
+      // Filter out only printable events
+      const printable = (data || []).filter((e: any) => ["CHECKOUT", "CONSUMPTION_ADDED", "INSERT"].includes(e.action));
+      setEvents(printable);
+    } catch (error) {
+      console.error("Error fetching print history:", error);
+      setEvents([]);
+    } finally {
+      setLoading(false);
     }
-
-    const { data } = await query;
-    setEvents(data || []);
-    setLoading(false);
   }, [limit]);
 
   useEffect(() => {

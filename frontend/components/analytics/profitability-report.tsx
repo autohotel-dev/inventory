@@ -62,7 +62,7 @@ export function ProfitabilityReport() {
             sales_order:sales_orders!inner(status)
           )
         `)
-                .eq("is_active", true);
+                ;
 
             if (!products) {
                 setLoading(false);

@@ -30,7 +30,7 @@ export function useEmployeePerformance() {
             deleted_at
           `)
           .is('deleted_at', null)
-          .order('first_name');
+          ;
 
         if (!employeesData || employeesData.length === 0) {
           setEmployees([]);
@@ -48,10 +48,10 @@ export function useEmployeePerformance() {
             const { data: employeeMovements } = await supabase
               .from('employee_movements')
               .select('movement_type, amount')
-              .eq('employee_id', emp.id)
+              
               .gte('created_at', today + 'T00:00:00')
               .lte('created_at', today + 'T23:59:59')
-              .eq('status', 'completed');
+              ;
 
             if (employeeMovements && employeeMovements.length > 0) {
               checkins = employeeMovements.filter((m: any) => m.movement_type === 'check_in');
@@ -64,7 +64,7 @@ export function useEmployeePerformance() {
               const { data: employeeShifts } = await supabase
                 .from('shift_sessions')
                 .select('id')
-                .eq('employee_id', emp.id)
+                
                 .gte('start_time', today)
                 .lte('start_time', `${today} 23:59:59`);
 
@@ -83,7 +83,7 @@ export function useEmployeePerformance() {
                   .from('payments')
                   .select('amount')
                   .in('shift_session_id', shiftIds)
-                  .eq('status', 'PAGADO');
+                  ;
 
                 revenue = shiftPayments?.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0;
               } else {
@@ -92,7 +92,7 @@ export function useEmployeePerformance() {
                   const { data: valetCheckins } = await supabase
                     .from('room_stays')
                     .select('id, check_in_at, check_out_at')
-                    .eq('valet_employee_id', emp.id)
+                    
                     .gte('check_in_at', today);
 
                   checkins = valetCheckins || [];
@@ -101,8 +101,8 @@ export function useEmployeePerformance() {
                     .from('payments')
                     .select('amount')
                     .gte('created_at', today)
-                    .eq('status', 'PAGADO')
-                    .eq('collected_by', emp.id);
+                    
+                    ;
 
                   revenue = valetPayments?.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0;
                 } else if (emp.role === 'receptionist') {
@@ -110,7 +110,7 @@ export function useEmployeePerformance() {
                     .from('payments')
                     .select('amount')
                     .gte('created_at', today)
-                    .eq('status', 'PAGADO');
+                    ;
 
                   revenue = receptionistPayments?.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0;
                 }

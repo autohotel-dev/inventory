@@ -59,7 +59,7 @@ export function SessionTrackerPanel() {
           )
         `)
         .gte("clock_in_at", cutoff)
-        .order("clock_in_at", { ascending: false })
+        
         .limit(30);
 
       if (!data) { setLoading(false); return; }
@@ -70,7 +70,7 @@ export function SessionTrackerPanel() {
         .from("audit_logs")
         .select("session_id")
         .in("session_id", sessionIds)
-        .eq("event_type", "RECEPTION_ACTION");
+        ;
 
       const countMap = new Map<string, number>();
       (actionCounts || []).forEach((a: any) => {

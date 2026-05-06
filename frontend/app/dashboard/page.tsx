@@ -24,7 +24,7 @@ async function getDashboardData() {
   const { count: productsCount } = await supabase
     .from("products")
     .select("id", { count: "exact", head: true })
-    .eq("is_active", true);
+    ;
 
   // Total stock qty (sum)
   const { data: stockRows } = await supabase
@@ -37,17 +37,17 @@ async function getDashboardData() {
   const { count: poOpen } = await supabase
     .from("purchase_orders")
     .select("id", { count: "exact", head: true })
-    .eq("status", "OPEN");
+    ;
   const { count: soOpen } = await supabase
     .from("sales_orders")
     .select("id", { count: "exact", head: true })
-    .eq("status", "OPEN");
+    ;
 
   // Last movements
   const { data: lastMoves } = await supabase
     .from("inventory_movements")
     .select("created_at, quantity, products:product_id(sku, name), warehouses:warehouse_id(code, name)")
-    .order("created_at", { ascending: false })
+    
     .limit(5);
 
   return {

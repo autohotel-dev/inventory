@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,8 +11,8 @@ async function getSupplier(id: string) {
   const { data, error } = await supabase
     .from("suppliers")
     .select("id, name, tax_id, email, phone, address, is_active")
-    .eq("id", id)
-    .single();
+    
+    ;
   if (error) throw error;
   return data;
 }
@@ -28,7 +29,7 @@ async function updateSupplierAction(formData: FormData) {
     address: String(formData.get("address") || "").trim(),
     is_active: formData.get("is_active") === "on",
   };
-  const { error } = await supabase.from("suppliers").update(payload).eq("id", id);
+  const { error } = await apiClient.patch(`/system/crud/suppliers/${id}`, payload) as any;
   if (error) throw error;
   revalidatePath("/suppliers");
   redirect("/suppliers");

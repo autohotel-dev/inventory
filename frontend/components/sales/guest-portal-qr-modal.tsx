@@ -54,8 +54,8 @@ export function GuestPortalQRModal({
             const { data, error: fetchError } = await supabase
                 .from('room_stays')
                 .select('guest_access_token')
-                .eq('id', roomStayId)
-                .single();
+                
+                ;
 
             if (fetchError) throw fetchError;
 
@@ -67,7 +67,7 @@ export function GuestPortalQRModal({
                 const { error: updateError } = await supabase
                     .from('room_stays')
                     .update({ guest_access_token: token })
-                    .eq('id', roomStayId);
+                    ;
 
                 if (updateError) throw updateError;
             }

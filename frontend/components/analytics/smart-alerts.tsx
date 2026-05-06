@@ -73,19 +73,19 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
         const { data: activeStays } = await supabase
           .from('room_stays')
           .select('id, check_in_at, status')
-          .eq('status', 'ACTIVA');
+          ;
         
         const { data: todayPayments } = await supabase
           .from('payments')
           .select('amount, created_at, status')
           .gte('created_at', today.toISOString().split('T')[0])
-          .eq('status', 'PAGADO');
+          ;
         
         const { data: recentAlerts } = await supabase
           .from('audit_logs')
           .select('created_at, severity, event_type')
           .gte('created_at', oneHourAgo.toISOString())
-          .eq('severity', 'ERROR');
+          ;
         
         // 2. Analizar condiciones y generar alertas inteligentes
         const smartAlerts: SmartAlert[] = [];

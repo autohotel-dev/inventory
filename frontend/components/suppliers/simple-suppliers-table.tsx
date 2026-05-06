@@ -37,7 +37,7 @@ export function SimpleSuppliersTable() {
       const { data: suppliersData, error: suppliersError } = await supabase
         .from("suppliers")
         .select("*")
-        .order("created_at", { ascending: false });
+        ;
 
       if (suppliersError) throw suppliersError;
 
@@ -45,7 +45,7 @@ export function SimpleSuppliersTable() {
       const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select("supplier_id, price, is_active")
-        .not("supplier_id", "is", null);
+        ;
 
       if (productsError) {
         console.warn("No se pudo obtener información de productos:", productsError);
@@ -93,7 +93,7 @@ export function SimpleSuppliersTable() {
       const { error } = await supabase
         .from("suppliers")
         .delete()
-        .eq("id", supplierId);
+        ;
 
       if (error) throw error;
 
@@ -113,7 +113,7 @@ export function SimpleSuppliersTable() {
         const { error } = await supabase
           .from("suppliers")
           .update(supplierData)
-          .eq("id", editingSupplier.id);
+          ;
 
         if (error) throw error;
         success("Proveedor actualizado", "El proveedor se actualizó correctamente");
