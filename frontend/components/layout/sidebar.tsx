@@ -147,7 +147,7 @@ const MobileHeader = React.memo(({ open, setOpen }: { open: boolean; setOpen: (o
     <div className="flex items-center justify-between px-4 py-3">
       <Link href="/dashboard" className="font-semibold text-lg flex items-center gap-2.5">
         <div className="relative w-7 h-7">
-          <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
+          <Image src="/luxor-logo.png" alt="Luxor Logo" fill sizes="64px" className="object-contain" />
         </div>
         <span className="text-foreground/90">Luxor</span>
       </Link>
@@ -291,7 +291,7 @@ export function Sidebar() {
                 compact ? "justify-center" : "gap-3"
               )}>
                 <div className="relative w-8 h-8 shrink-0">
-                  <Image src="/luxor-logo.png" alt="Luxor Logo" fill className="object-contain" />
+                  <Image src="/luxor-logo.png" alt="Luxor Logo" fill sizes="48px" className="object-contain" />
                 </div>
                 {!compact && (
                   <span className="font-bold text-lg tracking-tight text-foreground/90">

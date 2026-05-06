@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { luxorRealtimeClient } from "@/lib/api/websocket";
+import { apiClient } from "@/lib/api/client";
 
 export interface Notification {
     id: string;
@@ -34,11 +35,11 @@ export function useNotifications(): UseNotificationsReturn {
     const [loading, setLoading] = useState(true);
     const fetchNotifications = useCallback(async () => {
         try {
-            const { apiClient } = await import("@/lib/api/client");
             const resAuth = await apiClient.get('/system/auth/me');
-            const user = resAuth.data?.user || resAuth.data;
+            const authData = resAuth.data;
+            const user = authData?.session?.user || authData?.user || authData;
 
-            if (!user) {
+            if (!user || !user.id) {
                 setNotifications([]);
                 setLoading(false);
                 return;
@@ -58,8 +59,7 @@ export function useNotifications(): UseNotificationsReturn {
 
         let unsubscribe = () => {};
 
-        import("@/lib/api/client").then(({ apiClient }) => {
-            apiClient.get('/system/auth/me').then(resAuth => {
+        apiClient.get('/system/auth/me').then(resAuth => {
                 const user = resAuth.data?.user || resAuth.data;
                 if (!user) return;
 
@@ -69,7 +69,6 @@ export function useNotifications(): UseNotificationsReturn {
                     fetchNotifications(); 
                 });
             }).catch(() => {});
-        });
 
         return () => {
             unsubscribe();
@@ -78,7 +77,6 @@ export function useNotifications(): UseNotificationsReturn {
 
     const markAsRead = async (id: string) => {
         try {
-            const { apiClient } = await import("@/lib/api/client");
             await apiClient.patch(`/system/crud/notifications/${id}`, {
                 is_read: true,
                 read_at: new Date().toISOString()
@@ -94,7 +92,6 @@ export function useNotifications(): UseNotificationsReturn {
 
     const markAllAsRead = async () => {
         try {
-            const { apiClient } = await import("@/lib/api/client");
             // Find unread and mark them
             const unread = notifications.filter(n => !n.is_read);
             await Promise.all(unread.map(n => 
@@ -114,7 +111,6 @@ export function useNotifications(): UseNotificationsReturn {
 
     const archiveNotification = async (id: string) => {
         try {
-            const { apiClient } = await import("@/lib/api/client");
             await apiClient.patch(`/system/crud/notifications/${id}`, { is_archived: true });
 
             setNotifications(prev => prev.filter(n => n.id !== id));
@@ -125,7 +121,6 @@ export function useNotifications(): UseNotificationsReturn {
 
     const deleteNotification = async (id: string) => {
         try {
-            const { apiClient } = await import("@/lib/api/client");
             await apiClient.delete(`/system/crud/notifications/${id}`);
 
             setNotifications(prev => prev.filter(n => n.id !== id));

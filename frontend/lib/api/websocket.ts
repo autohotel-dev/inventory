@@ -13,9 +13,12 @@ class LuxorWebSocketClient {
   private pingInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Convert http://localhost:8000 to ws://localhost:8000/ws
-    const baseUrl = API_BASE_URL.replace(/^http/, 'ws');
-    this.url = `${baseUrl}/ws`;
+    if (process.env.NEXT_PUBLIC_WS_URL) {
+      this.url = process.env.NEXT_PUBLIC_WS_URL;
+    } else {
+      const baseUrl = API_BASE_URL.replace(/^http/, 'ws');
+      this.url = `${baseUrl}/ws`;
+    }
   }
 
   public connect() {
