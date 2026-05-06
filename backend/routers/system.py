@@ -701,7 +701,7 @@ class TelemetryEventFrontend(BaseModel):
     payload: Optional[Dict[str, Any]] = None
     endpoint: Optional[str] = None
     is_success: Optional[bool] = None
-    error_details: Optional[Dict[str, Any]] = None
+    error_details: Optional[Any] = None
     timestamp: str
 
 class TelemetryBatch(BaseModel):

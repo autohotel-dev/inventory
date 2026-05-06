@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import {
     Table,
     TableBody,
@@ -27,14 +27,8 @@ export function RoomTypesTable() {
 
     const fetchRoomTypes = async () => {
         setLoading(true);
-        const supabase = createClient();
         try {
-            const { data, error } = await supabase
-                .from("room_types")
-                .select("*")
-                ;
-
-            if (error) throw error;
+            const { data } = await apiClient.get("/system/crud/room_types");
             setRoomTypes(data || []);
         } catch (error) {
             console.error("Error fetching room types:", error);
@@ -60,24 +54,14 @@ export function RoomTypesTable() {
 
     const handleSave = async (data: Partial<RoomType>) => {
         setIsSaving(true);
-        const supabase = createClient();
         try {
             if (selectedRoomType) {
                 // Update
-                const { error } = await supabase
-                    .from("room_types")
-                    .update(data)
-                    ;
-
-                if (error) throw error;
+                await apiClient.patch(`/system/crud/room_types/${selectedRoomType.id}`, data);
                 success("Actualizado", "Tipo de habitación actualizado correctamente.");
             } else {
                 // Create
-                const { error } = await supabase
-                    .from("room_types")
-                    .insert([data]);
-
-                if (error) throw error;
+                await apiClient.post("/system/crud/room_types", data);
                 success("Creado", "Nuevo tipo de habitación creado correctamente.");
             }
             setIsModalOpen(false);
