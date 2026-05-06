@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, AliasChoices
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
 import uuid
@@ -107,8 +107,8 @@ class ShiftSessionResponse(ShiftSessionBase):
     model_config = ConfigDict(from_attributes=True)
 
 class ShiftSessionWithRelationsResponse(ShiftSessionResponse):
-    employees: Optional[EmployeeResponse] = None
-    shift_definitions: Optional[ShiftDefinitionResponse] = None
+    employees: Optional[EmployeeResponse] = Field(None, validation_alias=AliasChoices('employee', 'employees'))
+    shift_definitions: Optional[ShiftDefinitionResponse] = Field(None, validation_alias=AliasChoices('shift_definition', 'shift_definitions'))
 
 class ManagerDataResponse(BaseModel):
     shifts: List[ShiftDefinitionResponse]

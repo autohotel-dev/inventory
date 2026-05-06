@@ -157,7 +157,7 @@ def create_shift(shift: ShiftDefinitionCreate, db: Session = Depends(get_db)):
     return db_shift
 
 # --- SHIFT SESSIONS ---
-@router.get("/sessions", response_model=list[ShiftSessionResponse])
+@router.get("/sessions", response_model=list[ShiftSessionWithRelationsResponse])
 def get_sessions(status: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(ShiftSessions)
     if status:
