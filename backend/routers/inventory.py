@@ -107,16 +107,17 @@ def get_products_dashboard(
     # Calcular estadísticas globales (SIN aplicar la mayoría de los filtros, solo los generales de la app)
     # Por ahora emularemos lo que hacía el frontend: llamar a todo
     
+    from sqlalchemy import cast, Integer
     stats_query = select(
         func.count().label("total"),
-        func.sum(func.cast(t_products_view.c.is_active, func.integer())).label("active"),
+        func.sum(cast(t_products_view.c.is_active, Integer)).label("active"),
         func.sum(
-            func.cast(
+            cast(
                 or_(t_products_view.c.stock_status == 'low', t_products_view.c.stock_status == 'critical'),
-                func.integer()
+                Integer
             )
         ).label("low_stock"),
-        func.sum(func.cast(t_products_view.c.stock_status == 'critical', func.integer())).label("critical_stock"),
+        func.sum(cast(t_products_view.c.stock_status == 'critical', Integer)).label("critical_stock"),
         func.sum(t_products_view.c.inventory_value).label("total_value")
     )
     
