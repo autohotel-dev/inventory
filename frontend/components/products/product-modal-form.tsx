@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SimpleProduct, Subcategory } from "@/lib/types/inventory";
 import { BarcodeScanner } from "@/components/barcode-scanner";
-import { createClient } from "@/lib/supabase/client";
+
 
 interface ProductModalFormProps {
     product: SimpleProduct | null;
@@ -53,18 +53,11 @@ export function ProductModalForm({
             }
 
             setLoadingSubcategories(true);
-            const supabase = createClient();
-
             try {
-                const { data, error } = await supabase
-                    .from("subcategories")
-                    .select("*")
-                    
-                    
-                    ;
+                const { apiClient } = await import("@/lib/api/client");
+                const { data } = await apiClient.get("/system/crud/subcategories") as any;
 
-                if (error) {
-                    console.warn("Error fetching subcategories:", error);
+                if (!data) {
                     setSubcategories([]);
                 } else {
                     setSubcategories(data || []);

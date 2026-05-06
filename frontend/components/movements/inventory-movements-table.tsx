@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -51,62 +51,67 @@ export function InventoryMovementsTable() {
   const canCreateMovement = isReceptionist || isAdmin || isManager;
 
   const fetchMovements = useCallback(async () => {
-    const supabase = createClient();
     setLoading(true);
     try {
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
+      const { apiClient } = await import("@/lib/api/client");
+      
+      const params = new URLSearchParams({
+        page: String(currentPage - 1),
+        limit: String(pageSize),
+      });
 
-      let query = supabase
-        .from("inventory_movements")
-        .select(`
-          *,
-          product:products(id, name, sku, unit),
-          warehouse:warehouses(id, name, code)
-        `, { count: "exact" })
-        ;
+      if (typeFilter) params.append("type", typeFilter);
+      if (search) params.append("search", search);
 
-      // Server-side filters
-      if (typeFilter) query = query;
-      if (productFilter) query = query;
+      const response = await apiClient.get(`/inventory/movements?${params.toString()}`);
+      
+      // La API devuelve un array directamente o un objeto { items, total }?
+      // Basado en el código de backend, parece devolver el listado directo,
+      // pero si devuelve total hay que ajustarlo. Asumiremos por ahora que
+      // devuelve un objeto con "items" y "total" o si no simplemente un array.
+      let movementsData: any[] = [];
+      let count = 0;
+
+      if (response.data && Array.isArray(response.data)) {
+        movementsData = response.data;
+      } else if (response.data && Array.isArray(response.data.items)) {
+        movementsData = response.data.items;
+        count = response.data.total || response.data.items.length;
+      } else {
+        movementsData = response.data as any || [];
+      }
+
+      setTotalCount(count);
+
+      const enrichedMovements = movementsData.map((m: any) => ({
+        ...m,
+        // El backend devuelve 'products' y 'warehouses' pero el frontend usa 'product' y 'warehouse'
+        product: m.products || m.product || null,
+        warehouse: m.warehouses || m.warehouse || null,
+        employee_name: m.users?.email || m.created_by || "Sistema",
+      }));
+
+      // Si dateFilter o productFilter son locales, los aplicamos aquí:
+      let finalData = enrichedMovements;
       if (dateFilter) {
         const dayStart = new Date(dateFilter);
         const dayEnd = new Date(dateFilter);
         dayEnd.setDate(dayEnd.getDate() + 1);
-        query = query.gte("created_at", dayStart.toISOString()).lt("created_at", dayEnd.toISOString());
+        finalData = finalData.filter(m => {
+          const createdAt = new Date(m.created_at);
+          return createdAt >= dayStart && createdAt < dayEnd;
+        });
       }
-      if (search) {
-        query = query.or(`reason.ilike.%${search}%,notes.ilike.%${search}%`);
-      }
-
-      query = query.range(from, to);
-
-      const { data: movementsData, error: movementsError, count } = await query;
-
-      if (movementsError) throw movementsError;
-      setTotalCount(count || 0);
-
-      // Resolve created_by UUIDs to employee names
-      const uniqueUserIds = [...new Set((movementsData || []).map((m: any) => m.created_by).filter(Boolean))];
-      const employeeMap = new Map<string, string>();
-      if (uniqueUserIds.length > 0) {
-        const { data: employees } = await supabase
-          .from("employees")
-          .select("auth_user_id, first_name, last_name")
-          .in("auth_user_id", uniqueUserIds);
-        if (employees) {
-          employees.forEach((e: any) => {
-            employeeMap.set(e.auth_user_id, `${e.first_name} ${e.last_name}`.trim());
-          });
-        }
+      if (productFilter) {
+        finalData = finalData.filter(m => m.product_id === productFilter);
       }
 
-      const enrichedMovements = (movementsData || []).map((m: any) => ({
-        ...m,
-        employee_name: m.created_by ? employeeMap.get(m.created_by) || undefined : undefined,
-      }));
+      // Al filtrar en cliente, actualizamos el contador.
+      if (dateFilter || productFilter) {
+        setTotalCount(finalData.length);
+      }
 
-      setMovements(enrichedMovements);
+      setMovements(finalData);
     } catch (error) {
       console.error("Error fetching movements:", error);
       showError("Error", "No se pudieron cargar los movimientos");
@@ -116,15 +121,9 @@ export function InventoryMovementsTable() {
   }, [currentPage, pageSize, typeFilter, productFilter, dateFilter, search]);
 
   const fetchProducts = async () => {
-    const supabase = createClient();
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, sku")
-        
-        ;
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get("/inventory/products") as any;
       setProducts(data || []);
     } catch (error) {
       console.error("Error fetching products:", error);

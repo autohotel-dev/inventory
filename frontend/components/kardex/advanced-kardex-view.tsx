@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -57,34 +57,25 @@ export function AdvancedKardexView() {
   const { success, error: showError } = useToast();
 
   const fetchProducts = async () => {
-    const supabase = createClient();
     try {
-      // Obtener productos con resumen de movimientos
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select(`
-          id,
-          name,
-          sku,
-          unit,
-          stock:stock(qty)
-        `)
-        ;
-
-      if (productsError) throw productsError;
-
-      // Obtener último movimiento por producto
-      const { data: movementsData, error: movementsError } = await supabase
-        .from("inventory_movements")
-        .select("product_id, created_at")
-        ;
+      const { apiClient } = await import("@/lib/api/client");
+      
+      const [
+        { data: productsData },
+        { data: stockData },
+        { data: movementsData }
+      ] = await Promise.all([
+        apiClient.get("/system/crud/products") as any,
+        apiClient.get("/system/crud/stock") as any,
+        apiClient.get("/system/crud/inventory_movements") as any
+      ]);
 
       const lastMovementMap = new Map();
       const movementCountMap = new Map();
 
-      if (!movementsError && movementsData) {
+      if (movementsData) {
         movementsData.forEach((movement: any) => {
-          if (!lastMovementMap.has(movement.product_id)) {
+          if (!lastMovementMap.has(movement.product_id) || new Date(movement.created_at) > new Date(lastMovementMap.get(movement.product_id))) {
             lastMovementMap.set(movement.product_id, movement.created_at);
           }
           movementCountMap.set(
@@ -94,15 +85,22 @@ export function AdvancedKardexView() {
         });
       }
 
-      const productsSummary: ProductSummary[] = (productsData || []).map((product: any) => ({
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        current_stock: product.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0,
-        unit: product.unit,
-        total_movements: movementCountMap.get(product.id) || 0,
-        last_movement: lastMovementMap.get(product.id) || ''
-      }));
+      const productsSummary: ProductSummary[] = (productsData || []).map((product: any) => {
+        // Calculate stock
+        const productStock = (stockData || [])
+          .filter((s: any) => s.product_id === product.id)
+          .reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
+
+        return {
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          current_stock: productStock,
+          unit: product.unit,
+          total_movements: movementCountMap.get(product.id) || 0,
+          last_movement: lastMovementMap.get(product.id) || ''
+        };
+      });
 
       setProducts(productsSummary);
     } catch (error) {
@@ -113,31 +111,32 @@ export function AdvancedKardexView() {
 
   const fetchKardex = async (productId: string) => {
     if (!productId) return;
-
-    const supabase = createClient();
     setLoading(true);
 
     try {
-      const { data: movementsData, error: movementsError } = await supabase
-        .from("inventory_movements")
-        .select(`
-          id,
-          created_at,
-          movement_type,
-          quantity,
-          reason,
-          notes,
-          product:products(name, sku),
-          warehouse:warehouses(name, code)
-        `)
-        
-        ;
+      const { apiClient } = await import("@/lib/api/client");
+      
+      const [
+        { data: movementsData },
+        { data: productData },
+        { data: warehousesData },
+        { data: reasonsData }
+      ] = await Promise.all([
+        apiClient.get(`/system/crud/inventory_movements?product_id=${productId}`) as any,
+        apiClient.get(`/system/crud/products/${productId}`) as any,
+        apiClient.get("/system/crud/warehouses") as any,
+        apiClient.get("/system/crud/movement_reasons") as any
+      ]);
 
-      if (movementsError) throw movementsError;
+      const warehousesMap = new Map((warehousesData || []).map((w: any) => [w.id, w]));
+      const reasonsMap = new Map((reasonsData || []).map((r: any) => [r.id, r]));
+
+      // Sort movements by date
+      const sortedMovements = (movementsData || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
       // Calcular balance acumulado
       let runningBalance = 0;
-      const kardexData: KardexEntry[] = (movementsData || []).map((movement: any) => {
+      const kardexData: KardexEntry[] = sortedMovements.map((movement: any) => {
         if (movement.movement_type === 'IN') {
           runningBalance += movement.quantity;
         } else if (movement.movement_type === 'OUT') {
@@ -146,18 +145,21 @@ export function AdvancedKardexView() {
           runningBalance = movement.quantity;
         }
 
+        const warehouse = warehousesMap.get(movement.warehouse_id);
+        const reason = reasonsMap.get(movement.reason_id);
+
         return {
           id: movement.id,
           created_at: movement.created_at,
           movement_type: movement.movement_type,
           quantity: movement.quantity,
-          reason: movement.reason,
+          reason: reason?.name || movement.reason || 'N/A',
           notes: movement.notes,
-          warehouse_name: (movement.warehouse as any)?.name || 'Almacén eliminado',
-          warehouse_code: (movement.warehouse as any)?.code || 'N/A',
+          warehouse_name: warehouse?.name || 'Almacén eliminado',
+          warehouse_code: warehouse?.code || 'N/A',
           balance: runningBalance,
-          product_name: (movement.product as any)?.name || 'Producto eliminado',
-          product_sku: (movement.product as any)?.sku || 'N/A'
+          product_name: productData?.name || 'Producto eliminado',
+          product_sku: productData?.sku || 'N/A'
         };
       });
 

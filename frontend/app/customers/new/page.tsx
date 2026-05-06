@@ -1,14 +1,13 @@
 import { apiClient } from "@/lib/api/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 async function createCustomerAction(formData: FormData) {
   "use server";
-  const supabase = await createClient();
   const name = String(formData.get("name") || "").trim();
   const tax_id = String(formData.get("tax_id") || "").trim();
 

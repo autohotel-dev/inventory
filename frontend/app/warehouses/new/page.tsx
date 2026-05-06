@@ -1,14 +1,13 @@
 import { apiClient } from "@/lib/api/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 async function createWarehouseAction(formData: FormData) {
   "use server";
-  const supabase = await createClient();
   const code = String(formData.get("code") || "").trim();
   const name = String(formData.get("name") || "").trim();
 
@@ -19,20 +18,17 @@ async function createWarehouseAction(formData: FormData) {
     is_active: formData.get("is_active") === "on",
   };
 
-  const { error } = await apiClient.post("/system/crud/warehouses", payload) as any;
-
-  if (error) {
-    if (error.code === "23505") {
-      if (error.message.includes("code")) {
-        throw new Error(`Ya existe un almacén con el código "${code}". Usa un código diferente.`);
+  try {
+    await apiClient.post("/system/crud/warehouses", payload);
+  } catch (error: any) {
+    if (error.response?.data?.detail) {
+      const detail = error.response.data.detail;
+      if (typeof detail === 'string' && detail.includes("23505")) {
+        throw new Error("Ya existe un almacén con estos datos. Verifica que no esté duplicado.");
       }
-      if (error.message.includes("name")) {
-        throw new Error(`Ya existe un almacén con el nombre "${name}".`);
+      if (typeof detail === 'string' && detail.includes("23502")) {
+        throw new Error("Faltan campos requeridos. Asegúrate de llenar Código y Nombre.");
       }
-      throw new Error("Ya existe un almacén con estos datos. Verifica que no esté duplicado.");
-    }
-    if (error.code === "23502") {
-      throw new Error("Faltan campos requeridos. Asegúrate de llenar Código y Nombre.");
     }
     throw new Error(`Error al registrar almacén: ${error.message}`);
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,65 +64,49 @@ export function AdvancedCustomersTable() {
   const router = useRouter();
 
   const fetchCustomers = async () => {
-    const supabase = createClient();
+    setLoading(true);
     try {
-      // Opción 1: Usar la vista (más simple y confiable)
-      const { data: customersWithStats, error } = await supabase
-        .from("customer_statistics_view")
-        .select("*")
-        ;
-
-      if (error) {
-        console.error("Error con vista, intentando procedimiento almacenado:", error);
-
-        // Opción 2: Fallback al procedimiento almacenado si la vista falla
-        const { data: customersData, error: customersError } = await supabase
-          .from("customers")
-          .select("*")
-          ;
-
-        if (customersError) throw customersError;
-
-        const { data: statsData, error: statsError } = await supabase
-          .rpc("get_customer_statistics");
-
-        if (statsError) throw statsError;
-
-        // Combinar datos
-        const enrichedCustomers: Customer[] = (customersData || []).map((customer: any) => {
-          const stats = statsData?.find((s: any) => s.customer_id === customer.id);
-
-          return {
-            ...customer,
-            total_orders: stats?.total_orders || 0,
-            total_spent: Number(stats?.total_spent) || 0,
-            last_order: stats?.last_order_date || null,
-            customer_type: (stats?.customer_type as 'new' | 'regular' | 'vip') || 'new'
-          };
-        });
-
-        console.log("Enriched customers:", enrichedCustomers);
-        setCustomers(enrichedCustomers);
-        return;
+      const { apiClient } = await import("@/lib/api/client");
+      const { data: customersData } = await apiClient.get("/system/crud/customers") as any;
+      
+      // Fallback a array vacío si sales_orders no está expuesto genéricamente o falla
+      let salesData: any[] = [];
+      try {
+        const { data } = await apiClient.get("/system/crud/sales_orders") as any;
+        salesData = data || [];
+      } catch (e) {
+        console.warn("No se pudieron cargar las ventas para calcular estadísticas", e);
       }
 
-      // Usar datos de la vista directamente
-      const enrichedCustomers: Customer[] = (customersWithStats || []).map((customer: any) => ({
-        id: customer.customer_id,
-        name: customer.customer_name,
-        email: customer.customer_email,
-        tax_id: "", // Estos campos no están en la vista, se pueden agregar después
-        phone: "",
-        address: "",
-        is_active: true,
-        created_at: new Date().toISOString(), // Fecha por defecto
-        total_orders: customer.total_orders || 0,
-        total_spent: Number(customer.total_spent) || 0,
-        last_order: customer.last_order_date || null,
-        customer_type: (customer.customer_type as 'new' | 'regular' | 'vip') || 'new'
-      }));
+      const enrichedCustomers: Customer[] = (customersData || []).map((customer: any) => {
+        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
+        const total_orders = customerSales.length;
+        const total_spent = customerSales.reduce((sum: number, s: any) => sum + (s.total_amount || 0), 0);
+        const sortedSales = [...customerSales].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const last_order = sortedSales.length > 0 ? sortedSales[0].created_at : null;
+        
+        let customer_type: 'new' | 'regular' | 'vip' = 'new';
+        if (total_orders > 0 && total_orders < 5) customer_type = 'regular';
+        if (total_orders >= 5 || total_spent > 5000) customer_type = 'vip';
 
-      console.log("Enriched customers from view:", enrichedCustomers);
+        return {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          tax_id: customer.tax_id || "",
+          phone: customer.phone || "",
+          address: customer.address || "",
+          is_active: customer.is_active ?? true,
+          created_at: customer.created_at || new Date().toISOString(),
+          customer_name: customer.name,
+          customer_email: customer.email,
+          total_orders,
+          total_spent,
+          last_order,
+          customer_type
+        };
+      });
+
       setCustomers(enrichedCustomers);
     } catch (error) {
       console.error("Error fetching customers:", error);
@@ -146,14 +130,9 @@ export function AdvancedCustomersTable() {
   };
 
   const handleDelete = async (customerId: string) => {
-    const supabase = createClient();
     try {
-      const { error } = await supabase
-        .from("customers")
-        .delete()
-        ;
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/system/crud/customers/${customerId}`);
 
       success("Cliente eliminado", "El cliente se eliminó correctamente");
       fetchCustomers();
@@ -164,24 +143,15 @@ export function AdvancedCustomersTable() {
   };
 
   const handleSave = async (customerData: any) => {
-    const supabase = createClient();
     try {
+      const { apiClient } = await import("@/lib/api/client");
       if (editingCustomer) {
         // Actualizar cliente existente
-        const { error } = await supabase
-          .from("customers")
-          .update(customerData)
-          ;
-
-        if (error) throw error;
+        await apiClient.patch(`/system/crud/customers/${editingCustomer.id}`, customerData);
         success("Cliente actualizado", "El cliente se actualizó correctamente");
       } else {
         // Crear nuevo cliente
-        const { error } = await supabase
-          .from("customers")
-          .insert([customerData]);
-
-        if (error) throw error;
+        await apiClient.post("/system/crud/customers", customerData);
         success("Cliente creado", "El cliente se creó correctamente");
       }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { createClient } from "@/lib/supabase/client";
+
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +76,7 @@ function RoomsBoardWrapper() {
 // Componente principal sin lógica condicional de hooks
 function RoomsBoardInternal() {
   const router = useRouter();
-  const supabase = createClient();
+
   const { rooms, isLoading: loading, refreshRooms: fetchRooms } = useRoomsQuery();
   const modals = useRoomModals();
   const { openPrintCenter } = usePrintCenter();
@@ -215,8 +215,7 @@ function RoomsBoardInternal() {
     }
 
     try {
-      const currentEmployeeId = await getCurrentEmployeeId(supabase);
-      if (!currentEmployeeId) {
+      if (!employeeId) {
         toast.error("No se pudo identificar al empleado");
         return;
       }
@@ -224,7 +223,7 @@ function RoomsBoardInternal() {
       const { apiClient } = await import("@/lib/api/client");
       await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
           valet_checkout_requested_at: new Date().toISOString(),
-          valet_employee_id: currentEmployeeId // Asegurar que el valet que notifica se asigne si no lo estaba
+          valet_employee_id: employeeId // Asegurar que el valet que notifica se asigne si no lo estaba
       });
 
       toast.success("Salida notificada a recepción", {

@@ -24,7 +24,7 @@ import {
   User,
   X
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -88,62 +88,52 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
 
   const fetchOrderDetail = async () => {
     setLoading(true);
-    const supabase = createClient();
 
     try {
+      const { apiClient } = await import("@/lib/api/client");
+      
       // Fetch order details
-      const { data: orderData, error: orderError } = await supabase
-        .from("purchase_orders")
-        .select(`
-          id,
-          created_at,
-          status,
-          currency,
-          subtotal,
-          tax,
-          total,
-          notes,
-          supplier_id,
-          warehouse_id,
-          suppliers:supplier_id(name, email, phone),
-          warehouses:warehouse_id(code, name)
-        `)
-        
-        ;
+      const { data: orderData } = await apiClient.get(`/system/crud/purchase_orders/${orderId}`) as any;
 
-      if (orderError) {
-        console.error('Error fetching order:', orderError);
-        throw orderError;
+      if (!orderData) {
+        setOrder(null);
+        return;
       }
 
-      // Fetch order items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("purchase_order_items")
-        .select(`
-          id,
-          product_id,
-          qty,
-          unit_cost,
-          total,
-          products:product_id(name, sku)
-        `)
-        ;
+      // Fetch related data
+      const [
+        { data: itemsData },
+        { data: productsData },
+        { data: suppliersData },
+        { data: warehousesData }
+      ] = await Promise.all([
+        apiClient.get(`/system/crud/purchase_order_items?purchase_order_id=${orderId}`).catch(() => ({ data: [] })),
+        apiClient.get("/system/crud/products").catch(() => ({ data: [] })),
+        apiClient.get(`/system/crud/suppliers/${orderData.supplier_id}`).catch(() => ({ data: null })),
+        apiClient.get(`/system/crud/warehouses/${orderData.warehouse_id}`).catch(() => ({ data: null }))
+      ]);
 
-      if (itemsError) throw itemsError;
+      // Mapear items con sus productos correspondientes
+      const mappedItems = (itemsData || []).filter((i: any) => i.purchase_order_id === orderId).map((item: any) => {
+        const product = (productsData || []).find((p: any) => p.id === item.product_id);
+        return {
+          ...item,
+          products: product ? { name: product.name, sku: product.sku } : null
+        };
+      });
 
-      // Fetch available products for adding new items
-      const { data: productsData } = await supabase
-        .from("products")
-        .select("id, name, sku, cost")
-        
-        ;
+      // Ensamblar objeto de la orden con sus relaciones
+      const mappedOrder = {
+        ...orderData,
+        suppliers: suppliersData || null,
+        warehouses: warehousesData || null
+      };
 
-      setOrder(orderData as any);
-      setItems(itemsData as any || []);
+      setOrder(mappedOrder);
+      setItems(mappedItems);
       setProducts(productsData || []);
     } catch (error) {
       console.error('Error fetching order detail:', error);
-      // Si hay error, aún así intentamos mostrar algo
       setOrder(null);
     } finally {
       setLoading(false);
@@ -188,19 +178,16 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
   const addProductToOrder = async () => {
     if (!selectedProduct || !order) return;
 
-    const supabase = createClient();
-
     try {
-      const { error } = await supabase
-        .from("purchase_order_items")
-        .insert({
-          purchase_order_id: orderId,
-          product_id: selectedProduct.id,
-          qty: newItemData.quantity,
-          unit_cost: newItemData.unit_price
-        });
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      
+      await apiClient.post("/system/crud/purchase_order_items", {
+        purchase_order_id: orderId,
+        product_id: selectedProduct.id,
+        qty: newItemData.quantity,
+        unit_cost: newItemData.unit_price,
+        total: newItemData.quantity * newItemData.unit_price
+      });
 
       // Recalcular totales de la orden
       await recalculateOrderTotals();
@@ -226,22 +213,15 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
   };
 
   const recalculateOrderTotals = async () => {
-    const supabase = createClient();
-
     try {
-      const { data: itemsData } = await supabase
-        .from("purchase_order_items")
-        .select("total")
-        ;
+      const { apiClient } = await import("@/lib/api/client");
+      const { data: itemsData } = await apiClient.get(`/system/crud/purchase_order_items?purchase_order_id=${orderId}`) as any;
 
       const subtotal = itemsData?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
       const tax = 0; // Simplificado por ahora
       const total = subtotal + tax;
 
-      await supabase
-        .from("purchase_orders")
-        .update({ subtotal, tax, total })
-        ;
+      await apiClient.patch(`/system/crud/purchase_orders/${orderId}`, { subtotal, tax, total });
 
     } catch (error) {
       console.error('Error recalculating totals:', error);
@@ -257,15 +237,9 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
   };
 
   const removeItemFromOrder = async () => {
-    const supabase = createClient();
-
     try {
-      const { error } = await supabase
-        .from("purchase_order_items")
-        .delete()
-        ;
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/system/crud/purchase_order_items/${confirmDialog.itemId}`);
 
       // Recalcular totales
       await recalculateOrderTotals();
@@ -286,18 +260,16 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
   };
 
   const updateOrderStatus = async (newStatus: string) => {
-    const supabase = createClient();
-
     try {
-      const { error } = await supabase
-        .from("purchase_orders")
-        .update({ status: newStatus })
-        ;
+      const { apiClient } = await import("@/lib/api/client");
+      
+      await apiClient.patch(`/system/crud/purchase_orders/${orderId}`, { status: newStatus });
 
-      if (error) throw error;
       // Create inventory movements for received orders
       if (newStatus === 'RECEIVED' && order) {
-        const { data: { user } } = await supabase.auth.getUser();
+        // Obtenemos al usuario (opcional, en apiClient no siempre tenemos la info directa aquí
+        // pero podemos mandar created_by nulo o manejarlo en el backend).
+        // Por simplicidad en la UI:
         const movements = items.map(item => ({
           product_id: item.product_id,
           warehouse_id: order.warehouse_id,
@@ -308,14 +280,12 @@ export function AdvancedPurchaseDetail({ orderId }: AdvancedPurchaseDetailProps)
           notes: `Recibido de orden de compra ${orderId}`,
           reference_table: 'purchase_orders',
           reference_id: orderId,
-          created_by: user?.id || null
         }));
 
-        const { error: movError } = await supabase
-          .from("inventory_movements")
-          .insert(movements);
-
-        if (movError) {
+        try {
+          // Promise.all para enviar cada movimiento si la API no soporta array bulk insert en el crud genérico
+          await Promise.all(movements.map(m => apiClient.post("/system/crud/inventory_movements", m)));
+        } catch (movError) {
           console.error('Error creating inventory movements:', movError);
           // No fallar la actualización de estado por error de movimientos
         }

@@ -18,7 +18,7 @@ import {
   Save,
   X
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -94,17 +94,16 @@ export function AdvancedPurchaseForm() {
   }, [formData.items, formData.tax_rate, includeTax]);
 
   const fetchInitialData = async () => {
-    const supabase = createClient();
-    
     try {
+      const { apiClient } = await import("@/lib/api/client");
       const [
         { data: suppliersData },
         { data: warehousesData },
         { data: productsData }
       ] = await Promise.all([
-        apiClient.get("/system/crud/suppliers").then(res => ({ data: res.data, error: null })),
-        apiClient.get("/system/crud/warehouses").then(res => ({ data: res.data, error: null })),
-        apiClient.get("/system/crud/products").then(res => ({ data: res.data, error: null }))
+        apiClient.get("/system/crud/suppliers").catch(() => ({ data: [] })),
+        apiClient.get("/system/crud/warehouses").catch(() => ({ data: [] })),
+        apiClient.get("/system/crud/products").catch(() => ({ data: [] }))
       ]);
 
       setSuppliers(suppliersData || []);
@@ -199,40 +198,33 @@ export function AdvancedPurchaseForm() {
     }
 
     setLoading(true);
-    const supabase = createClient();
 
     try {
       // Crear la orden de compra
-      const { data: purchaseOrder, error: orderError } = await supabase
-        .from("purchase_orders")
-        .insert({
-          supplier_id: formData.supplier_id,
-          warehouse_id: formData.warehouse_id,
-          currency: formData.currency,
-          notes: formData.notes,
-          subtotal: formData.subtotal,
-          tax: formData.tax_amount,
-          total: formData.total,
-          status: "OPEN"
-        })
-        .select("id")
-        ;
+      const { data: purchaseOrder } = await apiClient.post("/system/crud/purchase_orders", {
+        supplier_id: formData.supplier_id,
+        warehouse_id: formData.warehouse_id,
+        currency: formData.currency,
+        notes: formData.notes,
+        subtotal: formData.subtotal,
+        tax: formData.tax_amount,
+        total: formData.total,
+        status: "OPEN"
+      });
 
-      if (orderError) throw orderError;
+      if (!purchaseOrder || !purchaseOrder.id) throw new Error("No se pudo obtener el ID de la orden creada");
 
       // Crear los items de la orden
       const itemsToInsert = formData.items.map(item => ({
         purchase_order_id: purchaseOrder.id,
         product_id: item.product_id,
         qty: item.quantity,
-        unit_cost: item.unit_price
+        unit_cost: item.unit_price,
+        total: item.quantity * item.unit_price
       }));
 
-      const { error: itemsError } = await supabase
-        .from("purchase_order_items")
-        .insert(itemsToInsert);
-
-      if (itemsError) throw itemsError;
+      // Inserción múltiple
+      await Promise.all(itemsToInsert.map(item => apiClient.post("/system/crud/purchase_order_items", item)));
 
       toast.success("¡Orden de compra creada exitosamente!", {
         description: `Orden #${purchaseOrder.id.slice(0, 8)} creada correctamente`

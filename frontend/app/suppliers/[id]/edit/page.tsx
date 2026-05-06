@@ -1,26 +1,20 @@
 import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 async function getSupplier(id: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("suppliers")
-    .select("id, name, tax_id, email, phone, address, is_active")
-    .eq("id", id)
-    .single();
-  if (error) throw error;
+  const { data } = await apiClient.get(`/system/crud/suppliers/${id}`) as any;
+  if (!data) throw new Error("Supplier not found");
   return data;
 }
 
 async function updateSupplierAction(formData: FormData) {
   "use server";
   const id = String(formData.get("id") || "");
-  const supabase = await createClient();
   const payload = {
     name: String(formData.get("name") || "").trim(),
     tax_id: String(formData.get("tax_id") || "").trim(),
@@ -29,8 +23,11 @@ async function updateSupplierAction(formData: FormData) {
     address: String(formData.get("address") || "").trim(),
     is_active: formData.get("is_active") === "on",
   };
-  const { error } = await apiClient.patch(`/system/crud/suppliers/${id}`, payload) as any;
-  if (error) throw error;
+  try {
+    await apiClient.patch(`/system/crud/suppliers/${id}`, payload);
+  } catch (error) {
+    throw error;
+  }
   revalidatePath("/suppliers");
   redirect("/suppliers");
 }

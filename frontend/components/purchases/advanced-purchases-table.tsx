@@ -21,7 +21,7 @@ import {
   ArrowDownCircle,
   CheckCircle2
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 import Link from "next/link";
 
 interface PurchaseOrder {
@@ -80,58 +80,44 @@ export function AdvancedPurchasesTable() {
 
   const fetchPurchases = async () => {
     setLoading(true);
-    const supabase = createClient();
-
     try {
-      let query = supabase
-        .from("purchase_orders")
-        .select(`
-          id,
-          created_at,
-          status,
-          currency,
-          subtotal,
-          tax,
-          total,
-          notes,
-          suppliers!supplier_id(name),
-          warehouses!warehouse_id(code, name)
-        `)
-        ;
+      const { apiClient } = await import("@/lib/api/client");
+      const { data: purchasesData } = await apiClient.get("/system/crud/purchase_orders") as any;
+      const { data: suppliersData } = await apiClient.get("/system/crud/suppliers") as any;
+      const { data: warehousesData } = await apiClient.get("/system/crud/warehouses") as any;
 
-      // Aplicar filtros
-      if (filters.status !== 'ALL') {
-        query = query;
-      }
+      const supplierMap = new Map((suppliersData || []).map((s: any) => [s.id, { name: s.name }]));
+      const warehouseMap = new Map((warehousesData || []).map((w: any) => [w.id, { code: w.code, name: w.name }]));
 
-      if (filters.dateFrom) {
-        query = query.gte('created_at', filters.dateFrom);
-      }
-
-      if (filters.dateTo) {
-        query = query.lte('created_at', filters.dateTo);
-      }
-
-      if (filters.minAmount) {
-        query = query.gte('total', parseFloat(filters.minAmount));
-      }
-
-      if (filters.maxAmount) {
-        query = query.lte('total', parseFloat(filters.maxAmount));
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      // Transformar datos de Supabase al formato esperado
-      const transformedData: PurchaseOrder[] = (data as SupabasePurchaseOrder[] || []).map(item => ({
+      // Transformar datos al formato esperado
+      const transformedData: PurchaseOrder[] = (purchasesData || []).map((item: any) => ({
         ...item,
-        suppliers: item.suppliers && item.suppliers.length > 0 ? item.suppliers[0] : null,
-        warehouses: item.warehouses && item.warehouses.length > 0 ? item.warehouses[0] : null
+        suppliers: supplierMap.get(item.supplier_id) || null,
+        warehouses: warehouseMap.get(item.warehouse_id) || null
       }));
 
       let filteredData = transformedData;
+
+      // Aplicar filtros manuales (ya que el CRUD genérico devuelve todo)
+      if (filters.status !== 'ALL') {
+        filteredData = filteredData.filter(p => p.status === filters.status);
+      }
+
+      if (filters.dateFrom) {
+        filteredData = filteredData.filter(p => p.created_at >= filters.dateFrom);
+      }
+
+      if (filters.dateTo) {
+        filteredData = filteredData.filter(p => p.created_at <= filters.dateTo + 'T23:59:59.999Z');
+      }
+
+      if (filters.minAmount) {
+        filteredData = filteredData.filter(p => (p.total || 0) >= parseFloat(filters.minAmount));
+      }
+
+      if (filters.maxAmount) {
+        filteredData = filteredData.filter(p => (p.total || 0) <= parseFloat(filters.maxAmount));
+      }
 
       // Filtro de búsqueda (cliente)
       if (filters.search) {

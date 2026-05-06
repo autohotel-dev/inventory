@@ -1,7 +1,7 @@
 "use client";
 import { apiClient } from "@/lib/api/client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -303,9 +303,9 @@ export function SimpleCategoriesTable() {
           </thead>
           <tbody>
             {filteredCategories.map((category) => (
-              <>
+              <Fragment key={category.id}>
                 {/* Fila de categoría */}
-                <tr key={category.id} className="border-t hover:bg-muted/25 transition-colors">
+                <tr className="border-t hover:bg-muted/25 transition-colors">
                   <td className="p-4">
                     {category.subcategories && category.subcategories.length > 0 ? (
                       <button
@@ -454,7 +454,7 @@ export function SimpleCategoriesTable() {
                     </td>
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

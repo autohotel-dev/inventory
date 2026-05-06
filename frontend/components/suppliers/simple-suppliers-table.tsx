@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,25 +31,10 @@ export function SimpleSuppliersTable() {
   const { success, error: showError } = useToast();
 
   const fetchSuppliers = async () => {
-    const supabase = createClient();
     try {
-      // Obtener proveedores
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from("suppliers")
-        .select("*")
-        ;
-
-      if (suppliersError) throw suppliersError;
-
-      // Obtener productos para calcular estadísticas por proveedor
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("supplier_id, price, is_active")
-        ;
-
-      if (productsError) {
-        console.warn("No se pudo obtener información de productos:", productsError);
-      }
+      const { apiClient } = await import("@/lib/api/client");
+      const { data: suppliersData } = await apiClient.get("/system/crud/suppliers") as any;
+      const { data: productsData } = await apiClient.get("/inventory/products") as any;
 
       // Enriquecer proveedores con estadísticas
       const enrichedSuppliers = (suppliersData || []).map((supplier: any) => {
@@ -88,14 +73,9 @@ export function SimpleSuppliersTable() {
   };
 
   const handleDelete = async (supplierId: string) => {
-    const supabase = createClient();
     try {
-      const { error } = await supabase
-        .from("suppliers")
-        .delete()
-        ;
-
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.delete(`/system/crud/suppliers/${supplierId}`);
 
       success("Proveedor eliminado", "El proveedor se eliminó correctamente");
       fetchSuppliers();
@@ -106,24 +86,15 @@ export function SimpleSuppliersTable() {
   };
 
   const handleSave = async (supplierData: any) => {
-    const supabase = createClient();
     try {
+      const { apiClient } = await import("@/lib/api/client");
       if (editingSupplier) {
         // Actualizar proveedor existente
-        const { error } = await supabase
-          .from("suppliers")
-          .update(supplierData)
-          ;
-
-        if (error) throw error;
+        await apiClient.patch(`/system/crud/suppliers/${editingSupplier.id}`, supplierData);
         success("Proveedor actualizado", "El proveedor se actualizó correctamente");
       } else {
         // Crear nuevo proveedor
-        const { error } = await supabase
-          .from("suppliers")
-          .insert([supplierData]);
-
-        if (error) throw error;
+        await apiClient.post("/system/crud/suppliers", supplierData);
         success("Proveedor creado", "El proveedor se creó correctamente");
       }
 

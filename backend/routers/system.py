@@ -305,6 +305,20 @@ def generic_update(table_name: str, id: str, payload: Dict[str, Any], db: Sessio
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+from sqlalchemy import delete
+
+@router.delete("/crud/{table_name}/{id}")
+def generic_delete(table_name: str, id: str, db: Session = Depends(get_db)):
+    table = get_table(table_name)
+    try:
+        stmt = delete(table).where(table.c.id == id)
+        db.execute(stmt)
+        db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 from fastapi import Request
 
 @router.get("/crud/{table_name}/{id}")

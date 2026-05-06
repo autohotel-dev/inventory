@@ -25,8 +25,11 @@ async function updateWarehouseAction(formData: FormData) {
     address: String(formData.get("address") || "").trim(),
     is_active: formData.get("is_active") === "on",
   };
-  const { error } = await apiClient.patch(`/system/crud/warehouses/${id}`, payload) as any;
-  if (error) throw error;
+  try {
+    await apiClient.patch(`/system/crud/warehouses/${id}`, payload);
+  } catch (error: any) {
+    throw new Error(`Error al actualizar almacén: ${error.message}`);
+  }
   revalidatePath("/warehouses");
   redirect("/warehouses");
 }

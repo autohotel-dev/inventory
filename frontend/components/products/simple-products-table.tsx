@@ -791,12 +791,14 @@ export function SimpleProductsTable() {
                 </td>
 
                 <td className="p-4 text-center">
-                  <div className="font-semibold text-foreground text-lg">${product.price.toFixed(2)}</div>
+                  <div className="font-semibold text-foreground text-lg">${Number(product.price || 0).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">
-                    Valor: ${(product.inventory_value).toFixed(2)}
+                    Valor: ${Number(product.inventory_value || 0).toFixed(2)}
                   </div>
                   {(() => {
-                    const margin = product.cost > 0 ? ((product.price - product.cost) / product.cost) * 100 : 0;
+                    const price = Number(product.price || 0);
+                    const cost = Number(product.cost || 0);
+                    const margin = cost > 0 ? ((price - cost) / cost) * 100 : 0;
                     return (
                       <div className={`text-xs font-medium ${margin > 50 ? 'text-emerald-500' : margin > 20 ? 'text-amber-500' : 'text-rose-500'}`}>
                         Margen: {margin.toFixed(1)}%

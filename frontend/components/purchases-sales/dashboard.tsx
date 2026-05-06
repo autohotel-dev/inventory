@@ -20,7 +20,7 @@ import {
   ArrowDownRight,
   RefreshCw
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 import { PurchasesSalesCharts } from "./charts";
 
 interface DashboardStats {

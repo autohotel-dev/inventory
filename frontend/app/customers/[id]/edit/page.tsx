@@ -1,26 +1,20 @@
 import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 async function getCustomer(id: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id, name, tax_id, email, phone, address, is_active")
-    .eq("id", id)
-    .single();
-  if (error) throw error;
+  const { apiClient } = await import("@/lib/api/client");
+  const { data } = await apiClient.get(`/system/crud/customers/${id}`);
   return data;
 }
 
 async function updateCustomerAction(formData: FormData) {
   "use server";
   const id = String(formData.get("id") || "");
-  const supabase = await createClient();
   const payload = {
     name: String(formData.get("name") || "").trim(),
     tax_id: String(formData.get("tax_id") || "").trim(),

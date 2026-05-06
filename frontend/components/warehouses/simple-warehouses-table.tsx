@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -40,38 +40,26 @@ export function SimpleWarehousesTable() {
   const { success, error: showError } = useToast();
 
   const fetchWarehouses = async () => {
-    const supabase = createClient();
     try {
-      // Obtener almacenes
-      const { data: warehousesData, error: warehousesError } = await supabase
-        .from("warehouses")
-        .select("*")
-        ;
+      const { data: warehousesData } = await apiClient.get("/system/crud/warehouses") as any;
+      const { data: productsData } = await apiClient.get("/inventory/products") as any;
+      const { data: stockData } = await apiClient.get("/system/crud/stock") as any;
 
-      if (warehousesError) throw warehousesError;
-
-      // Obtener stock por almacén con información de productos
-      const { data: stockData, error: stockError } = await supabase
-        .from("stock")
-        .select(`
-          warehouse_id,
-          qty,
-          product:products(id, name, price, is_active)
-        `);
-
-      if (stockError) {
-        console.warn("No se pudo obtener información de stock:", stockError);
-      }
+      const productMap = new Map((productsData || []).map((p: any) => [p.id, p]));
+      const mappedStockData = (stockData || []).map((s: any) => ({
+          ...s,
+          product: productMap.get(s.product_id)
+      }));
 
       // Enriquecer almacenes con estadísticas
       const enrichedWarehouses = (warehousesData || []).map((warehouse: any) => {
-        const warehouseStock = (stockData as any[])?.filter((s: any) => s.warehouse_id === warehouse.id) || [];
-        const activeProductStock = warehouseStock.filter((s: any) => s.product && (s.product as any).is_active);
+        const warehouseStock = mappedStockData.filter((s: any) => s.warehouse_id === warehouse.id) || [];
+        const activeProductStock = warehouseStock.filter((s: any) => s.product && s.product.is_active);
 
-        const productCount = new Set(activeProductStock.map((s: any) => (s.product as any).id)).size;
+        const productCount = new Set(activeProductStock.map((s: any) => s.product.id)).size;
         const totalStock = activeProductStock.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
         const stockValue = activeProductStock.reduce((sum: number, s: any) =>
-          sum + ((s.qty || 0) * ((s.product as any).price || 0)), 0
+          sum + ((s.qty || 0) * (s.product.price || 0)), 0
         );
 
         // Tasa de utilización basada en productos únicos (máximo 100 productos por almacén)
@@ -106,15 +94,8 @@ export function SimpleWarehousesTable() {
   };
 
   const handleDelete = async (warehouseId: string) => {
-    const supabase = createClient();
     try {
-      const { error } = await supabase
-        .from("warehouses")
-        .delete()
-        ;
-
-      if (error) throw error;
-
+      await apiClient.delete(`/system/crud/warehouses/${warehouseId}`);
       success("Almacén eliminado", "El almacén se eliminó correctamente");
       fetchWarehouses();
     } catch (error) {
@@ -124,24 +105,14 @@ export function SimpleWarehousesTable() {
   };
 
   const handleSave = async (warehouseData: any) => {
-    const supabase = createClient();
     try {
       if (editingWarehouse) {
         // Actualizar almacén existente
-        const { error } = await supabase
-          .from("warehouses")
-          .update(warehouseData)
-          ;
-
-        if (error) throw error;
+        await apiClient.patch(`/system/crud/warehouses/${editingWarehouse.id}`, warehouseData);
         success("Almacén actualizado", "El almacén se actualizó correctamente");
       } else {
         // Crear nuevo almacén
-        const { error } = await supabase
-          .from("warehouses")
-          .insert([warehouseData]);
-
-        if (error) throw error;
+        await apiClient.post("/system/crud/warehouses", warehouseData);
         success("Almacén creado", "El almacén se creó correctamente");
       }
 
@@ -508,27 +479,25 @@ function WarehouseStockDetailContent({
 
   useEffect(() => {
     const fetchStockDetails = async () => {
-      const supabase = createClient();
       try {
-        const { data, error } = await supabase
-          .from("stock")
-          .select(`
-            qty,
-            product:products(
-              id,
-              name,
-              sku,
-              price,
-              unit,
-              category:categories(name)
-            )
-          `)
-          
-          .gt("qty", 0)
-          ;
+        const { data: stockData } = await apiClient.get("/system/crud/stock") as any;
+        const { data: productsData } = await apiClient.get("/inventory/products") as any;
+        const { data: categoriesData } = await apiClient.get("/system/crud/categories") as any;
 
-        if (error) throw error;
-        setStockDetails(data || []);
+        const categoryMap = new Map((categoriesData || []).map((c: any) => [c.id, c]));
+        const productMap = new Map((productsData || []).map((p: any) => ({
+            ...p,
+            category: categoryMap.get(p.category_id)
+        })).map((p: any) => [p.id, p]));
+
+        const warehouseStock = (stockData || [])
+            .filter((s: any) => s.warehouse_id === warehouse.id && s.qty > 0)
+            .map((s: any) => ({
+                ...s,
+                product: productMap.get(s.product_id)
+            }));
+
+        setStockDetails(warehouseStock);
       } catch (error) {
         console.error("Error fetching stock details:", error);
       } finally {

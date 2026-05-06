@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
+
 import { 
   BarChart3, 
   TrendingUp, 
@@ -26,9 +26,27 @@ export function PurchasesSalesCharts() {
 
   const fetchChartData = async () => {
     setLoading(true);
-    const supabase = createClient();
     
     try {
+      const { apiClient } = await import("@/lib/api/client");
+      
+      const [
+        { data: purchasesResponse },
+        { data: salesResponse },
+        { data: suppliersResponse },
+        { data: customersResponse }
+      ] = await Promise.all([
+        apiClient.get("/system/crud/purchase_orders").catch(() => ({ data: [] })),
+        apiClient.get("/system/crud/sales_orders").catch(() => ({ data: [] })),
+        apiClient.get("/system/crud/suppliers").catch(() => ({ data: [] })),
+        apiClient.get("/system/crud/customers").catch(() => ({ data: [] }))
+      ]);
+
+      const purchases = purchasesResponse || [];
+      const sales = salesResponse || [];
+      const suppliers = suppliersResponse || [];
+      const customers = customersResponse || [];
+
       // Obtener datos de los últimos 6 meses
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -37,65 +55,36 @@ export function PurchasesSalesCharts() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const [
-        { data: purchasesData },
-        { data: salesData },
-        { data: suppliersData },
-        { data: customersData },
-        { data: dailyPurchases },
-        { data: dailySales }
-      ] = await Promise.all([
-        // Compras por mes
-        supabase
-          .from("purchase_orders")
-          .select("created_at, total, currency")
-          .gte("created_at", sixMonthsAgo.toISOString()),
-        
-        // Ventas por mes
-        supabase
-          .from("sales_orders")
-          .select("created_at, total, currency")
-          .gte("created_at", sixMonthsAgo.toISOString()),
-        
-        // Top proveedores
-        supabase
-          .from("purchase_orders")
-          .select("total, suppliers!supplier_id(name)")
-          
-          .gte("created_at", sixMonthsAgo.toISOString()),
-        
-        // Top clientes
-        supabase
-          .from("sales_orders")
-          .select("total, customers!customer_id(name)")
-          
-          .gte("created_at", sixMonthsAgo.toISOString()),
-        
-        // Compras diarias (últimos 30 días)
-        supabase
-          .from("purchase_orders")
-          .select("created_at, total")
-          .gte("created_at", thirtyDaysAgo.toISOString()),
-        
-        // Ventas diarias (últimos 30 días)
-        supabase
-          .from("sales_orders")
-          .select("created_at, total")
-          .gte("created_at", thirtyDaysAgo.toISOString())
-      ]);
+      // Filter local lists
+      const recentPurchases = purchases.filter((p: any) => new Date(p.created_at) >= sixMonthsAgo);
+      const recentSales = sales.filter((s: any) => new Date(s.created_at) >= sixMonthsAgo);
+
+      const dailyPurchasesList = purchases.filter((p: any) => new Date(p.created_at) >= thirtyDaysAgo);
+      const dailySalesList = sales.filter((s: any) => new Date(s.created_at) >= thirtyDaysAgo);
+
+      // Map references for top suppliers/customers processing
+      const mappedPurchases = recentPurchases.map((p: any) => ({
+        ...p,
+        suppliers: [{ name: suppliers.find((sup: any) => sup.id === p.supplier_id)?.name || 'Desconocido' }]
+      }));
+      
+      const mappedSales = recentSales.map((s: any) => ({
+        ...s,
+        customers: [{ name: customers.find((c: any) => c.id === s.customer_id)?.name || 'Desconocido' }]
+      }));
 
       // Procesar datos mensuales de compras
-      const monthlyPurchases = processMonthlyData(purchasesData || []);
-      const monthlySales = processMonthlyData(salesData || []);
+      const monthlyPurchases = processMonthlyData(recentPurchases);
+      const monthlySales = processMonthlyData(recentSales);
       
       // Procesar top proveedores
-      const topSuppliers = processTopSuppliers(suppliersData || []);
+      const topSuppliers = processTopSuppliers(mappedPurchases);
       
       // Procesar top clientes
-      const topCustomers = processTopCustomers(customersData || []);
+      const topCustomers = processTopCustomers(mappedSales);
       
       // Procesar tendencias diarias
-      const dailyTrends = processDailyTrends(dailyPurchases || [], dailySales || []);
+      const dailyTrends = processDailyTrends(dailyPurchasesList, dailySalesList);
 
       setChartData({
         monthlyPurchases,
