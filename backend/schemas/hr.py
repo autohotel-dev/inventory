@@ -105,6 +105,16 @@ class ShiftSessionResponse(ShiftSessionBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+class ShiftSessionWithRelationsResponse(ShiftSessionResponse):
+    employees: Optional[EmployeeResponse] = None
+    shift_definitions: Optional[ShiftDefinitionResponse] = None
+
+class ManagerDataResponse(BaseModel):
+    shifts: List[ShiftDefinitionResponse]
+    employees: List[EmployeeResponse]
+    active_sessions: List[ShiftSessionWithRelationsResponse]
+    user_role: Optional[str] = None
+
 # --- Shift Closings ---
 class ShiftClosingBase(BaseModel):
     shift_session_id: uuid.UUID
@@ -117,14 +127,27 @@ class ShiftClosingBase(BaseModel):
     total_card_getnet: Optional[Decimal] = Decimal('0.00')
     total_sales: Optional[Decimal] = Decimal('0.00')
     total_transactions: Optional[int] = 0
+    total_expenses: Optional[Decimal] = Decimal('0.00')
+    expenses_count: Optional[int] = 0
+    declared_card_bbva: Optional[Decimal] = Decimal('0.00')
+    declared_card_getnet: Optional[Decimal] = Decimal('0.00')
+    card_difference_bbva: Optional[Decimal] = Decimal('0.00')
+    card_difference_getnet: Optional[Decimal] = Decimal('0.00')
     counted_cash: Optional[Decimal] = None
     cash_difference: Optional[Decimal] = None
     cash_breakdown: Optional[Dict[str, Any]] = None
     status: str = "pending"
     notes: Optional[str] = None
 
+class ShiftClosingDetailCreate(BaseModel):
+    payment_id: uuid.UUID
+    sales_order_id: Optional[uuid.UUID] = None
+    amount: Decimal
+    payment_method: str
+    terminal_code: Optional[str] = None
+
 class ShiftClosingCreate(ShiftClosingBase):
-    pass
+    details: Optional[List[ShiftClosingDetailCreate]] = None
 
 class ShiftClosingUpdate(BaseModel):
     status: Optional[str] = None

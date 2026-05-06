@@ -205,6 +205,14 @@ def update_room_status(room_id: uuid.UUID, room_update: RoomUpdate, db: Session 
 def get_room_stays(room_id: uuid.UUID, db: Session = Depends(get_db)):
     return db.query(RoomStays).filter(RoomStays.room_id == room_id).order_by(RoomStays.created_at.desc()).all()
 
+@router.get("/stays/single/{stay_id}", response_model=RoomStayResponse)
+def get_stay(stay_id: uuid.UUID, db: Session = Depends(get_db)):
+    db_stay = db.query(RoomStays).filter(RoomStays.id == stay_id).first()
+    if not db_stay:
+        raise HTTPException(status_code=404, detail="Stay not found")
+    return db_stay
+
+
 @router.post("/{room_id}/stays", response_model=RoomStayResponse, status_code=status.HTTP_201_CREATED)
 def create_room_stay(room_id: uuid.UUID, stay: RoomStayCreate, db: Session = Depends(get_db)):
     db_room = db.query(Rooms).filter(Rooms.id == room_id).first()
@@ -373,3 +381,67 @@ def assign_asset(room_id: uuid.UUID, req: AssignAssetRequest, db: Session = Depe
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+from pydantic import BaseModel
+class CheckoutValidationResponse(BaseModel):
+    ok: bool
+    stay_id: Optional[str] = None
+    sales_order_id: Optional[str] = None
+    tolerance_expired: bool = False
+    missing_valet: bool = False
+    pending_deliveries: bool = False
+    has_confirmed_payments: bool = False
+
+@router.get("/{room_id}/checkout-validation", response_model=CheckoutValidationResponse)
+def validate_checkout(room_id: uuid.UUID, db: Session = Depends(get_db)):
+    stay = db.query(RoomStays).filter(RoomStays.room_id == room_id, RoomStays.status == "ACTIVA").first()
+    if not stay:
+        return CheckoutValidationResponse(ok=False)
+        
+    tolerance_expired = False
+    if stay.tolerance_started_at and stay.tolerance_type:
+        from datetime import datetime, timezone
+        import pytz
+        now = datetime.utcnow()
+        # simplified check 1 hour
+        diff = (now - stay.tolerance_started_at.replace(tzinfo=None)).total_seconds()
+        if diff >= 3600:
+            tolerance_expired = True
+            
+    missing_valet = False
+    if stay.vehicle_plate and not stay.checkout_valet_employee_id:
+        missing_valet = True
+        
+    pending_deliveries = False
+    if stay.sales_order_id:
+        items = db.query(SalesOrderItems).filter(
+            SalesOrderItems.sales_order_id == stay.sales_order_id,
+            SalesOrderItems.concept_type == 'CONSUMPTION',
+            SalesOrderItems.is_cancelled == False,
+            SalesOrderItems.delivery_status.isnot(None),
+            SalesOrderItems.delivery_status.notin_(['DELIVERED', 'COMPLETED', 'CANCELLED'])
+        ).all()
+        if len(items) > 0:
+            pending_deliveries = True
+            
+    has_confirmed_payments = False
+    if stay.sales_order_id:
+        count = db.query(Payments).filter(
+            Payments.sales_order_id == stay.sales_order_id,
+            Payments.status == 'PAGADO',
+            Payments.concept != 'CHECKOUT'
+        ).count()
+        if count > 0:
+            has_confirmed_payments = True
+            
+    ok = not tolerance_expired and not missing_valet and not pending_deliveries
+    
+    return CheckoutValidationResponse(
+        ok=ok,
+        stay_id=str(stay.id),
+        sales_order_id=str(stay.sales_order_id),
+        tolerance_expired=tolerance_expired,
+        missing_valet=missing_valet,
+        pending_deliveries=pending_deliveries,
+        has_confirmed_payments=has_confirmed_payments
+    )

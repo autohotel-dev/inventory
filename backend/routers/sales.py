@@ -66,6 +66,14 @@ def create_terminal(terminal: PaymentTerminalCreate, db: Session = Depends(get_d
 def get_orders(db: Session = Depends(get_db)):
     return db.query(SalesOrders).all()
 
+@router.get("/orders/{order_id}", response_model=SalesOrderResponse)
+def get_order(order_id: uuid.UUID, db: Session = Depends(get_db)):
+    db_order = db.query(SalesOrders).filter(SalesOrders.id == order_id).first()
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return db_order
+
+
 @router.post("/orders", response_model=SalesOrderResponse, status_code=status.HTTP_201_CREATED)
 def create_order(order: SalesOrderCreate, db: Session = Depends(get_db)):
     # Generate simple order number
@@ -385,3 +393,237 @@ def process_payment(req: ProcessPaymentRequest, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class PendingChargeRequest(BaseModel):
+    amount: float
+    concept: str
+    reference_prefix: str
+    shift_session_id: Optional[str] = None
+    notes: Optional[str] = None
+
+@router.post("/orders/{order_id}/pending-charge")
+def create_pending_charge(order_id: uuid.UUID, req: PendingChargeRequest, db: Session = Depends(get_db)):
+    import random
+    import string
+    import time
+    
+    # Simple reference generator
+    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    timestamp_str = str(int(time.time() * 1000))[-6:]
+    reference = f"{req.reference_prefix}-{timestamp_str}-{random_str}"
+    
+    new_payment = Payments(
+        sales_order_id=order_id,
+        amount=req.amount,
+        payment_method="PENDIENTE",
+        reference=reference,
+        concept=req.concept,
+        status="PENDIENTE",
+        payment_type="COMPLETO",
+        shift_session_id=uuid.UUID(req.shift_session_id) if req.shift_session_id else None,
+        notes=req.notes
+    )
+    db.add(new_payment)
+    
+    order = db.query(SalesOrders).filter(SalesOrders.id == order_id).first()
+    if order:
+        order.subtotal = (order.subtotal or 0) + req.amount
+        order.total = order.subtotal + (order.tax or 0)
+        order.remaining_amount = (order.remaining_amount or 0) + req.amount
+        
+    db.commit()
+    return {"success": True, "newRemaining": order.remaining_amount if order else 0}
+
+class ReconcilePaymentEntry(BaseModel):
+    amount: float
+    method: str
+    reference: Optional[str] = None
+    terminal: Optional[str] = None
+    cardLast4: Optional[str] = None
+    cardType: Optional[str] = None
+
+class ReconcileRequest(BaseModel):
+    payments: List[ReconcilePaymentEntry]
+    total_paid: float
+    reference_prefix: str = "PAG"
+    shift_session_id: Optional[str] = None
+    employee_id: Optional[str] = None
+
+@router.post("/orders/{order_id}/reconcile-pending")
+def reconcile_pending_payments(order_id: uuid.UUID, req: ReconcileRequest, db: Session = Depends(get_db)):
+    pending_payments = db.query(Payments).filter(
+        Payments.sales_order_id == order_id,
+        Payments.status == "PENDIENTE",
+        Payments.parent_payment_id.is_(None)
+    ).order_by(Payments.created_at.asc()).all()
+    
+    remaining_to_pay = req.total_paid
+    valid_payments = [p for p in req.payments if p.amount > 0]
+    is_multipago = len(valid_payments) > 1
+    
+    for pending in pending_payments:
+        if remaining_to_pay <= 0:
+            break
+            
+        amount_for_this = min(pending.amount, remaining_to_pay)
+        remaining_to_pay -= amount_for_this
+        
+        if is_multipago:
+            pending.status = "PAGADO"
+            pending.payment_method = "PENDIENTE"
+            
+            proportion = amount_for_this / req.total_paid
+            for p in valid_payments:
+                sub = Payments(
+                    sales_order_id=order_id,
+                    amount=round(p.amount * proportion, 2),
+                    payment_method=p.method,
+                    reference=p.reference or f"SUB-{int(time.time()*1000)}",
+                    concept=pending.concept,
+                    status="PAGADO",
+                    payment_type="PARCIAL",
+                    parent_payment_id=pending.id,
+                    shift_session_id=uuid.UUID(req.shift_session_id) if req.shift_session_id else None,
+                    collected_by=uuid.UUID(req.employee_id) if req.employee_id else None,
+                    terminal_code=p.terminal if p.method == 'TARJETA' else None,
+                    card_last_4=p.cardLast4 if p.method == 'TARJETA' else None,
+                    card_type=p.cardType if p.method == 'TARJETA' else None
+                )
+                db.add(sub)
+        else:
+            p = valid_payments[0]
+            pending.status = "PAGADO"
+            pending.payment_method = p.method
+            pending.reference = p.reference or f"{req.reference_prefix}-{int(time.time()*1000)}"
+            if req.shift_session_id:
+                pending.shift_session_id = uuid.UUID(req.shift_session_id)
+            if req.employee_id:
+                pending.collected_by = uuid.UUID(req.employee_id)
+            if p.method == 'TARJETA':
+                pending.terminal_code = p.terminal
+                pending.card_last_4 = p.cardLast4
+                pending.card_type = p.cardType
+                
+    # Update order remaining amount
+    paid_amount_applied = req.total_paid - remaining_to_pay
+    if paid_amount_applied > 0:
+        order = db.query(SalesOrders).filter(SalesOrders.id == order_id).first()
+        if order:
+            order.remaining_amount = max(0, (order.remaining_amount or 0) - paid_amount_applied)
+            
+    db.commit()
+    return {"remaining_to_pay": remaining_to_pay}
+
+from schemas.sales import SalesOrderItemCreate
+from models.inventory import Stock, InventoryMovements
+
+class AddItemsRequest(BaseModel):
+    items: List[SalesOrderItemCreate]
+    warehouse_id: Optional[uuid.UUID] = None
+    employee_id: Optional[uuid.UUID] = None
+
+@router.post("/orders/{order_id}/items/bulk")
+def add_items_to_order(order_id: uuid.UUID, req: AddItemsRequest, db: Session = Depends(get_db)):
+    # 1. Verify stock
+    if req.warehouse_id:
+        for item in req.items:
+            stock = db.query(Stock).filter(Stock.product_id == item.product_id, Stock.warehouse_id == req.warehouse_id).first()
+            if not stock or stock.qty < item.qty:
+                raise HTTPException(status_code=400, detail=f"Stock insuficiente para producto {item.product_id}")
+    
+    total_new = 0
+    productos_nota = []
+    
+    for item in req.items:
+        # Create item
+        db_item = SalesOrderItems(
+            sales_order_id=order_id,
+            product_id=item.product_id,
+            qty=item.qty,
+            unit_price=item.unit_price,
+            is_courtesy=item.is_courtesy,
+            courtesy_reason=item.courtesy_reason
+        )
+        db.add(db_item)
+        
+        total_new += (item.qty * item.unit_price)
+        
+        # Product name for notes
+        prod = db.query(Products).filter(Products.id == item.product_id).first()
+        prod_name = prod.name if prod else "Producto"
+        productos_nota.append(f"{item.qty}x {prod_name}")
+        
+        # Create inventory movement
+        if req.warehouse_id:
+            stock = db.query(Stock).filter(Stock.product_id == item.product_id, Stock.warehouse_id == req.warehouse_id).first()
+            stock.qty -= item.qty
+            
+            movement = InventoryMovements(
+                product_id=item.product_id,
+                warehouse_id=req.warehouse_id,
+                quantity=item.qty,
+                movement_type="OUT",
+                reason_id=6, # Assuming 6 is SALE
+                reason="SALE",
+                notes=f"Consumo vendido en orden {order_id}",
+                reference_table="sales_orders",
+                reference_id=str(order_id),
+                created_by=req.employee_id
+            )
+            db.add(movement)
+            
+    # Create payment pending
+    import random, string, time
+    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    timestamp_str = str(int(time.time() * 1000))[-6:]
+    
+    payment = Payments(
+        sales_order_id=order_id,
+        amount=total_new,
+        payment_method="PENDIENTE",
+        reference=f"CON-{timestamp_str}-{random_str}",
+        concept="CONSUMO",
+        status="PENDIENTE",
+        payment_type="COMPLETO",
+        notes=", ".join(productos_nota),
+        collected_by=req.employee_id
+    )
+    db.add(payment)
+    
+    # Update order
+    order = db.query(SalesOrders).filter(SalesOrders.id == order_id).first()
+    if order:
+        order.subtotal = (order.subtotal or 0) + total_new
+        order.total = order.subtotal + (order.tax or 0)
+        order.remaining_amount = (order.remaining_amount or 0) + total_new
+        
+    db.commit()
+    return {"success": True, "added_total": total_new}
+
+@router.delete("/orders/items/{item_id}")
+def remove_item(item_id: uuid.UUID, db: Session = Depends(get_db)):
+    item = db.query(SalesOrderItems).filter(SalesOrderItems.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item no encontrado")
+        
+    order_id = item.sales_order_id
+    db.delete(item)
+    db.commit()
+    
+    # Recalculate totals
+    order = db.query(SalesOrders).filter(SalesOrders.id == order_id).first()
+    items_subtotal = sum([(i.qty or 0) * (i.unit_price or 0) for i in db.query(SalesOrderItems).filter(SalesOrderItems.sales_order_id == order_id).all()])
+    
+    payments = db.query(Payments).filter(Payments.sales_order_id == order_id, Payments.parent_payment_id.is_(None)).all()
+    non_item_charges = sum([(p.amount or 0) for p in payments if p.concept != "CONSUMO"])
+    
+    new_subtotal = items_subtotal + non_item_charges
+    order.subtotal = new_subtotal
+    order.total = new_subtotal + (order.tax or 0)
+    order.remaining_amount = max(0, order.total - (order.paid_amount or 0))
+    
+    db.commit()
+    return {"success": True}

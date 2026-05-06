@@ -273,3 +273,39 @@ def create_movement(movement: InventoryMovementCreate, db: Session = Depends(get
     db.refresh(db_movement)
     return db_movement
 
+
+@router.get("/movements")
+def get_inventory_movements(
+    page: int = 0,
+    limit: int = 20,
+    search: Optional[str] = None,
+    type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(InventoryMovements)
+    if type:
+        query = query.filter(InventoryMovements.movement_type == type)
+    if search:
+        query = query.filter(or_(
+            InventoryMovements.notes.ilike(f"%{search}%"),
+            InventoryMovements.reference_id.ilike(f"%{search}%")
+        ))
+        
+    total = query.count()
+    items = query.order_by(InventoryMovements.created_at.desc()).offset(page * limit).limit(limit).all()
+    
+    # Needs related data format (products, warehouses, users) for frontend compat
+    # We will just return the raw models and let the frontend adapt, or we can format it here.
+    # To keep it simple, we format it.
+    formatted_items = []
+    for item in items:
+        prod = db.query(Products).filter(Products.id == item.product_id).first()
+        wh = db.query(Warehouses).filter(Warehouses.id == item.warehouse_id).first()
+        formatted_items.append({
+            **item.__dict__,
+            "products": {"name": prod.name if prod else "", "sku": prod.sku if prod else "", "price": prod.price if prod else 0},
+            "warehouses": {"name": wh.name if wh else "", "code": wh.code if wh else ""},
+            "users": {"email": "system@app.com", "id": item.created_by}
+        })
+        
+    return {"items": formatted_items, "total": total}
