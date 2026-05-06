@@ -3,7 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import get_db, get_db_connection
+from psycopg2.extras import RealDictCursor
+from typing import Optional
 from models.sales import Customers, SalesOrders, SalesOrderItems, Payments, PaymentTerminals
 from sqlalchemy import text
 from schemas.sales import (

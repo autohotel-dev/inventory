@@ -2,6 +2,7 @@
 import { apiClient } from "@/lib/api/client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export function ExecutiveCharts() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      const supabase = createClient();
       try {
         const from = subDays(new Date(), periodDays).toISOString();
 
@@ -157,7 +159,7 @@ export function ExecutiveCharts() {
     };
 
     fetchData();
-  }, [period, periodDays, supabase]);
+  }, [period, periodDays]);
 
   // Summary KPIs
   const totalRevenue = dailyData.reduce((s, d) => s + d.revenue, 0);

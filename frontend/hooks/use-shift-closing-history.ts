@@ -1,9 +1,9 @@
+"use client";
 import { apiClient } from "@/lib/api/client";
 /**
  * Hook for shift closing history: list, filter, detail, approve/reject, correction.
  * Extracted from shift-closing.tsx (ShiftClosingHistory).
  */
-"use client";
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -114,8 +114,7 @@ export function useShiftClosingHistory() {
   const approveClosing = async (closingId: string) => {
     setProcessingAction(true);
     try {
-      await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id || closingId}`, { status: "approved", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString() })
-        ;
+      const { error } = await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || closingId}`, { status: "approved", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString() }) as any;
       if (error) throw error;
       await recordReview(closingId, "approved");
       await loadClosings();
@@ -133,8 +132,7 @@ export function useShiftClosingHistory() {
     if (!selectedClosing || !rejectionReason.trim()) { showError("Error", "Debe proporcionar un motivo de rechazo"); return; }
     setProcessingAction(true);
     try {
-      await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id || closingId}`, { status: "rejected", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString(), rejection_reason: rejectionReason.trim() })
-        ;
+      const { error } = await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id}`, { status: "rejected", reviewed_by: currentEmployeeId, reviewed_at: new Date().toISOString(), rejection_reason: rejectionReason.trim() }) as any;
       if (error) throw error;
       await recordReview(selectedClosing.id, "rejected", rejectionReason.trim());
       await loadClosings();
@@ -171,13 +169,13 @@ export function useShiftClosingHistory() {
       const diffBBVA = bbvaAmount - (correctionClosing.total_card_bbva || 0);
       const diffGetnet = getnetAmount - (correctionClosing.total_card_getnet || 0);
 
-      await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id || closingId}`, {
+      const { error } = await apiClient.patch(`/system/crud/shift_closings/${selectedClosing?.id || correctionClosing?.id}`, {
         counted_cash: correctionCashTotal, cash_difference: cashDifference, cash_breakdown: null,
         notes: correctionNotes.trim() || null, declared_card_bbva: bbvaAmount,
         declared_card_getnet: getnetAmount, card_difference_bbva: diffBBVA,
         card_difference_getnet: diffGetnet, status: "pending", rejection_reason: null,
         reviewed_by: null, reviewed_at: null, is_correction: true,
-      });
+      }) as any;
       if (error) throw error;
 
       success("Corrección enviada", "El corte ha sido actualizado y enviado para revisión");

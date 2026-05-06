@@ -16,8 +16,8 @@ export async function resetAllRooms() {
   const { data: employee } = await supabase
     .from("employees")
     .select("role")
-    
-    ;
+    .eq("user_id", user.id)
+    .single();
 
   if (employee?.role !== "admin") {
     return { success: false, error: "Requiere privilegios de administrador" };

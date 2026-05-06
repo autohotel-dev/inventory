@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
         const { data: roomStay, error: roomStayError } = await supabase
             .from('room_stays')
             .select('id, status')
-            
-            ;
+            .eq('id', room_stay_id)
+            .single();
 
         if (roomStayError || !roomStay || roomStay.status !== 'ACTIVA') {
             return NextResponse.json(
@@ -44,9 +44,8 @@ export async function POST(request: NextRequest) {
         const { data: existing } = await supabase
             .from('guest_subscriptions')
             .select('id')
-            
-            
-            ;
+            .eq('room_stay_id', room_stay_id)
+            .single();
 
         if (existing) {
             // Update existing subscription
@@ -57,9 +56,9 @@ export async function POST(request: NextRequest) {
                     user_agent,
                     updated_at: new Date().toISOString(),
                 })
-                
+                .eq('room_stay_id', room_stay_id)
                 .select()
-                ;
+                .single();
 
             if (error) {
                 throw error;
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
                 is_active: true,
             })
             .select()
-            ;
+            .single();
 
         if (error) {
             throw error;

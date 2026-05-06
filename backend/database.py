@@ -19,3 +19,10 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def get_db_connection():
+    if engine:
+        return engine.raw_connection()
+    import psycopg2
+    import os
+    return psycopg2.connect(os.getenv("DATABASE_URL"))

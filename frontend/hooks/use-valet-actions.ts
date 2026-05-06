@@ -245,7 +245,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleAcceptEntry = useCallback(async (stayId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         try {
-            await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, { valet_employee_id: valetId });
+            await apiClient.patch(`/system/crud/room_stays/${stayId}`, { valet_employee_id: valetId });
 
             toast.success('¡Éxito!', {
                 description: `Te has asignado la Habitación ${roomNumber}`
@@ -306,11 +306,11 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         setLoading(true);
         try {
             const itemIds = items.map(item => item.id);
-            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
+            await Promise.all(itemIds.map(id => apiClient.patch(`/system/crud/sales_order_items/${id}`, {
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
-                });
+                })));
             toast.success('¡Éxito!', {
                 description: `${items.length} entregas asignadas para Hab. ${roomNumber}`
             });

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Activity, CreditCard, AlertTriangle, Users, TrendingUp, TrendingDown,

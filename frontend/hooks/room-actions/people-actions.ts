@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client";
 /**
  * People-related room actions: add, remove, tolerance.
  */
@@ -22,6 +23,7 @@ import {
 
 export function createPeopleActions(ctx: RoomActionContext) {
   const { checkAuthorization } = ctx;
+  const supabase = createClient();
 
   /**
    * Agregar persona a la habitación.
@@ -101,11 +103,11 @@ export function createPeopleActions(ctx: RoomActionContext) {
             const productResult = await getOrCreateServiceProduct();
             if (!productResult.success) { toast.error("Error al registrar el cargo"); return; }
 
-            const currentShiftId = await getReceptionShiftId(supabase);
+            const currentShiftId = await getReceptionShiftId();
             const itemResult = await createServiceItem(activeStay.sales_order_id, extraPrice, "EXTRA_PERSON", 1, false, "", currentShiftId);
             if (!itemResult.success) { toast.error("Error al registrar el cargo"); return; }
 
-            const chargeResult = await createPendingCharge(supabase, activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX", currentShiftId);
+            const chargeResult = await createPendingCharge(activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX", currentShiftId);
 
             toast.success("Persona extra registrada", {
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
@@ -121,7 +123,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
               extra: { previous_people: current, new_people: newCurrentPeople, total_historic: newTotalPeople },
             });
 
-            await notifyActiveValets(supabase, '👤 Persona Extra Registrada',
+            await notifyActiveValets('👤 Persona Extra Registrada',
               `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: ${formatCurrency(chargeResult.newRemaining || extraPrice)}.`,
               { type: 'NEW_EXTRA', consumptionId: itemResult.data, roomNumber: room.number, stayId: activeStay.id }
             );
@@ -141,7 +143,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
             extra: { previous_people: current, new_people: newCurrentPeople, total_historic: newTotalPeople },
           });
 
-          await notifyActiveValets(supabase, '👤 Persona Agregada',
+          await notifyActiveValets('👤 Persona Agregada',
             `Habitación ${room.number}: Se agregó una persona. Total actual: ${newCurrentPeople}.`,
             { type: 'PERSON_ENTRY', roomNumber: room.number, stayId: activeStay.id }
           );
@@ -243,7 +245,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
           extra: { action: "RETURN", minutes_elapsed: minutesElapsed, minutes_remaining: minutesRemaining },
         });
 
-        await notifyActiveValets(supabase, '👤 Persona Regresó',
+        await notifyActiveValets('👤 Persona Regresó',
           `Habitación ${room.number}: La persona regresó dentro del tiempo de tolerancia.`,
           { type: 'PERSON_RETURN', roomNumber: room.number, stayId: activeStay.id }
         );
@@ -317,7 +319,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
         })
       }).catch(err => logger.warn('No se pudo imprimir ticket de tolerancia', err));
 
-      await notifyActiveValets(supabase, '⏱️ Tolerancia Iniciada',
+      await notifyActiveValets('⏱️ Tolerancia Iniciada',
         `Habitación ${room.number}: Salió una persona con derecho a regreso (1h).`,
         { type: 'TOLERANCE_STARTED', roomNumber: room.number, stayId: activeStay.id }
       );

@@ -1,0 +1,21 @@
+hooks/use-shift-closing-history.ts(172,108): error TS2552: Cannot find name 'closingId'. Did you mean 'closings'?
+hooks/use-shift-closing-history.ts(179,11): error TS2552: Cannot find name 'error'. Did you mean 'Error'?
+hooks/use-shift-closing-history.ts(179,24): error TS2552: Cannot find name 'error'. Did you mean 'Error'?
+hooks/use-shift-closing.ts(216,48): error TS2304: Cannot find name 'supabase'.
+hooks/use-shift-closing.ts(277,41): error TS2304: Cannot find name 'supabase'.
+hooks/use-valet-actions.ts(248,62): error TS2304: Cannot find name 'activeStay'.
+hooks/use-valet-actions.ts(309,69): error TS2304: Cannot find name 'consumptionId'.
+lib/services/guest-notification-service.ts(79,23): error TS2339: Property 'guest_access_token' does not exist on type '{ guest_access_token: any; }[]'.
+lib/services/guest-notification-service.ts(81,77): error TS2339: Property 'guest_access_token' does not exist on type '{ guest_access_token: any; }[]'.
+lib/services/guest-notification-service.ts(82,30): error TS2339: Property 'guest_access_token' does not exist on type '{ guest_access_token: any; }[]'.
+lib/services/guest-notification-service.ts(84,60): error TS2339: Property 'room_number' does not exist on type 'any[]'.
+lib/services/guest-notification-service.ts(84,90): error TS2339: Property 'guest_access_token' does not exist on type '{ guest_access_token: any; }[]'.
+lib/services/guest-notification-service.ts(87,47): error TS2339: Property 'subscription_data' does not exist on type 'any[]'.
+lib/services/guest-notification-service.ts(108,43): error TS2339: Property 'room_number' does not exist on type 'any[]'.
+lib/services/guest-notification-service.ts(246,26): error TS2339: Property 'title_template' does not exist on type 'any[]'.
+lib/services/guest-notification-service.ts(247,25): error TS2339: Property 'body_template' does not exist on type 'any[]'.
+lib/services/guest-notification-service.ts(313,60): error TS2339: Property 'id' does not exist on type 'any[]'.
+lib/services/product-service.ts(157,12): error TS2339: Property 'select' does not exist on type 'Promise<AxiosResponse<any, any, {}>>'.
+lib/services/product-service.ts(211,12): error TS2339: Property 'select' does not exist on type 'Promise<AxiosResponse<any, any, {}>>'.
+lib/services/product-service.ts(258,20): error TS2304: Cannot find name 'unpaidItems'.
+lib/services/product-service.ts(261,24): error TS2304: Cannot find name 'unpaidItems'.

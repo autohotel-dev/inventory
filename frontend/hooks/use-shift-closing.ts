@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ShiftSession } from "@/components/employees/types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense } from "@/types/expenses";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ interface UseShiftClosingProps {
 export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   const { success, error: showError } = useToast();
   const { printClosing, isPrinting: isPrintingClosing } = usePrintClosing();
+  const supabase = createClient();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

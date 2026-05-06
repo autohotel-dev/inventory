@@ -181,11 +181,11 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
           sales_order_id: orderId, amount: p.amount, payment_method: p.method,
           reference: p.reference || generatePaymentReference("ABN") as any,
           concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO",
-        });
+        }) as any;
         if (error) console.error("Error inserting payment:", error);
       }
 
-      const { apiClient } = await import("@/lib/api/client");
+
       let data;
       try {
         const response = await apiClient.post('/sales/process-payment', {
@@ -266,7 +266,7 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
       const newItemsTotal = newItems.reduce((sum, i) => sum + (i.quantity * i.unit_price), 0);
       const productosNota = newItems.map(i => `${i.quantity}x ${i.product.name}`).join(", ");
 
-      const { apiClient } = await import("@/lib/api/client");
+
       await apiClient.post(`/sales/orders/${orderId}/items/bulk`, {
         items: newItems.map(i => ({
           product_id: i.product.id,
@@ -300,7 +300,7 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
   const removeItemFromOrder = async () => {
     try {
-      const { apiClient } = await import("@/lib/api/client");
+
       await apiClient.delete(`/sales/orders/items/${confirmDialog.itemId}`);
       await fetchOrderDetail();
       toast.success("Producto eliminado", { description: "El producto ha sido removido de la orden" });

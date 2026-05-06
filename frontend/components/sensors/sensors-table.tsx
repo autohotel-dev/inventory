@@ -136,7 +136,7 @@ export function SensorsTable() {
                     status: 'ONLINE',
                     is_open: false,
                     battery_level: 100
-                });
+                }) as any;
                 error = res.error;
             }
 

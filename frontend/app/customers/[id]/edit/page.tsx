@@ -11,8 +11,8 @@ async function getCustomer(id: string) {
   const { data, error } = await supabase
     .from("customers")
     .select("id, name, tax_id, email, phone, address, is_active")
-    
-    ;
+    .eq("id", id)
+    .single();
   if (error) throw error;
   return data;
 }

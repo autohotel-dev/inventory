@@ -287,6 +287,10 @@ export function useReprintCenter() {
   const fetchTickets = useCallback(async () => {
     setLoading(true);
     try {
+      const fromISO = dateRange.from.toISOString();
+      const toISO = dateRange.to.toISOString();
+      const allTickets: ReprintableTicket[] = [];
+
       const { data } = await apiClient.get(`/system/analytics/reprint-tickets`, {
         params: { from_date: fromISO, to_date: toISO }
       }) as any;

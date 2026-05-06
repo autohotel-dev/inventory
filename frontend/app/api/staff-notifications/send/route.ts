@@ -44,8 +44,8 @@ export async function POST(req: Request) {
         const { data: senderEmployee } = await adminSupabase
             .from('employees')
             .select('id, first_name, last_name, role')
-            
-            ;
+            .eq('user_id', user.id)
+            .single();
 
         // If no employee record found, the user might be a direct admin (fallback in use-user-role.ts)
         // Allow them to proceed as admin
@@ -79,10 +79,8 @@ export async function POST(req: Request) {
             const { data: emp } = await adminSupabase
                 .from('employees')
                 .select('auth_user_id')
-                
-                
-                
-                ;
+                .eq('id', payload.targetEmployeeId)
+                .single();
 
             if (emp?.auth_user_id) {
                 targetAuthUserIds = [emp.auth_user_id];
@@ -95,16 +93,14 @@ export async function POST(req: Request) {
                 .from('employees')
                 .select('auth_user_id')
                 .in('role', payload.targetRoles)
-                
-                ;
+                .eq('is_active', true);
 
             targetAuthUserIds = (emps || []).map(e => e.auth_user_id).filter(Boolean) as string[];
         } else if (payload.targetType === 'all') {
             const { data: emps } = await adminSupabase
                 .from('employees')
                 .select('auth_user_id')
-                
-                ;
+                .eq('is_active', true);
 
             targetAuthUserIds = (emps || []).map(e => e.auth_user_id).filter(Boolean) as string[];
         }

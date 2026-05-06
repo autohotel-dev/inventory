@@ -45,12 +45,12 @@ export function ProfitabilityReport() {
     const [sortBy, setSortBy] = useState<'profit' | 'margin' | 'roi'>('profit');
 
     const fetchProfitabilityReport = async () => {
+        try {
             const { apiClient } = await import("@/lib/api/client");
             const { data } = await apiClient.get('/analytics/profitability-report');
             if (data) {
                 setData(data);
             }
-
         } catch (error) {
             console.error("Error fetching profitability report:", error);
         } finally {

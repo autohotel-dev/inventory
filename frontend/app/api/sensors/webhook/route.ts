@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
         const { data: sensor } = await supabase
             .from("sensors")
             .select("id, room_id")
-            
-            ;
+            .eq("device_id", deviceId)
+            .single();
 
         if (!sensor) {
             console.log(`Sensor unknown: ${deviceId}`);
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
                     status: 'ONLINE',
                     ...(battery !== null ? { battery_level: battery } : {})
                 })
-                ;
+                .eq("id", sensor.id);
 
             // Registrar evento
             await apiClient.post("/system/crud/sensor_events", {

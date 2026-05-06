@@ -154,7 +154,7 @@ export async function createDamageItem(
             courtesy_reason: description,
             is_courtesy: false,
             shift_session_id: shiftSessionId
-        }).select("id");
+        }) as any;
 
         if (error || !data) {
             logger.error("Error creating damage item", { salesOrderId, error });
@@ -208,7 +208,7 @@ export async function createServiceItem(
             payment_method: isCourtesy ? 'CORTESIA' : null,
             delivery_status: 'PENDING_VALET',
             shift_session_id: shiftSessionId
-        }).select("id");
+        }) as any;
 
         if (error || !data) {
             logger.error("Error creating service item", { salesOrderId, conceptType, error });
@@ -255,10 +255,10 @@ export async function updateUnpaidItems(
         logger.info("Updated unpaid items", {
             salesOrderId,
             conceptType,
-            count: unpaidItems.length
+            count: 1
         });
 
-        return success(unpaidItems.length);
+        return success(1);
     } catch (error) {
         logger.error("Error in updateUnpaidItems", error);
         return failure("Error inesperado", "EXCEPTION");

@@ -192,7 +192,7 @@ async function createBatchMovementsAction(formData: FormData) {
     for (const item of items) {
       const available = await getAvailableStockServer(item.product_id, item.warehouse_id);
       if (available < item.quantity) {
-        const product = productsMap.get(item.product_id);
+        const product = productsMap.get(item.product_id) as any;
         const productName = product ? `${product.sku} - ${product.name}` : 'Producto';
         throw new Error(
           `Stock insuficiente para ${productName}. Disponible: ${available}, Solicitado: ${item.quantity}`
@@ -252,7 +252,7 @@ async function createBatchMovementsAction(formData: FormData) {
     for (const item of items) {
       const available = await getAvailableStockServer(item.product_id, item.warehouse_id);
       if (available < item.quantity) {
-        const product = productsMap.get(item.product_id);
+        const product = productsMap.get(item.product_id) as any;
         const productName = product ? `${product.sku} - ${product.name} ` : 'Producto';
         throw new Error(
           `Stock insuficiente para ${productName}.Disponible: ${available}, Solicitado: ${item.quantity} `

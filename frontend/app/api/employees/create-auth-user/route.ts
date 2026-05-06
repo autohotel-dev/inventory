@@ -28,9 +28,8 @@ export async function POST(request: NextRequest) {
     const { data: employee } = await supabase
         .from('employees')
         .select('role')
-        
-        
-        ;
+        .eq('user_id', user.id)
+        .single();
 
     if (!employee || !['admin', 'manager'].includes(employee.role)) {
         return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
@@ -86,7 +85,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabaseAdmin
       .from("employees")
       .update({ auth_user_id: authData.user.id })
-      ;
+      .eq('id', employeeId);
 
     if (updateError) {
       // Si falla la vinculación, eliminar el usuario creado

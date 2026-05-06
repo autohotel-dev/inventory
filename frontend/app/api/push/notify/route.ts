@@ -110,7 +110,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'No target employees' });
         }
 
-        const employeeIds = employees.map(e => e.id);
+        const employeeIds = employees.map((e: any) => e.id);
         
         const subsRes = await fetch(`${apiUrl}/system/crud/push_subscriptions`);
         const allSubs = subsRes.ok ? await subsRes.json() : [];
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
             tag: notificationContent.tag
         });
 
-        const results = await Promise.allSettled(subs.map(sub => {
+        const results = await Promise.allSettled(subs.map((sub: any) => {
             const pushSub = {
                 endpoint: sub.subscription.endpoint,
                 keys: {

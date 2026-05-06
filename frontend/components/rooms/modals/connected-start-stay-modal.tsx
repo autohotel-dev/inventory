@@ -208,7 +208,7 @@ export function ConnectedStartStayModal({
               sales_order_id: (rpcResult as any).sales_order_id,
               room_id: room.id,
               room_number: room.number,
-              shift_session_id: shiftSessionId,
+              shift_session_id: shiftSessionId || undefined,
             },
             {
               event_type: "ROOM_ASSIGNED",

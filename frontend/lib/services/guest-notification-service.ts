@@ -58,9 +58,8 @@ export async function sendNotificationToGuest(
         const { data: subscription, error } = await supabase
             .from('guest_subscriptions')
             .select('*')
-            
-            
-            ;
+            .eq('id', subscriptionId)
+            .single();
 
         if (error || !subscription) {
             return { success: false, error: 'Subscription not found' };
@@ -70,8 +69,8 @@ export async function sendNotificationToGuest(
         const { data: roomStay } = await supabase
             .from('room_stays')
             .select('guest_access_token')
-            
-            ;
+            .eq('id', subscription.room_stay_id)
+            .single();
 
         let finalActionUrl = payload.action_url;
 
@@ -162,8 +161,8 @@ export async function sendNotificationToRoom(
     const { data: subscriptions, error } = await supabase
         .from('guest_subscriptions')
         .select('id')
-        
-        ;
+        .eq('room_number', roomNumber)
+        .eq('is_active', true);
 
     if (error || !subscriptions || subscriptions.length === 0) {
         return { sent: 0, failed: 0 };
@@ -235,9 +234,8 @@ export async function renderTemplate(
     const { data: template, error } = await supabase
         .from('notification_templates')
         .select('*')
-        
-        
-        ;
+        .eq('id', templateId)
+        .single();
 
     if (error || !template) {
         return null;
@@ -292,9 +290,8 @@ export async function sendCheckoutReminders(hoursBeforeCheckout: number = 2): Pr
     const { data: template } = await supabase
         .from('notification_templates')
         .select('*')
-        
-        
-        ;
+        .eq('notification_type', 'checkout_reminder')
+        .single();
 
     for (const stay of roomStays) {
         if (!stay.rooms || !stay.expected_check_out_at) continue;

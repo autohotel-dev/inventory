@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
                 submitted_at: new Date().toISOString(),
             })
             .select()
-            ;
+            .single();
 
         if (error) {
             throw error;

@@ -11,8 +11,8 @@ async function getSupplier(id: string) {
   const { data, error } = await supabase
     .from("suppliers")
     .select("id, name, tax_id, email, phone, address, is_active")
-    
-    ;
+    .eq("id", id)
+    .single();
   if (error) throw error;
   return data;
 }

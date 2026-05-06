@@ -3,7 +3,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import get_db, get_db_connection
+from psycopg2.extras import RealDictCursor
 from models.rooms import Rooms, RoomTypes, RoomCleanings, RoomStays
 from schemas.rooms import (
     RoomCreate, RoomUpdate, RoomResponse,
@@ -382,6 +383,7 @@ def assign_asset(room_id: uuid.UUID, req: AssignAssetRequest, db: Session = Depe
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+from typing import Optional
 from pydantic import BaseModel
 class CheckoutValidationResponse(BaseModel):
     ok: bool

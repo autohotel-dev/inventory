@@ -19,7 +19,7 @@ import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useSensors } from "@/hooks/use-sensors";
-import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+
 import { toast } from "sonner";
 import { GlobalClock } from "@/components/ui/global-clock";
 import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
@@ -122,36 +122,13 @@ function RoomsBoardInternal() {
     router.push("/auth/login");
   }, [router]);
 
-  const ensureAuthenticated = useCallback(async () => {
-    const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session) {
-      forceRelogin();
-      return false;
-    }
-    return true;
-  }, [forceRelogin, supabase.auth]);
-
   useEffect(() => {
     let isMounted = true;
-
-    const check = async () => {
-      const ok = await ensureAuthenticated();
-      if (!ok) return;
-      if (!isMounted) return;
-      authRedirectedRef.current = false;
-    };
-
-    check();
-
-    const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
-      if (!session) forceRelogin();
-    });
-
+    authRedirectedRef.current = false;
     return () => {
       isMounted = false;
-      data.subscription.unsubscribe();
     };
-  }, [ensureAuthenticated, forceRelogin, supabase.auth]);
+  }, []);
 
   // Detectar cambios en sensores para alertas
   useEffect(() => {

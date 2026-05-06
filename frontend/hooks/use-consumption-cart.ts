@@ -506,7 +506,7 @@ export function useConsumptionCart({
         };
       });
 
-      const { apiClient } = await import("@/lib/api/client");
+
       const { data: addData } = await apiClient.post(`/sales/orders/${salesOrderId}/items/bulk`, {
         items: itemsToInsert,
         warehouse_id: orderInfo.warehouse_id,
@@ -517,7 +517,7 @@ export function useConsumptionCart({
       try {
         const productNames = Array.from(cartItems.values())
           .map(({ product, qty }) => `${qty}x ${product.name}`).join(", ");
-        await notifyActiveValets(null as any, '🛒 Nuevo Consumo Registrado',
+        await notifyActiveValets('🛒 Nuevo Consumo Registrado',
           `Habitación ${roomNumber || 'N/A'}: Se agregaron ${productNames}. Nuevo cargo: $${totalAmount.toFixed(2)} MXN.`,
           { type: 'REGULAR_CONSUMPTION', salesOrderId, roomNumber: roomNumber || 'N/A' }
         );
