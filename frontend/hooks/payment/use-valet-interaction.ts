@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { VALET_CONCEPTS, CONCEPT_LABELS, VALET_TO_SYSTEM_MAP, OrderItem } from "@/components/sales/payment/payment-constants";
 import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
@@ -20,26 +19,11 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
   const fetchValetData = useCallback(async () => {
     if (!salesOrderId) return;
     try {
-      const supabase = createClient();
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/sales/orders/${salesOrderId}/valet-interaction`);
       
-      const { data: stayData } = await supabase
-        .from("room_stays")
-        .select("status, checkout_payment_data, id")
-        
-        .maybeSingle();
-
-      const { data: paymentsData } = await supabase
-        .from("payments")
-        .select(`
-          *,
-          employees!payments_collected_by_fkey (
-            first_name,
-            last_name
-          )
-        `)
-        
-        .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"])
-        ;
+      const stayData = data?.stayData;
+      const paymentsData = data?.paymentsData;
 
       if (stayData || (paymentsData && paymentsData.length > 0)) {
         const hasValetConcept = items.some(i => VALET_CONCEPTS.includes(i.concept_type || ''));
@@ -137,39 +121,11 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
 
   const corroborateValetPayment = async (paymentIds: string[]) => {
     try {
-      const supabase = createClient();
-      
-      const realIds = paymentIds.filter(id => id.includes('-') && id.length > 20 && !id.startsWith('check-in'));
-      
-      // Update real payments in payments table
-      if (realIds.length > 0) {
-        const { error } = await supabase
-          .from("payments")
-          .update({ 
-            status: 'CORROBORADO_RECEPCION', // Status intermedio: recepcionista corroboró pero no ha procesado pago
-            confirmed_at: new Date().toISOString(),
-            confirmed_by: employeeId // From props
-          })
-          .in("id", realIds);
-        if (error) throw error;
-      }
-
-      // Handle virtual report check-in-fixed
-      if (paymentIds.includes('check-in-fixed')) {
-          // Find if there are any ENTRADA payments recorded by valet for this order
-          const { error } = await supabase
-            .from("payments")
-            .update({ 
-                status: 'CORROBORADO_RECEPCION', // Status intermedio
-                confirmed_at: new Date().toISOString(),
-                confirmed_by: employeeId
-            })
-            
-            
-            ;
-          
-          if (error) console.error("Error corroborating virtual report payments:", error);
-      }
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.post(`/sales/orders/${salesOrderId}/corroborate-valet-payments`, {
+        paymentIds,
+        employeeId
+      });
 
       setCorroboratedIds(prev => {
         const next = new Set(prev);
@@ -186,13 +142,10 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
 
       // ─── Flow Event ─────────────────────────────────────────────
       try {
-        const supabase2 = createClient();
-        const { data: stayForFlow } = await supabase2
-          .from("room_stays")
-          .select("id")
-          
-          
-          .maybeSingle();
+        const { apiClient } = await import("@/lib/api/client");
+        // We can just use the stayData from the hook or fetch it directly. We just need stayId.
+        const { data } = await apiClient.get(`/sales/orders/${salesOrderId}/valet-interaction`);
+        const stayForFlow = data?.stayData;
         if (stayForFlow) {
           findActiveFlow(stayForFlow.id).then(flowId => {
             if (flowId) {

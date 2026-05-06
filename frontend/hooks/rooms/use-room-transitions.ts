@@ -1,6 +1,5 @@
 import { apiClient } from "@/lib/api/client";
 import { useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { EXIT_TOLERANCE_MS } from "@/lib/constants/room-constants";
@@ -21,7 +20,6 @@ export function useRoomTransitions(
 ) {
   useEffect(() => {
     const processRoomTransitions = async () => {
-      const supabase = createClient();
       const now = new Date();
 
       for (const room of rooms) {
@@ -46,7 +44,6 @@ export function useRoomTransitions(
 
                 // Notificar a los valets
                 await notifyActiveValets(
-                  supabase,
                   '⏰ Horas Extra Agregadas',
                   `Habitación ${room.number}: Se agregaron ${data.hours_added}h extra. Saldo actualizado.`,
                   {

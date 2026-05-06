@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api/client";
 "use client";
+import { apiClient } from "@/lib/api/client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,8 +59,6 @@ export function PredictionEngine({ occupancy, revenue }: PredictionEngineProps =
   useEffect(() => {
     const generatePredictions = async () => {
       setLoading(true);
-      const supabase = createClient();
-      
       try {
         // 🧠 MOTOR DE PREDICCIÓN AVANZADO
         

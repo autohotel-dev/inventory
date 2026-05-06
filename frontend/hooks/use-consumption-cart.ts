@@ -7,7 +7,6 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { apiClient } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -122,16 +121,12 @@ export function useConsumptionCart({
 
   const fetchProducts = async () => {
     setLoading(true);
-    const supabase = createClient();
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, sku, price, barcode, unit, category_id, subcategory_id")
-        
-        .neq("sku", "SVC-ROOM")
-        ;
-      if (error) throw error;
-      setProducts(data || []);
+      const { data } = await apiClient.get('/inventory/products') as any;
+      if (data) {
+        const filtered = data.filter((p: Product) => p.sku !== 'SVC-ROOM');
+        setProducts(filtered);
+      }
     } catch (error) {
       console.error("Error fetching products:", error);
       toast.error("Error al cargar productos");
@@ -141,53 +136,20 @@ export function useConsumptionCart({
   };
 
   const fetchActivePromotions = async () => {
-    const supabase = createClient();
     try {
-      const now = new Date().toISOString();
-      const { data, error } = await supabase
-        .from("product_promotions")
-        .select("id, name, promo_type, buy_quantity, pay_quantity, discount_percent, fixed_price, product_id, category_id, subcategory_id, conditions")
-        
-        .or(`start_date.is.null,start_date.lte.${now}`)
-        .or(`end_date.is.null,end_date.gte.${now}`);
-      if (error) console.error("Error fetching promotions:", error);
-      else setActivePromotions(data || []);
+      const { data } = await apiClient.get('/sales/promotions/active') as any;
+      if (data) setActivePromotions(data);
     } catch (err) {
       console.error("Error fetching promotions:", err);
     }
   };
 
   const checkPreviousOrders = async () => {
-    const supabase = createClient();
     try {
-      const { data: currentOrder } = await supabase
-        .from("sales_orders")
-        .select("booking_id")
-        
-        ;
-
-      if (currentOrder?.booking_id) {
-        const { count, error } = await supabase
-          .from("sales_orders")
-          .select("id", { count: 'exact', head: true })
-          
-          .neq("id", salesOrderId)
-          .gt("total", 0);
-        if (!error) setPreviousOrdersCount(count || 0);
-
-        const { data: itemsData, error: itemsError } = await supabase
-          .from("sales_order_items")
-          .select(`product_id, products:products(category_id, subcategory_id), sales_orders!inner(booking_id)`)
-          
-          .neq("sales_order_id", salesOrderId);
-
-        if (!itemsError && itemsData) {
-          setConsumedItems(itemsData.map((item: any) => ({
-            productId: item.product_id,
-            categoryId: item.products?.category_id || null,
-            subcategoryId: item.products?.subcategory_id || null
-          })));
-        }
+      const { data } = await apiClient.get(`/sales/orders/${salesOrderId}/previous-orders-context`) as any;
+      if (data) {
+        setPreviousOrdersCount(data.previousOrdersCount || 0);
+        setConsumedItems(data.consumedItems || []);
       }
     } catch (err) {
       console.error("Error checking previous orders:", err);
@@ -372,27 +334,22 @@ export function useConsumptionCart({
     // Check for bottle package rules
     if (product.unit === 'PZBOT' || product.unit === 'PZBOTAN') {
       try {
-        const supabase = createClient();
-        const { data: prodData } = await supabase
-          .from("products")
-          .select("category_id, subcategory_id")
-          
-          ;
+        if (product.subcategory_id) {
+          const { data: rules } = await apiClient.get('/system/crud/bottle_package_rules', {
+            params: { target_subcategory_id: product.subcategory_id, is_active: true }
+          }) as any;
 
-        if (prodData?.subcategory_id) {
-          const { data: ruleData } = await supabase
-            .from("bottle_package_rules")
-            .select("*, included_category:categories!included_category_id(name)")
-            
-            
-            
-            ;
+          if (rules && rules.length > 0) {
+            const ruleData = rules[0];
+            const { data: catData } = await apiClient.get(`/system/crud/categories/${ruleData.included_category_id}`) as any;
+            ruleData.included_category = { name: catData?.name };
 
-          if (ruleData) {
-            setPendingBottle(product);
-            setActivePackageRule(ruleData as any);
-            setIsPackageModalOpen(true);
-            return;
+            if (ruleData) {
+              setPendingBottle(product);
+              setActivePackageRule(ruleData as any);
+              setIsPackageModalOpen(true);
+              return;
+            }
           }
         }
       } catch (err) {
@@ -512,12 +469,9 @@ export function useConsumptionCart({
     }
 
     setProcessing(true);
-    const supabase = createClient();
-
     try {
       // Validate warehouse
-      const { data: orderInfo } = await supabase
-        .from("sales_orders").select("warehouse_id");
+      const { data: orderInfo } = await apiClient.get(`/system/crud/sales_orders/${salesOrderId}`) as any;
       if (!orderInfo?.warehouse_id) {
         toast.error("Error de configuración", { description: "La orden no tiene almacén asignado" });
         return;
@@ -534,36 +488,10 @@ export function useConsumptionCart({
         return;
       }
 
-      // Get shift session — must always resolve to the ACTIVE shift, never a closed one
-      const { data: { user } } = await supabase.auth.getUser();
-      let currentSessionId = null;
-      if (user) {
-        const { data: employee } = await supabase
-          .from('employees').select('id');
-        if (employee) {
-          const { data: activeSession } = await supabase
-            .from('shift_sessions').select('id')
-            
-            .in('status', ['active', 'open'])
-            .maybeSingle();
-          currentSessionId = activeSession?.id || null;
-
-          // Fallback: if current user has no active shift, find any active reception shift.
-          // This prevents items from being inserted with shift_session_id = null
-          // when the user's shift is in 'pending_closing' state.
-          if (!currentSessionId) {
-            const { data: receptionSession } = await supabase
-              .from('shift_sessions')
-              .select('id, employees!inner(role)')
-              .in('status', ['active', 'open'])
-              .or('role.eq.receptionist,role.eq.admin,role.eq.manager', { foreignTable: 'employees' })
-              
-              .limit(1)
-              .maybeSingle();
-            currentSessionId = receptionSession?.id || null;
-          }
-        }
-      }
+      // Get current user
+      const { data: authData } = await apiClient.get('/system/auth/me') as any;
+      const userId = authData?.user?.id || null;
+      const currentSessionId = authData?.session?.id || null;
 
       // Insert items
       const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => {
@@ -582,7 +510,7 @@ export function useConsumptionCart({
       const { data: addData } = await apiClient.post(`/sales/orders/${salesOrderId}/items/bulk`, {
         items: itemsToInsert,
         warehouse_id: orderInfo.warehouse_id,
-        employee_id: user?.id
+        employee_id: userId
       }) as any;
       
       // Notify valets
@@ -643,14 +571,16 @@ export function useConsumptionCart({
 
       // ─── Flow Event ─────────────────────────────────────────────
       try {
-        const { data: stayForFlow } = await supabase
-          .from("room_stays")
-          .select("id")
-          
-          
-          .maybeSingle();
-        if (stayForFlow) {
-          findActiveFlow(stayForFlow.id).then(flowId => {
+        // Find active flow visual ID for the timeline logging
+        let visualFlowId = undefined;
+        try {
+          const { data: stayForFlow } = await apiClient.get('/system/crud/room_stays', {
+            params: { sales_order_id: salesOrderId }
+          }) as any;
+          if (stayForFlow && stayForFlow.length > 0) {
+            visualFlowId = `FL-${stayForFlow[0].id.substring(0, 6).toUpperCase()}`;
+            
+            const flowId = await findActiveFlow(stayForFlow[0].id);
             if (flowId) {
               logFlowEvent(flowId, {
                 event_type: "CONSUMPTION_ADDED",
@@ -662,8 +592,8 @@ export function useConsumptionCart({
                 },
               });
             }
-          });
-        }
+          }
+        } catch (e) { console.error(e); }
       } catch (flowErr) {
         console.error("[flow-logger] consumption:", flowErr);
       }

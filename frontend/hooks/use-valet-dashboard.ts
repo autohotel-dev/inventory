@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { luxorRealtimeClient } from "@/lib/api/websocket";
 import { Room } from "@/components/sales/room-types";
 import { toast } from "sonner";
@@ -28,25 +27,18 @@ export function useValetDashboard(employeeId: string) {
 
     const fetchRooms = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
-        const supabase = createClient();
 
         try {
-            const { data, error } = await supabase
-                .from("rooms")
-                .select(`
-          *,
-          room_types(*),
-          room_stays!inner(
-            *,
-            sales_orders(*)
-          )
-        `)
-                .eq("room_stays.status", "ACTIVA")
-                .order("number");
+            const { fetchRoomsData } = await import("@/hooks/use-rooms-query");
+            const data = await fetchRoomsData();
+            
+            // Filter to only ACTIVA rooms just to match previous behavior 
+            // where room_stays.status == "ACTIVA"
+            const activeRooms = data.filter(r => 
+                r.room_stays?.some(s => s.status === 'ACTIVA')
+            );
 
-            if (error) throw error;
-
-            setRooms(data as Room[] || []);
+            setRooms(activeRooms || []);
         } catch (error) {
             console.error("Error fetching rooms:", error);
             toast.error("Error al cargar habitaciones");
@@ -56,28 +48,9 @@ export function useValetDashboard(employeeId: string) {
     }, []);
 
     const fetchPendingConsumptions = useCallback(async () => {
-        const supabase = createClient();
         try {
-            const { data, error } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products(name, sku),
-                    sales_orders!inner(
-                        id,
-                        room_stays!inner(
-                            room_id,
-                            rooms(number)
-                        )
-                    )
-                `)
-                .eq('concept_type', 'CONSUMPTION')
-                .is('delivery_accepted_by', null)
-                .eq('is_paid', false)
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")')
-                .order('id', { ascending: false });
-
-            if (error) throw error;
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get('/sales/valet/consumptions/pending');
             setPendingConsumptions(data || []);
         } catch (error) {
             console.error('Error fetching pending consumptions:', error);
@@ -87,28 +60,9 @@ export function useValetDashboard(employeeId: string) {
 
     const fetchMyConsumptions = useCallback(async () => {
         if (!employeeId) return;
-        const supabase = createClient();
         try {
-            const { data, error } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products(name, sku),
-                    sales_orders!inner(
-                        id,
-                        room_stays!inner(
-                            room_id,
-                            rooms(number)
-                        )
-                    )
-                `)
-                .eq('concept_type', 'CONSUMPTION')
-                .eq('delivery_accepted_by', employeeId)
-                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT'])
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")')
-                .order('id', { ascending: false });
-
-            if (error) throw error;
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get(`/sales/valet/consumptions/me?employee_id=${employeeId}`);
             setMyConsumptions(data || []);
         } catch (error) {
             console.error('Error fetching my consumptions:', error);

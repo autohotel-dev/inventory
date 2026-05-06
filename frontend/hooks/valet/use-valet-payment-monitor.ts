@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { getActiveStay } from "@/hooks/room-actions";
 import type { Room } from "@/components/sales/room-types";
 
@@ -19,32 +18,14 @@ export function useValetPaymentMonitor(
       const activeStay = getActiveStay(selectedRoom);
       if (activeStay?.sales_order_id) {
         const checkValetPayments = async () => {
-          const supabase = createClient();
-
-          // 1. Verificar pagos reportados en tabla payments
-          const { data: paymentsData } = await supabase
-            .from("payments")
-            .select("id")
-            
-            
-            .is("confirmed_at", null)
-            .limit(1);
-
-          if (paymentsData && paymentsData.length > 0) {
-            setHasPendingValetPayment(true);
-            return;
+          try {
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get(`/sales/orders/${activeStay.sales_order_id}/has-pending-valet-payments`);
+            setHasPendingValetPayment(data?.hasPendingValetPayment || false);
+          } catch (error) {
+            console.error("Error checking valet payments:", error);
+            setHasPendingValetPayment(false);
           }
-
-          // 2. Verificar items entregados/verificados por cochero pero no pagados
-          const { data: itemsData } = await supabase
-            .from("sales_order_items")
-            .select("id")
-            
-            
-            
-            .limit(1);
-
-          setHasPendingValetPayment(!!itemsData && itemsData.length > 0);
         };
         checkValetPayments();
       } else {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Clock, Activity, Users } from "lucide-react";
@@ -21,15 +21,8 @@ export function InefficiencyAlerts() {
 
   const fetchViolations = async () => {
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('get_active_sla_violations');
-      
-      if (error) {
-        // RPC may not exist yet — silently return empty
-        setViolations([]);
-        return;
-      }
-      
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get('/analytics/active-sla-violations');
       setViolations(data || []);
     } catch {
       setViolations([]);

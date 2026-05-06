@@ -3,12 +3,11 @@
  * Each step is independent and testable. Adding a new validation = adding 1 function.
  */
 import { apiClient } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client"; // Keep for now if needed by other imports
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
-import { isToleranceExpired, generatePaymentReference } from "./room-action-helpers";
+import { generatePaymentReference } from "./room-action-helpers";
 import { getReceptionShiftId, getReceptionEmployeeId } from "./shift-helpers";
 import { updatePendingPaymentsHelper } from "./payment-helpers";
 
@@ -31,83 +30,7 @@ interface CheckoutPaymentData {
   checkoutValetId: string | null;
 }
 
-// ─── Step 1: Validate Stay State ────────────────────────────────────
 
-/**
- * Validates that the stay is in a checkable-out state:
- * - Exists and is active
- * - Tolerance is not expired
- * - Vehicle checkout is verified (if applicable)
- */
-export async function validateStayForCheckout(
-  supabase: ReturnType<typeof createClient>,
-  checkoutInfo: CheckoutInfo
-): Promise<ValidationResult> {
-  const { data: freshStay, error } = await supabase
-    .from("room_stays")
-    .select("tolerance_started_at, tolerance_type, id, vehicle_plate, checkout_valet_employee_id")
-    
-    
-    ;
-
-  if (error || !freshStay) {
-    toast.error("No se encontró la estancia activa o ya fue finalizada.");
-    return { ok: false };
-  }
-
-  // Check tolerance
-  if (freshStay.tolerance_started_at && freshStay.tolerance_type) {
-    if (isToleranceExpired(freshStay.tolerance_started_at)) {
-      toast.error("La tolerancia ha expirado", {
-        description: "Se requiere cobrar hora extra. Por favor, cierre y vuelva a abrir el checkout.",
-        duration: 6000
-      });
-      return { ok: false };
-    }
-  }
-
-  // Check vehicle
-  if (freshStay.vehicle_plate && !freshStay.checkout_valet_employee_id) {
-    toast.error("Salida de vehículo no verificada", {
-      description: "El cochero debe verificar la salida del vehículo antes de finalizar.",
-      duration: 6000
-    });
-    return { ok: false };
-  }
-
-  return { ok: true, stayId: freshStay.id };
-}
-
-// ─── Step 2: Validate Pending Deliveries ────────────────────────────
-
-/**
- * Checks that no active consumption items are still undelivered.
- */
-export async function validateNoBlockingDeliveries(
-  supabase: ReturnType<typeof createClient>,
-  salesOrderId: string
-): Promise<boolean> {
-  const { data: pendingDeliveries } = await supabase
-    .from("sales_order_items")
-    .select("id")
-    
-    
-    .neq("is_cancelled", true)
-    
-    .neq("delivery_status", "DELIVERED")
-    .neq("delivery_status", "COMPLETED")
-    .neq("delivery_status", "CANCELLED");
-
-  if (pendingDeliveries && pendingDeliveries.length > 0) {
-    toast.error("Entregas pendientes", {
-      description: "No se puede finalizar. Hay productos sin entregar por el valet.",
-      duration: 5000
-    });
-    return false;
-  }
-
-  return true;
-}
 
 // ─── Step 3: Unsubscribe Guest Notifications ────────────────────────
 
@@ -130,7 +53,6 @@ export async function unsubscribeGuestNotifications(roomNumber: string): Promise
  * Reconciles pending payments and builds the payment array for the checkout RPC.
  */
 export async function buildCheckoutPayments(
-  supabase: ReturnType<typeof createClient>,
   checkoutInfo: CheckoutInfo,
   payments: PaymentEntry[] | undefined,
   totalPaid: number
@@ -140,7 +62,7 @@ export async function buildCheckoutPayments(
   if (payments && payments.length > 0) {
     const validPayments = payments.filter(p => p.amount > 0);
     remainingAfterPending = await updatePendingPaymentsHelper(
-      supabase, checkoutInfo.salesOrderId, validPayments, totalPaid, "CHK"
+      checkoutInfo.salesOrderId, validPayments, totalPaid, "CHK"
     );
   }
 
@@ -150,20 +72,19 @@ export async function buildCheckoutPayments(
   }
 
   let hasExistingConfirmedPayments = false;
-  const { count } = await supabase
-    .from("payments")
-    .select("id", { count: "exact", head: true })
-    
-    
-    .neq("concept", "CHECKOUT");
-  hasExistingConfirmedPayments = (count || 0) > 0;
+  try {
+    const { data: payments_list } = await apiClient.get(`/system/crud/payments?sales_order_id=${checkoutInfo.salesOrderId}`) as any;
+    hasExistingConfirmedPayments = (payments_list || []).some((p: any) => p.concept !== "CHECKOUT");
+  } catch (e) {
+    hasExistingConfirmedPayments = false;
+  }
 
   if (hasExistingConfirmedPayments) return [];
 
   // Build new payment records
   const validPayments = payments.filter(p => p.amount > 0);
-  const currentShiftId = await getReceptionShiftId(supabase);
-  const currentEmployeeId = await getReceptionEmployeeId(supabase);
+  const currentShiftId = await getReceptionShiftId();
+  const currentEmployeeId = await getReceptionEmployeeId();
   const isMultipago = validPayments.length > 1;
 
   if (isMultipago) {

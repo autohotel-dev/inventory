@@ -5,7 +5,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
@@ -104,7 +103,6 @@ interface UseShiftClosingProps {
 }
 
 export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
-  const supabase = createClient();
   const { success, error: showError } = useToast();
   const { printClosing, isPrinting: isPrintingClosing } = usePrintClosing();
 

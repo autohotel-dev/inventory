@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,32 +53,15 @@ export function SalesReport() {
 
     const fetchSalesReport = useCallback(async () => {
         setLoading(true);
-        const supabase = createClient();
-
         try {
-            // Obtener órdenes de venta en el período
-            const { data: salesOrders, error } = await supabase
-                .from("sales_orders")
-                .select(`
-          *,
-          customer:customers(name),
-          items:sales_order_items(
-            qty,
-            unit_price,
-            total,
-            product:products(name, sku)
-          )
-        `)
-                .gte("created_at", startDate)
-                .lte("created_at", endDate + 'T23:59:59')
-                .in("status", ["CLOSED", "ENDED"]);
-
-            if (error) {
-                console.error("Error en consulta de sales_orders:", error);
-            }
-
-            console.log("Sales orders encontradas:", salesOrders?.length || 0);
-            console.log("Primera orden (ejemplo):", salesOrders?.[0]);
+            const { apiClient } = await import("@/lib/api/client");
+            
+            const { data: salesOrders } = await apiClient.get('/analytics/sales-report', {
+                params: {
+                    start_date: startDate,
+                    end_date: endDate
+                }
+            });
 
             if (!salesOrders) {
                 setLoading(false);

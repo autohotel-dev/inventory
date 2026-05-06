@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { luxorRealtimeClient } from "@/lib/api/websocket";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,22 +184,14 @@ export function ConsumptionTrackingModal({
         if (!salesOrderId) return;
 
         if (!silent) setLoading(true);
-        const supabase = createClient();
 
         try {
-            const { data, error } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products:product_id ( name, sku ),
-                    valet_employee:delivery_accepted_by ( first_name, last_name )
-                `)
-                
-                
-                ;
-
-            if (error) throw error;
-            setConsumptions(data || []);
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get(`/sales/orders/${salesOrderId}/consumptions`);
+            
+            if (data) {
+                setConsumptions(data);
+            }
         } catch (error) {
             console.error('Error fetching consumptions:', error);
             if (!silent) toast.error('Error al cargar consumos');
@@ -252,19 +243,15 @@ export function ConsumptionTrackingModal({
 
     const handleConfirmPickup = async (item: ConsumptionItem) => {
         setActionLoading(item.id);
-        const supabase = createClient();
 
         try {
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'IN_TRANSIT',
-                    delivery_picked_up_at: new Date().toISOString(),
-                    delivery_picked_up_by: receptionistId
-                })
-                ;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.patch(`/system/crud/sales_order_items/${item.id}`, {
+                delivery_status: 'IN_TRANSIT',
+                delivery_picked_up_at: new Date().toISOString(),
+                delivery_picked_up_by: receptionistId
+            });
 
-            if (error) throw error;
             toast.success('Recogida confirmada');
         } catch (error) {
             console.error('Error:', error);
@@ -285,21 +272,16 @@ export function ConsumptionTrackingModal({
         if (!confirmPaymentItem) return;
 
         setActionLoading(confirmPaymentItem.id);
-        const supabase = createClient();
 
         try {
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'COMPLETED',
-                    payment_received_at: new Date().toISOString(),
-                    payment_received_by: receptionistId,
-                    payment_amount_received: receivedAmount,
-                    delivery_notes: paymentNotes || confirmPaymentItem.delivery_notes
-                })
-                ;
-
-            if (error) throw error;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.patch(`/system/crud/sales_order_items/${confirmPaymentItem.id}`, {
+                delivery_status: 'COMPLETED',
+                payment_received_at: new Date().toISOString(),
+                payment_received_by: receptionistId,
+                payment_amount_received: receivedAmount,
+                delivery_notes: paymentNotes || confirmPaymentItem.delivery_notes
+            });
 
             toast.success('Entrega completada');
             setConfirmPaymentItem(null);
@@ -317,18 +299,14 @@ export function ConsumptionTrackingModal({
         if (!description) return;
 
         setActionLoading(item.id);
-        const supabase = createClient();
 
         try {
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'ISSUE',
-                    issue_description: description
-                })
-                ;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.patch(`/system/crud/sales_order_items/${item.id}`, {
+                delivery_status: 'ISSUE',
+                issue_description: description
+            });
 
-            if (error) throw error;
             toast.warning('Problema reportado');
         } catch (error) {
             console.error('Error:', error);
@@ -343,17 +321,16 @@ export function ConsumptionTrackingModal({
         if (acceptedItems.length === 0) return;
 
         setActionLoading('bulk-pickup');
-        const supabase = createClient();
 
         try {
-            await supabase
-                .from('sales_order_items')
-                .update({
+            const { apiClient } = await import("@/lib/api/client");
+            await Promise.all(acceptedItems.map(item => 
+                apiClient.patch(`/system/crud/sales_order_items/${item.id}`, {
                     delivery_status: 'IN_TRANSIT',
                     delivery_picked_up_at: new Date().toISOString(),
                     delivery_picked_up_by: receptionistId
                 })
-                .in('id', acceptedItems.map(i => i.id));
+            ));
             toast.success('Recogidas confirmadas');
         } catch (error) {
             console.error('Error:', error);
@@ -367,17 +344,16 @@ export function ConsumptionTrackingModal({
         if (deliveredItems.length === 0) return;
 
         setActionLoading('bulk-payment');
-        const supabase = createClient();
 
         try {
-            await supabase
-                .from('sales_order_items')
-                .update({
+            const { apiClient } = await import("@/lib/api/client");
+            await Promise.all(deliveredItems.map(item => 
+                apiClient.patch(`/system/crud/sales_order_items/${item.id}`, {
                     delivery_status: 'COMPLETED',
                     payment_received_at: new Date().toISOString(),
                     payment_received_by: receptionistId
                 })
-                .in('id', deliveredItems.map(i => i.id));
+            ));
             toast.success('Pagos confirmados');
             onRefresh?.();
         } catch (error) {

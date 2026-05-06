@@ -19,7 +19,6 @@ import {
   X,
   AlertTriangle
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PaymentMethod, PAYMENT_METHODS } from "@/components/sales/room-types";
@@ -116,8 +115,6 @@ export function AdvancedSalesForm() {
   }, [formData.items, formData.tax_rate, formData.discount_rate, includeTax]);
 
   const fetchInitialData = async () => {
-    const supabase = createClient();
-
     try {
       const [
         { data: customersData },
@@ -241,126 +238,37 @@ export function AdvancedSalesForm() {
     }
 
     setLoading(true);
-    const supabase = createClient();
 
     try {
-      // Obtener el usuario actual
-      const { data: { user } } = await supabase.auth.getUser();
+      const payload = {
+        customer_id: formData.customer_id || null,
+        warehouse_id: formData.warehouse_id,
+        currency: formData.currency,
+        notes: formData.notes || null,
+        subtotal: formData.subtotal,
+        tax: formData.tax_amount,
+        total: formData.total,
+        items: formData.items.map(i => ({
+          product_id: i.product_id,
+          quantity: i.quantity,
+          unit_price: i.unit_price
+        })),
+        payments: payments.map(p => ({
+          amount: p.amount,
+          method: p.method,
+          reference: p.reference
+        }))
+      };
 
-      // Calcular total pagado de los multipagos
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-      const remainingAmount = Math.max(0, formData.total - totalPaid);
-
-      // Crear la orden de venta
-      const { data: salesOrder, error: orderError } = await supabase
-        .from("sales_orders")
-        .insert({
-          customer_id: formData.customer_id || null,
-          warehouse_id: formData.warehouse_id,
-          currency: formData.currency,
-          notes: formData.notes,
-          subtotal: formData.subtotal,
-          tax: formData.tax_amount,
-          total: formData.total,
-          status: "OPEN",
-          remaining_amount: remainingAmount,
-          paid_amount: totalPaid,
-          created_by: user?.id || null
-        })
-        .select("id")
-        ;
-
-      if (orderError) throw orderError;
-
-      // Insertar pagos en la tabla payments
-      if (payments.length > 0) {
-        const validPayments = payments.filter(p => p.amount > 0);
-        const isMultipago = validPayments.length > 1;
-        const totalPaidAmount = validPayments.reduce((sum, p) => sum + p.amount, 0);
-
-        if (isMultipago) {
-          // MULTIPAGO: Crear cargo principal + subpagos
-          const { data: mainPayment, error: mainError } = await supabase
-            .from("payments")
-            .insert({
-              sales_order_id: salesOrder.id,
-              amount: totalPaidAmount,
-              payment_method: "PENDIENTE",
-              reference: generatePaymentReference("VTA"),
-              concept: "VENTA",
-              status: "PAGADO",
-              payment_type: "COMPLETO",
-              created_by: user?.id || null,
-            })
-            .select("id")
-            ;
-
-          if (mainError) {
-            console.error("Error inserting main payment:", mainError);
-          } else if (mainPayment) {
-            const subpayments = validPayments.map(p => ({
-              sales_order_id: salesOrder.id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("SUB"),
-              concept: "VENTA",
-              status: "PAGADO",
-              payment_type: "PARCIAL",
-              parent_payment_id: mainPayment.id,
-              created_by: user?.id || null,
-            }));
-
-            const { error: subError } = await supabase
-              .from("payments")
-              .insert(subpayments);
-
-            if (subError) {
-              console.error("Error inserting subpayments:", subError);
-            }
-          }
-        } else if (validPayments.length === 1) {
-          // PAGO ÚNICO
-          const p = validPayments[0];
-          const { error: paymentsError } = await supabase
-            .from("payments")
-            .insert({
-              sales_order_id: salesOrder.id,
-              amount: p.amount,
-              payment_method: p.method,
-              reference: p.reference || generatePaymentReference("VTA"),
-              concept: "VENTA",
-              status: "PAGADO",
-              payment_type: "COMPLETO",
-              created_by: user?.id || null,
-            });
-
-          if (paymentsError) {
-            console.error("Error inserting payment:", paymentsError);
-          }
-        }
-      }
-
-      // Crear los items de la orden
-      const itemsToInsert = formData.items.map(item => ({
-        sales_order_id: salesOrder.id,
-        product_id: item.product_id,
-        qty: item.quantity,
-        unit_price: item.unit_price
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("sales_order_items")
-        .insert(itemsToInsert);
-
-      if (itemsError) throw itemsError;
+      const { data } = await apiClient.post("/sales/orders/advanced", payload);
 
       const methodsSummary = payments.length > 0
         ? payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ')
         : 'Sin pago inicial';
       toast.success("¡Orden de venta creada exitosamente!", {
-        description: `Orden #${salesOrder.id.slice(0, 8)} - ${methodsSummary}`
+        description: `Orden #${data.id.slice(0, 8)} - ${methodsSummary}`
       });
-      router.push(`/sales/${salesOrder.id}`);
+      router.push(`/sales/${data.id}`);
     } catch (error) {
       console.error('Error creating sales order:', error);
       toast.error("Error al crear la orden de venta", {

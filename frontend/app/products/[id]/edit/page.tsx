@@ -1,26 +1,24 @@
 import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 async function getProduct(id: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("id, sku, name, price, min_stock, is_active")
-    
-    ;
-  if (error) throw error;
-  return data;
+  const { apiClient } = await import("@/lib/api/client");
+  try {
+    const { data } = await apiClient.get(`/system/crud/products/${id}`);
+    return data;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function updateProductAction(formData: FormData) {
   "use server";
   const id = String(formData.get("id") || "");
-  const supabase = await createClient();
   const payload = {
     sku: String(formData.get("sku") || "").trim(),
     name: String(formData.get("name") || "").trim(),

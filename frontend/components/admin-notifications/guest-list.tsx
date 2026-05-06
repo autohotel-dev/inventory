@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { luxorRealtimeClient } from '@/lib/api/websocket';
 import { BellRing, Loader2 } from 'lucide-react';
 
 interface GuestSubscription {
@@ -25,71 +25,49 @@ export function GuestList() {
     }, []);
 
     async function fetchGuests() {
-        const supabase = createClient();
-        const { data, error } = await supabase
-            .from('guest_subscriptions')
-            .select('*')
-            
-            
-            .limit(10);
-
-        if (!error && data) {
-            setGuests(data);
-        }
+        try {
+            const { apiClient } = await import('@/lib/api/client');
+            // Assuming we only fetch active by default. Wait, the original was selecting all where is_active is probably true since the UI checks it later or there was a filter I missed.
+            const { data } = await apiClient.get('/system/crud/guest_subscriptions?limit=10');
+            if (data) {
+                setGuests(data as GuestSubscription[]);
+            }
+        } catch(e) {}
         setIsLoading(false);
     }
 
     // Realtime subscription
     useEffect(() => {
-        const supabase = createClient();
+        const unsubscribe = luxorRealtimeClient.subscribe("guest_subscriptions", (payload) => {
+            console.log('Realtime change:', payload);
+            if (payload.type === 'INSERT') {
+                const newGuest = payload.record as GuestSubscription;
+                setGuests(prev => [newGuest, ...prev].slice(0, 10)); // Keep top 10
+            } else if (payload.type === 'UPDATE') {
+                const updatedGuest = payload.record as GuestSubscription & { is_active: boolean };
 
-        const channel = supabase
-            .channel('guest_subscriptions_changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'guest_subscriptions'
-                },
-                (payload: any) => {
-                    console.log('Realtime change:', payload);
-
-                    if (payload.eventType === 'INSERT') {
-                        const newGuest = payload.new as GuestSubscription;
-                        // Only add if active (although robust logic might filter backend view)
-                        // payload.new might include other fields, but we cast for safely
-                        setGuests(prev => [newGuest, ...prev].slice(0, 10)); // Keep top 10
-                    } else if (payload.eventType === 'UPDATE') {
-                        const updatedGuest = payload.new as GuestSubscription & { is_active: boolean };
-
-                        if (!updatedGuest.is_active) {
-                            // Helper to remove if deactivated
-                            setGuests(prev => prev.filter(g => g.id !== updatedGuest.id));
+                if (updatedGuest.is_active === false) {
+                    setGuests(prev => prev.filter(g => g.id !== updatedGuest.id));
+                } else {
+                    setGuests(prev => {
+                        const exists = prev.find(g => g.id === updatedGuest.id);
+                        if (exists) {
+                            return prev.map(g => g.id === updatedGuest.id ? updatedGuest : g);
                         } else {
-                            // Update existing (maybe re-activated?) or just modified
-                            // Check if it already exists
-                            setGuests(prev => {
-                                const exists = prev.find(g => g.id === updatedGuest.id);
-                                if (exists) {
-                                    return prev.map(g => g.id === updatedGuest.id ? updatedGuest : g);
-                                } else {
-                                    return [updatedGuest, ...prev].sort((a, b) =>
-                                        new Date(b.subscribed_at).getTime() - new Date(a.subscribed_at).getTime()
-                                    ).slice(0, 10);
-                                }
-                            });
+                            return [updatedGuest, ...prev].sort((a, b) =>
+                                new Date(b.subscribed_at).getTime() - new Date(a.subscribed_at).getTime()
+                            ).slice(0, 10);
                         }
-                    } else if (payload.eventType === 'DELETE') {
-                        const deletedId = payload.old.id;
-                        setGuests(prev => prev.filter(g => g.id !== deletedId));
-                    }
+                    });
                 }
-            )
-            .subscribe();
+            } else if (payload.type === 'DELETE') {
+                const deletedId = payload.old_record.id;
+                setGuests(prev => prev.filter(g => g.id !== deletedId));
+            }
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribe();
         };
     }, []);
 

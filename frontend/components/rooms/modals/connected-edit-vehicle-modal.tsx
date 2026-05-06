@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Room } from "@/components/sales/room-types";
 import { EditVehicleModal } from "@/components/sales/edit-vehicle-modal";
 import { getActiveStay } from "@/hooks/room-actions";
@@ -38,23 +38,12 @@ export function ConnectedEditVehicleModal({
     }
 
     setLoading(true);
-    const supabase = createClient();
-    
     try {
-      const { error } = await supabase
-        .from("room_stays")
-        .update({
-          vehicle_plate: vehicle.plate.trim() || null,
-          vehicle_brand: vehicle.brand.trim() || null,
-          vehicle_model: vehicle.model.trim() || null,
-        })
-        ;
-
-      if (error) {
-        console.error("Error updating vehicle:", error);
-        toast.error("Error al actualizar datos del vehículo");
-        return;
-      }
+      await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
+        vehicle_plate: vehicle.plate.trim() || null,
+        vehicle_brand: vehicle.brand.trim() || null,
+        vehicle_model: vehicle.model.trim() || null,
+      });
 
       toast.success("Vehículo actualizado", {
         description: vehicle.plate ? `Placas: ${vehicle.plate}` : "Datos guardados",

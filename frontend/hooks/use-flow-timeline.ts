@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,6 @@ export function useFlowTimeline(flowId: string | null) {
   const [flowDetail, setFlowDetail] = useState<FlowDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
   // ─── Fetch Timeline ────────────────────────────────────────────────────
 
@@ -123,29 +122,22 @@ export function useFlowTimeline(flowId: string | null) {
     if (!flowId) return;
 
     setLoading(true);
-    const supabase = createClient();
 
     try {
-      // Fetch flow detail
-      const { data: flowData } = await supabase
-        .from("operation_flows")
-        .select("id, flow_number, room_number, status, current_stage, started_at, completed_at")
-        
-        ;
-
+      const { apiClient } = await import("@/lib/api/client");
+      
+      const { data: flowData } = await apiClient.get(`/system/crud/operation_flows/${flowId}`);
       if (flowData) {
         setFlowDetail(flowData as FlowDetail);
       }
 
-      // Fetch events via RPC
-      const { data: eventsData, error } = await supabase.rpc("get_flow_timeline", {
-        p_flow_id: flowId,
-      });
-
-      if (error) {
-        console.error("[useFlowTimeline] Error fetching timeline:", error);
-      } else {
-        setEvents((eventsData || []) as FlowEvent[]);
+      // Fetch events
+      const { data: eventsData } = await apiClient.get(`/system/crud/flow_events`);
+      if (eventsData) {
+        const filteredEvents = (eventsData as FlowEvent[]).filter(e => e.flow_id === flowId);
+        // sort by created_at or sequence_number if needed, assuming the API returns them in order or we sort them here
+        filteredEvents.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        setEvents(filteredEvents);
       }
     } catch (err) {
       console.error("[useFlowTimeline] Unexpected error:", err);
@@ -159,38 +151,20 @@ export function useFlowTimeline(flowId: string | null) {
   useEffect(() => {
     if (!flowId) return;
 
-    const supabase = createClient();
-
-    // Clean up previous
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    const channel = supabase
-      .channel(`flow-timeline-${flowId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "flow_events",
-          filter: `flow_id=eq.${flowId}`,
-        },
-        (payload: { new: Record<string, any> }) => {
-          const newEvent = payload.new as FlowEvent;
+    const unsubscribe = luxorRealtimeClient.subscribe("flow_events", (payload) => {
+      if (payload.type === "INSERT") {
+        const newEvent = payload.record as FlowEvent;
+        if (newEvent.flow_id === flowId) {
           setEvents((prev) => {
-            // Avoid duplicates
             if (prev.some((e) => e.id === newEvent.id)) return prev;
             return [...prev, newEvent];
           });
         }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
+      }
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [flowId]);
 

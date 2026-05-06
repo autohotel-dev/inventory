@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client";
 
 export interface TelemetryRecord {
   id: string;

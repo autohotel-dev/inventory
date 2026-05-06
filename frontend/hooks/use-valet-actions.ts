@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import { useState, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
+
 import { toast } from 'sonner';
 import { Room } from '@/components/sales/room-types';
 import { findActiveFlow, logFlowEvent } from '@/lib/flow-logger';
@@ -41,7 +41,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         personCount: number
     ) => {
         setLoading(true);
-        const supabase = createClient();
 
         try {
             // Obtener estancia activa
@@ -52,13 +51,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             }
 
             // 1. Verificar que no esté asignada a otro cochero
-            const { data: currentStay, error: checkError } = await supabase
-                .from('room_stays')
-                .select('valet_employee_id')
-                
-                ;
-                
-            if (checkError) throw checkError;
+            const { data: currentStay } = await apiClient.get(`/system/crud/room_stays/${activeStay.id}`) as any;
             
             if (currentStay.valet_employee_id && currentStay.valet_employee_id !== valetId) {
                 toast.warning('Entrada ya asignada', {
@@ -68,9 +61,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             }
 
             // 2. Actualizar vehículo y asignar valet (sin usar .or para evitar el bug de Supabase)
-            const { error: stayError } = await supabase
-                .from('room_stays')
-                .update({
+            await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
                     vehicle_plate: vehicleData.plate.trim().toUpperCase(),
                     vehicle_brand: vehicleData.brand.trim(),
                     vehicle_model: vehicleData.model.trim(),
@@ -78,41 +69,21 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     current_people: personCount,
                     total_people: Math.max(personCount, activeStay.total_people || 0),
                     vehicle_requested_at: null,
-                    // Guardar datos de pago para el checkout (JSON)
                     checkout_payment_data: payments.map(p => ({
                         amount: p.amount,
                         method: p.method,
                         reference: p.reference,
                         concept: 'ENTRADA'
                     }))
-                })
-                ;
-
-            if (stayError) {
-                console.error('Error updating room stay:', stayError);
-                throw stayError;
-            }
+                });
 
             // 2. Obtener shift actual del valet (estado 'active' para consistencia con móvil)
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                
-                
-                .maybeSingle();
+            const { data: authData } = await apiClient.get('/system/auth/me') as any;
+            const session = authData?.session;
 
             // 3. Tomar el pago principal creado por recepción (ESTANCIA, PENDIENTE)
-            const { data: pendingMain, error: pendingMainError } = await supabase
-                .from('payments')
-                .select('id, amount')
-                
-                
-                
-                .is('parent_payment_id', null)
-                
-                .maybeSingle();
-
-            if (pendingMainError) throw pendingMainError;
+            const { data: pendingMains } = await apiClient.get('/system/crud/payments', { params: { sales_order_id: activeStay.sales_order_id, status: 'PENDIENTE', parent_payment_id: 'null' } }) as any;
+            const pendingMain = pendingMains && pendingMains.length > 0 ? pendingMains[0] : null;
 
             if (!pendingMain?.id) {
                 toast.error('No se encontró el cargo de la estancia', {
@@ -203,7 +174,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      */
     const handleConfirmCheckout = useCallback(async (room: Room, valetId: string, personCount: number) => {
         setLoading(true);
-        const supabase = createClient();
 
         try {
             const activeStay = room.room_stays?.find(s => s.status === 'ACTIVA');
@@ -213,18 +183,10 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             }
 
             // Asignar cochero de salida
-            const { error } = await supabase
-                .from('room_stays')
-                .update({
+            await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
                     checkout_valet_employee_id: valetId,
                     current_people: personCount
-                })
-                ;
-
-            if (error) {
-                console.error('Error confirming checkout:', error);
-                throw error;
-            }
+                });
 
             toast.success('✅ Habitación revisada', {
                 description: `Hab. ${room.number}: Todo en orden, lista para salida`
@@ -251,7 +213,6 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      */
     const handleProposeCheckout = useCallback(async (room: Room, valetId: string) => {
         setLoading(true);
-        const supabase = createClient();
 
         try {
             const activeStay = room.room_stays?.find(s => s.status === 'ACTIVA');
@@ -260,17 +221,10 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 return false;
             }
 
-            const { error } = await supabase
-                .from('room_stays')
-                .update({
+            await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
                     valet_checkout_requested_at: new Date().toISOString(),
                     valet_employee_id: activeStay.valet_employee_id || valetId
-                })
-                ;
-
-            if (error) throw error;
-
-            toast.success('✅ Salida notificada', {
+                }); toast.success('✅ Salida notificada', {
                 description: `Hab. ${room.number}: Esperando autorización de recepción`
             });
 
@@ -290,14 +244,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      */
     const handleAcceptEntry = useCallback(async (stayId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
-        const supabase = createClient();
         try {
-            const { error } = await supabase
-                .from('room_stays')
-                .update({ valet_employee_id: valetId })
-                ;
-
-            if (error) throw error;
+            await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, { valet_employee_id: valetId });
 
             toast.success('¡Éxito!', {
                 description: `Te has asignado la Habitación ${roomNumber}`
@@ -330,18 +278,12 @@ export function useValetActions(onRefresh: () => Promise<void>) {
      */
     const handleAcceptConsumption = useCallback(async (consumptionId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
-        const supabase = createClient();
         try {
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
-                })
-                ;
-
-            if (error) throw error;
+                });
             toast.success('¡Éxito!', {
                 description: `Entrega asignada para Hab. ${roomNumber}`
             });
@@ -362,19 +304,13 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     const handleAcceptAllConsumptions = useCallback(async (items: any[], roomNumber: string, valetId: string) => {
         if (items.length === 0) return false;
         setLoading(true);
-        const supabase = createClient();
         try {
             const itemIds = items.map(item => item.id);
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
-                })
-                .in('id', itemIds);
-
-            if (error) throw error;
+                });
             toast.success('¡Éxito!', {
                 description: `${items.length} entregas asignadas para Hab. ${roomNumber}`
             });
@@ -402,24 +338,13 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         tipMethod?: 'EFECTIVO' | 'TARJETA'
     ) => {
         setLoading(true);
-        const supabase = createClient();
         try {
             // 1. Obtener shift actual
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                
-                
-                .maybeSingle();
+            const { data: authData } = await apiClient.get('/system/auth/me') as any;
+            const session = authData?.session;
 
             // 2. Obtener sales_order_id
-            const { data: itemData, error: fetchError } = await supabase
-                .from('sales_order_items')
-                .select('sales_order_id, total')
-                
-                ;
-
-            if (fetchError) throw fetchError;
+            const { data: itemData } = await apiClient.get(`/system/crud/sales_order_items/${consumptionId}`) as any;
 
             // 3. Actualizar item
             const updateData: any = {
@@ -434,12 +359,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 updateData.tip_method = tipMethod;
             }
 
-            const { error: updateError } = await supabase
-                .from('sales_order_items')
-                .update(updateData)
-                ;
-
-            if (updateError) throw updateError;
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, updateData);
 
             // 4. Registrar pagos
             for (const p of payments) {
@@ -464,11 +384,9 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             });
 
             // ─── Flow Event ─────────────────────────────────────────────
-            const { data: itemStay } = await supabase
-                .from('sales_order_items')
-                .select('sales_orders!inner(room_stays!inner(id))')
-                
-                .maybeSingle();
+            const { data: itemFull } = await apiClient.get(`/system/crud/sales_order_items/${consumptionId}`) as any;
+            const { data: orders } = await apiClient.get('/system/crud/room_stays', { params: { sales_order_id: itemFull.sales_order_id } }) as any;
+            const itemStay = orders && orders.length > 0 ? { sales_orders: { room_stays: [{ id: orders[0].id }] } } : null;
             const stayIdForFlow = (itemStay as any)?.sales_orders?.room_stays?.[0]?.id;
             if (stayIdForFlow) {
                 findActiveFlow(stayIdForFlow).then(flowId => {
@@ -505,31 +423,21 @@ export function useValetActions(onRefresh: () => Promise<void>) {
     ) => {
         if (items.length === 0) return false;
         setLoading(true);
-        const supabase = createClient();
         try {
             // 1. Obtener shift actual
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                
-                
-                .maybeSingle();
+            const { data: authData } = await apiClient.get('/system/auth/me') as any;
+            const session = authData?.session;
 
             const itemIds = items.map(item => item.id);
             const salesOrderId = items[0].sales_order_id;
 
             // 2. Actualizar items
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            await Promise.all(itemIds.map(id => apiClient.patch(`/system/crud/sales_order_items/${id}`, {
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
                     delivery_notes: notes || null,
                     is_paid: false // Reception will mark as paid when confirming valet payment
-                })
-                .in('id', itemIds);
-
-            if (error) throw error;
+                })));
 
             // 3. Registrar pagos
             const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
@@ -566,17 +474,11 @@ export function useValetActions(onRefresh: () => Promise<void>) {
 
     const handleCancelConsumption = useCallback(async (consumptionId: string) => {
         setLoading(true);
-        const supabase = createClient();
         try {
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
                     delivery_status: 'CANCELLED',
                     cancellation_reason: 'Cancelado desde tablero de cochero'
-                })
-                ;
-
-            if (error) throw error;
+                });
             toast.success("Solicitud cancelada");
             await onRefresh();
             return true;
@@ -601,20 +503,13 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         valetId: string
     ) => {
         setLoading(true);
-        const supabase = createClient();
         try {
             // 1. Obtener shift actual
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                
-                
-                .maybeSingle();
+            const { data: authData } = await apiClient.get('/system/auth/me') as any;
+            const session = authData?.session;
 
             // 2. Crear el cargo por daño en sales_order_items
-            const { error: itemError, data: item } = await supabase
-                .from('sales_order_items')
-                .insert({
+            const { data: item } = await apiClient.post('/system/crud/sales_order_items', {
                     sales_order_id: salesOrderId,
                     concept_type: 'DAMAGE_CHARGE',
                     description: `DAÑO: ${description}`,
@@ -622,11 +517,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     qty: 1,
                     total: amount,
                     is_paid: false
-                })
-                .select()
-                ;
-
-            if (itemError) throw itemError;
+                }) as any;
 
             // 3. Registrar los pagos
             for (const p of payments) {
@@ -668,18 +559,11 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         valetId: string
     ) => {
         setLoading(true);
-        const supabase = createClient();
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                
-                
-                .maybeSingle();
+            const { data: authData } = await apiClient.get('/system/auth/me') as any;
+            const session = authData?.session;
 
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
+            const { data: item } = await apiClient.post('/system/crud/sales_order_items', {
                     sales_order_id: salesOrderId,
                     concept_type: 'EXTRA_HOUR',
                     description: 'HORA EXTRA (VALET)',
@@ -687,11 +571,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     qty: 1,
                     total: amount,
                     is_paid: false
-                })
-                .select()
-                ;
-
-            if (itemError) throw itemError;
+                }) as any;
 
             for (const p of payments) {
                 await apiClient.post(`/system/crud/payments`, {
@@ -732,18 +612,11 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         valetId: string
     ) => {
         setLoading(true);
-        const supabase = createClient();
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                
-                
-                .maybeSingle();
+            const { data: authData } = await apiClient.get('/system/auth/me') as any;
+            const session = authData?.session;
 
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
+            const { data: item } = await apiClient.post('/system/crud/sales_order_items', {
                     sales_order_id: salesOrderId,
                     concept_type: 'EXTRA_PERSON',
                     description: 'PERSONA EXTRA (VALET)',
@@ -751,11 +624,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     qty: 1,
                     total: amount,
                     is_paid: false
-                })
-                .select()
-                ;
-
-            if (itemError) throw itemError;
+                }) as any;
 
             for (const p of payments) {
                 await apiClient.post(`/system/crud/payments`, {

@@ -7,7 +7,6 @@
 
 import { useEffect, useState } from 'react';
 import { X, Copy, Check, Download, Printer } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { generateGuestPortalQR, getGuestPortalURL } from '@/lib/utils/guest-portal-qr';
 import { useThermalPrinter } from '@/hooks/use-thermal-printer';
 import {
@@ -50,28 +49,10 @@ export function GuestPortalQRModal({
         setError(null);
 
         try {
-            const supabase = createClient();
-            const { data, error: fetchError } = await supabase
-                .from('room_stays')
-                .select('guest_access_token')
-                
-                ;
-
-            if (fetchError) throw fetchError;
-
-            let token = data?.guest_access_token;
-
-            // Si no hay token, generarlo y guardarlo (Self-healing for old records)
-            if (!token) {
-                token = crypto.randomUUID();
-                const { error: updateError } = await supabase
-                    .from('room_stays')
-                    .update({ guest_access_token: token })
-                    ;
-
-                if (updateError) throw updateError;
-            }
-
+            const { apiClient } = await import('@/lib/api/client');
+            const { data } = await apiClient.post(`/rooms/stays/${roomStayId}/guest-token`, {});
+            
+            const token = data.token;
             const url = getGuestPortalURL(roomNumber, token);
             const qr = await generateGuestPortalQR(roomNumber, token);
 

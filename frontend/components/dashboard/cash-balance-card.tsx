@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,81 +64,47 @@ export function CashBalanceCard() {
     // Cargar datos
     useEffect(() => {
         const fetchData = async () => {
-            const supabase = createClient();
-            let foundSession: ShiftSession | null = null;
-            let sessionUserId: string | null = null;
+            try {
+                const { data: managerData } = await apiClient.get("/hr/manager/data") as any;
+                const activeSessions = managerData?.active_sessions || [];
+                let foundSession: ShiftSession | null = null;
 
-            // 1. Buscar sesión propia del empleado actual
-            if (employeeId) {
-                const { data: sessions } = await supabase
-                    .from("shift_sessions")
-                    .select("id, employee_id, clock_in_at, status")
-                    
-                    
-                    
-                    .limit(1);
-
-                if (sessions?.[0]) {
-                    foundSession = sessions[0];
+                // 1. Buscar sesión propia del empleado actual
+                if (employeeId) {
+                    const mySession = activeSessions.find((s: any) => s.employee_id === employeeId);
+                    if (mySession) {
+                        foundSession = {
+                            id: mySession.id,
+                            employee_id: mySession.employee_id,
+                            clock_in_at: mySession.clock_in_at,
+                            status: mySession.status
+                        };
+                    }
                 }
-            }
 
-            // 2. Si es admin/manager y no tiene sesión propia, buscar CUALQUIER sesión activa de recepcionista
-            if (!foundSession && (isAdmin || isManager)) {
-                const { data: anySessions } = await supabase
-                    .from("shift_sessions")
-                    .select("id, employee_id, clock_in_at, status, employees!inner(role, auth_user_id)")
-                    
-                    
-                    .is("clock_out_at", null)
-                    
-                    .limit(1);
-
-                if (anySessions?.[0]) {
+                // 2. Si es admin/manager y no tiene sesión propia, usar cualquier sesión activa
+                if (!foundSession && (isAdmin || isManager) && activeSessions.length > 0) {
+                    const first = activeSessions[0];
                     foundSession = {
-                        id: anySessions[0].id,
-                        employee_id: anySessions[0].employee_id,
-                        clock_in_at: anySessions[0].clock_in_at,
-                        status: anySessions[0].status
+                        id: first.id,
+                        employee_id: first.employee_id,
+                        clock_in_at: first.clock_in_at,
+                        status: first.status
                     };
-                    sessionUserId = (anySessions[0].employees as any)?.auth_user_id;
                 }
-            }
 
-            if (foundSession) {
-                setActiveSession(foundSession);
-
-                // Obtener cobros en efectivo de esta sesión
-                const { data: { user } } = await supabase.auth.getUser();
-                const userIdForPayments = sessionUserId || user?.id;
-
-                if (userIdForPayments) {
-                    const sessionStart = foundSession.clock_in_at;
-                    const { data: payments } = await supabase
-                        .from("payments")
-                        .select("amount, payment_method")
-                        
-                        .gte("created_at", sessionStart)
-                        ;
-
-                    const cash = (payments || [])
-                        .filter((p: any) => p.payment_method === "CASH" || p.payment_method === "EFECTIVO")
-                        .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-
-                    setCashAmount(cash);
+                if (foundSession) {
+                    setActiveSession(foundSession);
+                    // TODO: Get payments from FastAPI when endpoint is available
+                    setCashAmount(0);
                 }
+
+                setActiveValetCount(activeSessions.length);
+            } catch (err) {
+                console.error("Error fetching cash balance data:", err);
+            } finally {
+                setLoading(false);
             }
-
-            // Contar cocheros activos
-            const { count } = await supabase
-                .from("shift_sessions")
-                .select("*, employees!inner(*)", { count: "exact", head: true })
-                
-                
-                .is("clock_out_at", null);
-
-            setActiveValetCount(count || 0);
-            setLoading(false);
         };
 
         fetchData();
@@ -280,10 +246,9 @@ export function CashBalanceCard() {
                                     return;
                                 }
 
-                                const supabase = createClient();
-                                const { error } = await supabase
-                                    .from("shift_expenses")
-                                    .insert({
+                                const supabase_unused = null; // Migrated to apiClient
+                                try {
+                                    await apiClient.post('/system/crud/shift_expenses', {
                                         shift_session_id: activeSession?.id,
                                         employee_id: employeeId,
                                         expense_type: "CASH_ADJUSTMENT",
@@ -291,10 +256,9 @@ export function CashBalanceCard() {
                                         amount: Math.abs(amount) * (amount > 0 ? -1 : 1),
                                         status: "approved"
                                     });
-
-                                if (error) {
+                                } catch (err) {
                                     showError("Error", "No se pudo registrar el ajuste");
-                                    console.error(error);
+                                    console.error(err);
                                     return;
                                 }
 

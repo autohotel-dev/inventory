@@ -2,7 +2,6 @@ import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -92,38 +91,20 @@ async function resolveUuids(logs: LogEntry[], existingMap: NameMap): Promise<Nam
 
   if (uuids.size === 0) return existingMap;
 
-  const supabase = createClient();
   const uuidArray = Array.from(uuids);
   const newMap = new Map(existingMap);
 
-  // Batch query employees by id
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("id, first_name, last_name")
-    .in("id", uuidArray);
-
-  if (employees) {
-    for (const emp of employees) {
-      newMap.set(emp.id, `${emp.first_name} ${emp.last_name}`);
-    }
-  }
-
-  // For remaining unresolved UUIDs, try shift_sessions → employee name
-  const unresolvedIds = uuidArray.filter(id => !newMap.has(id));
-  if (unresolvedIds.length > 0) {
-    const { data: sessions } = await supabase
-      .from("shift_sessions")
-      .select("id, employees!shift_sessions_employee_id_fkey(first_name, last_name)")
-      .in("id", unresolvedIds);
-
-    if (sessions) {
-      for (const session of sessions) {
-        const emp = (session as any).employees;
-        if (emp) {
-          newMap.set(session.id, `Turno de ${emp.first_name} ${emp.last_name}`);
-        }
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const { data } = await apiClient.post('/system/resolve-uuids', { uuids: uuidArray }) as any;
+    
+    if (data && data.resolved) {
+      for (const [id, name] of Object.entries(data.resolved)) {
+        newMap.set(id, name as string);
       }
     }
+  } catch (error) {
+    console.error("Error resolving UUIDs:", error);
   }
 
   return newMap;

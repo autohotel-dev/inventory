@@ -5,7 +5,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room, RoomStay } from "@/components/sales/room-types";
 
@@ -117,15 +116,9 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
 
   const fetchAssetDetails = useCallback(async () => {
     if (!room) return;
-    const supabase = createClient();
     try {
-      const { data } = await supabase
-        .from('room_assets')
-        .select('id, asset_type, status, assigned_employee_id')
-        
-        
-        .maybeSingle();
-
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/rooms/${room.id}/assets`) as any;
       setTvRemoteAsset(data);
     } catch (err) {
       console.error("Error fetching asset:", err);
@@ -135,14 +128,11 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
   const fetchAssetAuditTrail = useCallback(async () => {
     if (!room) return;
     setAuditLoading(true);
-    const supabase = createClient();
     try {
-      const { data, error } = await supabase.rpc('get_tv_audit_trail', {
-        p_room_number: room.number,
-        p_limit: 20,
-        p_offset: 0,
-      });
-      if (error) throw error;
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/rooms/${room.number}/audit-trail`, {
+        params: { limit: 20, offset: 0 }
+      }) as any;
       setAssetAuditLogs(data || []);
     } catch (err) {
       console.error("Error fetching asset audit trail:", err);
@@ -153,30 +143,16 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
 
   const fetchDetails = useCallback(async (salesOrderId: string) => {
     setLoading(true);
-    const supabase = createClient();
 
     try {
-      const [paymentsRes, itemsRes, orderRes] = await Promise.all([
-        supabase
-          .from("payments")
-          .select("id, payment_number, amount, payment_method, reference, concept, status, payment_type, parent_payment_id, notes, created_at")
-          
-          ,
-        supabase
-          .from("sales_order_items")
-          .select("id, qty, unit_price, products(name, sku), is_courtesy, courtesy_reason, concept_type, delivery_status, is_paid, is_cancelled, cancellation_reason, cancelled_at")
-          
-          ,
-        supabase
-          .from("sales_orders")
-          .select("id, notes, subtotal, total, paid_amount, remaining_amount, status, created_at")
-          
-          ,
-      ]);
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/sales/orders/${salesOrderId}/full-detail`);
 
-      setPayments((paymentsRes.data || []) as Payment[]);
-      setItems((itemsRes.data || []) as SalesOrderItem[]);
-      setSalesOrder(orderRes.data as SalesOrder);
+      if (data) {
+        setPayments((data.payments || []) as Payment[]);
+        setItems((data.items || []) as SalesOrderItem[]);
+        setSalesOrder(data.order as SalesOrder);
+      }
     } catch (err) {
       console.error("Error fetching room details:", err);
     } finally {

@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api/client";
 "use client";
+import { apiClient } from "@/lib/api/client";
 
 import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
@@ -540,7 +540,6 @@ export function useReprintCenter() {
     }
     setPrinting(ticket.id);
     try {
-      const supabase = createClient();
       await printHPIncomeReport(
         ticket.rawData.shiftSessionId,
         ticket.rawData.employeeName,

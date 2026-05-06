@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from database import get_db, engine
+from database import get_db, engine, get_db_connection
+from psycopg2.extras import RealDictCursor
 from auth_utils import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/system", tags=["System"])
@@ -264,7 +265,7 @@ def get_order_room_info(order_id: str, db: Session = Depends(get_db)):
         return {"number": stay.room.number}
     return {"number": "??"}
 
-from database import Base
+from models.base import Base
 from sqlalchemy import Table, MetaData, insert, update, select
 from typing import Dict, Any, List
 
@@ -304,11 +305,49 @@ def generic_update(table_name: str, id: str, payload: Dict[str, Any], db: Sessio
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/crud/{table_name}")
-def generic_read(table_name: str, limit: int = 100, db: Session = Depends(get_db)):
+from fastapi import Request
+
+@router.get("/crud/{table_name}/{id}")
+def generic_read_by_id(table_name: str, id: str, db: Session = Depends(get_db)):
     table = get_table(table_name)
     try:
-        stmt = select(table).limit(limit)
+        stmt = select(table).where(table.c.id == id)
+        result = db.execute(stmt)
+        row = result.mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        return dict(row)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/crud/{table_name}")
+def generic_read(table_name: str, request: Request, limit: int = 100, db: Session = Depends(get_db)):
+    table = get_table(table_name)
+    try:
+        stmt = select(table)
+        
+        # Apply filters from query params
+        for key, value in request.query_params.items():
+            if key in ('limit', 'offset', 'order'): continue
+            if key in table.columns:
+                stmt = stmt.where(table.c[key] == value)
+                
+        # Handle simple ordering
+        order = request.query_params.get('order')
+        if order:
+            parts = order.split('.')
+            col_name = parts[0]
+            direction = parts[1] if len(parts) > 1 else 'asc'
+            if col_name in table.columns:
+                col = table.c[col_name]
+                if direction == 'desc':
+                    stmt = stmt.order_by(col.desc())
+                else:
+                    stmt = stmt.order_by(col.asc())
+                    
+        stmt = stmt.limit(limit)
         result = db.execute(stmt)
         rows = result.mappings().all()
         return [dict(r) for r in rows]
@@ -611,14 +650,14 @@ def get_prediction_raw_data(db: Session = Depends(get_db)):
 
 @router.get("/auth/me")
 def get_auth_me(db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-    from models import Employee, ShiftSession
+    from models.hr import Employees, ShiftSessions
     
     # Prioridad 1: Por auth_user_id
-    employee = db.query(Employee).filter(Employee.auth_user_id == current_user.id).first()
+    employee = db.query(Employees).filter(Employees.auth_user_id == current_user.id).first()
     
     # Prioridad 2: Por email
     if not employee and current_user.email:
-        employee = db.query(Employee).filter(Employee.email == current_user.email).first()
+        employee = db.query(Employees).filter(Employees.email == current_user.email).first()
         if employee and not employee.auth_user_id:
             employee.auth_user_id = current_user.id
             db.commit()
@@ -636,9 +675,9 @@ def get_auth_me(db: Session = Depends(get_db), current_user: CurrentUser = Depen
         }
         
     # Verificar turno activo
-    active_shift = db.query(ShiftSession).filter(
-        ShiftSession.employee_id == employee.id,
-        ShiftSession.status == "open"
+    active_shift = db.query(ShiftSessions).filter(
+        ShiftSessions.employee_id == employee.id,
+        ShiftSessions.status == "open"
     ).first()
     
     return {
@@ -685,3 +724,44 @@ def sync_telemetry(batch: TelemetryBatch, db: Session = Depends(get_db)):
         db.add(log)
     db.commit()
     return {"success": True, "count": len(batch.events)}
+
+from pydantic import BaseModel
+from typing import List
+
+class ResolveUuidsRequest(BaseModel):
+    uuids: List[str]
+
+@router.post("/resolve-uuids")
+def resolve_uuids(req: ResolveUuidsRequest, db: Session = Depends(get_db)):
+    if not req.uuids:
+        return {"resolved": {}}
+        
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    resolved = {}
+    try:
+        # Check employees
+        cursor.execute("SELECT id, first_name, last_name FROM employees WHERE id = ANY(%s)", (req.uuids,))
+        for row in cursor.fetchall():
+            resolved[str(row['id'])] = f"{row['first_name']} {row['last_name']}"
+            
+        unresolved = [u for u in req.uuids if u not in resolved]
+        
+        # Check shift sessions
+        if unresolved:
+            cursor.execute("""
+                SELECT ss.id, e.first_name, e.last_name 
+                FROM shift_sessions ss
+                JOIN employees e ON e.id = ss.employee_id
+                WHERE ss.id = ANY(%s)
+            """, (unresolved,))
+            for row in cursor.fetchall():
+                resolved[str(row['id'])] = f"Turno de {row['first_name']} {row['last_name']}"
+                
+        return {"resolved": resolved}
+    except Exception as e:
+        print(f"Error resolving uuids: {e}")
+        return {"resolved": {}}
+    finally:
+        cursor.close()
+        conn.close()

@@ -2,7 +2,6 @@ import { apiClient } from "@/lib/api/client";
 /**
  * People-related room actions: add, remove, tolerance.
  */
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
@@ -47,7 +46,6 @@ export function createPeopleActions(ctx: RoomActionContext) {
     }
 
     await withAction(ctx, "Error al agregar persona", async () => {
-      const supabase = createClient();
       const newCurrentPeople = next;
 
       // Persona REGRESANDO con tolerancia activa
@@ -55,12 +53,12 @@ export function createPeopleActions(ctx: RoomActionContext) {
         const toleranceExpired = isToleranceExpired(activeStay.tolerance_started_at);
 
         if (toleranceExpired) {
-          const currentShiftId = await getReceptionShiftId(supabase);
+          const currentShiftId = await getReceptionShiftId();
 
           if (activeStay.tolerance_type === 'ROOM_EMPTY') {
             const basePrice = room.room_types!.base_price ?? 0;
             if (basePrice > 0) {
-              await createPendingCharge(supabase, activeStay.sales_order_id, basePrice, "TOLERANCIA_EXPIRADA", "TOL", currentShiftId);
+              await createPendingCharge(activeStay.sales_order_id, basePrice, "TOLERANCIA_EXPIRADA", "TOL", currentShiftId);
               toast.warning("Tolerancia expirada - Habitación cobrada", {
                 description: `Hab. ${room.number}: +$${basePrice.toFixed(2)} MXN (pendiente)`,
               });
@@ -68,7 +66,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
           } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
             const extraPrice = room.room_types!.extra_person_price ?? 0;
             if (extraPrice > 0) {
-              await createPendingCharge(supabase, activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX");
+              await createPendingCharge(activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX");
               toast.warning("Tolerancia expirada - Persona extra cobrada", {
                 description: `Hab. ${room.number}: +$${extraPrice.toFixed(2)} MXN (pendiente)`,
               });
@@ -171,7 +169,6 @@ export function createPeopleActions(ctx: RoomActionContext) {
     }
 
     await withAction(ctx, "Error al remover persona", async () => {
-      const supabase = createClient();
       const newCurrentPeople = current - 1;
 
       await apiClient.patch(`/rooms/stays/single/${activeStay.id}`, { current_people: newCurrentPeople });
@@ -199,7 +196,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
         }
       });
 
-      await notifyActiveValets(supabase, '👤 Persona Salió',
+      await notifyActiveValets('👤 Persona Salió',
         `Habitación ${room.number}: Salió una persona. Total actual: ${newCurrentPeople}.`,
         { type: 'PERSON_EXIT', roomNumber: room.number, stayId: activeStay.id }
       );
@@ -219,8 +216,6 @@ export function createPeopleActions(ctx: RoomActionContext) {
     if (room.room_types.is_hotel) { toast.info("Tolerancia no disponible", { description: "Esta función solo aplica para habitaciones tipo motel" }); return; }
 
     await withAction(ctx, "Error al procesar tolerancia", async () => {
-      const supabase = createClient();
-
       // CASO 1: Tolerancia activa → persona REGRESA
       if (activeStay.tolerance_started_at) {
         const current = activeStay.current_people ?? 2;

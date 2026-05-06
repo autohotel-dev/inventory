@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/api/client";
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+
 import { Room } from "@/components/sales/room-types";
 import { ChangeRoomModal } from "@/components/sales/change-room-modal";
 import { getActiveStay } from "@/hooks/room-actions";
@@ -45,7 +45,6 @@ export function ConnectedChangeRoomModal({
     if (!room || !activeStay) return;
 
     setLoading(true);
-    const supabase = createClient();
 
     try {
       const newRoom = rooms.find((r) => r.id === data.newRoomId);
@@ -65,28 +64,17 @@ export function ConnectedChangeRoomModal({
       }
 
       // 1. Actualizar la estancia con la nueva habitación
-      const { error: stayError } = await supabase
-        .from("room_stays")
-        .update({
-          room_id: data.newRoomId,
-          expected_check_out_at: newExpectedCheckout,
-          ...(data.keepTime ? {} : { check_in_at: new Date().toISOString() }),
-        })
-        ;
-
-      if (stayError) throw stayError;
+      await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
+        room_id: data.newRoomId,
+        expected_check_out_at: newExpectedCheckout,
+        ...(data.keepTime ? {} : { check_in_at: new Date().toISOString() }),
+      });
 
       // 2. Marcar habitación original como SUCIA
-      await supabase
-        .from("rooms")
-        .update({ status: "SUCIA" })
-        ;
+      await apiClient.patch(`/system/crud/rooms/${room.id}`, { status: "SUCIA" });
 
       // 3. Marcar nueva habitación como OCUPADA
-      await supabase
-        .from("rooms")
-        .update({ status: "OCUPADA" })
-        ;
+      await apiClient.patch(`/system/crud/rooms/${data.newRoomId}`, { status: "OCUPADA" });
 
       // 4. Calcular diferencia de precio (positivo = cobro, negativo = devolución)
       const oldPrice = room.room_types?.base_price || 0;
@@ -95,70 +83,68 @@ export function ConnectedChangeRoomModal({
 
       if (priceDifference !== 0) {
         // Buscar producto de servicio para el item
-        const { data: svcProducts, error: svcError } = await supabase
-          .from("products")
-          .select("id")
-          
-          .limit(1);
-
-        const svcProductId = svcProducts?.[0]?.id;
+        let svcProductId = null;
+        try {
+          const res = await apiClient.get('/system/crud/products?limit=1');
+          if (res.data && res.data.length > 0) {
+            svcProductId = res.data[0].id;
+          }
+        } catch(e) {}
 
         if (svcProductId) {
           const isRefund = priceDifference < 0;
           const absAmount = Math.abs(priceDifference);
 
-          // Insertar Item de Diferencia con PENDING_VALET
-          const { data: insertedItem, error: insertError } = await apiClient.post("/system/crud/sales_order_items", {
-            sales_order_id: activeStay.sales_order_id,
-            product_id: svcProductId,
-            qty: 1,
-            unit_price: absAmount,
-            concept_type: "ROOM_CHANGE_ADJUSTMENT",
-            delivery_notes: isRefund
-              ? `Devolución por cambio: Hab ${room.number} → ${newRoom.number}`
-              : `Cargo por cambio: Hab ${room.number} → ${newRoom.number}`,
-            is_paid: false,
-            delivery_status: "PENDING_VALET",
-            issue_description: JSON.stringify({
-              oldRoomNumber: room.number,
-              newRoomNumber: newRoom.number,
-              oldRoomType: room.room_types?.name || "---",
-              newRoomType: newRoom.room_types?.name || "---",
-              isRefund: isRefund,
-              amount: absAmount
-            }) as any
-          }).select('id');
-
-          if (insertError) {
+          let roomChangeItemId = null;
+          try {
+            const insertRes = await apiClient.post("/system/crud/sales_order_items", {
+              sales_order_id: activeStay.sales_order_id,
+              product_id: svcProductId,
+              qty: 1,
+              unit_price: absAmount,
+              concept_type: "ROOM_CHANGE_ADJUSTMENT",
+              delivery_notes: isRefund
+                ? `Devolución por cambio: Hab ${room.number} → ${newRoom.number}`
+                : `Cargo por cambio: Hab ${room.number} → ${newRoom.number}`,
+              is_paid: false,
+              delivery_status: "PENDING_VALET",
+              issue_description: JSON.stringify({
+                oldRoomNumber: room.number,
+                newRoomNumber: newRoom.number,
+                oldRoomType: room.room_types?.name || "---",
+                newRoomType: newRoom.room_types?.name || "---",
+                isRefund: isRefund,
+                amount: absAmount
+              }) as any
+            });
+            if (insertRes.data && insertRes.data.length > 0) {
+              roomChangeItemId = insertRes.data[0].id;
+            } else if (insertRes.data && insertRes.data.id) {
+              roomChangeItemId = insertRes.data.id;
+            }
+          } catch (insertError) {
             console.error("Error inserting ROOM_CHANGE_ADJUSTMENT:", insertError);
           }
 
-          const roomChangeItemId = insertedItem?.id;
 
           // Actualizar totales de la orden solo si es un upgrade (cobro)
           if (!isRefund) {
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("subtotal, total, remaining_amount")
-              
-              ;
-
-            if (currentOrder) {
-              await supabase
-                .from("sales_orders")
-                .update({
+            try {
+              const resOrder = await apiClient.get(`/system/crud/sales_orders/${activeStay.sales_order_id}`);
+              const currentOrder = resOrder.data;
+              if (currentOrder) {
+                await apiClient.patch(`/system/crud/sales_orders/${activeStay.sales_order_id}`, {
                   subtotal: (currentOrder.subtotal || 0) + absAmount,
                   total: (currentOrder.total || 0) + absAmount,
                   remaining_amount: (currentOrder.remaining_amount || 0) + absAmount
-                })
-                ;
-            }
+                });
+              }
+            } catch(e) {}
           }
 
           // Notificar al valet si hay diferencia
           if (roomChangeItemId && !isRefund) {
             await notifyActiveValets(
-              supabase,
               '💰 Cambio de Habitación (Con Diferencia)',
               `Habitación ${room.number} ➡ ${newRoom.number}. Favor de acudir a realizar cobro de $${absAmount.toFixed(2)} extra y/o mover vehículo.`,
               {
@@ -173,7 +159,6 @@ export function ConnectedChangeRoomModal({
             );
           } else {
             await notifyActiveValets(
-              supabase,
               '🔀 Cambio de Habitación',
               `Habitación ${room.number} ➡ ${newRoom.number}. Por favor mover vehículo.`,
               {
@@ -188,7 +173,6 @@ export function ConnectedChangeRoomModal({
       } else {
         // Sin diferencia de precio
         await notifyActiveValets(
-          supabase,
           '🔀 Cambio de Habitación',
           `Habitación ${room.number} ➡ ${newRoom.number}. Por favor mover vehículo.`,
           {
@@ -201,21 +185,17 @@ export function ConnectedChangeRoomModal({
       }
 
       // Actualizar notas de la orden
-      const { data: orderData } = await supabase
-        .from("sales_orders")
-        .select("notes")
-        
-        ;
+      try {
+        const orderRes = await apiClient.get(`/system/crud/sales_orders/${activeStay.sales_order_id}`);
+        const orderData = orderRes.data;
 
-      const chargeNote = priceDifference !== 0
-        ? (priceDifference > 0 ? ` (Cobro pendiente: $${priceDifference.toFixed(2)})` : ` (Devolución pendiente: $${Math.abs(priceDifference).toFixed(2)})`)
-        : "";
-      const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${room.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}${chargeNote}`;
+        const chargeNote = priceDifference !== 0
+          ? (priceDifference > 0 ? ` (Cobro pendiente: $${priceDifference.toFixed(2)})` : ` (Devolución pendiente: $${Math.abs(priceDifference).toFixed(2)})`)
+          : "";
+        const newNotes = `${orderData?.notes || ""}\n📝 CAMBIO: Hab. ${room.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"}). Motivo: ${data.reason}${chargeNote}`;
 
-      await supabase
-        .from("sales_orders")
-        .update({ notes: newNotes.trim() })
-        ;
+        await apiClient.patch(`/system/crud/sales_orders/${activeStay.sales_order_id}`, { notes: newNotes.trim() });
+      } catch(e) {}
 
       toast.success("Habitación cambiada", {
         description: `${room.number} → ${newRoom.number} (${data.keepTime ? "tiempo mantenido" : "tiempo reiniciado"})`,

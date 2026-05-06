@@ -244,15 +244,11 @@ function RoomsBoardInternal() {
         return;
       }
 
-      const { error } = await supabase
-        .from("room_stays")
-        .update({
+      const { apiClient } = await import("@/lib/api/client");
+      await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
           valet_checkout_requested_at: new Date().toISOString(),
           valet_employee_id: currentEmployeeId // Asegurar que el valet que notifica se asigne si no lo estaba
-        })
-        ;
-
-      if (error) throw error;
+      });
 
       toast.success("Salida notificada a recepción", {
         description: `Habitación ${modals.selectedRoom.number}`

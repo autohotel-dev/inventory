@@ -19,7 +19,6 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { UserCog, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 
 interface EditValetModalProps {
     isOpen: boolean;
@@ -53,16 +52,14 @@ export function EditValetModal({
     useEffect(() => {
         const loadValets = async () => {
             setLoadingValets(true);
-            const supabase = createClient();
-            const { data } = await supabase
-                .from("employees")
-                .select("id, first_name, last_name")
-                
-                
-                ;
-
-            if (data) {
-                setValets(data);
+            try {
+                const { apiClient } = await import("@/lib/api/client");
+                const { data } = await apiClient.get("/hr/employees/list");
+                if (data) {
+                    setValets(data);
+                }
+            } catch (error) {
+                console.error("Error loading valets:", error);
             }
             setLoadingValets(false);
         };
@@ -75,17 +72,12 @@ export function EditValetModal({
 
     const handleSave = async () => {
         setLoading(true);
-        const supabase = createClient();
 
         try {
-            const { error } = await supabase
-                .from("room_stays")
-                .update({
-                    valet_employee_id: selectedValetId === "none" ? null : selectedValetId,
-                })
-                ;
-
-            if (error) throw error;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.patch(`/system/crud/room_stays/${stayId}`, {
+                valet_employee_id: selectedValetId === "none" ? null : selectedValetId,
+            });
 
             onSuccess();
             onClose();

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,109 +45,11 @@ export function ProfitabilityReport() {
     const [sortBy, setSortBy] = useState<'profit' | 'margin' | 'roi'>('profit');
 
     const fetchProfitabilityReport = async () => {
-        const supabase = createClient();
-        setLoading(true);
-
-        try {
-            // Obtener productos con ventas
-            const { data: products } = await supabase
-                .from("products")
-                .select(`
-          *,
-          category:categories(name),
-          sales_items:sales_order_items(
-            qty,
-            unit_price,
-            sales_order:sales_orders!inner(status)
-          )
-        `)
-                ;
-
-            if (!products) {
-                setLoading(false);
-                return;
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get('/analytics/profitability-report');
+            if (data) {
+                setData(data);
             }
-
-            // Calcular rentabilidad por producto
-            const productProfitability = products
-                .map((product: any) => {
-                    // Filtrar solo items de órdenes cerradas
-                    const soldItems = (product.sales_items || []).filter(
-                        (item: any) => item.sales_order?.status === 'CLOSED'
-                    );
-
-                    const quantity_sold = soldItems.reduce(
-                        (sum: number, item: any) => sum + (item.qty || 0),
-                        0
-                    );
-
-                    const total_revenue = soldItems.reduce(
-                        (sum: number, item: any) => sum + ((item.qty || 0) * (item.unit_price || 0)),
-                        0
-                    );
-
-                    // Asumimos que el costo es el precio de compra del producto
-                    const cost_price = product.price * 0.6; // 60% del precio de venta como costo estimado
-                    const total_cost = quantity_sold * cost_price;
-                    const profit = total_revenue - total_cost;
-                    const margin_percentage = total_revenue > 0 ? (profit / total_revenue) * 100 : 0;
-                    const roi = total_cost > 0 ? (profit / total_cost) * 100 : 0;
-
-                    return {
-                        product_name: product.name,
-                        product_sku: product.sku,
-                        cost_price,
-                        sell_price: product.price,
-                        quantity_sold,
-                        total_cost,
-                        total_revenue,
-                        profit,
-                        margin_percentage,
-                        roi,
-                        category_name: (product.category as any)?.name || 'Sin categoría'
-                    };
-                })
-                .filter((p: any) => p.quantity_sold > 0); // Solo productos vendidos
-
-            // Calcular totales
-            const totalCost = productProfitability.reduce((sum: number, p: any) => sum + p.total_cost, 0);
-            const totalRevenue = productProfitability.reduce((sum: number, p: any) => sum + p.total_revenue, 0);
-            const totalProfit = totalRevenue - totalCost;
-            const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-
-            // Rentabilidad por categoría
-            const categoryMap = new Map<string, any>();
-            productProfitability.forEach((product: any) => {
-                const catName = product.category_name;
-                if (!categoryMap.has(catName)) {
-                    categoryMap.set(catName, {
-                        category_name: catName,
-                        total_cost: 0,
-                        total_revenue: 0,
-                        profit: 0
-                    });
-                }
-                const cat = categoryMap.get(catName);
-                cat.total_cost += product.total_cost;
-                cat.total_revenue += product.total_revenue;
-                cat.profit += product.profit;
-            });
-
-            const categoryProfitability = Array.from(categoryMap.values())
-                .map(cat => ({
-                    ...cat,
-                    margin: cat.total_revenue > 0 ? (cat.profit / cat.total_revenue) * 100 : 0
-                }))
-                .sort((a, b) => b.profit - a.profit);
-
-            setData({
-                totalProfit,
-                totalCost,
-                totalRevenue,
-                profitMargin,
-                productProfitability,
-                categoryProfitability
-            });
 
         } catch (error) {
             console.error("Error fetching profitability report:", error);

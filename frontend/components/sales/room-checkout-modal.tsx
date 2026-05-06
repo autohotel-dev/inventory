@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PaymentMethod } from "@/components/sales/room-types";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
@@ -84,16 +83,14 @@ export function RoomCheckoutModal({
   // Cargar cocheros disponibles
   useEffect(() => {
     const loadValets = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name')
-        
-        
-        ;
-
-      if (data) {
-        setValets(data);
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const { data } = await apiClient.get('/hr/employees/list');
+        if (data) {
+          setValets(data);
+        }
+      } catch (error) {
+        console.error("Error fetching valets:", error);
       }
     };
 

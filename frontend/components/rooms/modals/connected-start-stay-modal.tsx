@@ -1,9 +1,8 @@
-import { apiClient } from "@/lib/api/client";
 "use client";
+import { apiClient } from "@/lib/api/client";
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { Room, RoomType } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import {
@@ -15,6 +14,7 @@ import {
   useRoomActions,
   getActiveStay,
 } from "@/hooks/room-actions";
+import { getCurrentEmployeeId, getCurrentShiftId } from "@/hooks/room-actions/shift-helpers";
 import { startFlowWithEvent } from "@/lib/flow-logger";
 
 export const calculateExpectedCheckout = (
@@ -96,7 +96,6 @@ export function ConnectedStartStayModal({
 
 
     setStartStayLoading(true);
-    const supabase = createClient();
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
     const methodsSummary = payments.map((p) => p.method).join(", ");
 
@@ -122,13 +121,14 @@ export function ConnectedStartStayModal({
       const totalPaidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
       const methodsSummary = payments.map((p) => p.method).join(", ");
 
-      // Obtener almacén específico para ventas de recepción (ALM002-R)
-      const { data: defaultWarehouse, error: warehouseError } = await supabase
-        .from("warehouses")
-        .select("id, code, is_active")
-        
-        
-        ;
+      let defaultWarehouse = null;
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const res = await apiClient.get('/system/crud/warehouses?code=ALM002-R&is_active=true');
+        defaultWarehouse = (res.data && res.data.length > 0) ? res.data[0] : null;
+      } catch(e) {}
+      
+      const warehouseError = !defaultWarehouse;
 
       if (warehouseError || !defaultWarehouse) {
         toast.error("No se encontró el almacén de recepción", {
@@ -172,7 +172,7 @@ export function ConnectedStartStayModal({
           duration_nights: durationNights,
           notes: `Estancia ${roomType.name} Hab. ${room.number}${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ""} - Pago: ${methodsSummary}`,
           payment_data: paymentData,
-          employee_id: (await supabase.auth.getUser()).data.user?.id
+          employee_id: await getCurrentEmployeeId()
         });
         rpcResult = response.data;
       } catch (err: any) {
@@ -198,39 +198,14 @@ export function ConnectedStartStayModal({
       });
 
       // ─── Crear flujo operativo ─────────────────────────────────────
-      // El RPC ya creó la estancia; obtenerla para enlazar el flujo
       try {
-        const { data: freshRoom } = await supabase
-          .from("rooms")
-          .select("*, room_stays(id, sales_order_id, status)")
-          
-          ;
-
-        const activeStay = freshRoom?.room_stays?.find(
-          (s: any) => s.status === "ACTIVA"
-        );
-
-        if (activeStay) {
-          // Obtener shift_session_id del recepcionista actual
-          const { data: { user } } = await supabase.auth.getUser();
-          let shiftSessionId: string | undefined;
-          if (user) {
-            const { data: session } = await supabase
-              .from("shift_sessions")
-              .select("id")
-              
-              
-              .is("clock_out_at", null)
-              
-              .limit(1)
-              .maybeSingle();
-            shiftSessionId = session?.id;
-          }
+        if (rpcResult && (rpcResult as any).success && (rpcResult as any).stay_id) {
+          const shiftSessionId = await getCurrentShiftId();
 
           startFlowWithEvent(
             {
-              room_stay_id: activeStay.id,
-              sales_order_id: activeStay.sales_order_id,
+              room_stay_id: (rpcResult as any).stay_id,
+              sales_order_id: (rpcResult as any).sales_order_id,
               room_id: room.id,
               room_number: room.number,
               shift_session_id: shiftSessionId,

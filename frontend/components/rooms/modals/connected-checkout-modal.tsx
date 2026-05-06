@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import { Room } from "@/components/sales/room-types";
 import { getActiveStay, useRoomActions } from "@/hooks/room-actions";
+import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
@@ -67,21 +66,19 @@ export function ConnectedCheckoutModal({
     // Solo hacer polling si hay vehículo (necesita revisión de cochero)
     if (!activeStay.vehicle_plate) return;
     
-    const supabase = createClient();
-    
     const pollInterval = setInterval(async () => {
-      const { data } = await supabase
-        .from("room_stays")
-        .select("checkout_valet_employee_id")
-        
-        ;
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const res = await apiClient.get(`/system/crud/room_stays/${activeStay.id}`);
+        const data = res.data;
       
-      if (data?.checkout_valet_employee_id && data.checkout_valet_employee_id !== confirmedValetId) {
+        if (data?.checkout_valet_employee_id && data.checkout_valet_employee_id !== confirmedValetId) {
         console.log("✅ [Checkout Modal] Cochero confirmó revisión:", data.checkout_valet_employee_id);
         setConfirmedValetId(data.checkout_valet_employee_id);
         // Refrescar el board para actualizar el ícono del cochecito
-        onSuccess();
-      }
+          onSuccess();
+        }
+      } catch(e) {}
     }, 3000);
 
     return () => clearInterval(pollInterval);
@@ -95,11 +92,12 @@ export function ConnectedCheckoutModal({
       return;
     }
 
-    const supabase = createClient();
-    const { data: itemsData } = await supabase
-      .from("sales_order_items")
-      .select("concept_type, total, is_paid, delivery_status, is_cancelled")
-      ;
+    let itemsData = [];
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      const res = await apiClient.get(`/system/crud/sales_order_items?sales_order_id=${info.salesOrderId}`);
+      itemsData = res.data || [];
+    } catch(e) {}
 
     const items = itemsData || [];
     const { pendingItems } = summarizePendingItems(items);

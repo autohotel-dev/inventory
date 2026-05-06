@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { CancelStayModal } from "@/components/sales/cancel-stay-modal";
 import { getActiveStay } from "@/hooks/room-actions";
@@ -38,31 +37,22 @@ export function ConnectedCancelStayModal({
     if (!room || !activeStay) return;
 
     setLoading(true);
-    const supabase = createClient();
 
     try {
+      const { apiClient } = await import("@/lib/api/client");
+      
       // ═══════════════════════════════════════════════════════════
       // PASO 1: Finalizar la estancia como CANCELADA
       // ═══════════════════════════════════════════════════════════
-      const { error: stayError } = await supabase
-        .from("room_stays")
-        .update({
-          status: "CANCELADA",
-          actual_check_out_at: new Date().toISOString(),
-        })
-        ;
-      
-      if (stayError) throw stayError;
+      await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
+        status: "CANCELADA",
+        actual_check_out_at: new Date().toISOString(),
+      });
 
       // ═══════════════════════════════════════════════════════════
       // PASO 2: Marcar habitación como SUCIA
       // ═══════════════════════════════════════════════════════════
-      const { error: roomError } = await supabase
-        .from("rooms")
-        .update({ status: "SUCIA" })
-        ;
-      
-      if (roomError) throw roomError;
+      await apiClient.patch(`/system/crud/rooms/${room.id}`, { status: "SUCIA" });
 
       // ═══════════════════════════════════════════════════════════
       // PASO 3: Cancelar TODOS los pagos no finalizados
@@ -71,27 +61,18 @@ export function ConnectedCancelStayModal({
       // ═══════════════════════════════════════════════════════════
       let valetMoneyWarning = 0;
       try {
-        // Primero contar cuánto dinero tiene el cochero (para el mensaje)
-        const { data: valetPayments } = await supabase
-          .from("payments")
-          .select("amount, status")
-          
-          .in("status", ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"]);
+        const res = await apiClient.get(`/system/crud/payments?sales_order_id=${activeStay.sales_order_id}`);
+        const allPayments = res.data || [];
+        
+        const valetPayments = allPayments.filter((p: any) => ["COBRADO_POR_VALET", "CORROBORADO_RECEPCION"].includes(p.status));
+        valetMoneyWarning = valetPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
-        valetMoneyWarning = (valetPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-
-        // Cancelar pagos no finalizados
-        const { error: cancelPaymentsError } = await supabase
-          .from("payments")
-          .update({ 
+        const toCancel = allPayments.filter((p: any) => ["PENDIENTE", "COBRADO_POR_VALET", "CORROBORADO_RECEPCION"].includes(p.status));
+        for (const p of toCancel) {
+          await apiClient.patch(`/system/crud/payments/${p.id}`, {
             status: "CANCELADO",
             notes: `Cancelado por cancelación de estancia: ${data.reason}`
-          })
-          
-          .in("status", ["PENDIENTE", "COBRADO_POR_VALET", "CORROBORADO_RECEPCION"]);
-
-        if (cancelPaymentsError) {
-          console.error("Error cancelling payments (non-blocking):", cancelPaymentsError);
+          });
         }
       } catch (paymentCleanupErr) {
         console.error("Payment cleanup failed (non-blocking):", paymentCleanupErr);
@@ -103,14 +84,11 @@ export function ConnectedCancelStayModal({
       // Anti-bloqueo: falla parcial no detiene el flujo
       // ═══════════════════════════════════════════════════════════
       try {
-        await supabase
-          .from("room_stays")
-          .update({
-            checkout_payment_data: null,
-            vehicle_requested_at: null,
-            valet_checkout_requested_at: null,
-          })
-          ;
+        await apiClient.patch(`/system/crud/room_stays/${activeStay.id}`, {
+          checkout_payment_data: null,
+          vehicle_requested_at: null,
+          valet_checkout_requested_at: null,
+        });
       } catch (stayCleanupErr) {
         console.error("Stay data cleanup failed (non-blocking):", stayCleanupErr);
       }
@@ -120,14 +98,15 @@ export function ConnectedCancelStayModal({
       // Anti-bloqueo: falla parcial no detiene el flujo
       // ═══════════════════════════════════════════════════════════
       try {
-        await supabase
-          .from("sales_order_items")
-          .update({ 
-            delivery_status: "CANCELLED",
-            is_paid: false
-          })
-          
-          ;
+        const res = await apiClient.get(`/system/crud/sales_order_items?sales_order_id=${activeStay.sales_order_id}`);
+        for (const item of (res.data || [])) {
+          if (!item.is_paid) {
+            await apiClient.patch(`/system/crud/sales_order_items/${item.id}`, {
+              delivery_status: "CANCELLED",
+              is_paid: false
+            });
+          }
+        }
       } catch (itemsCleanupErr) {
         console.error("Items cleanup failed (non-blocking):", itemsCleanupErr);
       }
@@ -135,11 +114,11 @@ export function ConnectedCancelStayModal({
       // ═══════════════════════════════════════════════════════════
       // PASO 6: Calcular monto retenido y actualizar orden
       // ═══════════════════════════════════════════════════════════
-      const { data: currentOrder } = await supabase
-        .from("sales_orders")
-        .select("paid_amount")
-        
-        ;
+      let currentOrder = null;
+      try {
+        const res = await apiClient.get(`/system/crud/sales_orders/${activeStay.sales_order_id}`);
+        currentOrder = res.data;
+      } catch(e) {}
 
       const totalPaid = currentOrder?.paid_amount || 0;
       let retainedAmount = 0;
@@ -155,55 +134,34 @@ export function ConnectedCancelStayModal({
       }
 
       const orderUpdateNote = `❌ CANCELADA: ${data.reason}. Reembolso: ${refundType === "full" ? "Total" : refundType === "partial" ? `Parcial $${refundAmount}` : "Sin reembolso"} (Retenido: $${retainedAmount})`;
+      const oldNotes = currentOrder?.notes ? currentOrder.notes.replace(orderUpdateNote, "").trim() : "";
+      const newNotes = `${oldNotes}\n${orderUpdateNote}`.trim();
 
-      const { error: orderError } = await supabase
-        .from("sales_orders")
-        .update({ 
-          status: "CANCELLED",
-          subtotal: retainedAmount,
-          total: retainedAmount,
-          paid_amount: retainedAmount,
-          remaining_amount: 0,
-          notes: orderUpdateNote
-        })
-        ;
-      
-      if (orderError) throw orderError;
+      await apiClient.patch(`/system/crud/sales_orders/${activeStay.sales_order_id}`, {
+        status: "CANCELLED",
+        subtotal: retainedAmount,
+        total: retainedAmount,
+        paid_amount: retainedAmount,
+        remaining_amount: 0,
+        notes: newNotes
+      });
 
       // ═══════════════════════════════════════════════════════════
       // PASO 7: Borrar historial de habitación
       // Anti-bloqueo: falla parcial no detiene el flujo
       // ═══════════════════════════════════════════════════════════
       try {
-        await supabase
-          .from("room_status_history")
-          .delete()
-          ;
+        const res = await apiClient.get(`/system/crud/room_status_history?room_id=${room.id}`);
+        for (const h of (res.data || [])) {
+          await apiClient.delete(`/system/crud/room_status_history/${h.id}`);
+        }
       } catch (historyErr) {
         console.error("History cleanup failed (non-blocking):", historyErr);
       }
 
       // ═══════════════════════════════════════════════════════════
-      // PASO 8: Concatenar notas (preservar previas)
-      // Anti-bloqueo: falla parcial no detiene el flujo
+      // PASO 8: Notas combinadas en el Paso 6
       // ═══════════════════════════════════════════════════════════
-      try {
-        const { data: orderData } = await supabase
-          .from("sales_orders")
-          .select("notes")
-          
-          ;
-
-        const oldNotes = orderData?.notes ? orderData.notes.replace(orderUpdateNote, "").trim() : "";
-        const newNotes = `${oldNotes}\n${orderUpdateNote}`.trim();
-        
-        await supabase
-          .from("sales_orders")
-          .update({ notes: newNotes })
-          ;
-      } catch (notesErr) {
-        console.error("Notes update failed (non-blocking):", notesErr);
-      }
 
       // ═══════════════════════════════════════════════════════════
       // PASO 9: Notificar cocheros activos
@@ -217,7 +175,6 @@ export function ConnectedCancelStayModal({
             : '';
           
           await notifyActiveValets(
-            supabase,
             '❌ Estancia Cancelada',
             `Hab. ${room.number}: La estancia fue cancelada. Motivo: ${data.reason}.${moneyMsg}`,
             {

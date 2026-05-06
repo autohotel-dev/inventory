@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Printer, Download, Loader2, X } from "lucide-react";
 
@@ -54,41 +53,15 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
 
   const fetchReceiptData = async () => {
     setLoading(true);
-    const supabase = createClient();
 
     try {
-      // Obtener orden
-      const { data: order, error: orderError } = await supabase
-        .from("sales_orders")
-        .select("id, created_at, total, paid_amount, remaining_amount, currency, status")
-        
-        ;
-
-      if (orderError) throw orderError;
-
-      // Obtener items
-      const { data: items } = await supabase
-        .from("sales_order_items")
-        .select(`
-          id, qty, unit_price, total, concept_type, is_paid, payment_method,
-          products:product_id(name, sku)
-        `)
-        ;
-
-      // Obtener pagos
-      const { data: payments } = await supabase
-        .from("payments")
-        .select("id, amount, payment_method, reference, created_at, tip_amount")
-        
-        ;
-
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/sales/orders/${orderId}/receipt`);
+      
       setReceiptData({
-        order: order as any,
-        items: (items || []).map((item: any) => ({
-          ...item,
-          products: Array.isArray(item.products) ? item.products[0] : item.products
-        })),
-        payments: payments || [],
+        order: data.order,
+        items: data.items,
+        payments: data.payments,
         roomNumber,
       });
       setShowPreview(true);

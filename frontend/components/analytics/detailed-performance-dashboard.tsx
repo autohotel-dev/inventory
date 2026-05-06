@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -70,8 +69,7 @@ export function DetailedPerformanceDashboard() {
   useEffect(() => {
     const fetchKPIs = async () => {
       setLoading(true);
-      const supabase = createClient();
-      
+            
       try {
         const [cocherosRes, receptionistsRes, camaristasRes] = await Promise.all([
           supabase.rpc('get_cochero_performance_kpis', { p_start_date: dateRange.start, p_end_date: dateRange.end }),

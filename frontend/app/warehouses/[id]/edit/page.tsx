@@ -1,26 +1,24 @@
 import { apiClient } from "@/lib/api/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 async function getWarehouse(id: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("warehouses")
-    .select("id, code, name, address, is_active")
-    
-    ;
-  if (error) throw error;
-  return data;
+  const { apiClient } = await import("@/lib/api/client");
+  try {
+    const { data } = await apiClient.get(`/system/crud/warehouses/${id}`);
+    return data;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function updateWarehouseAction(formData: FormData) {
   "use server";
   const id = String(formData.get("id") || "");
-  const supabase = await createClient();
   const payload = {
     code: String(formData.get("code") || "").trim(),
     name: String(formData.get("name") || "").trim(),

@@ -1,6 +1,5 @@
 
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,15 +8,13 @@ import Link from "next/link";
 
 
 async function getProduct(id: string) {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        
-        ;
-
-    if (error || !data) return null;
-    return data;
+    const { apiClient } = await import("@/lib/api/client");
+    try {
+        const { data } = await apiClient.get(`/system/crud/products/${id}`);
+        return data;
+    } catch (e) {
+        return null;
+    }
 }
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {

@@ -2,8 +2,8 @@ import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/use-user-role";
 import { VALET_CONCEPTS, SERVICE_CONCEPTS, CONCEPT_LABELS, OrderItem } from "@/components/sales/payment/payment-constants";
 import { getActiveItems } from "@/lib/utils/order-utils";
 
@@ -14,6 +14,7 @@ interface UsePaymentItemsProps {
 }
 
 export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: UsePaymentItemsProps) {
+  const { employeeId } = useUserRole();
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -25,18 +26,8 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
 
     try {
       setLoading(true);
-      const supabase = createClient();
 
-      const { data: orderItems, error: itemsError } = await supabase
-        .from("sales_order_items")
-        .select(`
-          *,
-          products(name, sku)
-        `)
-        
-        ;
-
-      if (itemsError) throw itemsError;
+      const { data: orderItems } = await apiClient.get(`/sales/orders/${salesOrderId}/consumptions`);
 
       const mappedItems: OrderItem[] = getActiveItems(orderItems || [])
         .map((item: any) => ({
@@ -105,15 +96,10 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
   const deleteUnpaidItem = async (itemId: string, roomNumber?: string) => {
     try {
       setDeletingItemId(itemId);
-      const supabase = createClient();
       
-      const { data: userSession } = await supabase.auth.getSession();
-      const employeeId = userSession.session?.user?.id || null;
-
-      const { apiClient } = await import("@/lib/api/client");
       const { data } = await apiClient.post('/sales/cancel-item', {
         item_id: itemId,
-        employee_id: employeeId,
+        employee_id: employeeId || undefined,
         reason: "Eliminado desde panel de pagos"
       }) as any;
 
@@ -127,16 +113,20 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
           const item = items.find(i => i.id === itemId);
           if (item) {
              const { notifyActiveValets } = await import('@/lib/services/valet-notification-service');
-             await notifyActiveValets(
-                supabase,
-                '🚫 Cargo Cancelado',
-                `Recepción canceló un cobro de $${Number(item.total).toFixed(2)} en Hab. ${roomNumber}.`,
-                {
-                  type: 'CHARGE_CANCELLED',
-                  roomNumber: roomNumber,
-                  stayId: data.stay_id
-                }
-             );
+             // Es posible que el servicio ya esté migrado o necesite migrarse.
+             try {
+                await notifyActiveValets(
+                   '🚫 Cargo Cancelado',
+                   `Recepción canceló un cobro de $${Number(item.total).toFixed(2)} en Hab. ${roomNumber}.`,
+                   {
+                     type: 'CHARGE_CANCELLED',
+                     roomNumber: roomNumber,
+                     stayId: data.stay_id
+                   }
+                );
+             } catch(err) {
+                console.error("Error with valet notification:", err);
+             }
           }
         } catch (e) {
           console.error("Failed to notify valets:", e);

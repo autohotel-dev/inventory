@@ -1,6 +1,5 @@
 import { apiClient } from "@/lib/api/client";
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { IncomeEntry, IncomeReportProps, IncomeTotals } from "@/components/reports/income-report/types";
 
 export function useIncomeReport({
@@ -19,26 +18,22 @@ export function useIncomeReport({
     const [currentShift, setCurrentShift] = useState<any>(null);
 
     const fetchCurrentShift = useCallback(async () => {
-        const supabase = createClient();
-        const { data: sessions } = await supabase
-            .from("shift_sessions")
-            .select(`
-                id,
-                status,
-                employees!shift_sessions_employee_id_fkey(
-                    first_name,
-                    last_name
-                )
-            `)
-            ;
+        try {
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get('/system/crud/shift_sessions?status=active&limit=1');
+            const session = data && data.length > 0 ? data[0] : null;
 
-        const session = sessions && sessions.length > 0 ? sessions[0] : null;
-
-        if (session) {
-            const emp = (session.employees as any);
-            setCurrentShift({
-                employee_name: emp ? `${emp.first_name} ${emp.last_name}` : "Desconocido"
-            });
+            if (session && session.employees) {
+                const emp = session.employees;
+                setCurrentShift({
+                    id: session.id,
+                    employee_name: emp ? `${emp.first_name} ${emp.last_name}` : "Desconocido"
+                });
+            } else if (session) {
+                setCurrentShift({ id: session.id, employee_name: "Desconocido" });
+            }
+        } catch (error) {
+            console.error("Error fetching current shift:", error);
         }
     }, []);
 

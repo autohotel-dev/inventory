@@ -5,7 +5,6 @@ import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp, CreditCard, 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Room, RoomStay, STATUS_CONFIG } from "@/components/sales/room-types";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 interface Payment {
@@ -67,45 +66,45 @@ export function RoomInfoPopover({
   }, [showPayments, room]);
 
   const fetchConceptSummary = async (salesOrderId: string) => {
-    const supabase = createClient();
-    
-    const { data, error } = await supabase
-      .from("sales_order_items")
-      .select("concept_type, total, is_paid")
-      ;
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/system/crud/sales_order_items?sales_order_id=${salesOrderId}`);
 
-    if (!error && data) {
-      // Agrupar por concepto
-      const summary: Record<string, ConceptSummary> = {};
-      data.forEach((item: any) => {
-        const type = item.concept_type || "PRODUCT";
-        if (!summary[type]) {
-          summary[type] = { concept_type: type, total: 0, count: 0, paid: 0 };
-        }
-        summary[type].total += item.total || 0;
-        summary[type].count += 1;
-        if (item.is_paid) {
-          summary[type].paid += item.total || 0;
-        }
-      });
-      setConceptSummary(Object.values(summary));
+      if (data) {
+        // Agrupar por concepto
+        const summary: Record<string, ConceptSummary> = {};
+        data.forEach((item: any) => {
+          const type = item.concept_type || "PRODUCT";
+          if (!summary[type]) {
+            summary[type] = { concept_type: type, total: 0, count: 0, paid: 0 };
+          }
+          summary[type].total += item.total || 0;
+          summary[type].count += 1;
+          if (item.is_paid) {
+            summary[type].paid += item.total || 0;
+          }
+        });
+        setConceptSummary(Object.values(summary));
+      }
+    } catch (error) {
+      console.error("Error fetching concept summary:", error);
     }
   };
 
   const fetchPayments = async (salesOrderId: string) => {
     setLoadingPayments(true);
-    const supabase = createClient();
-    
-    const { data, error } = await supabase
-      .from("payments")
-      .select("*")
-      
-      ;
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get(`/system/crud/payments?sales_order_id=${salesOrderId}`);
 
-    if (!error && data) {
-      setPayments(data);
+      if (data) {
+        setPayments(data);
+      }
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+    } finally {
+      setLoadingPayments(false);
     }
-    setLoadingPayments(false);
   };
 
   const getPaymentIcon = (method: string) => {

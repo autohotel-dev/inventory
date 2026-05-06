@@ -2,15 +2,14 @@ import { apiClient } from "@/lib/api/client";
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { toast } from "sonner";
 import { QuickCheckinModal } from "@/components/sales/quick-checkin-modal";
 import { Room } from "@/components/sales/room-types";
 import {
-  getReceptionShiftId,
-  getReceptionEmployeeId,
   generatePaymentReference,
 } from "@/hooks/room-actions";
+import { getCurrentEmployeeId, getCurrentShiftId } from "@/hooks/room-actions/shift-helpers";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { getGuestPortalURL } from "@/lib/utils/guest-portal-qr";
@@ -50,7 +49,6 @@ export function ConnectedQuickCheckinModal({
     }
 
     setActionLoading(true);
-    const supabase = createClient();
 
     try {
       const roomType = selectedRoom.room_types;
@@ -91,31 +89,29 @@ export function ConnectedQuickCheckinModal({
       const totalPrice =
         (basePrice + extraPeopleCost) * (roomType.is_hotel ? durationNights : 1);
 
-      // Obtener almacén de recepción
-      const { data: defaultWarehouse, error: warehouseError } = await supabase
-        .from("warehouses")
-        .select("id, code, is_active")
-        
-        
-        ;
+      let defaultWarehouse = null;
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const res = await apiClient.get('/system/crud/warehouses?code=ALM002-R&is_active=true');
+        defaultWarehouse = (res.data && res.data.length > 0) ? res.data[0] : null;
+      } catch(e) {}
+      
+      const warehouseError = !defaultWarehouse;
 
       if (warehouseError || !defaultWarehouse) {
         toast.error("No se encontró el almacén de recepción");
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const currentShiftId = await getCurrentShiftId();
+      const currentEmployeeId = await getCurrentEmployeeId();
 
-      // Obtener turno actual y employee_id de Recepción
-      const currentShiftId = await getReceptionShiftId(supabase);
-      const currentEmployeeId = await getReceptionEmployeeId(supabase);
+      const { apiClient } = await import("@/lib/api/client");
 
       // Crear orden de venta con pago PENDIENTE
-      const { data: salesOrder, error: orderError } = await supabase
-        .from("sales_orders")
-        .insert({
+      let salesOrder = null;
+      try {
+        const orderRes = await apiClient.post("/system/crud/sales_orders", {
           customer_id: null,
           warehouse_id: defaultWarehouse.id,
           currency: "MXN",
@@ -128,29 +124,23 @@ export function ConnectedQuickCheckinModal({
           status: "OPEN",
           remaining_amount: totalPrice, // Todo pendiente
           paid_amount: 0,
-          created_by: user?.id ?? null,
+          created_by: currentEmployeeId,
           shift_session_id: currentShiftId,
-        })
-        .select("id")
-        ;
-
-      if (orderError) {
+        });
+        salesOrder = orderRes.data;
+      } catch (orderError) {
         console.error("Error creating sales order:", orderError);
         toast.error("Error al iniciar la estancia");
         return;
       }
 
-      // Buscar o crear producto de servicio
       let serviceProductId: string | null = null;
-      const { data: serviceProducts } = await supabase
-        .from("products")
-        .select("id")
-        
-        .limit(1);
-
-      if (serviceProducts && serviceProducts.length > 0) {
-        serviceProductId = serviceProducts[0].id;
-      }
+      try {
+        const prodRes = await apiClient.get("/system/crud/products?limit=1");
+        if (prodRes.data && prodRes.data.length > 0) {
+          serviceProductId = prodRes.data[0].id;
+        }
+      } catch (e) {}
 
       // Insertar items de la orden (todos sin pagar)
       if (serviceProductId) {
@@ -193,20 +183,20 @@ export function ConnectedQuickCheckinModal({
       }
 
       // Crear pago pendiente (para que aparezca en el cobro granular)
-      const { error: paymentError } = await apiClient.post("/system/crud/payments", {
-        sales_order_id: salesOrder.id,
-        amount: totalPrice,
-        payment_method: "PENDIENTE",
-        reference: generatePaymentReference("QCK") as any,
-        concept: "ESTANCIA",
-        status: "PENDIENTE",
-        payment_type: "COMPLETO",
-        created_by: user?.id ?? null,
-        shift_session_id: currentShiftId,
-        employee_id: currentEmployeeId,
-      });
-
-      if (paymentError) {
+      try {
+        await apiClient.post("/system/crud/payments", {
+          sales_order_id: salesOrder.id,
+          amount: totalPrice,
+          payment_method: "PENDIENTE",
+          reference: generatePaymentReference("QCK") as any,
+          concept: "ESTANCIA",
+          status: "PENDIENTE",
+          payment_type: "COMPLETO",
+          created_by: currentEmployeeId,
+          shift_session_id: currentShiftId,
+          employee_id: currentEmployeeId,
+        });
+      } catch (paymentError) {
          console.error("Error inserting payment:", paymentError);
       }
 
@@ -214,9 +204,9 @@ export function ConnectedQuickCheckinModal({
       const guestToken = crypto.randomUUID();
 
       // Registrar la estancia con la hora REAL de entrada
-      const { data: stayData, error: stayError } = await supabase
-        .from("room_stays")
-        .insert({
+      let stayData = null;
+      try {
+        const stayRes = await apiClient.post("/system/crud/room_stays", {
           room_id: selectedRoom.id,
           sales_order_id: salesOrder.id,
           check_in_at: entryTime.toISOString(), // Hora real de entrada
@@ -229,21 +219,20 @@ export function ConnectedQuickCheckinModal({
           valet_employee_id: null,
           shift_session_id: currentShiftId,
           guest_access_token: guestToken,
-        })
-        .select()
-        ;
-
-      if (stayError || !stayData) {
+        });
+        stayData = stayRes.data;
+      } catch (stayError) {
         console.error("Error creating room stay:", stayError);
         toast.error("Error al registrar la estancia");
         return;
       }
 
       // Actualizar estado de la habitación a OCUPADA
-      await supabase
-        .from("rooms")
-        .update({ status: "OCUPADA" })
-        ;
+      try {
+        await apiClient.patch(`/system/crud/rooms/${selectedRoom.id}`, { status: "OCUPADA" });
+      } catch(e) {
+        console.error("Error updating room status:", e);
+      }
 
       const timeDiff = Math.round(
         (new Date().getTime() - entryTime.getTime()) / 60000

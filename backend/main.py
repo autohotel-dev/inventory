@@ -27,6 +27,8 @@ app.include_router(rooms.router)
 app.include_router(sales.router)
 app.include_router(hr.router)
 app.include_router(services.router)
+from routers import analytics
+app.include_router(analytics.router)
 
 from routers import ws
 app.include_router(ws.router)

@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { Employee, ShiftDefinition, ShiftSession, EMPLOYEE_ROLES } from "@/components/employees/types";
 
 export function useShiftManager(onShiftChange?: (session: ShiftSession | null) => void) {
-  const supabase = createClient();
+
   const { success, error: showError } = useToast();
   const systemConfig = useSystemConfigRead();
 
@@ -91,29 +91,13 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
     } finally {
       setLoading(false);
     }
-  }, [supabase, onShiftChange, systemConfig]);
+  }, [onShiftChange, systemConfig]);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 60000);
-
-    const channel = supabase
-      .channel('shift-indicator-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'shift_sessions' },
-        () => {
-          console.log('[SHIFT INDICATOR] Shift session change detected, refreshing...');
-          loadData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
-  }, [loadData, supabase]);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
   const handleClockIn = async () => {
     if (!selectedEmployeeId || !currentShift) return;
@@ -132,28 +116,24 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
       const roleLabel = EMPLOYEE_ROLES.find(r => r.value === employeeRole)?.label || employeeRole;
 
       if (roleLimit !== undefined) {
-        const { data: activeSessions, error: checkError } = await supabase
-          .from("shift_sessions")
-          .select("*, employees!inner(*)")
-          
-          
-          .is("clock_out_at", null);
+        try {
+          const { data: activeSessions } = await apiClient.get('/hr/sessions', { params: { status: 'active' } });
+          const activeCount = (activeSessions as any[])?.length || 0;
 
-        if (checkError) throw checkError;
+          if (activeCount >= roleLimit) {
+            const activeNames = (activeSessions as any[])
+              ?.map((s: any) => `${s.employee?.first_name || ''} ${s.employee?.last_name || ''}`)
+              .join(", ");
 
-        const activeCount = activeSessions?.length || 0;
-
-        if (activeCount >= roleLimit) {
-          const activeNames = activeSessions
-            ?.map((s: any) => `${s.employees.first_name} ${s.employees.last_name}`)
-            .join(", ");
-
-          showError(
-            "Límite de turnos alcanzado",
-            `Ya hay ${activeCount} turno(s) activo(s) de ${roleLabel} (máximo permitido: ${roleLimit}). Empleado(s) activo(s): ${activeNames}. Primero debe(n) cerrar su turno para que puedas iniciar uno nuevo.`
-          );
-          setActionLoading(false);
-          return;
+            showError(
+              "Límite de turnos alcanzado",
+              `Ya hay ${activeCount} turno(s) activo(s) de ${roleLabel} (máximo permitido: ${roleLimit}). Empleado(s) activo(s): ${activeNames}. Primero debe(n) cerrar su turno para que puedas iniciar uno nuevo.`
+            );
+            setActionLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn('Could not check active sessions limit:', e);
         }
       }
 

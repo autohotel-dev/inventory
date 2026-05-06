@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, Loader2, X, AlertTriangle, KeyRound } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { useUserRole } from "@/hooks/use-user-role";
 
 interface SupervisorAuthDialogProps {
@@ -95,48 +95,41 @@ export function SupervisorAuthDialog({
         setError(null);
 
         try {
-            const supabase = createClient();
             const trimmedPin = pin.trim();
 
-            // 1. Intentar validar como PIN de supervisor
-            const { data: supervisor, error: dbError } = await supabase
-                .from("employees")
-                .select("id, first_name, last_name, role, pin_code")
-                
-                
-                .in("role", ["admin", "manager", "supervisor"])
-                .maybeSingle();
-
-            if (dbError) {
-                console.error("Error verifying supervisor PIN:", dbError);
-                setError("Error al verificar. Intenta de nuevo.");
-                return;
-            }
-
-            if (supervisor) {
-                const supervisorName = `${supervisor.first_name} ${supervisor.last_name}`;
-                onAuthorized(supervisorName, reason.trim());
-                onClose();
-                return;
-            }
-
-            // 2. Si no fue PIN de supervisor, intentar como código temporal
-            const { data: configData, error: configError } = await supabase
-                .from("system_config")
-                .select("emergency_code, emergency_code_expires_at")
-                .limit(1)
-                ;
-
-            if (!configError && configData?.emergency_code) {
-                const expiresAt = new Date(configData.emergency_code_expires_at);
-                const now = new Date();
-
-                if (configData.emergency_code === trimmedPin && expiresAt > now) {
-                    // Código temporal válido
-                    onAuthorized("Código Temporal", reason.trim());
+            // 1. Intentar validar como PIN de supervisor via API
+            try {
+                const { data: employees } = await apiClient.get('/system/crud/employees', {
+                    params: { role: 'in.(admin,manager,supervisor)', is_active: 'eq.true' }
+                }) as any;
+                const supervisor = employees?.find((e: any) => e.pin_code === trimmedPin);
+                if (supervisor) {
+                    const supervisorName = `${supervisor.first_name} ${supervisor.last_name}`;
+                    onAuthorized(supervisorName, reason.trim());
                     onClose();
                     return;
                 }
+            } catch (e) {
+                console.warn('Could not validate supervisor PIN via API:', e);
+            }
+
+            // 2. Si no fue PIN de supervisor, intentar como código temporal via API
+            try {
+                const { data: configArr } = await apiClient.get('/system/crud/system_config') as any;
+                const configData = Array.isArray(configArr) ? configArr[0] : configArr;
+
+                if (configData?.emergency_code) {
+                    const expiresAt = new Date(configData.emergency_code_expires_at);
+                    const now = new Date();
+
+                    if (configData.emergency_code === trimmedPin && expiresAt > now) {
+                        onAuthorized("Código Temporal", reason.trim());
+                        onClose();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not validate emergency code via API:', e);
             }
 
             // 3. Nada coincidió

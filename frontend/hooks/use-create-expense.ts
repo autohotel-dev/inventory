@@ -1,6 +1,6 @@
 // hooks/use-create-expense.ts
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 import { useToast } from '@/hooks/use-toast';
 import { CreateExpenseData, ShiftExpense } from '@/types/expenses';
 
@@ -16,20 +16,11 @@ export function useCreateExpense() {
     ): Promise<ShiftExpense | null> => {
         setLoading(true);
         try {
-            const supabase = createClient();
-
             // Validate active session
-            const { data: session, error: sessionError } = await supabase
-                .from('shift_sessions')
-                .select('*')
-                
-                
-                .maybeSingle();
+            const { data: session } = await apiClient.get(`/system/crud/shift_sessions/${data.shift_session_id}`) as any;
 
-            if (sessionError) throw sessionError;
-
-            if (!session) {
-                showError('Error', 'No hay un turno activo');
+            if (!session || session.status !== 'active') {
+                showError('Error', 'No hay un turno activo o el turno ha finalizado');
                 return null;
             }
 
@@ -40,23 +31,17 @@ export function useCreateExpense() {
             // if (data.amount > (cashData || 0)) { ... }
 
             // Insert expense
-            const { data: expense, error: insertError } = await supabase
-                .from('shift_expenses')
-                .insert({
-                    shift_session_id: data.shift_session_id,
-                    employee_id: data.employee_id,
-                    expense_type: data.expense_type,
-                    description: data.description,
-                    amount: data.amount,
-                    recipient: data.recipient || null,
-                    receipt_number: data.receipt_number || null,
-                    notes: data.notes || null,
-                    status: 'pending'
-                })
-                .select()
-                ;
-
-            if (insertError) throw insertError;
+            const { data: expense } = await apiClient.post('/system/crud/shift_expenses', {
+                shift_session_id: data.shift_session_id,
+                employee_id: data.employee_id,
+                expense_type: data.expense_type,
+                description: data.description,
+                amount: data.amount,
+                recipient: data.recipient || null,
+                receipt_number: data.receipt_number || null,
+                notes: data.notes || null,
+                status: 'pending'
+            }) as any;
 
             success('✅ Gasto registrado', 'El gasto se agregó correctamente');
             return expense;

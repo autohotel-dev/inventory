@@ -2,7 +2,6 @@ import { apiClient } from "@/lib/api/client";
 /**
  * Cancel-related room actions: cancel pending charge, cancel item.
  */
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
@@ -31,8 +30,7 @@ export function createCancelActions(ctx: RoomActionContext) {
     if (!activeStay) { toast.error("No hay estancia activa"); return false; }
 
     return withBoolAction(ctx, "Error al cancelar el cargo", async () => {
-      const supabase = createClient();
-      const currentEmployeeId = await getReceptionEmployeeId(supabase);
+      const currentEmployeeId = await getReceptionEmployeeId();
 
       const { apiClient } = await import("@/lib/api/client");
       let data;
@@ -83,7 +81,7 @@ export function createCancelActions(ctx: RoomActionContext) {
         }
       });
 
-      await notifyActiveValets(supabase, '🚫 Cargo Cancelado',
+      await notifyActiveValets('🚫 Cargo Cancelado',
         `Recepción canceló un cobro de $${amount.toFixed(2)} en Hab. ${room.number}. Concepto: ${concept}.`,
         { type: 'CHARGE_CANCELLED', roomNumber: room.number, stayId: activeStay.id }
       );
@@ -105,8 +103,7 @@ export function createCancelActions(ctx: RoomActionContext) {
     if (!activeStay) { toast.error("No hay estancia activa"); return false; }
 
     return withBoolAction(ctx, "Ocurrió un error inesperado al cancelar", async () => {
-      const supabase = createClient();
-      const currentEmployeeId = await getReceptionEmployeeId(supabase);
+      const currentEmployeeId = await getReceptionEmployeeId();
 
       const { apiClient } = await import("@/lib/api/client");
       let data;
@@ -158,7 +155,7 @@ export function createCancelActions(ctx: RoomActionContext) {
         }
       });
 
-      await notifyActiveValets(supabase, '🚫 Item Cancelado',
+      await notifyActiveValets('🚫 Item Cancelado',
         `Recepción canceló un cargo de $${Number(data.amount).toFixed(2)} en Hab. ${room.number}. Motivo: ${reason}`,
         { type: 'CHARGE_CANCELLED', roomNumber: room.number, stayId: activeStay.id }
       );

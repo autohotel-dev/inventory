@@ -445,3 +445,69 @@ def validate_checkout(room_id: uuid.UUID, db: Session = Depends(get_db)):
         pending_deliveries=pending_deliveries,
         has_confirmed_payments=has_confirmed_payments
     )
+
+@router.post("/stays/{stay_id}/guest-token")
+def get_or_create_guest_token(stay_id: uuid.UUID, db: Session = Depends(get_db)):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        conn.autocommit = False
+        
+        cursor.execute("""
+            SELECT guest_access_token 
+            FROM room_stays 
+            WHERE id = %s
+        """, (str(stay_id),))
+        row = cursor.fetchone()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Stay not found")
+            
+        token = row.get("guest_access_token")
+        
+        if not token:
+            token = str(uuid.uuid4())
+            cursor.execute("""
+                UPDATE room_stays 
+                SET guest_access_token = %s 
+                WHERE id = %s
+            """, (token, str(stay_id)))
+            
+        conn.commit()
+        return {"token": token}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        print(f"Error in guest_token: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
+@router.get("/{room_id}/assets")
+def get_room_assets(room_id: uuid.UUID, db: Session = Depends(get_db)):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("""
+            SELECT id, asset_type, status, assigned_employee_id
+            FROM room_assets
+            WHERE room_id = %s
+            LIMIT 1
+        """, (str(room_id),))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+@router.get("/{room_number}/audit-trail")
+def get_room_audit_trail(room_number: str, limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("SELECT * FROM get_tv_audit_trail(%s, %s, %s)", (room_number, limit, offset))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()

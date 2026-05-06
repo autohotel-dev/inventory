@@ -1,8 +1,7 @@
-import { apiClient } from "@/lib/api/client";
 "use client";
+import { apiClient } from "@/lib/api/client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +44,7 @@ export function ExecutiveCharts() {
   const [shiftData, setShiftData] = useState<ShiftMetric[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRooms, setTotalRooms] = useState(0);
-  const supabase = useMemo(() => createClient(), []);
-
-  const periodDays = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+    const periodDays = period === "7d" ? 7 : period === "30d" ? 30 : 90;
 
   useEffect(() => {
     const fetchData = async () => {

@@ -7,27 +7,21 @@ import { BatchMovementForm } from "@/components/movements/batch-movement-form";
 import { IndividualMovementForm } from "@/components/movements/individual-movement-form";
 import { UserRole } from "@/hooks/use-user-role";
 
-// Server-side stock check (uses server supabase client)
 async function getAvailableStockServer(productId: string, warehouseId: string): Promise<number> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("stock")
-    .select("qty")
-    
-    
-    .maybeSingle();
-
-  if (error) {
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const res = await apiClient.get(`/system/crud/stock?product_id=${productId}&warehouse_id=${warehouseId}&limit=1`);
+    if (res.data && res.data.length > 0) {
+      return Math.max(0, res.data[0].qty || 0);
+    }
+    return 0;
+  } catch (error) {
     console.error("[STOCK ERROR] Error fetching stock:", error);
     return 0;
   }
-
-  return Math.max(0, data?.qty || 0);
 }
 
 async function getFormData() {
-  const supabase = await createClient();
   const [{ data: products }, { data: warehouses }, { data: reasons }] = await Promise.all([
     apiClient.get("/system/crud/products").then(res => ({ data: res.data, error: null })),
     apiClient.get("/system/crud/warehouses").then(res => ({ data: res.data, error: null })),
@@ -54,12 +48,15 @@ async function createMovementAction(formData: FormData) {
   if (!product_id) throw new Error("Product is required");
 
   // fetch reason_id by code
-  const { data: reason, error: reasonErr } = await supabase
-    .from("movement_reasons")
-    .select("id, code")
-    
-    ;
-  if (reasonErr || !reason) throw new Error("Invalid reason");
+  let reason = null;
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const res = await apiClient.get(`/system/crud/movement_reasons?code=${reason_code}&limit=1`);
+    if (res.data && res.data.length > 0) {
+      reason = res.data[0];
+    }
+  } catch(e) {}
+  if (!reason) throw new Error("Invalid reason");
 
   if (type === "transfer") {
     const to_warehouse_id = String(formData.get("to_warehouse_id") || "");
@@ -162,13 +159,16 @@ async function createBatchMovementsAction(formData: FormData) {
   }
 
   // Get reason ID
-  const { data: reason, error: reasonErr } = await supabase
-    .from("movement_reasons")
-    .select("id, code, name")
-    
-    ;
+  let reason = null;
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const res = await apiClient.get(`/system/crud/movement_reasons?code=${reasonCode}&limit=1`);
+    if (res.data && res.data.length > 0) {
+      reason = res.data[0];
+    }
+  } catch(e) {}
 
-  if (reasonErr || !reason) throw new Error("Invalid reason");
+  if (!reason) throw new Error("Invalid reason");
 
   // Handle TRANSFER type
   if (movementType === 'TRANSFER') {
@@ -178,12 +178,15 @@ async function createBatchMovementsAction(formData: FormData) {
 
     // Obtener productos para nombres en errores
     const productIds = items.map((i: any) => i.product_id);
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, name, sku")
-      .in("id", productIds);
+    let products = [];
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      // Since it's an IN query, we can query them individually or fetch all and filter
+      const res = await apiClient.get('/system/crud/products');
+      products = (res.data || []).filter((p: any) => productIds.includes(p.id));
+    } catch(e) {}
 
-    const productsMap = new Map(products?.map(p => [p.id, p]) || []);
+    const productsMap = new Map(products?.map((p: any) => [p.id, p]) || []);
 
     // Validar stock de cada producto en almacén origen
     for (const item of items) {
@@ -236,12 +239,14 @@ async function createBatchMovementsAction(formData: FormData) {
   if (movementType === 'OUT') {
     // Obtener productos para nombres en errores
     const productIds = items.map((i: any) => i.product_id);
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, name, sku")
-      .in("id", productIds);
+    let products = [];
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      const res = await apiClient.get('/system/crud/products');
+      products = (res.data || []).filter((p: any) => productIds.includes(p.id));
+    } catch(e) {}
 
-    const productsMap = new Map(products?.map(p => [p.id, p]) || []);
+    const productsMap = new Map(products?.map((p: any) => [p.id, p]) || []);
 
     // Validar stock de cada producto
     for (const item of items) {
@@ -283,11 +288,12 @@ export default async function NewMovementPage() {
   if (!user) redirect("/login");
 
   // Check role
-  const { data: employee } = await supabase
-    .from("employees")
-    .select("role")
-    
-    ;
+  let employee = null;
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const res = await apiClient.get(`/system/crud/employees?auth_user_id=${user.id}&limit=1`);
+    if (res.data && res.data.length > 0) employee = res.data[0];
+  } catch(e) {}
 
   const role = employee?.role as UserRole;
   const isAuthorized = role === "receptionist" || role === "admin" || role === "manager";

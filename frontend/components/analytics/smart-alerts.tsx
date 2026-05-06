@@ -22,7 +22,6 @@ import {
   Shield
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { format, subMinutes, isAfter } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -61,31 +60,17 @@ export function SmartAlerts({ totalRooms = 50, expectedRevenue = 15000 }: SmartA
   useEffect(() => {
     const generateSmartAlerts = async () => {
       setLoading(true);
-      const supabase = createClient();
-      
       try {
         const today = new Date();
-        const oneHourAgo = subMinutes(today, 60);
+        const { apiClient } = await import("@/lib/api/client");
+        const { data: dbData } = await apiClient.get('/analytics/ai-context');
         
         // 🧠 SISTEMA DE ALERTAS INTELIGENTES
         
         // 1. Obtener datos en tiempo real
-        const { data: activeStays } = await supabase
-          .from('room_stays')
-          .select('id, check_in_at, status')
-          ;
-        
-        const { data: todayPayments } = await supabase
-          .from('payments')
-          .select('amount, created_at, status')
-          .gte('created_at', today.toISOString().split('T')[0])
-          ;
-        
-        const { data: recentAlerts } = await supabase
-          .from('audit_logs')
-          .select('created_at, severity, event_type')
-          .gte('created_at', oneHourAgo.toISOString())
-          ;
+        const activeStays = dbData?.activeStays || [];
+        const todayPayments = dbData?.todayPayments || [];
+        const recentAlerts = dbData?.recentAlerts || [];
         
         // 2. Analizar condiciones y generar alertas inteligentes
         const smartAlerts: SmartAlert[] = [];

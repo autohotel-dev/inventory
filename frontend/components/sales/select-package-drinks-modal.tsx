@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -81,22 +80,24 @@ export function SelectPackageDrinksModal({
 
         const fetchDrinks = async () => {
             setLoading(true);
-            const supabase = createClient();
 
-            const { data, error } = await supabase
-                .from("products")
-                .select("id, name, sku, price, barcode")
-                
-                
-                ;
+            try {
+                const { apiClient } = await import("@/lib/api/client");
+                const { data } = await apiClient.get(
+                    `/system/crud/products?category_id=${includedCategoryId}&is_active=true`
+                );
 
-            if (error) {
+                if (data) {
+                    setDrinks(data);
+                } else {
+                    setDrinks([]);
+                }
+            } catch (error) {
                 console.error("Error fetching drinks:", error);
                 toast.error("Error", "No se pudieron cargar las bebidas disponibles");
-            } else {
-                setDrinks(data || []);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         fetchDrinks();

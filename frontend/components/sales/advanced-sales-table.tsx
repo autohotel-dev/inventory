@@ -25,7 +25,6 @@ import {
   ChevronUp,
   Users
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useUserRole } from "@/hooks/use-user-role";
 import {
@@ -95,95 +94,38 @@ export function AdvancedSalesTable() {
 
   // Cargar lista de empleados (para mostrar nombres y filtrar)
   const fetchEmployees = async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("employees")
-      .select("id, first_name, last_name, auth_user_id")
-      
-      ;
-    
-    setEmployees(data || []);
+    try {
+      const { apiClient } = await import("@/lib/api/client");
+      const { data } = await apiClient.get('/hr/employees/list');
+      if (data) {
+        setEmployees(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const fetchSales = async () => {
     setLoading(true);
-    const supabase = createClient();
     
     try {
-      let query = supabase
-        .from("sales_orders")
-        .select(`
-          id,
-          created_at,
-          status,
-          currency,
-          subtotal,
-          tax,
-          total,
-          notes,
-          created_by,
-          customers!customer_id(name),
-          warehouses!warehouse_id(code, name)
-        `)
-        ;
+      const { apiClient } = await import("@/lib/api/client");
+      const params = new URLSearchParams();
+      if (filters.status !== 'ALL') params.append('status', filters.status);
+      if (filters.employeeId !== 'ALL') params.append('employee_id', filters.employeeId);
+      if (filters.dateFrom) params.append('date_from', filters.dateFrom);
+      if (filters.dateTo) params.append('date_to', filters.dateTo);
+      if (filters.minAmount) params.append('min_amount', filters.minAmount);
+      if (filters.maxAmount) params.append('max_amount', filters.maxAmount);
 
-      // FILTRO POR ROL: Recepcionistas solo ven sus propias ventas
-      if (!canAccessAdmin && userId) {
-        query = query;
-      }
-
-      // Filtro por empleado específico (solo para admins)
-      if (canAccessAdmin && filters.employeeId !== 'ALL') {
-        // Buscar el auth_user_id del empleado seleccionado
-        const selectedEmployee = employees.find(e => e.id === filters.employeeId);
-        if (selectedEmployee?.auth_user_id) {
-          query = query;
-        }
-      }
-
-      // Aplicar filtros
-      if (filters.status !== 'ALL') {
-        query = query;
-      }
+      const { data } = await apiClient.get(`/sales/orders?${params.toString()}`);
       
-      if (filters.dateFrom) {
-        query = query.gte('created_at', filters.dateFrom);
-      }
+      let filteredData = data || [];
       
-      if (filters.dateTo) {
-        query = query.lte('created_at', filters.dateTo);
-      }
-      
-      if (filters.minAmount) {
-        query = query.gte('total', parseFloat(filters.minAmount));
-      }
-      
-      if (filters.maxAmount) {
-        query = query.lte('total', parseFloat(filters.maxAmount));
-      }
-
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      
-      // Transformar datos de Supabase al formato esperado
-      const transformedData: SalesOrder[] = (data as any || []).map((item: any) => {
-        // Buscar empleado por auth_user_id
-        const employee = employees.find(e => e.auth_user_id === item.created_by);
-        return {
-          ...item,
-          customers: item.customers || null,
-          warehouses: item.warehouses || null,
-          employees: employee ? { first_name: employee.first_name, last_name: employee.last_name } : null
-        };
-      });
-      
-      let filteredData = transformedData;
-      
-      // Filtro de búsqueda
+      // Filtro de búsqueda local
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        filteredData = filteredData.filter(sale => 
+        filteredData = filteredData.filter((sale: any) => 
           sale.customers?.name?.toLowerCase().includes(searchLower) ||
           sale.id.toLowerCase().includes(searchLower) ||
           sale.notes?.toLowerCase().includes(searchLower) ||
@@ -195,12 +137,12 @@ export function AdvancedSalesTable() {
       setSales(filteredData);
       
       // Calcular estadísticas
-      const totalAmount = filteredData.reduce((sum, s) => sum + (s.total || 0), 0);
-      const pending = filteredData.filter(s => s.status === 'PARTIAL').length;
-      const completed = filteredData.filter(s => s.status === 'COMPLETED').length;
-      const cancelled = filteredData.filter(s => s.status === 'CANCELLED').length;
-      const open = filteredData.filter(s => s.status === 'OPEN').length;
-      const ended = filteredData.filter(s => s.status === 'ENDED').length;
+      const totalAmount = filteredData.reduce((sum: number, s: any) => sum + (s.total || 0), 0);
+      const pending = filteredData.filter((s: any) => s.status === 'PARTIAL').length;
+      const completed = filteredData.filter((s: any) => s.status === 'COMPLETED').length;
+      const cancelled = filteredData.filter((s: any) => s.status === 'CANCELLED').length;
+      const open = filteredData.filter((s: any) => s.status === 'OPEN').length;
+      const ended = filteredData.filter((s: any) => s.status === 'ENDED').length;
       
       setStats({
         total: filteredData.length,

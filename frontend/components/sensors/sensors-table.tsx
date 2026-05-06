@@ -1,8 +1,8 @@
-import { apiClient } from "@/lib/api/client";
 "use client";
+import { apiClient } from "@/lib/api/client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -44,71 +44,55 @@ export function SensorsTable() {
     const [newSensorName, setNewSensorName] = useState("");
     const [selectedRoomId, setSelectedRoomId] = useState("");
 
-    const supabase = createClient();
+
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // Fetch Sensors with Room data
-            const { data: sensorsData, error: sensorsError } = await supabase
-                .from("sensors")
-                .select(`
-                *,
-                room:rooms(id, number)
-            `)
-                ;
-
-            if (sensorsError) throw sensorsError;
-            setSensors(sensorsData || []);
-
-            // Fetch Rooms for the dropdown
-            const { data: roomsData, error: roomsError } = await supabase
-                .from("rooms")
-                .select("id, number")
-                ;
-
-            if (roomsError) throw roomsError;
+            const { data: sensorsData } = await apiClient.get('/system/crud/sensors');
+            
+            const { data: roomsData } = await apiClient.get('/system/crud/rooms');
+            
+            if (sensorsData && roomsData) {
+              const roomsMap = new Map(roomsData.map((r: any) => [r.id, r]));
+              const sWithRooms = sensorsData.map((s: any) => ({
+                ...s,
+                room: s.room_id ? roomsMap.get(s.room_id) : null
+              }));
+              setSensors(sWithRooms);
+            } else {
+              setSensors(sensorsData || []);
+            }
             setRooms(roomsData || []);
-
         } catch (error: any) {
             console.error("Error fetching data:", error);
             showError("Error", "No se pudieron cargar los sensores");
         } finally {
             setLoading(false);
         }
-    }, [showError, supabase]);
+    }, [showError]);
 
     useEffect(() => {
         fetchData();
 
-        const channel = supabase
-            .channel('sensors-table-changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'sensors'
-                },
-                (payload: any) => {
-                    const newSensor = payload.new as SensorWithRoom;
-                    setSensors((prev) =>
-                        prev.map((s) => {
-                            if (s.id === newSensor.id) {
-                                // Preserve the existing room object since the payload doesn't have it
-                                return { ...newSensor, room: s.room };
-                            }
-                            return s;
-                        })
-                    );
-                }
-            )
-            .subscribe();
+        const unsubscribe = luxorRealtimeClient.subscribe("sensors", (payload) => {
+            if (payload.type === 'UPDATE') {
+                const newSensor = payload.record as SensorWithRoom;
+                setSensors((prev) =>
+                    prev.map((s) => {
+                        if (s.id === newSensor.id) {
+                            return { ...newSensor, room: s.room };
+                        }
+                        return s;
+                    })
+                );
+            }
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribe();
         };
-    }, [fetchData, supabase]);
+    }, [fetchData]);
 
     const openForCreate = () => {
         setEditingId(null);
@@ -143,10 +127,7 @@ export function SensorsTable() {
 
             if (editingId) {
                 // Update
-                const res = await supabase
-                    .from("sensors")
-                    .update(sensorData)
-                    ;
+                const res = await apiClient.patch(`/system/crud/sensors/${editingId}`, sensorData) as any;
                 error = res.error;
             } else {
                 // Create

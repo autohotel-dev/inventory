@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { luxorRealtimeClient } from '@/lib/api/websocket';
 import { toast } from 'sonner';
 
 export type NotificationType = 'success' | 'alert' | 'info';
@@ -232,111 +232,102 @@ export function useSoundNotifications(
     }, [roomsCache]);
 
     useEffect(() => {
-        const supabase = createClient();
-        const channel = supabase
-            .channel('room-notifications')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'room_stays' },
-                async (payload: any) => {
-                    const newData = payload.new as any;
-                    let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
-                    if (!roomNumber) {
-                        try {
-                            const { data } = await apiClient.get(`/system/info/room/${newData.room_id}`) as any;
-                            roomNumber = data?.number || '??';
-                        } catch { roomNumber = '??'; }
-                    }
+        const unsubscribeRooms = luxorRealtimeClient.subscribe('room_stays', async (payload) => {
+            if (payload.type === 'INSERT') {
+                const newData = payload.record as any;
+                let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
+                if (!roomNumber) {
+                    try {
+                        const { data } = await apiClient.get(`/system/info/room/${newData.room_id}`) as any;
+                        roomNumber = data?.number || '??';
+                    } catch { roomNumber = '??'; }
+                }
 
-                    if (role === 'valet') {
-                        const stayId = String(newData.id ?? '');
-                        if (stayId && newData.status === 'ACTIVA' && !newData.valet_employee_id && !notifiedEntryStayIdsRef.current.has(stayId)) {
-                            notifiedEntryStayIdsRef.current.add(stayId);
-                            setTimeout(() => notifiedEntryStayIdsRef.current.delete(stayId), 60_000);
-                            soundEngine.playSound('new_entry');
-                            toast.info(`🚗 Nueva entrada: Habitación ${roomNumber}`, { duration: 10000 });
-                        }
+                if (role === 'valet') {
+                    const stayId = String(newData.id ?? '');
+                    if (stayId && newData.status === 'ACTIVA' && !newData.valet_employee_id && !notifiedEntryStayIdsRef.current.has(stayId)) {
+                        notifiedEntryStayIdsRef.current.add(stayId);
+                        setTimeout(() => notifiedEntryStayIdsRef.current.delete(stayId), 60_000);
+                        soundEngine.playSound('new_entry');
+                        toast.info(`🚗 Nueva entrada: Habitación ${roomNumber}`, { duration: 10000 });
                     }
                 }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'room_stays' },
-                async (payload: any) => {
-                    const newData = payload.new as any;
-                    const oldData = payload.old as any;
-                    let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
-                    if (!roomNumber) {
+            } else if (payload.type === 'UPDATE') {
+                const newData = payload.record as any;
+                const oldData = payload.old_record as any;
+                let roomNumber = roomsRef.current.find(r => r.id === newData.room_id)?.number;
+                if (!roomNumber) {
+                    try {
+                        const { data } = await apiClient.get(`/system/info/room/${newData.room_id}`) as any;
+                        roomNumber = data?.number || '??';
+                    } catch { roomNumber = '??'; }
+                }
+
+                if (role === 'valet' && !oldData.vehicle_requested_at && newData.vehicle_requested_at) {
+                    soundEngine.playSound('vehicle_request');
+                    toast.error(`🚨 SOLICITUD DE AUTO: Habitación ${roomNumber}`, { duration: 10000 });
+                }
+
+                if (role === 'receptionist') {
+                    if (!oldData.checkout_valet_employee_id && newData.checkout_valet_employee_id) {
+                        // Buscar el nombre del cochero
+                        let valetName = 'Cochero';
                         try {
-                            const { data } = await apiClient.get(`/system/info/room/${newData.room_id}`) as any;
-                            roomNumber = data?.number || '??';
-                        } catch { roomNumber = '??'; }
-                    }
+                            const { data: emp } = await apiClient.get(`/system/info/employee/${newData.checkout_valet_employee_id}`) as any;
+                            if (emp?.first_name) valetName = emp.first_name;
+                        } catch { /* fallback a 'Cochero' */ }
 
-                    if (role === 'valet' && !oldData.vehicle_requested_at && newData.vehicle_requested_at) {
-                        soundEngine.playSound('vehicle_request');
-                        toast.error(`🚨 SOLICITUD DE AUTO: Habitación ${roomNumber}`, { duration: 10000 });
+                        soundEngine.playSound('car_ready');
+                        toast.success(`🚗 ${valetName} ha revisado la Hab. ${roomNumber}, puedes darle salida`, { duration: 12000 });
                     }
-
-                    if (role === 'receptionist') {
-                        if (!oldData.checkout_valet_employee_id && newData.checkout_valet_employee_id) {
-                            // Buscar el nombre del cochero
-                            let valetName = 'Cochero';
-                            try {
-                                const { data: emp } = await apiClient.get(`/system/info/employee/${newData.checkout_valet_employee_id}`) as any;
+                    if (!oldData.valet_checkout_requested_at && newData.valet_checkout_requested_at) {
+                        // Buscar el nombre del cochero
+                        let valetName = 'Cochero';
+                        try {
+                            const valetId = newData.checkout_valet_employee_id;
+                            if (valetId) {
+                                const { data: emp } = await apiClient.get(`/system/info/employee/${valetId}`) as any;
                                 if (emp?.first_name) valetName = emp.first_name;
-                            } catch { /* fallback a 'Cochero' */ }
-
-                            soundEngine.playSound('car_ready');
-                            toast.success(`🚗 ${valetName} ha revisado la Hab. ${roomNumber}, puedes darle salida`, { duration: 12000 });
-                        }
-                        if (!oldData.valet_checkout_requested_at && newData.valet_checkout_requested_at) {
-                            // Buscar el nombre del cochero
-                            let valetName = 'Cochero';
-                            try {
-                                const valetId = newData.checkout_valet_employee_id;
-                                if (valetId) {
-                                    const { data: emp } = await apiClient.get(`/system/info/employee/${valetId}`) as any;
-                                    if (emp?.first_name) valetName = emp.first_name;
-                                }
-                            } catch { /* fallback a 'Cochero' */ }
-
-                            soundEngine.playSound('checkout_request');
-                            toast.warning(`🔔 ${valetName} solicita salida: Hab. ${roomNumber}`, { duration: 10000 });
-                        }
-                        if (!oldData.vehicle_plate && newData.vehicle_plate) {
-                            soundEngine.playSound('vehicle_registered');
-                            toast.info(`🚙 Nuevo vehículo registrado: Hab ${roomNumber}`);
-                        }
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'sales_order_items' },
-                async (payload: any) => {
-                    const newData = payload.new as any;
-                    if (role === 'valet' && newData.concept_type === 'CONSUMPTION' && !newData.delivery_accepted_by) {
-                        const itemId = String(newData.id ?? '');
-                        if (itemId && !notifiedConsumptionIdsRef.current.has(itemId)) {
-                            notifiedConsumptionIdsRef.current.add(itemId);
-                            setTimeout(() => notifiedConsumptionIdsRef.current.delete(itemId), 60_000);
-                            try {
-                                const { data } = await apiClient.get(`/system/info/order-room/${newData.sales_order_id}`) as any;
-                                const roomNumber = data?.number || '??';
-                                soundEngine.playSound('new_consumption');
-                                toast.info(`🛎️ Nuevo consumo: Habitación ${roomNumber}`, { duration: 10000 });
-                            } catch {
-                                soundEngine.playSound('new_consumption');
-                                toast.info(`🛎️ Nuevo consumo registrado`, { duration: 8000 });
                             }
+                        } catch { /* fallback a 'Cochero' */ }
+
+                        soundEngine.playSound('checkout_request');
+                        toast.warning(`🔔 ${valetName} solicita salida: Hab. ${roomNumber}`, { duration: 10000 });
+                    }
+                    if (!oldData.vehicle_plate && newData.vehicle_plate) {
+                        soundEngine.playSound('vehicle_registered');
+                        toast.info(`🚙 Nuevo vehículo registrado: Hab ${roomNumber}`);
+                    }
+                }
+            }
+        });
+
+        const unsubscribeSales = luxorRealtimeClient.subscribe('sales_order_items', async (payload) => {
+            if (payload.type === 'INSERT') {
+                const newData = payload.record as any;
+                if (role === 'valet' && newData.concept_type === 'CONSUMPTION' && !newData.delivery_accepted_by) {
+                    const itemId = String(newData.id ?? '');
+                    if (itemId && !notifiedConsumptionIdsRef.current.has(itemId)) {
+                        notifiedConsumptionIdsRef.current.add(itemId);
+                        setTimeout(() => notifiedConsumptionIdsRef.current.delete(itemId), 60_000);
+                        try {
+                            const { data } = await apiClient.get(`/system/info/order-room/${newData.sales_order_id}`) as any;
+                            const roomNumber = data?.number || '??';
+                            soundEngine.playSound('new_consumption');
+                            toast.info(`🛎️ Nuevo consumo: Habitación ${roomNumber}`, { duration: 10000 });
+                        } catch {
+                            soundEngine.playSound('new_consumption');
+                            toast.info(`🛎️ Nuevo consumo registrado`, { duration: 8000 });
                         }
                     }
                 }
-            )
-            .subscribe();
+            }
+        });
 
-        return () => { supabase.removeChannel(channel); };
+        return () => { 
+            unsubscribeRooms(); 
+            unsubscribeSales();
+        };
     }, [role, soundEngine]);
 
     return soundEngine;

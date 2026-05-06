@@ -6,7 +6,6 @@ import { apiClient } from "@/lib/api/client";
  * Extracted from receptionist-dashboard.tsx for separation of concerns.
  */
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftSession, ShiftDefinition } from "@/components/employees/types";
 import { useToast } from "@/hooks/use-toast";
@@ -99,7 +98,6 @@ export function useReceptionistDashboard() {
   // ─── Shift Detection ──────────────────────────────────────────────
 
   const fetchCurrentShift = async () => {
-    const supabase = createClient();
     const { data: shifts } = await apiClient.get("/system/crud/shift_definitions") as any;
     if (!shifts?.length) return;
 
@@ -116,29 +114,27 @@ export function useReceptionistDashboard() {
 
   const fetchEmployeePin = useCallback(async () => {
     if (!employeeId) return;
-    const supabase = createClient();
     const { data } = await apiClient.get("/system/crud/employees") as any;
     setEmployeePin(data?.pin_code || null);
   }, [employeeId]);
 
   const fetchActiveSession = useCallback(async () => {
     if (!employeeId) return;
-    const supabase = createClient();
     const { data: sessions } = await apiClient.get("/hr/manager/data").then((res: any) => ({ data: res.data?.active_sessions })) as any;
     setActiveSession(sessions?.[0] || null);
   }, [employeeId]);
 
   const fetchActiveValetCount = useCallback(async () => {
-    const supabase = createClient();
-    const { count } = await supabase
-      .from("shift_sessions").select("*, employees!inner(*)", { count: "exact", head: true })
-      .is("clock_out_at", null);
-    setActiveValetCount(count || 0);
+    try {
+      const { data } = await apiClient.get("/hr/manager/data") as any;
+      setActiveValetCount(data?.active_sessions?.length || 0);
+    } catch {
+      setActiveValetCount(0);
+    }
   }, []);
 
   const fetchSystemActiveSession = useCallback(async () => {
     if (!canAdjustCash) return;
-    const supabase = createClient();
     const { data: sessions } = await apiClient.get("/hr/manager/data").then((res: any) => ({ data: res.data?.active_sessions })) as any;
     const found = sessions?.[0];
     if (found && found.employee_id !== employeeId) setSystemActiveSession(found);
@@ -155,8 +151,6 @@ export function useReceptionistDashboard() {
 
     setStartingShift(true);
     try {
-      const supabase = createClient();
-
       const getRoleLimitForDashboard = (r: string | null): number | undefined => {
         switch (r) {
           case 'receptionist': return posConfig.maxShiftsReceptionist;
@@ -219,7 +213,6 @@ export function useReceptionistDashboard() {
     if (!activeSession || actionLoading) return;
     setActionLoading(true);
     try {
-      const supabase = createClient();
       const { error } = await apiClient.patch(`/system/crud/shift_sessions/${activeSession.id}`, { clock_out_at: new Date().toISOString(), status: "pending_closing" }).then(res => ({ error: null })).catch(err => ({ error: err })) as any;
       if (error) throw error;
 
@@ -238,7 +231,6 @@ export function useReceptionistDashboard() {
     if (!activeSession || actionLoading) return;
     setActionLoading(true);
     try {
-      const supabase = createClient();
       const { error } = await apiClient.patch(`/system/crud/shift_sessions/${activeSession.id}`, { clock_out_at: new Date().toISOString(), status: "pending_closing" }).then(res => ({ error: null })).catch(err => ({ error: err })) as any;
       if (error) throw error;
       success("Turno cerrado", "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo");
@@ -266,7 +258,6 @@ export function useReceptionistDashboard() {
   const fetchShiftSummary = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
-    const supabase = createClient();
 
     try {
       let startDate: string;
@@ -372,8 +363,6 @@ const { data } = await apiClient.get(`/system/analytics/dashboard-summary`, { pa
   const handleCashAdjustment = async () => {
     const amount = parseFloat(cashAdjustmentInput);
     if (isNaN(amount) || amount === 0) { showError("Error", "Ingresa un monto válido"); return; }
-
-    const supabase = createClient();
     try {
       await apiClient.post("/system/crud/shift_expenses", {
         shift_session_id: activeSession?.id, employee_id: employeeId,

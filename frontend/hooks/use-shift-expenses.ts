@@ -1,6 +1,6 @@
 // hooks/use-shift-expenses.ts
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 import { ShiftExpense } from '@/types/expenses';
 
 /**
@@ -20,17 +20,11 @@ export function useShiftExpenses(sessionId: string | null) {
 
         setLoading(true);
         try {
-            const supabase = createClient();
-            const { data, error } = await supabase
-                .from('shift_expenses')
-                .select('*')
-                
-                .neq('status', 'rejected')
-                ;
-
-            if (error) throw error;
-
-            const expensesList = data || [];
+            // Using exact matching for the shift_session_id and status != rejected
+            const { data } = await apiClient.get(`/system/crud/shift_expenses?shift_session_id=${sessionId}`) as any;
+            
+            // Filter out rejected locally since simple crud might not support neq out of the box easily
+            const expensesList = (Array.isArray(data) ? data : []).filter((e: any) => e.status !== 'rejected');
             setExpenses(expensesList);
 
             const total = expensesList.reduce((sum: number, expense: any) => sum + Number(expense.amount), 0);

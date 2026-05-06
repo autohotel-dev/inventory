@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,34 +44,17 @@ export function RoomStaysReport() {
     const [searchTerm, setSearchTerm] = useState("");
 
     const fetchReport = useCallback(async () => {
-        const supabase = createClient();
-        setLoading(true);
-
         try {
-            const { data: stays, error } = await supabase
-                .from("room_stays")
-                .select(`
-                    id,
-                    status,
-                    check_in_at,
-                    actual_check_out_at,
-                    vehicle_plate,
-                    vehicle_model,
-                    room:rooms(number),
-                    valet_start:employees!room_stays_valet_employee_id_fkey(first_name, last_name),
-                    valet_end:employees!room_stays_checkout_valet_employee_id_fkey(first_name, last_name),
-                    sales_order:sales_orders(
-                        total,
-                        status,
-                        remaining_amount
-                    )
-                `)
-                .gte("created_at", startDate)
-                .lte("created_at", endDate + 'T23:59:59')
-                ;
+            const { apiClient } = await import("@/lib/api/client");
+            const { data: stays } = await apiClient.get('/analytics/room-stays-report', {
+                params: {
+                    start_date: startDate,
+                    end_date: endDate
+                }
+            });
 
-            if (error) {
-                console.error("Error fetching room stays report:", error);
+            if (!stays) {
+                console.error("No stays returned");
                 return;
             }
 

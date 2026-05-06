@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -43,7 +44,7 @@ def get_manager_data(
     # since it's a small dataset.
     
     # Get user role
-    user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.sub).first()
+    user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.id).first()
     user_role = user_emp.role if user_emp else None
     
     return {
@@ -126,6 +127,45 @@ def clock_out(session_id: uuid.UUID, db: Session = Depends(get_db)):
     return db_session
 
 # --- SHIFT CLOSINGS ---
+
+@router.get("/closings/pending")
+def get_pending_closings(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Find employee
+    employee = db.query(Employees).filter(Employees.auth_user_id == current_user.id).first()
+    if not employee:
+        return []
+        
+    # Get pending sessions
+    sessions = db.query(ShiftSessions).filter(
+        ShiftSessions.employee_id == employee.id,
+        ShiftSessions.status == "pending_closing",
+        ShiftSessions.clock_out_at != None
+    ).order_by(ShiftSessions.clock_out_at.desc()).all()
+    
+    result = []
+    for s in sessions:
+        shift_def = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == s.shift_id).first()
+        result.append({
+            "id": str(s.id),
+            "employee_id": str(s.employee_id),
+            "shift_id": str(s.shift_id),
+            "clock_in_at": s.clock_in_at.isoformat() if s.clock_in_at else None,
+            "clock_out_at": s.clock_out_at.isoformat() if s.clock_out_at else None,
+            "status": s.status,
+            "shift_definitions": {
+                "name": shift_def.name if shift_def else "Turno"
+            },
+            "employees": {
+                "first_name": employee.first_name,
+                "last_name": employee.last_name
+            }
+        })
+        
+    return result
+
 @router.post("/closings", response_model=ShiftClosingResponse, status_code=status.HTTP_201_CREATED)
 def create_shift_closing(closing: ShiftClosingCreate, db: Session = Depends(get_db)):
     db_session = db.query(ShiftSessions).filter(ShiftSessions.id == closing.shift_session_id).first()
@@ -522,6 +562,7 @@ def get_shift_closing_single(closing_id: str, db: Session = Depends(get_db)):
     
     return data
 
+from pydantic import BaseModel as BaseModel
 class ReviewClosingRequest(BaseModel):
     status: str
     notes: Optional[str] = None

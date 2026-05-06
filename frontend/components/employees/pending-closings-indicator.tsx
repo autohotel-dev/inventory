@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,6 @@ export function PendingClosingsIndicator({
     compact = false,
     onClosingComplete,
 }: PendingClosingsIndicatorProps) {
-    const supabase = createClient();
     const [pendingClosings, setPendingClosings] = useState<ShiftSession[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedSession, setSelectedSession] = useState<ShiftSession | null>(null);
@@ -26,38 +25,11 @@ export function PendingClosingsIndicator({
 
     const loadPendingClosings = async () => {
         try {
-            // Obtener usuario actual
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                setLoading(false);
-                return;
-            }
-
-            // Obtener empleado
-            const { data: employee } = await supabase
-                .from("employees")
-                .select("id")
-                
-                ;
-
-            if (!employee) {
-                setLoading(false);
-                return;
-            }
-
-            // Obtener sesiones pendientes de corte
-            const { data, error } = await supabase
-                .from("shift_sessions")
-                .select("*, shift_definitions(*), employees(first_name, last_name)")
-                
-                
-                ;
-
-            if (error) throw error;
-
+            const { data } = await apiClient.get("/hr/closings/pending") as any;
             setPendingClosings(data || []);
         } catch (err) {
             console.error("Error loading pending closings:", err);
+            setPendingClosings([]);
         } finally {
             setLoading(false);
         }

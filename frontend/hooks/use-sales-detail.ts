@@ -1,14 +1,14 @@
+"use client";
 import { apiClient } from "@/lib/api/client";
 /**
  * Hook for sales order detail: fetching, payments, item management, and status updates.
  * Extracted from advanced-sales-detail.tsx for separation of concerns.
  */
-"use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
+import { useUserRole } from "@/hooks/use-user-role";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -98,48 +98,19 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
   // ─── Data Fetching ───────────────────────────────────────────────
 
+  const { employeeId } = useUserRole();
+
   const fetchOrderDetail = async () => {
     setLoading(true);
-    const supabase = createClient();
 
     try {
-      const { data: orderData, error: orderError } = await supabase
-        .from("sales_orders").select("*");
-      if (orderError) throw orderError;
-      if (!orderData) return;
+      const { data } = await apiClient.get(`/sales/orders/${orderId}/full-detail`);
+      if (!data) return;
 
-      let customerData = null;
-      let warehouseData = null;
-
-      if (orderData.customer_id) {
-        const { data: customer } = await supabase
-          .from("customers").select("name, email, phone");
-        customerData = customer;
-      }
-      if (orderData.warehouse_id) {
-        const { data: warehouse } = await supabase
-          .from("warehouses").select("code, name");
-        warehouseData = warehouse;
-      }
-
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("sales_order_items")
-        .select("id, product_id, qty, unit_price, total, payment_method, is_paid, paid_at, concept_type, products:product_id(name, sku)")
-        ;
-      if (itemsError) throw itemsError;
-
-      const { data: productsData } = await supabase
-        .from("products").select("id, name, sku, price");
-
-      const { data: paymentsData } = await supabase
-        .from("payments")
-        .select("id, amount, payment_method, reference, concept, status, created_at")
-        ;
-
-      setOrder({ ...orderData, customers: customerData, warehouses: warehouseData } as any);
-      setItems(itemsData as any || []);
-      setProducts(productsData || []);
-      setPaymentHistory(paymentsData || []);
+      setOrder(data.order as any);
+      setItems(data.items as any || []);
+      setProducts(data.products || []);
+      setPaymentHistory(data.payments || []);
       setStockWarnings([]);
     } catch (error) {
       console.error('Error fetching order detail:', error);
@@ -184,18 +155,18 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
     if (totalAmount <= 0) { toast.error('El monto debe ser mayor a 0'); return; }
 
     try {
-      const supabase = createClient();
       const validPayments = payments.filter(p => p.amount > 0);
       const isMultipago = validPayments.length > 1;
 
       if (isMultipago) {
-        const { data: mainPayment, error: mainError } = await supabase
-          .from("payments")
-          .insert({ sales_order_id: orderId, amount: totalAmount, payment_method: "PENDIENTE", reference: generatePaymentReference("ABN"), concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO" })
-          .select("id");
+        const { data: mainPayments, error: mainError } = await apiClient.post("/system/crud/payments", { 
+          sales_order_id: orderId, amount: totalAmount, payment_method: "PENDIENTE", 
+          reference: generatePaymentReference("ABN"), concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO" 
+        }, { params: { select: "id" } }) as any;
 
         if (mainError) console.error("Error inserting main payment:", mainError);
-        else if (mainPayment) {
+        else if (mainPayments && mainPayments.length > 0) {
+          const mainPayment = mainPayments[0];
           const subpayments = validPayments.map((p: any) => ({
             sales_order_id: orderId, amount: p.amount, payment_method: p.method,
             reference: p.reference || generatePaymentReference("SUB"),
@@ -247,19 +218,16 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
   // ─── Status Updates ───────────────────────────────────────────────
 
   const updateOrderStatus = async (newStatus: string) => {
-    const supabase = createClient();
     try {
       if ((newStatus === 'COMPLETED' || newStatus === 'PARTIAL') && order) {
-        const { data: existingMovements } = await supabase
-          .from("inventory_movements").select("id").limit(1);
+        const { data: existingMovements } = await apiClient.get("/system/crud/inventory_movements", { params: { limit: 1 } }) as any;
 
         if (!existingMovements || existingMovements.length === 0) {
-          const { data: { user } } = await supabase.auth.getUser();
           const movements = items.map((item: any) => ({
             product_id: item.product_id, warehouse_id: order.warehouse_id,
             quantity: item.qty, movement_type: 'OUT', reason_id: 6, reason: 'SALE',
             notes: `Vendido en orden ${orderId}`, reference_table: 'sales_orders',
-            reference_id: orderId, created_by: user?.id || null
+            reference_id: orderId, created_by: employeeId || null
           }));
           const { error: movError } = await apiClient.post("/system/crud/inventory_movements", movements) as any;
           if (movError) console.error('Error creating inventory movements:', movError);
@@ -280,7 +248,6 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
   const addProductToOrder = async (newItems: { product: Product; quantity: number; unit_price: number; payments: PaymentEntry[]; is_courtesy?: boolean; courtesy_reason?: string }[]) => {
     if (!order || newItems.length === 0) return;
-    const supabase = createClient();
 
     try {
       if (!order.warehouse_id) {
@@ -300,7 +267,6 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
       const productosNota = newItems.map(i => `${i.quantity}x ${i.product.name}`).join(", ");
 
       const { apiClient } = await import("@/lib/api/client");
-      const sessionUser = await supabase.auth.getUser();
       await apiClient.post(`/sales/orders/${orderId}/items/bulk`, {
         items: newItems.map(i => ({
           product_id: i.product.id,
@@ -310,7 +276,7 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
           courtesy_reason: i.courtesy_reason || null
         })),
         warehouse_id: order.warehouse_id,
-        employee_id: sessionUser.data?.user?.id
+        employee_id: employeeId || undefined
       });
 
       await fetchOrderDetail();
@@ -327,41 +293,12 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
   // ─── Remove Item ──────────────────────────────────────────────────
 
-  const recalculateOrderTotals = async () => {
-    const supabase = createClient();
-    try {
-      const { data: orderData } = await supabase
-        .from("sales_orders").select("subtotal, tax, total, paid_amount, remaining_amount");
-      if (!orderData) return;
-
-      const { data: itemsData } = await supabase
-        .from("sales_order_items").select("qty, unit_price");
-      const itemsSubtotal = itemsData?.reduce((sum: number, item: any) =>
-        sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0), 0) || 0;
-
-      const { data: paymentsData } = await supabase
-        .from("payments").select("amount, concept").is("parent_payment_id", null);
-      const nonItemCharges = paymentsData?.reduce((sum: number, p: any) =>
-        p.concept !== "CONSUMO" ? sum + (Number(p.amount) || 0) : sum, 0) || 0;
-
-      const subtotal = nonItemCharges + itemsSubtotal;
-      const tax = Number(orderData.tax) || 0;
-      const total = subtotal + tax;
-      const paid_amount = Number(orderData.paid_amount) || 0;
-      await apiClient.patch(`/system/crud/sales_orders/${orderId}`, {
-        subtotal, tax, total, remaining_amount: Math.max(total - paid_amount, 0)
-      });
-    } catch (error) {
-      console.error('Error recalculating totals:', error);
-    }
-  };
 
   const handleRemoveClick = (itemId: string, itemName: string) => {
     setConfirmDialog({ isOpen: true, itemId, itemName });
   };
 
   const removeItemFromOrder = async () => {
-    const supabase = createClient();
     try {
       const { apiClient } = await import("@/lib/api/client");
       await apiClient.delete(`/sales/orders/items/${confirmDialog.itemId}`);

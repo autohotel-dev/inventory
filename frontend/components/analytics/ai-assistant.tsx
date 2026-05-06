@@ -24,7 +24,7 @@ import {
   Layers
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -134,75 +134,20 @@ export function AIAssistant() {
   }, []);
 
   const loadContext = async () => {
-    const supabase = createClient();
     try {
       const today = new Date().toISOString().split('T')[0];
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const { apiClient } = await import("@/lib/api/client");
+      const { data: dbData } = await apiClient.get('/analytics/ai-context');
       
       console.log('🔍 AI Assistant - Cargando contexto para fecha:', today);
       
-      // 📊 Cargar datos contextuales COMPLETOS
-      
-      // 1. Ocupación actual
-      const { data: activeStays, error: staysError } = await supabase
-        .from('room_stays')
-        .select('id, status, check_in_at')
-        ;
-      
-      console.log('🏠 Estancias activas:', activeStays?.length || 0, staysError);
-      
-      // 2. Total de habitaciones
-      const { data: totalRooms, error: roomsError } = await supabase
-        .from('rooms')
-        .select('id');
-      
-      console.log('🏨 Total habitaciones:', totalRooms?.length || 0, roomsError);
-      
-      // 3. Ingresos de hoy y ayer
-      const { data: todayPayments, error: paymentsError } = await supabase
-        .from('payments')
-        .select('amount, status, created_at')
-        .gte('created_at', today)
-        ;
-      
-      console.log('💰 Pagos de hoy:', todayPayments?.length || 0, paymentsError);
-      
-      const { data: yesterdayPayments } = await supabase
-        .from('payments')
-        .select('amount, status')
-        .gte('created_at', yesterdayStr)
-        .lt('created_at', today)
-        ;
-      
-      // 4. Check-ins de hoy
-      const { data: todayCheckins, error: checkinsError } = await supabase
-        .from('room_stays')
-        .select('id, check_in_at, valet_employee_id')
-        .gte('check_in_at', today);
-      
-      console.log('👥 Check-ins de hoy:', todayCheckins?.length || 0, checkinsError);
-      console.log('📋 Check-ins detallados:', todayCheckins);
-      
-      // 5. Desempeño de empleados
-      const { data: employees, error: employeesError } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name, role')
-        .is('deleted_at', null);
-      
-      console.log('👨‍💼 Empleados encontrados:', employees?.length || 0, employeesError);
-      console.log('📋 Empleados detallados:', employees);
-      
-      // 6. Alertas recientes
-      const oneHourAgo = new Date();
-      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-      
-      const { data: recentAlerts } = await supabase
-        .from('audit_logs')
-        .select('id, severity, event_type, created_at')
-        .gte('created_at', oneHourAgo.toISOString())
-        ;
+      const activeStays = dbData.activeStays || [];
+      const totalRooms = dbData.totalRooms || [];
+      const todayPayments = dbData.todayPayments || [];
+      const yesterdayPayments = dbData.yesterdayPayments || [];
+      const todayCheckins = dbData.todayCheckins || [];
+      const employees = dbData.employees || [];
+      const recentAlerts = dbData.recentAlerts || [];
       
       // 7. Calcular métricas avanzadas
       const occupancyRate = totalRooms && totalRooms.length > 0 

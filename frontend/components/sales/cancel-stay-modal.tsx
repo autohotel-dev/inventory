@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { XCircle, X, DollarSign, AlertTriangle } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils/formatters";
 
 interface CancelStayModalProps {
@@ -51,21 +50,22 @@ export function CancelStayModal({
     if (isOpen && salesOrderId) {
       const fetchPayments = async () => {
         setLoadingData(true);
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("payments")
-          .select("amount, status")
-          ;
-
-        if (data) {
-          const paid = data.filter((p: any) => p.status === 'PAGADO').reduce((sum: number, p: any) => sum + p.amount, 0);
-          const valet = data.filter((p: any) => p.status === 'COBRADO_POR_VALET').reduce((sum: number, p: any) => sum + p.amount, 0);
-          setTotalPaid(paid);
-          setValetPending(valet);
-          setCustomRefund(Math.floor(paid / 2));
-          setRefundType("none");
+        try {
+          const { apiClient } = await import("@/lib/api/client");
+          const { data } = await apiClient.get(`/system/crud/payments?sales_order_id=${salesOrderId}`);
+          if (data) {
+            const paid = data.filter((p: any) => p.status === 'PAGADO').reduce((sum: number, p: any) => sum + p.amount, 0);
+            const valet = data.filter((p: any) => p.status === 'COBRADO_POR_VALET').reduce((sum: number, p: any) => sum + p.amount, 0);
+            setTotalPaid(paid);
+            setValetPending(valet);
+            setCustomRefund(Math.floor(paid / 2));
+            setRefundType("none");
+          }
+        } catch (error) {
+          console.error("Error fetching payments:", error);
+        } finally {
+          setLoadingData(false);
         }
-        setLoadingData(false);
       };
 
       fetchPayments();

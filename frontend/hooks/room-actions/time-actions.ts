@@ -1,7 +1,6 @@
 /**
  * Time-related room actions: custom hours, renewal, 4h promo, damage charge.
  */
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
@@ -34,13 +33,12 @@ export function createTimeActions(ctx: RoomActionContext) {
     if (amount <= 0 || !description) { toast.error("Datos inválidos para el cargo"); return; }
 
     await withAction(ctx, "Error al registrar cargo por daño", async () => {
-      const supabase = createClient();
-      const currentShiftId = await getReceptionShiftId(supabase);
+      const currentShiftId = await getReceptionShiftId();
 
       const itemResult = await createDamageItem(activeStay.sales_order_id, amount, description, 1, currentShiftId);
       if (!itemResult.success) { toast.error("Error al registrar el daño"); return; }
 
-      await createPendingCharge(supabase, activeStay.sales_order_id, amount, "DAMAGE_CHARGE", "DMG", currentShiftId, description);
+      await createPendingCharge(activeStay.sales_order_id, amount, "DAMAGE_CHARGE", "DMG", currentShiftId, description);
 
       toast.success("Cargo por daño registrado", {
         description: `Hab. ${room.number}: ${formatCurrency(amount)} - ${description}`,
@@ -67,7 +65,7 @@ export function createTimeActions(ctx: RoomActionContext) {
         }
       });
 
-      await notifyActiveValets(supabase, '🛠️ Cargo por Daño',
+      await notifyActiveValets('🛠️ Cargo por Daño',
         `Habitación ${room.number}: Se registró un daño ($${amount.toFixed(2)}). Descripción: ${description}`,
         { type: 'NEW_EXTRA', consumptionId: itemResult.data, roomNumber: room.number, stayId: activeStay.id }
       );
@@ -90,16 +88,15 @@ export function createTimeActions(ctx: RoomActionContext) {
     const totalPrice = isCourtesy ? 0 : hourPrice * hours;
 
     await withAction(ctx, "Error al agregar horas", async () => {
-      const supabase = createClient();
       const productResult = await getOrCreateServiceProduct();
       if (!productResult.success) { toast.error("Error al registrar el cargo"); return; }
 
-      const currentShiftId = await getReceptionShiftId(supabase);
+      const currentShiftId = await getReceptionShiftId();
 
       if (!isCourtesy && totalPrice > 0) {
         for (let i = 0; i < hours; i++) {
           await createServiceItem(activeStay.sales_order_id, hourPrice, "EXTRA_HOUR", 1, false, "", currentShiftId);
-          await createPendingCharge(supabase, activeStay.sales_order_id, hourPrice, "EXTRA_HOUR", "HEX", currentShiftId);
+          await createPendingCharge(activeStay.sales_order_id, hourPrice, "EXTRA_HOUR", "HEX", currentShiftId);
         }
       } else if (isCourtesy) {
         for (let i = 0; i < hours; i++) {
@@ -139,7 +136,7 @@ export function createTimeActions(ctx: RoomActionContext) {
       });
 
       if (!isCourtesy && totalPrice > 0) {
-        await notifyActiveValets(supabase, '⏰ Cobro de Horas Extra',
+        await notifyActiveValets('⏰ Cobro de Horas Extra',
           `Habitación ${room.number}: Cobrar ${hours} hora(s) extra ($${totalPrice.toFixed(2)} MXN).`,
           { type: 'NEW_EXTRA', roomNumber: room.number, stayId: activeStay.id }
         );
@@ -159,16 +156,15 @@ export function createTimeActions(ctx: RoomActionContext) {
     if (!room.room_types?.base_price || room.room_types.base_price <= 0) { toast.error("No se configuró el precio base para este tipo"); return; }
 
     await withAction(ctx, "Error al renovar habitación", async () => {
-      const supabase = createClient();
       const basePrice = room.room_types!.base_price!;
 
       const productResult = await getOrCreateServiceProduct();
       if (!productResult.success) { toast.error("Error al registrar el cargo"); return; }
 
-      const currentShiftId = await getReceptionShiftId(supabase);
+      const currentShiftId = await getReceptionShiftId();
       const itemRes = await createServiceItem(activeStay.sales_order_id, basePrice, "RENEWAL", 1, false, "", currentShiftId);
 
-      await createPendingCharge(supabase, activeStay.sales_order_id, basePrice, "RENEWAL", "REN", currentShiftId);
+      await createPendingCharge(activeStay.sales_order_id, basePrice, "RENEWAL", "REN", currentShiftId);
 
       // Calculate renewal hours based on day of week
       const now = new Date();
@@ -206,7 +202,7 @@ export function createTimeActions(ctx: RoomActionContext) {
         }
       });
 
-      await notifyActiveValets(supabase, '🔄 Cobro de Renovación',
+      await notifyActiveValets('🔄 Cobro de Renovación',
         `Habitación ${room.number}: Cobrar renovación ($${basePrice.toFixed(2)} MXN).`,
         { type: 'NEW_EXTRA', consumptionId: itemRes.success ? itemRes.data : undefined, roomNumber: room.number, stayId: activeStay.id }
       );
@@ -225,26 +221,27 @@ export function createTimeActions(ctx: RoomActionContext) {
     if (!room.room_types?.name) { toast.error("No se encontró el tipo de habitación"); return; }
 
     await withAction(ctx, "Error al aplicar promoción", async () => {
-      const supabase = createClient();
-
-      const { data: pricingData, error: pricingError } = await supabase
-        .from('pricing_config').select('price')
-        
-        ;
-
-      if (pricingError || !pricingData) {
+      let promoPrice = 0;
+      try {
+        const { apiClient } = await import("@/lib/api/client");
+        const res = await apiClient.get(`/system/crud/pricing_config?type=promo_4h&room_type_name=${encodeURIComponent(room.room_types!.name)}`);
+        if (res.data && res.data.length > 0) {
+          promoPrice = res.data[0].price;
+        } else {
+          throw new Error("No promo config");
+        }
+      } catch (err) {
         toast.error("No hay precio de promoción configurado", { description: `Tipo: ${room.room_types!.name}. Contacta al administrador.` });
         return;
       }
 
-      const promoPrice = pricingData.price;
       const productResult = await getOrCreateServiceProduct();
       if (!productResult.success) { toast.error("Error al registrar el cargo"); return; }
 
-      const currentShiftId = await getReceptionShiftId(supabase);
+      const currentShiftId = await getReceptionShiftId();
       const itemRes = await createServiceItem(activeStay.sales_order_id, promoPrice, "PROMO_4H", 1, false, "", currentShiftId);
 
-      await createPendingCharge(supabase, activeStay.sales_order_id, promoPrice, "PROMO_4H", "P4H", currentShiftId);
+      await createPendingCharge(activeStay.sales_order_id, promoPrice, "PROMO_4H", "P4H", currentShiftId);
       await extendCheckoutTime(activeStay.id, 4, activeStay.expected_check_out_at || "");
 
       toast.success("Promoción 4 horas aplicada", {
@@ -260,7 +257,7 @@ export function createTimeActions(ctx: RoomActionContext) {
         description: `Promo 4H en Hab. ${room.number}: $${promoPrice.toFixed(2)}`,
       });
 
-      await notifyActiveValets(supabase, '🏷️ Cobro de Promoción 4H',
+      await notifyActiveValets('🏷️ Cobro de Promoción 4H',
         `Habitación ${room.number}: Cobrar promoción de 4 horas ($${promoPrice.toFixed(2)} MXN).`,
         { type: 'NEW_EXTRA', consumptionId: itemRes.success ? itemRes.data : undefined, roomNumber: room.number, stayId: activeStay.id }
       );

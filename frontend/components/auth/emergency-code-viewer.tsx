@@ -13,7 +13,7 @@ import {
     Timer,
     KeyRound,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 
 const CODE_DURATION_MS = 30 * 60 * 1000; // 30 minutos
@@ -43,28 +43,15 @@ export function EmergencyCodeViewer() {
     const fetchCurrentCode = useCallback(async () => {
         setLoading(true);
         try {
-            const supabase = createClient();
-            const { data, error } = await supabase
-                .from("system_config")
-                .select("emergency_code, emergency_code_expires_at")
-                .limit(1)
-                ;
+            const { data } = await apiClient.get('/system/crud/system_config') as any;
+            const config = Array.isArray(data) ? data[0] : data;
 
-            if (error) {
-                console.error("Error fetching emergency code:", error);
-                setCode(null);
-                setExpiresAt(null);
-                return;
-            }
-
-            if (data?.emergency_code && data?.emergency_code_expires_at) {
-                const expiry = new Date(data.emergency_code_expires_at);
+            if (config?.emergency_code && config?.emergency_code_expires_at) {
+                const expiry = new Date(config.emergency_code_expires_at);
                 if (expiry > new Date()) {
-                    // Código válido
-                    setCode(data.emergency_code);
+                    setCode(config.emergency_code);
                     setExpiresAt(expiry);
                 } else {
-                    // Código expirado
                     setCode(null);
                     setExpiresAt(null);
                 }
@@ -73,7 +60,9 @@ export function EmergencyCodeViewer() {
                 setExpiresAt(null);
             }
         } catch (err) {
-            console.error("Error:", err);
+            console.error("Error fetching emergency code:", err);
+            setCode(null);
+            setExpiresAt(null);
         } finally {
             setLoading(false);
         }
@@ -83,19 +72,18 @@ export function EmergencyCodeViewer() {
     const generateNewCode = useCallback(async () => {
         setGenerating(true);
         try {
-            const supabase = createClient();
             const newCode = generateRandomCode();
             const expiryDate = new Date(Date.now() + CODE_DURATION_MS);
 
-            const { error } = await supabase
-                .from("system_config")
-                .update({
+            // Get the first config ID to update
+            const { data: configs } = await apiClient.get('/system/crud/system_config') as any;
+            const configId = (Array.isArray(configs) ? configs[0] : configs)?.id;
+            if (configId) {
+                await apiClient.patch(`/system/crud/system_config/${configId}`, {
                     emergency_code: newCode,
                     emergency_code_expires_at: expiryDate.toISOString(),
-                })
-                ;
-
-            if (error) throw error;
+                });
+            }
 
             setCode(newCode);
             setExpiresAt(expiryDate);
@@ -113,16 +101,14 @@ export function EmergencyCodeViewer() {
     // Invalidar código actual
     const invalidateCode = useCallback(async () => {
         try {
-            const supabase = createClient();
-            const { error } = await supabase
-                .from("system_config")
-                .update({
+            const { data: configs } = await apiClient.get('/system/crud/system_config') as any;
+            const configId = (Array.isArray(configs) ? configs[0] : configs)?.id;
+            if (configId) {
+                await apiClient.patch(`/system/crud/system_config/${configId}`, {
                     emergency_code: null,
                     emergency_code_expires_at: null,
-                })
-                ;
-
-            if (error) throw error;
+                });
+            }
 
             setCode(null);
             setExpiresAt(null);

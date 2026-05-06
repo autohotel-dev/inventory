@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 // Configuración compartida del negocio (almacenada en Supabase)
 export interface SystemConfig {
@@ -49,39 +49,39 @@ let cachedMeta: SystemConfigMeta = DEFAULT_META;
 let configPromise: Promise<{ config: SystemConfig; meta: SystemConfigMeta }> | null = null;
 
 async function fetchSystemConfig(): Promise<{ config: SystemConfig; meta: SystemConfigMeta }> {
-    const supabase = createClient();
-    const { data, error } = await supabase
-        .from('system_config')
-        .select('initial_cash_fund, valet_advance_amount, include_global_sales_in_shift, max_pending_quick_checkins, max_shifts_receptionist, max_shifts_valet, max_shifts_admin, auto_charge_extra_hours, thermal_printer_ip, thermal_printer_port, hp_printer_ip, hp_printer_port, updated_at, updated_by')
-        .limit(1)
-        ;
+    try {
+        const { data: configs } = await apiClient.get('/system/crud/system_config') as any;
+        const rawConfig = Array.isArray(configs) ? configs[0] : configs;
+        
+        if (!rawConfig) {
+            return { config: DEFAULT_SYSTEM_CONFIG, meta: DEFAULT_META };
+        }
 
-    if (error || !data) {
-        console.warn('Could not fetch system_config from Supabase, using defaults:', error?.message);
+        const config: SystemConfig = {
+            initialCashFund: rawConfig.initial_cash_fund ?? DEFAULT_SYSTEM_CONFIG.initialCashFund,
+            valetAdvanceAmount: rawConfig.valet_advance_amount ?? DEFAULT_SYSTEM_CONFIG.valetAdvanceAmount,
+            includeGlobalSalesInShift: rawConfig.include_global_sales_in_shift ?? DEFAULT_SYSTEM_CONFIG.includeGlobalSalesInShift,
+            maxPendingQuickCheckins: rawConfig.max_pending_quick_checkins ?? DEFAULT_SYSTEM_CONFIG.maxPendingQuickCheckins,
+            maxShiftsReceptionist: rawConfig.max_shifts_receptionist ?? DEFAULT_SYSTEM_CONFIG.maxShiftsReceptionist,
+            maxShiftsValet: rawConfig.max_shifts_valet ?? DEFAULT_SYSTEM_CONFIG.maxShiftsValet,
+            maxShiftsAdmin: rawConfig.max_shifts_admin ?? DEFAULT_SYSTEM_CONFIG.maxShiftsAdmin,
+            autoChargeExtraHours: rawConfig.auto_charge_extra_hours ?? DEFAULT_SYSTEM_CONFIG.autoChargeExtraHours,
+            thermalPrinterIP: rawConfig.thermal_printer_ip ?? DEFAULT_SYSTEM_CONFIG.thermalPrinterIP,
+            thermalPrinterPort: rawConfig.thermal_printer_port ?? DEFAULT_SYSTEM_CONFIG.thermalPrinterPort,
+            hpPrinterIP: rawConfig.hp_printer_ip ?? DEFAULT_SYSTEM_CONFIG.hpPrinterIP,
+            hpPrinterPort: rawConfig.hp_printer_port ?? DEFAULT_SYSTEM_CONFIG.hpPrinterPort,
+        };
+
+        const meta: SystemConfigMeta = {
+            updatedAt: rawConfig.updated_at ?? null,
+            updatedBy: rawConfig.updated_by ?? null,
+        };
+
+        return { config, meta };
+    } catch (err) {
+        console.error('Error fetching system config via API:', err);
         return { config: DEFAULT_SYSTEM_CONFIG, meta: DEFAULT_META };
     }
-
-    const config: SystemConfig = {
-        initialCashFund: Number(data.initial_cash_fund) || DEFAULT_SYSTEM_CONFIG.initialCashFund,
-        valetAdvanceAmount: Number(data.valet_advance_amount) || DEFAULT_SYSTEM_CONFIG.valetAdvanceAmount,
-        includeGlobalSalesInShift: data.include_global_sales_in_shift ?? DEFAULT_SYSTEM_CONFIG.includeGlobalSalesInShift,
-        maxPendingQuickCheckins: Number(data.max_pending_quick_checkins) || DEFAULT_SYSTEM_CONFIG.maxPendingQuickCheckins,
-        maxShiftsReceptionist: Number(data.max_shifts_receptionist) || DEFAULT_SYSTEM_CONFIG.maxShiftsReceptionist,
-        maxShiftsValet: Number(data.max_shifts_valet) || DEFAULT_SYSTEM_CONFIG.maxShiftsValet,
-        maxShiftsAdmin: Number(data.max_shifts_admin) || DEFAULT_SYSTEM_CONFIG.maxShiftsAdmin,
-        autoChargeExtraHours: data.auto_charge_extra_hours ?? DEFAULT_SYSTEM_CONFIG.autoChargeExtraHours,
-        thermalPrinterIP: data.thermal_printer_ip || DEFAULT_SYSTEM_CONFIG.thermalPrinterIP,
-        thermalPrinterPort: Number(data.thermal_printer_port) || DEFAULT_SYSTEM_CONFIG.thermalPrinterPort,
-        hpPrinterIP: data.hp_printer_ip || DEFAULT_SYSTEM_CONFIG.hpPrinterIP,
-        hpPrinterPort: Number(data.hp_printer_port) || DEFAULT_SYSTEM_CONFIG.hpPrinterPort,
-    };
-
-    const meta: SystemConfigMeta = {
-        updatedAt: data.updated_at || null,
-        updatedBy: data.updated_by || null,
-    };
-
-    return { config, meta };
 }
 
 /**
@@ -136,7 +136,6 @@ export function useSystemConfig() {
     const saveConfig = useCallback(async (newConfig: Partial<SystemConfig>) => {
         setIsSaving(true);
         try {
-            const supabase = createClient();
 
             // Map camelCase to snake_case for DB
             const dbUpdate: Record<string, unknown> = {};
@@ -177,16 +176,14 @@ export function useSystemConfig() {
                 dbUpdate.hp_printer_port = newConfig.hpPrinterPort;
             }
 
-            // Update the singleton row (there's only one row)
-            const { error } = await supabase
-                .from('system_config')
-                .update(dbUpdate)
-                ; // matches all rows (singleton)
-
-            if (error) {
-                console.error('Error saving system config:', error);
-                throw error;
+            const { data: configs } = await apiClient.get('/system/crud/system_config') as any;
+            const configId = (Array.isArray(configs) ? configs[0] : configs)?.id;
+            
+            if (!configId) {
+                throw new Error("System config row not found");
             }
+            
+            await apiClient.patch(`/system/crud/system_config/${configId}`, dbUpdate);
 
             // Update local state and cache
             const updated = { ...config, ...newConfig };

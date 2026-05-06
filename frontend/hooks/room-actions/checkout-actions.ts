@@ -3,7 +3,6 @@ import { apiClient } from "@/lib/api/client";
  * Checkout-related room actions: prepare, process, room status.
  * Uses checkout-pipeline.ts for validation and payment building.
  */
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
@@ -15,11 +14,10 @@ import {
   getActiveStay,
   withAction,
   withBoolAction,
+  getCurrentEmployeeId,
   RoomActionContext,
 } from "./room-action-helpers";
 import {
-  validateStayForCheckout,
-  validateNoBlockingDeliveries,
   unsubscribeGuestNotifications,
   buildCheckoutPayments,
 } from "./checkout-pipeline";
@@ -36,8 +34,6 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       toast.error("No se encontró una estancia activa para esta habitación");
       return null;
     }
-
-    const supabase = createClient();
 
     try {
       // Sincronizar horas extra pendientes vía API
@@ -102,7 +98,6 @@ export function createCheckoutActions(ctx: RoomActionContext) {
     if (!checkAuthorization("Finalizar Salida")) return false;
 
     return withBoolAction(ctx, "Error inesperado en checkout", async () => {
-      const supabase = createClient();
       const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
       // Step 1: Validate stay state
@@ -130,7 +125,7 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       );
 
       // Step 5: Build and reconcile payments
-      const newPayments = await buildCheckoutPayments(supabase, checkoutInfo, payments, totalPaid);
+      const newPayments = await buildCheckoutPayments(checkoutInfo, payments, totalPaid);
 
       // Step 6: Atomic API call
       const { apiClient } = await import("@/lib/api/client");
@@ -141,7 +136,7 @@ export function createCheckoutActions(ctx: RoomActionContext) {
           sales_order_id: checkoutInfo.salesOrderId,
           payment_data: newPayments,
           checkout_valet_id: checkoutValetId || null,
-          employee_id: (await supabase.auth.getUser()).data.user?.id
+          employee_id: await getCurrentEmployeeId()
         });
         rpcData = response.data;
       } catch (err: any) {
@@ -205,7 +200,6 @@ export function createCheckoutActions(ctx: RoomActionContext) {
     if (!checkAuthorization("Cambiar Estado de Habitación")) return;
 
     await withAction(ctx, "Ocurrió un error al actualizar la habitación", async () => {
-      const supabase = createClient();
 
       const updateData: any = { status: newStatus };
       if (notes !== undefined) updateData.notes = notes;

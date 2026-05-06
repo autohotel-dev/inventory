@@ -31,7 +31,6 @@ import {
   format
 } from "date-fns";
 import { es } from "date-fns/locale";
-import { createClient } from "@/lib/supabase/client";
 import { SmartAlerts } from "./smart-alerts";
 import { PredictionEngine } from "./prediction-engine";
 import { cn } from "@/lib/utils";
@@ -241,8 +240,6 @@ export function KpisDashboard() {
   });
   const [activities, setActivities] = useState<any[]>([]);
 
-  const supabase = createClient();
-
   useEffect(() => {
     const fetchKPIs = async () => {
       setLoading(true);
@@ -281,112 +278,66 @@ export function KpisDashboard() {
         const prevEndStr = prevEndDate.toISOString();
 
         // 🚀 DATOS REALES DE LA BASE DE DATOS
+        const { apiClient } = await import("@/lib/api/client");
+        const { data: dbData } = await apiClient.get('/analytics/kpis-dashboard', {
+          params: {
+            start_date: startStr,
+            end_date: endStr,
+            prev_start_date: prevStartStr,
+            prev_end_date: prevEndStr
+          }
+        });
 
-        // 1. Ocupación actual (esta no depende del periodo, es el estado actual)
-        const { data: activeRooms } = await supabase
-          .from('room_stays')
-          .select('id')
-          ;
+        if (!dbData) return;
 
-        const { data: roomsList } = await supabase
-          .from('rooms')
-          .select('id');
+        // 1. Ocupación actual
+        const activeRooms = dbData.activeRooms || [];
+        const roomsList = dbData.roomsList || [];
+        const totalRoomsCount = roomsList.length;
+        const activeRoomsCount = activeRooms.length;
+        const occupancyRate = totalRoomsCount > 0 ? Math.round((activeRoomsCount / totalRoomsCount) * 100) : 0;
 
-        const totalRoomsCount = roomsList?.length || 0;
-        const activeRoomsCount = activeRooms?.length || 0;
-        const occupancyRate = totalRoomsCount > 0
-          ? Math.round((activeRoomsCount / totalRoomsCount) * 100)
-          : 0;
-        // 2. Ingresos del periodo - Desglosados
-        const { data: periodPayments } = await supabase
-          .from('payments')
-          .select('amount, payment_method, type, stay_id')
-          .gte('created_at', startStr)
-          .lte('created_at', endStr)
-          ;
-
-        const currentRevenue = periodPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
-        const roomRevenue = periodPayments?.filter((p: any) => p.stay_id || p.type === 'STAY').reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+        // 2. Ingresos del periodo
+        const periodPayments = dbData.periodPayments || [];
+        const currentRevenue = periodPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+        const roomRevenue = periodPayments.filter((p: any) => p.stay_id || p.type === 'STAY').reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
         const salesRevenue = currentRevenue - roomRevenue;
 
         // 3. Ingresos del periodo anterior
-        const { data: prevPeriodPayments } = await supabase
-          .from('payments')
-          .select('amount')
-          .gte('created_at', prevStartStr)
-          .lte('created_at', prevEndStr)
-          ;
-
-        const prevRevenue = prevPeriodPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+        const prevPeriodPayments = dbData.prevPeriodPayments || [];
+        const prevRevenue = prevPeriodPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
 
         // 4. Check-ins del periodo
-        const { data: periodCheckins } = await supabase
-          .from('room_stays')
-          .select('id')
-          .gte('check_in_at', startStr)
-          .lte('check_in_at', endStr);
-
-        const currentCheckinsCount = periodCheckins?.length || 0;
+        const currentCheckinsCount = (dbData.periodCheckins || []).length;
 
         // 5. Check-ins del periodo anterior
-        const { data: prevPeriodCheckins } = await supabase
-          .from('room_stays')
-          .select('id')
-          .gte('check_in_at', prevStartStr)
-          .lte('check_in_at', prevEndStr);
-
-        const prevCheckinsCount = prevPeriodCheckins?.length || 0;
+        const prevCheckinsCount = (dbData.prevPeriodCheckins || []).length;
 
         // 6. Tiempo promedio de estancia
-        const { data: completedStays } = await supabase
-          .from('room_stays')
-          .select('check_in_at, check_out_at')
-          
-          .gte('check_out_at', startStr)
-          .lte('check_out_at', endStr);
-
-        const validStays = completedStays?.filter((s: any) => s.check_in_at && s.check_out_at) || [];
+        const completedStays = dbData.completedStays || [];
+        const validStays = completedStays.filter((s: any) => s.check_in_at && s.check_out_at);
         const avgStayTime = validStays.length > 0
-          ? validStays.reduce((sum: number, stay: any) => {
-            const hours = (new Date(stay.check_out_at).getTime() - new Date(stay.check_in_at).getTime()) / (1000 * 60 * 60);
-            return sum + hours;
-          }, 0) / validStays.length
+          ? validStays.reduce((sum: number, stay: any) => sum + (new Date(stay.check_out_at).getTime() - new Date(stay.check_in_at).getTime()) / (1000 * 60 * 60), 0) / validStays.length
           : 0;
 
         // 7. Tickets pendientes
-        const { count: pendingTickets } = await supabase
-          .from('audit_logs')
-          .select('*', { count: 'exact', head: true })
-          
-          .gte('created_at', startStr);
+        const pendingTickets = dbData.pendingTickets || 0;
 
-        // 🚀 8. EMPLEADO DEL DÍA (Basado en movimientos recientes)
-        const { data: movements } = await supabase
-          .from('employee_movements')
-          .select('employee_id, movement_type, employees(first_name, last_name)')
-          .gte('created_at', startStr)
-          .lte('created_at', endStr);
-
+        // 8. EMPLEADO DEL DÍA
+        const movements = dbData.movements || [];
         const empCount: Record<string, { name: string, count: number }> = {};
-        movements?.forEach((m: any) => {
+        movements.forEach((m: any) => {
           if (!m.employee_id) return;
-          // Cast to any to access potentially nested employee data from join
           const empData = m.employees as any;
           const name = empData ? `${empData.first_name || ''} ${empData.last_name || ''}`.trim() : `ID: ${m.employee_id}`;
           if (!empCount[m.employee_id]) empCount[m.employee_id] = { name: name || "Empleado", count: 0 };
           empCount[m.employee_id].count++;
         });
-
         const topEmp = Object.values(empCount).sort((a, b) => b.count - a.count)[0] || { name: "Sin datos", count: 0 };
 
-        // 🚀 9. ACTIVIDAD RECIENTE
-        const { data: recentLogs } = await supabase
-          .from('employee_movements')
-          .select('movement_type, created_at, employees(first_name)')
-          
-          .limit(5);
-
-        setActivities(recentLogs || []);
+        // 9. ACTIVIDAD RECIENTE
+        const recentLogs = dbData.recentLogs || [];
+        setActivities(recentLogs);
 
         // Construir KPIs Premium
         const realKPIs: KPIData[] = [
@@ -480,7 +431,7 @@ export function KpisDashboard() {
     fetchKPIs();
     const interval = setInterval(fetchKPIs, 60000);
     return () => clearInterval(interval);
-  }, [period, supabase]);
+  }, [period]);
 
 
   if (loading) {

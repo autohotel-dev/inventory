@@ -6,9 +6,10 @@ import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftSession } from "@/components/employees/types";
-import { usePOSConfigRead } from "@/hooks/use-pos-config";
+import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 
 const ExpenseModal = dynamic(
@@ -30,50 +31,32 @@ export function AdminQuickActions({ quickLinks }: AdminQuickActionsProps) {
     const { employeeId, isAdmin, isManager } = useUserRole();
     const [activeSession, setActiveSession] = useState<ShiftSession | null>(null);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
-    const posConfig = usePOSConfigRead();
+    const posConfig = useSystemConfigRead();
 
     // Load active session (System wide for admins)
     useEffect(() => {
         const fetchSession = async () => {
             if (!isAdmin && !isManager) return;
 
-            const supabase = createClient();
-            const { data: sessions } = await supabase
-                .from("shift_sessions")
-                .select(`
-          *,
-          employees(*),
-          shift_definitions(*)
-        `)
+            try {
+                const { data } = await apiClient.get('/hr/manager/data') as any;
+                const sessions = data?.active_sessions || [];
                 
-                
-                .limit(1);
-
-            if (sessions && sessions.length > 0) {
-                setActiveSession(sessions[0]);
-            } else {
+                if (sessions && sessions.length > 0) {
+                    setActiveSession(sessions[0]);
+                } else {
+                    setActiveSession(null);
+                }
+            } catch (error) {
+                console.error("Error fetching active session for admin actions:", error);
                 setActiveSession(null);
             }
         };
 
         fetchSession();
-
-        // Suscripción realtime para cambios en turnos
-        const supabase = createClient();
-        const channel = supabase
-            .channel('admin-quick-actions-shifts')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'shift_sessions' },
-                () => {
-                    fetchSession();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        // Fallback polling since we removed the realtime channel
+        const intervalId = setInterval(fetchSession, 30000);
+        return () => clearInterval(intervalId);
     }, [isAdmin, isManager]);
 
     const { totalExpenses, refetch } = useShiftExpenses(activeSession?.id || null);

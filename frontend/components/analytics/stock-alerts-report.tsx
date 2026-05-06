@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,95 +42,14 @@ export function StockAlertsReport() {
     const [filter, setFilter] = useState<'all' | 'critical' | 'low'>('all');
 
     const fetchStockAlerts = async () => {
-        const supabase = createClient();
         setLoading(true);
 
         try {
-            // Obtener productos con su stock
-            const { data: products, error } = await supabase
-                .from("products")
-                .select(`
-                    id,
-                    name,
-                    sku,
-                    min_stock,
-                    category:categories(name),
-                    stock(
-                        qty,
-                        warehouse:warehouses(name, code)
-                    )
-                `)
-                ;
-
-            if (!products) {
-                setLoading(false);
-                return;
+            const { apiClient } = await import("@/lib/api/client");
+            const { data } = await apiClient.get('/analytics/stock-alerts');
+            if (data) {
+                setAlerts(data);
             }
-
-            // Fetch consumption data from last 30 days for velocity calculation
-            const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
-            const { data: recentConsumptions } = await supabase
-                .from('order_items')
-                .select('product_id, quantity, created_at')
-                .gte('created_at', thirtyDaysAgo);
-
-            // Build a map of average daily consumption per product
-            const consumptionMap = new Map<string, number>();
-            if (recentConsumptions) {
-                const grouped = new Map<string, number>();
-                recentConsumptions.forEach((item: any) => {
-                    grouped.set(item.product_id, (grouped.get(item.product_id) || 0) + (item.quantity || 0));
-                });
-                grouped.forEach((total, productId) => {
-                    consumptionMap.set(productId, total / 30); // avg per day
-                });
-            }
-
-            // Procesar alertas
-            const stockAlerts: StockAlert[] = products.map((product: any) => {
-                const stockEntries = product.stock || [];
-                const current_stock = stockEntries.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
-                const min_stock = product.min_stock || 0;
-
-                let status: 'critical' | 'low' | 'normal' | 'overstocked' = 'normal';
-                if (current_stock === 0) {
-                    status = 'critical';
-                } else if (current_stock <= min_stock) {
-                    status = 'low';
-                }
-                // Note: max_stock doesn't exist in DB, so overstocked status is disabled
-
-                const deficit = Math.max(0, min_stock - current_stock);
-
-                const warehouses = stockEntries.map((s: any) => ({
-                    warehouse_name: s.warehouse?.name || 'Desconocido',
-                    warehouse_code: s.warehouse?.code || '',
-                    qty: s.qty || 0
-                }));
-
-                // Accurate depletion estimation using real consumption velocity
-                const dailyConsumption = consumptionMap.get(product.id) || 0;
-                const days_until_stockout = dailyConsumption > 0 
-                    ? Math.round(current_stock / dailyConsumption) 
-                    : current_stock > 0 ? 999 : 0;
-
-                return {
-                    product_id: product.id,
-                    product_name: product.name,
-                    product_sku: product.sku,
-                    category_name: (product.category as any)?.name || 'Sin categoría',
-                    current_stock,
-                    min_stock,
-                    max_stock: 0, // Field doesn't exist in DB
-                    status,
-                    deficit,
-                    days_until_stockout,
-                    warehouses
-                };
-            });
-
-            setAlerts(stockAlerts);
-
         } catch (_error) {
             console.error("Error fetching stock alerts:", _error);
         } finally {

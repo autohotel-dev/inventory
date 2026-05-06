@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,113 +39,12 @@ export function AnalyticsDashboardOverview() {
 
     const fetchDashboardData = async () => {
         setLoading(true);
-        const supabase = createClient();
-
         try {
-            const now = new Date();
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-            const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
-            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-
-            // 1. Ingresos del mes actual
-            const { data: currentMonthSales } = await supabase
-                .from("sales_orders")
-                .select("total")
-                .gte("created_at", startOfMonth)
-                .in("status", ["CLOSED", "ENDED"]);
-
-            // 2. Ingresos del mes anterior (para comparar)
-            const { data: lastMonthSales } = await supabase
-                .from("sales_orders")
-                .select("total")
-                .gte("created_at", startOfLastMonth)
-                .lte("created_at", endOfLastMonth)
-                .in("status", ["CLOSED", "ENDED"]);
-
-            // 3. Ventas de hoy
-            const { data: todaySalesData } = await supabase
-                .from("sales_orders")
-                .select("total")
-                .gte("created_at", startOfToday)
-                .in("status", ["CLOSED", "ENDED"]);
-
-            // 4. Stock crítico - Contar productos cuyo stock total esté por debajo de min_stock
-            const { data: productsWithStock } = await supabase
-                .from("products")
-                .select(`
-                    id,
-                    min_stock,
-                    stock:stock(qty)
-                `)
-                ;
-
-            // Calcular cuántos productos tienen stock crítico (stock total < min_stock)
-            let criticalStockCount = 0;
-            productsWithStock?.forEach((product: any) => {
-                const totalStock = product.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-                const minStock = product.min_stock || 0;
-                if (totalStock < minStock) {
-                    criticalStockCount++;
-                }
-            });
-
-            // 5. Top productos del mes
-            const { data: topItems } = await supabase
-                .from("sales_order_items")
-                .select(`
-                    qty,
-                    unit_price,
-                    total,
-                    product:products(name, sku, id)
-                `)
-                .gte("created_at", startOfMonth);
-
-            // Procesar datos
-            const currentRevenue = currentMonthSales?.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || 0;
-            const lastRevenue = lastMonthSales?.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || 0;
-
-            let growth = 0;
-            if (lastRevenue > 0) {
-                growth = ((currentRevenue - lastRevenue) / lastRevenue) * 100;
-            } else if (currentRevenue > 0) {
-                growth = 100;
+            const { apiClient } = await import("@/lib/api/client");
+            const { data: dbData } = await apiClient.get('/analytics/dashboard-overview');
+            if (dbData) {
+                setData(dbData);
             }
-
-            const todayRevenue = todaySalesData?.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || 0;
-            const todayOrdersCount = todaySalesData?.length || 0;
-
-            // Procesar Top Productos
-            const productMap = new Map<string, any>();
-            topItems?.forEach((item: any) => {
-                const id = item.product?.id;
-                if (!id) return;
-
-                if (!productMap.has(id)) {
-                    productMap.set(id, {
-                        name: item.product?.name,
-                        sku: item.product?.sku,
-                        sold: 0,
-                        revenue: 0
-                    });
-                }
-                const prod = productMap.get(id);
-                prod.sold += item.qty || 0;
-                prod.revenue += item.total || ((item.qty || 0) * (item.unit_price || 0));
-            });
-
-            const topProducts = Array.from(productMap.values())
-                .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 5);
-
-            setData({
-                monthlyRevenue: currentRevenue,
-                monthlyRevenueGrowth: growth,
-                todaySales: todayRevenue,
-                todayOrders: todayOrdersCount,
-                criticalStockCount: criticalStockCount,
-                topProducts
-            });
 
         } catch (error) {
             console.error("Error fetching dashboard data:", error);

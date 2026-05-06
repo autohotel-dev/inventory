@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { luxorRealtimeClient } from "@/lib/api/websocket";
 
 export interface Notification {
     id: string;
@@ -33,11 +32,11 @@ interface UseNotificationsReturn {
 export function useNotifications(): UseNotificationsReturn {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
-    const supabase = createClient();
-
     const fetchNotifications = useCallback(async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { apiClient } = await import("@/lib/api/client");
+            const resAuth = await apiClient.get('/system/auth/me');
+            const user = resAuth.data?.user || resAuth.data;
 
             if (!user) {
                 setNotifications([]);
@@ -45,87 +44,49 @@ export function useNotifications(): UseNotificationsReturn {
                 return;
             }
 
-            const { data, error } = await supabase
-                .from("notifications")
-                .select("*")
-                
-                
-                
-                .limit(50);
-
-            if (error) {
-                console.error("Error fetching notifications:", error);
-                return;
-            }
-
+            const { data } = await apiClient.get(`/system/crud/notifications?user_id=${user.id}&limit=50`);
             setNotifications(data || []);
         } catch (error) {
             console.error("Error in fetchNotifications:", error);
         } finally {
             setLoading(false);
         }
-    }, [supabase]);
+    }, []);
 
     useEffect(() => {
         fetchNotifications();
 
-        // Subscribe to real-time changes
-        let channel: RealtimeChannel;
+        let unsubscribe = () => {};
 
-        supabase.auth.getUser().then(({ data }: any) => {
-            const user = data?.user;
-            if (!user) return;
+        import("@/lib/api/client").then(({ apiClient }) => {
+            apiClient.get('/system/auth/me').then(resAuth => {
+                const user = resAuth.data?.user || resAuth.data;
+                if (!user) return;
 
-            channel = supabase
-                .channel('notifications_changes')
-                .on(
-                    'postgres_changes',
-                    {
-                        event: '*',
-                        schema: 'public',
-                        table: 'notifications',
-                        filter: `user_id=eq.${user.id}`
-                    },
-                    (payload: any) => {
-                        console.log('Notification change received:', payload);
-                        fetchNotifications(); // Refresh on any change
-                    }
-                )
-                .subscribe();
+                unsubscribe = luxorRealtimeClient.subscribe("notifications", (payload) => {
+                    console.log('Notification change received:', payload);
+                    // Just refresh instead of complex state management since the schema might be large
+                    fetchNotifications(); 
+                });
+            }).catch(() => {});
         });
 
         return () => {
-            if (channel) {
-                supabase.removeChannel(channel);
-            }
+            unsubscribe();
         };
-    }, [fetchNotifications, supabase]);
+    }, [fetchNotifications]);
 
     const markAsRead = async (id: string) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.patch(`/system/crud/notifications/${id}`, {
+                is_read: true,
+                read_at: new Date().toISOString()
+            });
 
-            const { data, error } = await supabase
-                .from("notifications")
-                .update({
-                    is_read: true,
-                    read_at: new Date().toISOString()
-                })
-                
-                 // Ensure we own the notification
-                .select();
-
-            if (error) throw error;
-
-            if (data && data.length > 0) {
-                setNotifications(prev =>
-                    prev.map(n => n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
-                );
-            } else {
-                console.warn("Notification not found or RLS restricted update", id);
-                // Optionally revert optimistic update if we did one before (here we wait)
-            }
+            setNotifications(prev =>
+                prev.map(n => n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
+            );
         } catch (error) {
             console.error("Error marking notification as read:", error);
         }
@@ -133,19 +94,15 @@ export function useNotifications(): UseNotificationsReturn {
 
     const markAllAsRead = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { error } = await supabase
-                .from("notifications")
-                .update({
+            const { apiClient } = await import("@/lib/api/client");
+            // Find unread and mark them
+            const unread = notifications.filter(n => !n.is_read);
+            await Promise.all(unread.map(n => 
+                apiClient.patch(`/system/crud/notifications/${n.id}`, {
                     is_read: true,
                     read_at: new Date().toISOString()
                 })
-                
-                ;
-
-            if (error) throw error;
+            ));
 
             setNotifications(prev =>
                 prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
@@ -157,21 +114,10 @@ export function useNotifications(): UseNotificationsReturn {
 
     const archiveNotification = async (id: string) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.patch(`/system/crud/notifications/${id}`, { is_archived: true });
 
-            const { data, error } = await supabase
-                .from("notifications")
-                .update({ is_archived: true })
-                
-                
-                .select();
-
-            if (error) throw error;
-
-            if (data && data.length > 0) {
-                setNotifications(prev => prev.filter(n => n.id !== id));
-            }
+            setNotifications(prev => prev.filter(n => n.id !== id));
         } catch (error) {
             console.error("Error archiving notification:", error);
         }
@@ -179,23 +125,10 @@ export function useNotifications(): UseNotificationsReturn {
 
     const deleteNotification = async (id: string) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const { apiClient } = await import("@/lib/api/client");
+            await apiClient.delete(`/system/crud/notifications/${id}`);
 
-            const { data, error } = await supabase
-                .from("notifications")
-                .delete()
-                
-                
-                .select();
-
-            if (error) throw error;
-
-            if (data && data.length > 0) {
-                setNotifications(prev => prev.filter(n => n.id !== id));
-            } else {
-                console.warn("Notification not found or RLS restricted delete", id);
-            }
+            setNotifications(prev => prev.filter(n => n.id !== id));
         } catch (error) {
             console.error("Error deleting notification:", error);
         }

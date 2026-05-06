@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,44 +18,38 @@ import { EmergencyCodeViewer } from "@/components/auth/emergency-code-viewer";
 export const dynamic = "force-dynamic";
 
 async function getDashboardData() {
-  const supabase = await createClient();
+  const { apiClient } = await import("@/lib/api/client");
+  
+  let productsCount = 0;
+  let totalStock = 0;
+  let poOpen = 0;
+  let soOpen = 0;
+  let lastMoves = [];
 
-  // Products active count
-  const { count: productsCount } = await supabase
-    .from("products")
-    .select("id", { count: "exact", head: true })
-    ;
+  try {
+    const [{ data: pData }, { data: sData }, { data: poData }, { data: soData }, { data: movesData }] = await Promise.all([
+      apiClient.get('/system/crud/products'),
+      apiClient.get('/system/crud/stock'),
+      apiClient.get('/system/crud/purchase_orders?status=OPEN'),
+      apiClient.get('/system/crud/sales_orders?status=OPEN'),
+      apiClient.get('/system/crud/inventory_movements?limit=5')
+    ]);
 
-  // Total stock qty (sum)
-  const { data: stockRows } = await supabase
-    .from("stock")
-    .select("qty")
-    .limit(100000);
-  const totalStock = (stockRows ?? []).reduce((a: number, r: { qty: number | null }) => a + Number(r.qty || 0), 0);
-
-  // Open orders
-  const { count: poOpen } = await supabase
-    .from("purchase_orders")
-    .select("id", { count: "exact", head: true })
-    ;
-  const { count: soOpen } = await supabase
-    .from("sales_orders")
-    .select("id", { count: "exact", head: true })
-    ;
-
-  // Last movements
-  const { data: lastMoves } = await supabase
-    .from("inventory_movements")
-    .select("created_at, quantity, products:product_id(sku, name), warehouses:warehouse_id(code, name)")
+    productsCount = pData?.length || 0;
+    totalStock = (sData || []).reduce((a: number, r: any) => a + Number(r.qty || 0), 0);
+    poOpen = poData?.length || 0;
+    soOpen = soData?.length || 0;
     
-    .limit(5);
+    // Minimal mapping since the relation mapping (products:product_id(sku, name), warehouses...) might be missing if API doesn't expand them
+    lastMoves = movesData || [];
+  } catch(e) {}
 
   return {
-    productsCount: productsCount ?? 0,
+    productsCount,
     totalStock,
-    poOpen: poOpen ?? 0,
-    soOpen: soOpen ?? 0,
-    lastMoves: lastMoves ?? [],
+    poOpen,
+    soOpen,
+    lastMoves,
   };
 }
 
