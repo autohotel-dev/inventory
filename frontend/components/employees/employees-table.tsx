@@ -201,7 +201,7 @@ export function EmployeesTable() {
     try {
       if (editingEmployee) {
         // Actualizar via FastAPI
-        await apiClient.put(`/hr/employees/${editingEmployee.id}`, {
+        await apiClient.patch(`/hr/employees/${editingEmployee.id}`, {
           first_name: formData.first_name.trim(),
           last_name: formData.last_name.trim(),
           email: formData.email.trim(),
@@ -308,7 +308,7 @@ export function EmployeesTable() {
       const timestamp = new Date().getTime();
       const deletedEmail = `deleted_${timestamp}_${editingEmployee.email}`;
 
-      await apiClient.put(`/hr/employees/${editingEmployee.id}`, {
+      await apiClient.patch(`/hr/employees/${editingEmployee.id}`, {
         deleted_at: new Date().toISOString(),
         is_active: false,
         email: deletedEmail,

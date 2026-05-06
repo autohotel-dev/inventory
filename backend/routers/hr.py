@@ -70,6 +70,66 @@ def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     db.refresh(db_employee)
     return db_employee
 
+from pydantic import BaseModel
+
+class CreateAuthUserRequest(BaseModel):
+    email: str
+    password: str
+    employee_id: uuid.UUID
+
+@router.post("/employees/create-auth-user")
+def create_auth_user(req: CreateAuthUserRequest, db: Session = Depends(get_db)):
+    import boto3
+    import os
+    
+    db_employee = db.query(Employees).filter(Employees.id == req.employee_id).first()
+    if not db_employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+        
+    region = os.getenv("COGNITO_REGION", "us-east-1")
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    
+    if not user_pool_id:
+        raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
+        
+    client = boto3.client("cognito-idp", region_name=region)
+    
+    try:
+        response = client.admin_create_user(
+            UserPoolId=user_pool_id,
+            Username=req.email,
+            UserAttributes=[
+                {"Name": "email", "Value": req.email},
+                {"Name": "email_verified", "Value": "true"}
+            ],
+            MessageAction="SUPPRESS"
+        )
+        
+        cognito_user_id = response["User"]["Username"]
+        for attr in response["User"]["Attributes"]:
+            if attr["Name"] == "sub":
+                cognito_user_id = attr["Value"]
+                break
+                
+        client.admin_set_user_password(
+            UserPoolId=user_pool_id,
+            Username=req.email,
+            Password=req.password,
+            Permanent=True
+        )
+        
+        db_employee.auth_user_id = cognito_user_id
+        db.commit()
+        db.refresh(db_employee)
+        
+        return {"success": True, "user_id": cognito_user_id}
+        
+    except client.exceptions.UsernameExistsException:
+        raise HTTPException(status_code=409, detail="Este email ya tiene una cuenta de usuario")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.patch("/employees/{employee_id}", response_model=EmployeeResponse)
 def update_employee(employee_id: uuid.UUID, employee_update: EmployeeUpdate, db: Session = Depends(get_db)):
     db_employee = db.query(Employees).filter(Employees.id == employee_id).first()
