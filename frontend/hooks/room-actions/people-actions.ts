@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client";
+
 /**
  * People-related room actions: add, remove, tolerance.
  */
@@ -23,7 +23,7 @@ import {
 
 export function createPeopleActions(ctx: RoomActionContext) {
   const { checkAuthorization } = ctx;
-  const supabase = createClient();
+
 
   /**
    * Agregar persona a la habitación.

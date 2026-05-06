@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -78,33 +78,27 @@ export function BottlePackageRules() {
 
     // Fetch rules and subcategories
     const fetchData = useCallback(async () => {
-        const supabase = createClient();
+        try {
+            const [rulesRes, subRes] = await Promise.allSettled([
+                apiClient.get("/system/crud/bottle_package_rules", { params: { include_relations: true } }),
+                apiClient.get("/catalogs/subcategories", { params: { include_category: true } }),
+            ]);
 
-        // Fetch rules with relations
-        const { data: rulesData, error: rulesError } = await supabase
-            .from("bottle_package_rules")
-            .select(`
-      *,
-      subcategory:subcategories(id, name, category:categories(id, name)),
-      included_category:categories!included_category_id(id, name)
-    `)
-            ;
+            if (rulesRes.status === 'fulfilled') {
+                const raw = rulesRes.value.data;
+                setRules(Array.isArray(raw) ? raw : (raw?.items || raw?.results || []));
+            } else {
+                showError("Error", "No se pudieron cargar las reglas de paquetes");
+            }
 
-        if (rulesError) {
-            console.error("Error fetching rules:", rulesError);
-            showError("Error", "No se pudieron cargar las reglas de paquetes");
-        } else {
-            setRules(rulesData || []);
+            if (subRes.status === 'fulfilled') {
+                const raw = subRes.value.data;
+                setSubcategories(Array.isArray(raw) ? raw : (raw?.items || raw?.results || []));
+            }
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            showError("Error", "No se pudieron cargar los datos");
         }
-
-        // Fetch subcategories for VINOS Y LICORES
-        const { data: subData } = await supabase
-            .from("subcategories")
-            .select("*, category:categories(id, name)")
-            
-            ;
-
-        setSubcategories(subData || []);
         setLoading(false);
     }, []);
 
@@ -137,52 +131,27 @@ export function BottlePackageRules() {
         }
 
         setSaving(true);
-        const supabase = createClient();
 
         try {
+            const payload = {
+                unit_type: formData.unit_type,
+                subcategory_id: formData.subcategory_id,
+                included_category_id: formData.included_category_id,
+                quantity: formData.quantity,
+                is_active: formData.is_active,
+            };
+
             if (editingRule) {
-                // Update existing
-                const { error } = await supabase
-                    .from("bottle_package_rules")
-                    .update({
-                        unit_type: formData.unit_type,
-                        subcategory_id: formData.subcategory_id,
-                        included_category_id: formData.included_category_id,
-                        quantity: formData.quantity,
-                        is_active: formData.is_active,
-                        updated_at: new Date().toISOString(),
-                    })
-                    ;
-
-                if (error) throw error;
-                showSuccess("Actualizado", "La regla se actualizó correctamente");
+                await apiClient.put(`/bottle-package-rules/${editingRule.id}`, payload);
+                showSuccess("Actualizado", "La regla se actualiz\u00f3 correctamente");
             } else {
-                // Insert new
-                const { error } = await supabase
-                    .from("bottle_package_rules")
-                    .insert({
-                        unit_type: formData.unit_type,
-                        subcategory_id: formData.subcategory_id,
-                        included_category_id: formData.included_category_id,
-                        quantity: formData.quantity,
-                        is_active: formData.is_active,
-                    });
-
-                if (error) throw error;
-                showSuccess("Creado", "La regla se creó correctamente");
+                await apiClient.post("/system/crud/bottle_package_rules", payload);
+                showSuccess("Creado", "La regla se cre\u00f3 correctamente");
             }
 
             // Refresh rules
-            const { data: rulesData } = await supabase
-                .from("bottle_package_rules")
-                .select(`
-          *,
-          subcategory:subcategories(id, name, category:categories(id, name)),
-          included_category:categories!included_category_id(id, name)
-        `)
-                ;
-
-            setRules(rulesData || []);
+            const { data: rawRules } = await apiClient.get("/system/crud/bottle_package_rules", { params: { include_relations: true } });
+            setRules(Array.isArray(rawRules) ? rawRules : (rawRules?.items || rawRules?.results || []));
             setIsModalOpen(false);
         } catch (error) {
             console.error("Error saving rule:", error);
@@ -195,34 +164,24 @@ export function BottlePackageRules() {
     const handleDelete = async () => {
         if (!deleteConfirm) return;
 
-        const supabase = createClient();
-        const { error } = await supabase
-            .from("bottle_package_rules")
-            .delete()
-            ;
-
-        if (error) {
-            showError("Error", "No se pudo eliminar la regla");
-        } else {
+        try {
+            await apiClient.delete(`/bottle-package-rules/${deleteConfirm.id}`);
             setRules(prev => prev.filter(r => r.id !== deleteConfirm.id));
-            showSuccess("Eliminado", "La regla se eliminó correctamente");
+            showSuccess("Eliminado", "La regla se elimin\u00f3 correctamente");
+        } catch (error) {
+            showError("Error", "No se pudo eliminar la regla");
         }
         setDeleteConfirm(null);
     };
 
     const toggleActive = async (rule: BottlePackageRule) => {
-        const supabase = createClient();
-        const { error } = await supabase
-            .from("bottle_package_rules")
-            .update({ is_active: !rule.is_active, updated_at: new Date().toISOString() })
-            ;
-
-        if (error) {
-            showError("Error", "No se pudo actualizar el estado");
-        } else {
+        try {
+            await apiClient.patch(`/bottle-package-rules/${rule.id}`, { is_active: !rule.is_active });
             setRules(prev =>
                 prev.map(r => (r.id === rule.id ? { ...r, is_active: !r.is_active } : r))
             );
+        } catch (error) {
+            showError("Error", "No se pudo actualizar el estado");
         }
     };
 

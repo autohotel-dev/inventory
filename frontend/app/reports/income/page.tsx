@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IncomeReport } from "@/components/reports/income-report";
 import { ShiftMigrationTool } from "@/components/reports/shift-migration-tool";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Filter, Settings2, ArrowDownCircle, CheckCircle2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
@@ -31,146 +31,98 @@ function IncomeReportContent() {
 
 
     const fetchShifts = useCallback(async () => {
-        const supabase = createClient();
-
-        // 1. Primero obtener TODOS los turnos para debugging
-        const { data: allSessions, error: allSessionsError } = await supabase
-            .from("shift_sessions")
-            .select("id, clock_in_at, employee_id, status")
-            
-            .limit(10);
-
-        console.log("🔍 All recent sessions (for debugging):", { allSessions, allSessionsError });
-
-        // 2. Obtener turnos activos (puede haber varios: recepcionista, cochero, etc.)
-        const { data: activeSessions, error: sessionError } = await supabase
-            .from("shift_sessions")
-            .select(`
-                id, 
-                clock_in_at, 
-                employee_id, 
-                status,
-                employees (
-                    id,
-                    first_name,
-                    last_name,
-                    role
-                )
-            `)
-            .in("status", ["active", "open"])
-            ;
-
-        console.log("🔍 Open sessions query result:", { activeSessions, sessionError });
-
-        // Filtrar y priorizar sesión de recepción
-        let activeSession = null;
-        if (activeSessions && activeSessions.length > 0) {
-            // Buscar primero un recepcionista, admin o manager
-            activeSession = activeSessions.find((s: any) =>
-                ['receptionist', 'admin', 'manager'].includes(s.employees?.role)
-            );
-
-            // Si no hay ninguno de esos, usar el primero que haya (fallback)
-            if (!activeSession) {
-                activeSession = activeSessions[0];
+        try {
+            // 1. Obtener turnos activos via FastAPI
+            let activeSessions: any[] = [];
+            try {
+                const res = await apiClient.get("/system/crud/shift_sessions/", { params: { status: "active", limit: 50 } });
+                const raw = res.data;
+                activeSessions = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+            } catch (e) {
+                console.error("Error fetching active sessions:", e);
             }
-        }
 
-        if (sessionError) {
-            console.error("Error fetching active session:", sessionError);
-        }
+            console.log("🔍 Open sessions query result:", activeSessions);
 
-        // Si hay turno activo, usar la info del empleado que ya trajimos (o buscarla si faltara)
-        let employeeName = "Usuario Actual";
-        let employeeRole = null;
-
-        if (activeSession) {
-            const emp = activeSession.employees as any;
-            if (emp) {
-                employeeName = `${emp.first_name} ${emp.last_name}`;
-                employeeRole = emp.role;
+            // Filtrar y priorizar sesión de recepción
+            let activeSession: any = null;
+            if (activeSessions.length > 0) {
+                activeSession = activeSessions.find((s: any) =>
+                    ['receptionist', 'admin', 'manager'].includes(s.employee_role || s.employees?.role)
+                );
+                if (!activeSession) activeSession = activeSessions[0];
             }
-        }
 
-        // 2. Obtener cierres históricos con información de empleado
-        const { data: closedShifts, error } = await supabase
-            .from("shift_closings")
-            .select(`
-                *,
-                employees!shift_closings_employee_id_fkey (
-                    first_name,
-                    last_name,
-                    role
-                )
-            `)
-            
-            .limit(50);
+            let employeeName = "Usuario Actual";
+            let employeeRole = null;
 
-        if (error) {
-            console.error("Error fetching closed shifts:", error);
-            // Mostrar una alerta si es necesario, o solo loguear
-        }
+            if (activeSession) {
+                const emp = activeSession.employees || activeSession;
+                employeeName = emp.employee_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Usuario Actual";
+                employeeRole = emp.employee_role || emp.role;
+            }
 
-        // Combinar: Turno actual (si existe) + Históricos
-        let allShifts: any[] = [];
+            // 2. Obtener cierres históricos
+            let closedShifts: any[] = [];
+            try {
+                const res = await apiClient.get("/hr/shift-closings/", { params: { limit: 50 } });
+                const raw = res.data;
+                closedShifts = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+            } catch (e) {
+                console.error("Error fetching closed shifts:", e);
+            }
 
-        if (activeSession) {
-            allShifts.push({
-                id: activeSession.id,
-                is_current: true, // Flag para identificar turno actual
-                employee_name: employeeName,
-                role: employeeRole,
-                created_at: activeSession.clock_in_at,
-                type: 'active'
-            });
-        }
+            // Combinar: Turno actual (si existe) + Históricos
+            let allShifts: any[] = [];
 
-        if (closedShifts) {
+            if (activeSession) {
+                allShifts.push({
+                    id: activeSession.id,
+                    is_current: true,
+                    employee_name: employeeName,
+                    role: employeeRole,
+                    created_at: activeSession.clock_in_at,
+                    type: 'active'
+                });
+            }
+
             allShifts = [...allShifts, ...closedShifts.map((s: any) => {
-                // Extraer nombre del empleado de la relación
-                const emp = s.employees as any;
-                const empName = emp ? `${emp.first_name} ${emp.last_name}` : null;
+                const empName = s.employee_name || (s.employees ? `${s.employees.first_name} ${s.employees.last_name}` : null);
                 return {
                     ...s,
                     employee_name: empName || s.employee_name,
                     type: 'closed'
                 };
             })];
-        }
 
-        // Mejor aproximación: Filtrar por los roles permitidos si tenemos la data
-        const allowedRoles = ['receptionist'];
+            const allowedRoles = ['receptionist'];
+            const filteredShifts = allShifts.filter(s => {
+                if (s.is_current) return true;
+                const empRole = s.employees?.role || s.role;
+                if (empRole) return allowedRoles.includes(empRole);
+                return false;
+            });
 
-        const filteredShifts = allShifts.filter(s => {
-            // SIEMPRE mostrar el turno actual (active) para que el usuario pueda seleccionarlo
-            if (s.is_current) return true;
+            console.log("📊 Filtered shifts:", filteredShifts);
+            setShifts(filteredShifts);
 
-            // Si viene de closedShifts, tiene employees.role
-            const empRole = s.employees?.role || s.role; // Helper si lo trajimos
-            if (empRole) {
-                return allowedRoles.includes(empRole);
+            if (reportType === 'shift' && !selectedShift && activeSession) {
+                setSelectedShift(activeSession.id);
             }
-            return false; // Si no hay info de rol o no coincide, lo ocultamos para asegurar que solo se vean recepcionistas
-        });
-
-        console.log("📊 Filtered shifts:", filteredShifts);
-
-        setShifts(filteredShifts);
-
-        // Auto-seleccionar el turno actual si no hay selección y estamos en modo turno
-        if (reportType === 'shift' && !selectedShift && activeSession) {
-            setSelectedShift(activeSession.id);
+        } catch (error) {
+            console.error("Error in fetchShifts:", error);
         }
     }, [reportType, selectedShift]);
 
     const fetchRooms = useCallback(async () => {
-        const supabase = createClient();
-        const { data } = await supabase
-            .from("rooms")
-            .select("number")
-            ;
-
-        if (data) setRooms(data.map((r: any) => r.number));
+        try {
+            const res = await apiClient.get("/rooms/", { params: { limit: 1000 } });
+            const raw = res.data;
+            const data = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+            setRooms(data.map((r: any) => r.number));
+        } catch (e) {
+            console.error("Error fetching rooms:", e);
+        }
     }, []);
 
     useEffect(() => {

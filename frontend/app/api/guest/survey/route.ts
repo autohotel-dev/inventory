@@ -5,22 +5,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { apiClient } from '@/lib/api/client';
 
 export async function GET() {
     try {
-        const supabase = await createClient();
-
         // Get all active surveys
-        const { data: surveys, error } = await supabase
-            .from('surveys')
-            .select('*')
-            
-            ;
-
-        if (error) {
-            throw error;
-        }
+        const { data: surveysData } = await apiClient.get('/system/crud/surveys', {
+            params: { is_active: true }
+        });
+        const surveys = Array.isArray(surveysData) ? surveysData : (surveysData?.items || surveysData?.results || []);
 
         return NextResponse.json({ surveys });
     } catch (error) {
@@ -44,29 +37,19 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const supabase = await createClient();
-
         // Insert survey response
-        const { data, error } = await supabase
-            .from('survey_responses')
-            .insert({
-                survey_id,
-                room_stay_id,
-                room_number,
-                responses,
-                guest_feedback,
-                submitted_at: new Date().toISOString(),
-            })
-            .select()
-            .single();
-
-        if (error) {
-            throw error;
-        }
+        const { data: responseData } = await apiClient.post('/system/crud/survey_responses', {
+            survey_id,
+            room_stay_id,
+            room_number,
+            responses,
+            guest_feedback,
+            submitted_at: new Date().toISOString(),
+        });
 
         return NextResponse.json({
             success: true,
-            response_id: data.id,
+            response_id: responseData?.id,
             message: 'Survey submitted successfully',
         });
     } catch (error) {

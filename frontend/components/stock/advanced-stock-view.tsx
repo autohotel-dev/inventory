@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,90 +61,91 @@ export function AdvancedStockView() {
   const { success, error: showError } = useToast();
 
   const fetchStock = async () => {
-    
+
     setLoading(true);
 
-    const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
+    try {
+      // Obtener productos con stock via FastAPI
+      const [productsRes, warehousesRes, movementsRes] = await Promise.allSettled([
+        apiClient.get("/system/crud/products", { params: { limit: 10000 } }),
+        apiClient.get("/system/crud/warehouses", { params: { limit: 10000 } }),
+        apiClient.get("/system/crud/inventory_movements", { params: { limit: 10000 } }),
+      ]);
+
+      const productsData = productsRes.status === 'fulfilled' ? productsRes.value.data : [];
+      const warehousesData = warehousesRes.status === 'fulfilled' ? warehousesRes.value.data : [];
+      const movementsData = movementsRes.status === 'fulfilled' ? movementsRes.value.data : [];
+
+      // Normalizar productos (puede venir como array directo o paginado)
+      const products = Array.isArray(productsData) ? productsData : (productsData?.items || productsData?.results || []);
+      const warehousesList = Array.isArray(warehousesData) ? warehousesData : (warehousesData?.items || warehousesData?.results || []);
+      const movements = Array.isArray(movementsData) ? movementsData : (movementsData?.items || movementsData?.results || []);
+
+      setWarehouses(warehousesList);
+
+      // Obtener stock por producto via API
+      let stockData: any[] = [];
       try {
-      // Obtener productos con stock
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select(`
-          id,
-          sku,
-          name,
-          unit,
-          price,
-          cost,
-          min_stock,
-          is_active,
-          category:categories(name),
-          stock:stock(
-            qty,
-            warehouse:warehouses(id, name, code)
-          )
-        `)
-        ;
-
-      if (productsError) throw productsError;
-
-      // Obtener almacenes para filtros
-      const { data: warehousesData, error: warehousesError } = await supabase
-        .from("warehouses")
-        .select("id, name, code")
-        
-        ;
-
-      if (!warehousesError && warehousesData) {
-        setWarehouses(warehousesData);
+        const stockRes = await apiClient.get("/system/crud/stock", { params: { limit: 10000 } });
+        const rawStock = stockRes.data;
+        stockData = Array.isArray(rawStock) ? rawStock : (rawStock?.items || rawStock?.results || []);
+      } catch {
+        // Stock endpoint may not exist, continue without it
       }
+
+      // Build warehouse lookup
+      const warehouseMap = new Map(warehousesList.map((w: any) => [w.id, w]));
+
+      // Build stock-by-product lookup
+      const stockByProduct = new Map<string, any[]>();
+      stockData.forEach((s: any) => {
+        const pid = s.product_id;
+        if (!stockByProduct.has(pid)) stockByProduct.set(pid, []);
+        stockByProduct.get(pid)!.push(s);
+      });
 
       // Obtener último movimiento por producto
-      const { data: lastMovements, error: movementsError } = await supabase
-        .from("inventory_movements")
-        .select("product_id, created_at")
-        ;
-
       const lastMovementMap = new Map();
-      if (!movementsError && lastMovements) {
-        lastMovements.forEach((movement: any) => {
-          if (!lastMovementMap.has(movement.product_id)) {
-            lastMovementMap.set(movement.product_id, movement.created_at);
-          }
-        });
-      }
+      movements.forEach((movement: any) => {
+        if (!lastMovementMap.has(movement.product_id)) {
+          lastMovementMap.set(movement.product_id, movement.created_at);
+        }
+      });
 
       // Procesar datos de stock
-      const processedStock: StockItem[] = (productsData || []).map((product: any) => {
-        const stockByWarehouse = (product.stock || []).map((s: any) => ({
-          warehouse_id: s.warehouse?.id || '',
-          warehouse_name: s.warehouse?.name || 'Sin nombre',
-          warehouse_code: s.warehouse?.code || 'N/A',
-          qty: s.qty || 0
-        }));
+      const processedStock: StockItem[] = products.map((product: any) => {
+        const productStocks = stockByProduct.get(product.id) || [];
+        const stockByWarehouse = productStocks.map((s: any) => {
+          const wh = warehouseMap.get(s.warehouse_id) as any;
+          return {
+            warehouse_id: s.warehouse_id || '',
+            warehouse_name: wh?.name || s.warehouse_name || 'Sin nombre',
+            warehouse_code: wh?.code || s.warehouse_code || 'N/A',
+            qty: Number(s.qty) || 0
+          };
+        });
 
         const totalStock = stockByWarehouse.reduce((sum: number, s: any) => sum + s.qty, 0);
-        const stockValue = totalStock * product.price;
+        const stockValue = totalStock * (Number(product.price) || 0);
 
         let stockStatus: 'critical' | 'low' | 'normal' | 'high' = 'normal';
         if (totalStock === 0) {
           stockStatus = 'critical';
-        } else if (totalStock <= product.min_stock) {
+        } else if (totalStock <= (product.min_stock || 0)) {
           stockStatus = 'low';
-        } else if (totalStock > product.min_stock * 3) {
+        } else if (totalStock > (product.min_stock || 0) * 3) {
           stockStatus = 'high';
         }
 
         return {
           product_id: product.id,
-          sku: product.sku,
+          sku: product.sku || '',
           name: product.name,
-          category_name: (product.category as any)?.name,
-          unit: product.unit,
-          price: product.price,
-          cost: product.cost,
-          min_stock: product.min_stock,
+          category_name: product.category_name || product.category?.name,
+          unit: product.unit || 'pz',
+          price: Number(product.price) || 0,
+          cost: Number(product.cost) || 0,
+          min_stock: Number(product.min_stock) || 0,
           total_stock: totalStock,
           stock_by_warehouse: stockByWarehouse,
           stock_status: stockStatus,
@@ -162,8 +163,13 @@ export function AdvancedStockView() {
     }
   };
 
+  const initialFetchDone = useRef(false);
+
   useEffect(() => {
-    fetchStock();
+    if (!initialFetchDone.current) {
+      initialFetchDone.current = true;
+      fetchStock();
+    }
   }, []);
 
   // ⚡ Bolt: Memoize filtered items to prevent unnecessary recalculations on every render

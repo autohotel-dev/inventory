@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,40 +57,38 @@ export function AuditLogsViewer() {
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
-    const supabase = createClient();
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);
         try {
-            let query = supabase
-                .from("audit_logs")
-                .select("id, action, table_name, record_id, description, employee_name, metadata, created_at", { count: "exact" })
-                
-                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+            const params: Record<string, any> = {
+                offset: page * PAGE_SIZE,
+                limit: PAGE_SIZE,
+                order_by: 'created_at',
+                order_dir: 'desc',
+            };
 
             if (actionFilter !== "all") {
-                query = query;
+                params.action = actionFilter;
             }
 
             if (searchTerm.trim()) {
-                query = query.or(`description.ilike.%${searchTerm}%,employee_name.ilike.%${searchTerm}%,table_name.ilike.%${searchTerm}%`);
+                params.search = searchTerm.trim();
             }
 
-            const { data, error, count } = await query;
+            const { data: rawData, headers } = await apiClient.get("/system/crud/audit_logs", { params });
+            const logsData = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
+            const totalFromHeader = headers?.['x-total-count'] || rawData?.total || rawData?.count;
 
-            if (error) {
-                console.error("Error fetching audit logs:", error);
-                setLogs([]);
-            } else {
-                setLogs(data || []);
-                setTotalCount(count || 0);
-            }
+            setLogs(logsData);
+            setTotalCount(totalFromHeader ? Number(totalFromHeader) : logsData.length);
         } catch (err) {
-            console.error("Unexpected error fetching audit logs:", err);
+            console.error("Error fetching audit logs:", err);
+            setLogs([]);
         } finally {
             setLoading(false);
         }
-    }, [supabase, actionFilter, searchTerm, page]);
+    }, [actionFilter, searchTerm, page]);
 
     useEffect(() => {
         fetchLogs();

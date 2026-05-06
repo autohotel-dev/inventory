@@ -5,7 +5,6 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { apiClient } from "@/lib/api/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftSession } from "@/components/employees/types";

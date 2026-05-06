@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { apiClient } from '@/lib/api/client';
 import { NextResponse } from 'next/server';
 import webpush from 'web-push';
 
@@ -14,8 +13,14 @@ interface SendNotificationRequest {
 export async function POST(req: Request) {
     try {
         // Verify user is authenticated
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const userRes = await apiClient.get('/system/auth/me', {
+            headers: { Authorization: authHeader }
+        }).catch((e: any) => ({ data: null }));
+        const user = userRes.data;
 
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -42,21 +47,22 @@ export async function POST(req: Request) {
         );
 
         // Fetch employees by role
-        const adminSupabase = createAdminClient();
-        const { data: employees } = await adminSupabase
-            .from('employees')
-            .select('id')
-            .in('role', payload.roles);
+        const { data: empData } = await apiClient.get('/system/crud/employees', {
+            params: { is_active: true }
+        });
+        const allEmployees = Array.isArray(empData) ? empData : (empData?.items || empData?.results || []);
+        const employees = allEmployees.filter((e: any) => payload.roles.includes(e.role));
 
         if (!employees?.length) {
             return NextResponse.json({ message: 'No target employees', sentCount: 0 });
         }
 
-        const employeeIds = employees.map(e => e.id);
-        const { data: subs } = await adminSupabase
-            .from('push_subscriptions')
-            .select('*')
-            .in('employee_id', employeeIds);
+        const employeeIds = employees.map((e: any) => e.id);
+        
+        // Fetch push subscriptions for those employees
+        const { data: subsData } = await apiClient.get('/system/crud/push_subscriptions');
+        const allSubs = Array.isArray(subsData) ? subsData : (subsData?.items || subsData?.results || []);
+        const subs = allSubs.filter((s: any) => employeeIds.includes(s.employee_id));
 
         if (!subs?.length) {
             return NextResponse.json({ message: 'No active subscriptions', sentCount: 0 });
@@ -71,7 +77,7 @@ export async function POST(req: Request) {
         });
 
         // 1. Web Push Delivery
-        const webPushResults = await Promise.allSettled(subs.map(sub => {
+        const webPushResults = await Promise.allSettled(subs.map((sub: any) => {
             const pushSub = {
                 endpoint: sub.subscription.endpoint,
                 keys: {
@@ -89,45 +95,6 @@ export async function POST(req: Request) {
         // los Triggers de Supabase y la Edge Function 'send-push-notification' para evitar duplicados.
 
         const expoSuccessCount = 0;
-        /*
-        const { data: employeesWithTokens } = await adminSupabase
-            .from('employees')
-            .select('id, push_token')
-            .in('role', payload.roles)
-            ;
-
-        if (employeesWithTokens?.length) {
-            const expoMessages = employeesWithTokens
-                .filter(e => e.push_token && e.push_token.startsWith('ExponentPushToken['))
-                .map(e => ({
-                    to: e.push_token,
-                    sound: 'default',
-                    title: payload.title,
-                    body: payload.body,
-                    data: { url: payload.url || '/valet', ...(payload as any).data },
-                }));
-
-            if (expoMessages.length > 0) {
-                try {
-                    const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Accept-encoding': 'gzip, deflate',
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(expoMessages),
-                    });
-
-                    if (expoResponse.ok) {
-                        expoSuccessCount = expoMessages.length;
-                    }
-                } catch (expoErr) {
-                    console.error('[Expo Push] Error:', expoErr);
-                }
-            }
-        }
-        */
 
         console.log(`[Push Send] Sent: Web(${webSuccessCount}/${subs.length}), Expo(${expoSuccessCount}) for: ${payload.title}`);
 

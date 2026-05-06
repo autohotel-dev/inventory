@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { apiClient } from '@/lib/api/client';
 
 export async function POST(request: NextRequest) {
     try {
@@ -18,8 +18,6 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
-
-        const supabase = await createClient();
 
         const updateData: any = {};
 
@@ -34,14 +32,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const { error } = await supabase
-            .from('guest_notifications')
-            .update(updateData)
-            ;
-
-        if (error) {
-            throw error;
-        }
+        await apiClient.patch(`/system/crud/guest_notifications/${notification_id}`, updateData);
 
         return NextResponse.json({ success: true });
     } catch (error) {

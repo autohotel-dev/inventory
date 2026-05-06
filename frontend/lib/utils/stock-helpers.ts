@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 
 /**
  * Calcula el stock disponible de un producto en un almacén específico
@@ -12,25 +12,15 @@ export async function getAvailableStock(
     productId: string,
     warehouseId: string
 ): Promise<number> {
-    const supabase = createClient();
-
     try {
         console.log(`[STOCK CHECK] Checking stock for product: ${productId}, warehouse: ${warehouseId}`);
 
-        // Consultar tabla stock directamente
-        const { data, error } = await supabase
-            .from("stock")
-            .select("qty")
-            
-            
-            .maybeSingle(); // Usar maybeSingle para evitar error si no existe
+        const { data } = await apiClient.get("/system/crud/stock", {
+            params: { product_id: productId, warehouse_id: warehouseId, limit: 1 }
+        });
 
-        if (error) {
-            console.error("[STOCK ERROR] Error fetching stock:", error);
-            return 0;
-        }
-
-        const qty = data?.qty || 0;
+        const results = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        const qty = results.length > 0 ? (results[0].qty || 0) : 0;
         console.log(`[STOCK CHECK] Found stock: ${qty}`);
 
         return Math.max(0, qty);
@@ -52,7 +42,6 @@ export async function validateStockAvailability(
     items: Array<{ product_id: string; product_name: string; quantity: number }>,
     warehouseId: string
 ): Promise<string[]> {
-    const supabase = createClient();
     const errors: string[] = [];
 
     for (const item of items) {
@@ -65,10 +54,10 @@ export async function validateStockAvailability(
                 console.log(`[STOCK] Not enough in primary warehouse (${available}/${item.quantity}). Searching all warehouses...`);
 
                 // Obtener todos los warehouses
-                const { data: warehouses } = await supabase
-                    .from('warehouses')
-                    .select('id, name')
-                    ;
+                const { data: warehousesData } = await apiClient.get("/system/crud/warehouses", {
+                    params: { is_active: true }
+                });
+                const warehouses = Array.isArray(warehousesData) ? warehousesData : (warehousesData?.items || warehousesData?.results || []);
 
                 if (warehouses && warehouses.length > 0) {
                     let totalAvailable = 0;

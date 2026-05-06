@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { useSearchParams } from "next/navigation";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -84,79 +84,76 @@ function PrintClosingContent() {
 
     const fetchData = useCallback(async () => {
         if (!shiftId) return;
-        const supabase = createClient();
 
-        // Fetch closing data
-        const { data: closingData } = await supabase
-            .from("shift_closings")
-            .select(`*, employees!shift_closings_employee_id_fkey(first_name, last_name), shift_definitions(name)`)
-            
-            ;
+        try {
+            // Fetch closing data
+            const closingRes = await apiClient.get(`/hr/shift-closings/${shiftId}`);
+            const closingData = closingRes.data;
 
-        if (!closingData) { setLoading(false); return; }
-        setClosing(closingData);
+            if (!closingData) { setLoading(false); return; }
+            setClosing(closingData);
 
-        // Fetch expenses
-        const { data: expensesData } = await supabase
-            .from("shift_expenses")
-            .select("*")
-            
-            .neq("status", "rejected")
-            ;
-        setExpenses(expensesData || []);
-
-        // Fetch room stays
-        const { data: staysData } = await supabase
-            .from("room_stays")
-            .select(`
-                check_in_at, vehicle_plate,
-                rooms(number),
-                sales_orders(
-                    total,
-                    payments(payment_method, amount, terminal_code),
-                    sales_order_items(concept_type, qty, unit_price, total, products(name))
-                )
-            `)
-            .gte("check_in_at", closingData.period_start)
-            .lte("check_in_at", closingData.period_end)
-            ;
-
-        if (staysData) {
-            const processed = staysData.map((stay: any) => {
-                const payments = stay.sales_orders?.payments || [];
-                let method = "PENDIENTE";
-                if (payments.length > 0) {
-                    const methods = new Set(payments.map((p: any) => p.payment_method));
-                    if (methods.size > 1) method = "MIXTO";
-                    else {
-                        const m = payments[0].payment_method;
-                        method = m === "EFECTIVO" ? "Efectivo"
-                            : m === "TARJETA" || m === "TARJETA_BBVA" ? "Tarjeta BBVA"
-                            : m === "TARJETA_GETNET" ? "Tarjeta GETNET"
-                            : m || "?";
+            // Fetch expenses and room stays in parallel
+            const [expensesRes, staysRes] = await Promise.allSettled([
+                apiClient.get("/system/crud/shift_expenses", {
+                    params: { shift_closing_id: shiftId, exclude_status: "rejected" }
+                }),
+                apiClient.get("/system/crud/room_stays", {
+                    params: {
+                        check_in_from: closingData.period_start,
+                        check_in_to: closingData.period_end,
+                        include_details: true,
                     }
-                }
+                }),
+            ]);
 
-                const items = stay.sales_orders?.sales_order_items || [];
-                const stayItems: AdditionalItem[] = items
-                    .filter((item: any) => item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST")
-                    .map((item: any) => ({
-                        description: item.products?.name || CONCEPT_LABELS[item.concept_type] || item.concept_type || "Extra",
-                        quantity: item.qty || 1,
-                        total: item.total || (item.qty * item.unit_price) || 0,
-                        type: item.concept_type,
-                    }));
+            if (expensesRes.status === 'fulfilled') {
+                const raw = expensesRes.value.data;
+                setExpenses(Array.isArray(raw) ? raw : (raw?.items || raw?.results || []));
+            }
 
-                return {
-                    time: new Date(stay.check_in_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-                    room: stay.rooms?.number || "?",
-                    plate: stay.vehicle_plate || "-",
-                    total: stay.sales_orders?.total || 0,
-                    method,
-                    items: stayItems,
-                };
-            });
-            setStays(processed);
+            if (staysRes.status === 'fulfilled') {
+                const staysRaw = staysRes.value.data;
+                const staysData = Array.isArray(staysRaw) ? staysRaw : (staysRaw?.items || staysRaw?.results || []);
+
+                const processed = staysData.map((stay: any) => {
+                    const payments = stay.sales_orders?.payments || stay.payments || [];
+                    let method = "PENDIENTE";
+                    if (payments.length > 0) {
+                        const methods = new Set(payments.map((p: any) => p.payment_method));
+                        if (methods.size > 1) method = "MIXTO";
+                        else {
+                            const m = payments[0].payment_method;
+                            method = m === "EFECTIVO" ? "Efectivo"
+                                : m === "TARJETA" || m === "TARJETA_BBVA" ? "Tarjeta BBVA"
+                                : m === "TARJETA_GETNET" ? "Tarjeta GETNET"
+                                : m || "?";
+                        }
+                    }
+
+                    const items = stay.sales_orders?.sales_order_items || stay.order_items || [];
+                    const stayItems: AdditionalItem[] = items
+                        .filter((item: any) => item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST")
+                        .map((item: any) => ({
+                            description: item.products?.name || item.product_name || CONCEPT_LABELS[item.concept_type] || item.concept_type || "Extra",
+                            quantity: item.qty || 1,
+                            total: item.total || (item.qty * item.unit_price) || 0,
+                            type: item.concept_type,
+                        }));
+
+                    return {
+                        time: new Date(stay.check_in_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+                        room: stay.rooms?.number || stay.room_number || "?",
+                        plate: stay.vehicle_plate || "-",
+                        total: stay.sales_orders?.total || stay.total || 0,
+                        method,
+                        items: stayItems,
+                    };
+                });
+                setStays(processed);
+            }
+        } catch (error) {
+            console.error("Error fetching print data:", error);
         }
 
         setLoading(false);

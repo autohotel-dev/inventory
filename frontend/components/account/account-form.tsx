@@ -1,33 +1,46 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { User } from "@supabase/supabase-js";
 import { User as UserIcon, Mail, Camera } from "lucide-react";
 
+interface UserData {
+    email: string;
+    full_name?: string;
+    avatar_url?: string;
+}
+
 export function AccountForm() {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
     const [fullName, setFullName] = useState("");
     const [initials, setInitials] = useState("U");
     const { success, error: showError } = useToast();
-    const supabase = createClient();
 
     useEffect(() => {
         const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                setUser(user);
-                setFullName(user.user_metadata?.full_name || "");
+            try {
+                const { getCurrentUser, fetchUserAttributes } = await import('aws-amplify/auth');
+                const currentUser = await getCurrentUser();
+                const attributes = await fetchUserAttributes();
+                
+                const userData: UserData = {
+                    email: attributes.email || currentUser.username || "",
+                    full_name: attributes.name || attributes.given_name || "",
+                    avatar_url: attributes.picture || "",
+                };
 
-                const name = user.user_metadata?.full_name || user.email || "";
+                setUser(userData);
+                setFullName(userData.full_name || "");
+
+                const name = userData.full_name || userData.email || "";
                 if (name) {
                     const parts = name.split(" ").filter(Boolean);
                     if (parts.length >= 2) {
@@ -36,12 +49,14 @@ export function AccountForm() {
                         setInitials(name.slice(0, 2).toUpperCase());
                     }
                 }
+            } catch {
+                // Not authenticated
             }
             setLoading(false);
         };
 
         getUser();
-    }, [supabase.auth]);
+    }, []);
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,11 +64,10 @@ export function AccountForm() {
 
         setUpdating(true);
         try {
-            const { error } = await supabase.auth.updateUser({
-                data: { full_name: fullName },
+            const { updateUserAttributes } = await import('aws-amplify/auth');
+            await updateUserAttributes({
+                userAttributes: { name: fullName },
             });
-
-            if (error) throw error;
 
             success("Perfil actualizado", "Tus datos personales han sido guardados correctamente.");
         } catch (error) {
@@ -82,7 +96,7 @@ export function AccountForm() {
                 <div className="flex items-center gap-6 pb-6 border-b border-border/50">
                     <div className="relative group">
                         <Avatar className="h-24 w-24 border-4 border-background shadow-lg ring-2 ring-muted">
-                            <AvatarImage src={user?.user_metadata?.avatar_url} className="object-cover" />
+                            <AvatarImage src={user?.avatar_url} className="object-cover" />
                             <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-violet-600 to-indigo-600 text-white">
                                 {initials}
                             </AvatarFallback>

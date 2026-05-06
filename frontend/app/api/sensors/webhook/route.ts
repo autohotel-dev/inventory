@@ -1,58 +1,38 @@
 import { apiClient } from "@/lib/api/client";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js"; // Usar cliente directo para Service Role
-
-// Tipos básicos para el payload de Tuya (simplificado)
-// Tuya envía un JSON firmado. Para este MVP confiamos en recibir un JSON con deviceId y status.
-// En producción, se debe validar la firma (signature).
 
 // Tuya sends a signed JSON.
-
 export async function POST(req: NextRequest) {
     try {
-        // Cliente Admin para bypass RLS
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
         const body = await req.json();
         console.log("Webhook received:", JSON.stringify(body));
 
-        // Normalizar entrada (Soporta estructura compleja de Tuya o simple de IFTTT)
-        // IFTTT: { "deviceId": "...", "status": "OPEN", "auth": "..." }
         const deviceId = body?.data?.deviceId || body?.deviceId;
 
-        // Buscar sensor
         if (!deviceId) return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
 
-        const { data: sensor } = await supabase
-            .from("sensors")
-            .select("id, room_id")
-            .eq("device_id", deviceId)
-            .single();
+        // Buscamos el sensor a través del backend CRUD
+        const { data: sensorData } = await apiClient.get('/system/crud/sensors', {
+            params: { device_id: deviceId }
+        });
+        const sensors = Array.isArray(sensorData) ? sensorData : (sensorData?.items || sensorData?.results || []);
+        const sensor = sensors[0];
 
         if (!sensor) {
             console.log(`Sensor unknown: ${deviceId}`);
             return NextResponse.json({ message: "Sensor ignored" });
         }
 
-        // Determinar estado
         let isOpen: boolean | null = null;
         let battery: number | null = null;
 
-        // Caso 1: Payload IFTTT Simple (status: "OPEN" / "CLOSE")
         if (typeof body.status === 'string') {
             const s = body.status.toLowerCase();
             if (s.includes('open') || s === 'abierto' || s === 'true') isOpen = true;
             if (s.includes('close') || s === 'cerrado' || s === 'false') isOpen = false;
-        }
-        // Caso 2: Payload Boolean directo
-        else if (typeof body.isOpen === 'boolean') {
+        } else if (typeof body.isOpen === 'boolean') {
             isOpen = body.isOpen;
-        }
-        // Caso 3: Payload complejo (Tuya Original)
-        else if (body?.data?.status && Array.isArray(body.data.status)) {
+        } else if (body?.data?.status && Array.isArray(body.data.status)) {
             body.data.status.forEach((s: any) => {
                 if (s.code === 'door_sensor_state' || s.code === 'doorcontact_state') {
                     if (typeof s.value === 'boolean') isOpen = s.value;
@@ -66,18 +46,13 @@ export async function POST(req: NextRequest) {
         }
 
         if (isOpen !== null) {
-            // Actualizar tabla
-            await supabase
-                .from("sensors")
-                .update({
-                    is_open: isOpen,
-                    last_seen: new Date().toISOString(),
-                    status: 'ONLINE',
-                    ...(battery !== null ? { battery_level: battery } : {})
-                })
-                .eq("id", sensor.id);
+            await apiClient.patch(`/system/crud/sensors/${sensor.id}`, {
+                is_open: isOpen,
+                last_seen: new Date().toISOString(),
+                status: 'ONLINE',
+                ...(battery !== null ? { battery_level: battery } : {})
+            });
 
-            // Registrar evento
             await apiClient.post("/system/crud/sensor_events", {
                 sensor_id: sensor.id,
                 event_type: isOpen ? 'OPEN' : 'CLOSE',

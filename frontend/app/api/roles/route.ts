@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { apiClient } from '@/lib/api/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -10,45 +10,16 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const searchParams = request.nextUrl.searchParams;
         const id = searchParams.get('id');
 
         if (id) {
-            // Fetch single role by ID
-            const { data, error } = await supabase
-                .from('roles')
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (error) {
-                console.error('Error fetching role:', error);
-                return NextResponse.json({ error: 'Failed to fetch role' }, { status: 500 });
-            }
-
+            const { data } = await apiClient.get(`/system/crud/roles/${id}`);
             return NextResponse.json({ roles: data });
         } else {
-            // Fetch all roles
-            const { data, error } = await supabase
-                .from('roles')
-                .select('*')
-                
-                ;
-
-            if (error) {
-                console.error('Error fetching roles:', error);
-                return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
-            }
-
-            return NextResponse.json({ roles: data });
+            const { data } = await apiClient.get('/system/crud/roles');
+            const roles = Array.isArray(data) ? data : (data?.items || data?.results || []);
+            return NextResponse.json({ roles });
         }
     } catch (error) {
         console.error('Error in GET /api/roles:', error);
@@ -63,25 +34,6 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated and is admin/manager
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Check if user is admin or manager
-        const { data: employee } = await supabase
-            .from('employees')
-            .select('role')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!employee || !['admin', 'manager'].includes(employee.role)) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
         const body = await request.json();
         const { name, display_name, description } = body;
 
@@ -89,36 +41,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Name and display_name are required' }, { status: 400 });
         }
 
-        // Validate name format (lowercase, no spaces, alphanumeric + underscore)
         if (!/^[a-z0-9_]+$/.test(name)) {
             return NextResponse.json({
                 error: 'Name must be lowercase alphanumeric with underscores only'
             }, { status: 400 });
         }
 
-        // Create role
-        const { data, error } = await supabase
-            .from('roles')
-            .insert({
-                name,
-                display_name,
-                description,
-                is_protected: false,
-                is_active: true,
-            })
-            .select()
-            .single();
-
-        if (error) {
-            if (error.code === '23505') { // Unique violation
-                return NextResponse.json({ error: 'Role name already exists' }, { status: 409 });
-            }
-            console.error('Error creating role:', error);
-            return NextResponse.json({ error: 'Failed to create role' }, { status: 500 });
-        }
+        const { data } = await apiClient.post('/system/crud/roles', {
+            name,
+            display_name,
+            description,
+            is_protected: false,
+            is_active: true,
+        });
 
         return NextResponse.json({ role: data, message: 'Role created successfully' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.response?.status === 409) {
+            return NextResponse.json({ error: 'Role name already exists' }, { status: 409 });
+        }
         console.error('Error in POST /api/roles:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
@@ -131,25 +72,6 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated and is admin/manager
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Check if user is admin or manager
-        const { data: employee } = await supabase
-            .from('employees')
-            .select('role')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!employee || !['admin', 'manager'].includes(employee.role)) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
         const body = await request.json();
         const { id, display_name, description, is_active } = body;
 
@@ -157,7 +79,6 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
 
-        // Build update object
         const updates: any = {};
         if (display_name !== undefined) updates.display_name = display_name;
         if (description !== undefined) updates.description = description;
@@ -167,18 +88,7 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
         }
 
-        // Update role
-        const { data, error } = await supabase
-            .from('roles')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (error) {
-            console.error('Error updating role:', error);
-            return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
-        }
+        const { data } = await apiClient.patch(`/system/crud/roles/${id}`, updates);
 
         return NextResponse.json({ role: data, message: 'Role updated successfully' });
     } catch (error) {
@@ -194,25 +104,6 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated and is admin/manager
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Check if user is admin or manager
-        const { data: employee } = await supabase
-            .from('employees')
-            .select('role')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!employee || !['admin', 'manager'].includes(employee.role)) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
         const body = await request.json();
         const { id } = body;
 
@@ -220,30 +111,17 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
 
-        // Delete role (triggers will prevent deletion if protected or in use)
-        const { error } = await supabase
-            .from('roles')
-            .delete()
-            .eq('id', id);
-
-        if (error) {
-            // Check if it's a trigger error
-            if (error.message.includes('Cannot delete protected role')) {
-                return NextResponse.json({
-                    error: 'Cannot delete protected role (admin, manager)'
-                }, { status: 403 });
-            }
-            if (error.message.includes('employee(s) are assigned to it')) {
-                return NextResponse.json({
-                    error: error.message
-                }, { status: 409 });
-            }
-            console.error('Error deleting role:', error);
-            return NextResponse.json({ error: 'Failed to delete role' }, { status: 500 });
-        }
+        await apiClient.delete(`/system/crud/roles/${id}`);
 
         return NextResponse.json({ message: 'Role deleted successfully' });
-    } catch (error) {
+    } catch (error: any) {
+        const detail = error?.response?.data?.detail || '';
+        if (detail.includes('Cannot delete protected role')) {
+            return NextResponse.json({ error: 'Cannot delete protected role (admin, manager)' }, { status: 403 });
+        }
+        if (detail.includes('employee(s) are assigned to it')) {
+            return NextResponse.json({ error: detail }, { status: 409 });
+        }
         console.error('Error in DELETE /api/roles:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }

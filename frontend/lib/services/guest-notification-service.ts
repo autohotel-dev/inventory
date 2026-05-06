@@ -1,25 +1,19 @@
-import { apiClient } from "@/lib/api/client";
 /**
  * Guest Notification Service (Backend)
  * Handles sending push notifications to guests using Web Push API
  */
 
 import webpush from 'web-push';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api/client';
 
-// VAPID keys - Generated using: npx web-push generate-vapid-keys
-// Store these in .env.local
+// VAPID keys
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:autohoteldev@gmail.com';
 
 // Configure web-push
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-    webpush.setVapidDetails(
-        VAPID_SUBJECT,
-        VAPID_PUBLIC_KEY,
-        VAPID_PRIVATE_KEY
-    );
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 }
 
 export interface NotificationPayload {
@@ -49,38 +43,25 @@ export async function sendNotificationToGuest(
     payload: NotificationPayload
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabase = createSupabaseClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
         // Get subscription from database
-        const { data: subscription, error } = await supabase
-            .from('guest_subscriptions')
-            .select('*')
-            .eq('id', subscriptionId)
-            .single();
+        const { data: subscription } = await apiClient.get(`/system/crud/guest_subscriptions/${subscriptionId}`);
 
-        if (error || !subscription) {
+        if (!subscription) {
             return { success: false, error: 'Subscription not found' };
         }
 
         // Fetch the room stay to get the guest access token
-        const { data: roomStay } = await supabase
-            .from('room_stays')
-            .select('guest_access_token')
-            .eq('id', subscription.room_stay_id)
-            .single();
-
         let finalActionUrl = payload.action_url;
-
-        // If we have a token and an action URL, append the token
-        if (roomStay?.guest_access_token && finalActionUrl) {
-            const separator = finalActionUrl.includes('?') ? '&' : '?';
-            finalActionUrl = `${finalActionUrl}${separator}token=${roomStay.guest_access_token}`;
-        } else if (roomStay?.guest_access_token && !finalActionUrl) {
-            // Fallback default URL if none provided
-            finalActionUrl = `/guest-portal/${subscription.room_number}?token=${roomStay.guest_access_token}`;
+        try {
+            const { data: roomStay } = await apiClient.get(`/system/crud/room_stays/${subscription.room_stay_id}`);
+            if (roomStay?.guest_access_token && finalActionUrl) {
+                const separator = finalActionUrl.includes('?') ? '&' : '?';
+                finalActionUrl = `${finalActionUrl}${separator}token=${roomStay.guest_access_token}`;
+            } else if (roomStay?.guest_access_token && !finalActionUrl) {
+                finalActionUrl = `/guest-portal/${subscription.room_number}?token=${roomStay.guest_access_token}`;
+            }
+        } catch {
+            // Room stay not found, continue without token
         }
 
         const pushSubscription = subscription.subscription_data;
@@ -116,24 +97,18 @@ export async function sendNotificationToGuest(
             });
 
             // Update last_notified_at
-            await supabase
-                .from('guest_subscriptions')
-                .update({ last_notified_at: new Date().toISOString() })
-                ;
+            await apiClient.patch(`/system/crud/guest_subscriptions/${subscriptionId}`, {
+                last_notified_at: new Date().toISOString()
+            });
 
             return { success: true };
         } catch (pushError: any) {
-            // Handle expired or invalid subscriptions
             if (pushError.statusCode === 410 || pushError.statusCode === 404) {
-                // Mark subscription as inactive
-                await supabase
-                    .from('guest_subscriptions')
-                    .update({ is_active: false })
-                    ;
-
+                await apiClient.patch(`/system/crud/guest_subscriptions/${subscriptionId}`, {
+                    is_active: false
+                });
                 return { success: false, error: 'Subscription expired' };
             }
-
             throw pushError;
         }
     } catch (error) {
@@ -152,19 +127,12 @@ export async function sendNotificationToRoom(
     roomNumber: string,
     payload: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
-    const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const { data: subsData } = await apiClient.get('/system/crud/guest_subscriptions', {
+        params: { room_number: roomNumber, is_active: true }
+    });
+    const subscriptions = Array.isArray(subsData) ? subsData : (subsData?.items || subsData?.results || []);
 
-    // Get all active subscriptions for this room
-    const { data: subscriptions, error } = await supabase
-        .from('guest_subscriptions')
-        .select('id')
-        .eq('room_number', roomNumber)
-        .eq('is_active', true);
-
-    if (error || !subscriptions || subscriptions.length === 0) {
+    if (!subscriptions || subscriptions.length === 0) {
         return { sent: 0, failed: 0 };
     }
 
@@ -173,11 +141,8 @@ export async function sendNotificationToRoom(
 
     for (const subscription of subscriptions) {
         const result = await sendNotificationToGuest(subscription.id, payload);
-        if (result.success) {
-            sent++;
-        } else {
-            failed++;
-        }
+        if (result.success) sent++;
+        else failed++;
     }
 
     return { sent, failed };
@@ -189,18 +154,12 @@ export async function sendNotificationToRoom(
 export async function sendNotificationToAll(
     payload: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
-    const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const { data: subsData } = await apiClient.get('/system/crud/guest_subscriptions', {
+        params: { is_active: true }
+    });
+    const subscriptions = Array.isArray(subsData) ? subsData : (subsData?.items || subsData?.results || []);
 
-    // Get all active subscriptions
-    const { data: subscriptions, error } = await supabase
-        .from('guest_subscriptions')
-        .select('id')
-        ;
-
-    if (error || !subscriptions || subscriptions.length === 0) {
+    if (!subscriptions || subscriptions.length === 0) {
         return { sent: 0, failed: 0 };
     }
 
@@ -209,11 +168,8 @@ export async function sendNotificationToAll(
 
     for (const subscription of subscriptions) {
         const result = await sendNotificationToGuest(subscription.id, payload);
-        if (result.success) {
-            sent++;
-        } else {
-            failed++;
-        }
+        if (result.success) sent++;
+        else failed++;
     }
 
     return { sent, failed };
@@ -226,103 +182,90 @@ export async function renderTemplate(
     templateId: string,
     variables: Record<string, string>
 ): Promise<{ title: string; body: string } | null> {
-    const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    try {
+        const { data: template } = await apiClient.get(`/system/crud/notification_templates/${templateId}`);
 
-    const { data: template, error } = await supabase
-        .from('notification_templates')
-        .select('*')
-        .eq('id', templateId)
-        .single();
+        if (!template) return null;
 
-    if (error || !template) {
+        let title = template.title_template;
+        let body = template.body_template;
+
+        Object.entries(variables).forEach(([key, value]) => {
+            const regex = new RegExp(`{${key}}`, 'g');
+            title = title.replace(regex, value);
+            body = body.replace(regex, value);
+        });
+
+        return { title, body };
+    } catch {
         return null;
     }
-
-    let title = template.title_template;
-    let body = template.body_template;
-
-    // Replace variables in templates
-    Object.entries(variables).forEach(([key, value]) => {
-        const regex = new RegExp(`{${key}}`, 'g');
-        title = title.replace(regex, value);
-        body = body.replace(regex, value);
-    });
-
-    return { title, body };
 }
 
 /**
  * Send checkout reminder to guests checking out soon
  */
 export async function sendCheckoutReminders(hoursBeforeCheckout: number = 2): Promise<void> {
-    const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    try {
+        const { data: staysData } = await apiClient.get('/system/crud/room_stays', {
+            params: { status: 'ACTIVA' }
+        });
+        const roomStays = Array.isArray(staysData) ? staysData : (staysData?.items || staysData?.results || []);
 
-    // Calculate time window
-    const now = new Date();
-    const futureTime = new Date(now.getTime() + hoursBeforeCheckout * 60 * 60 * 1000);
-    const maxTime = new Date(now.getTime() + (hoursBeforeCheckout + 1) * 60 * 60 * 1000);
+        const now = new Date();
+        const futureTime = new Date(now.getTime() + hoursBeforeCheckout * 60 * 60 * 1000);
+        const maxTime = new Date(now.getTime() + (hoursBeforeCheckout + 1) * 60 * 60 * 1000);
 
-    // Get room stays with checkout in the time window
-    const { data: roomStays, error } = await supabase
-        .from('room_stays')
-        .select(`
-      id,
-      expected_check_out_at,
-      rooms (
-        number
-      )
-    `)
-        
-        .gte('expected_check_out_at', futureTime.toISOString())
-        .lt('expected_check_out_at', maxTime.toISOString());
-
-    if (error || !roomStays || roomStays.length === 0) {
-        return;
-    }
-
-    // Get checkout reminder template
-    const { data: template } = await supabase
-        .from('notification_templates')
-        .select('*')
-        .eq('notification_type', 'checkout_reminder')
-        .single();
-
-    for (const stay of roomStays) {
-        if (!stay.rooms || !stay.expected_check_out_at) continue;
-
-        const roomNumber = (stay.rooms as any).number;
-        const checkoutTime = new Date(stay.expected_check_out_at).toLocaleTimeString('es-MX', {
-            hour: '2-digit',
-            minute: '2-digit',
+        // Filter stays with checkout in the time window
+        const relevantStays = roomStays.filter((stay: any) => {
+            if (!stay.expected_check_out_at) return false;
+            const checkout = new Date(stay.expected_check_out_at);
+            return checkout >= futureTime && checkout < maxTime;
         });
 
-        // Render template
-        let title = 'Recordatorio: Check-out próximo';
-        let body = `Su check-out está programado para las ${checkoutTime}`;
+        if (relevantStays.length === 0) return;
 
-        if (template) {
-            const rendered = await renderTemplate(template.id, {
-                room_number: roomNumber,
-                checkout_time: checkoutTime,
+        // Get checkout reminder template
+        let template: any = null;
+        try {
+            const { data: templatesData } = await apiClient.get('/system/crud/notification_templates', {
+                params: { notification_type: 'checkout_reminder' }
             });
-            if (rendered) {
-                title = rendered.title;
-                body = rendered.body;
-            }
-        }
+            const templates = Array.isArray(templatesData) ? templatesData : (templatesData?.items || templatesData?.results || []);
+            template = templates[0];
+        } catch {}
 
-        // Send notification
-        await sendNotificationToRoom(roomNumber, {
-            title,
-            body,
-            notification_type: 'checkout_reminder',
-            action_url: `/guest-portal/${roomNumber}`,
-        });
+        for (const stay of relevantStays) {
+            const roomNumber = stay.rooms?.number || stay.room_number;
+            if (!roomNumber || !stay.expected_check_out_at) continue;
+
+            const checkoutTime = new Date(stay.expected_check_out_at).toLocaleTimeString('es-MX', {
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+
+            let title = 'Recordatorio: Check-out próximo';
+            let body = `Su check-out está programado para las ${checkoutTime}`;
+
+            if (template) {
+                const rendered = await renderTemplate(template.id, {
+                    room_number: roomNumber,
+                    checkout_time: checkoutTime,
+                });
+                if (rendered) {
+                    title = rendered.title;
+                    body = rendered.body;
+                }
+            }
+
+            await sendNotificationToRoom(roomNumber, {
+                title,
+                body,
+                notification_type: 'checkout_reminder',
+                action_url: `/guest-portal/${roomNumber}`,
+            });
+        }
+    } catch (error) {
+        console.error('Error sending checkout reminders:', error);
     }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -72,16 +72,24 @@ export function DetailedPerformanceDashboard() {
       setLoading(true);
             
       try {
-        const supabase = createClient();
-        const [cocherosRes, receptionistsRes, camaristasRes] = await Promise.all([
-          supabase.rpc('get_cochero_performance_kpis', { p_start_date: dateRange.start, p_end_date: dateRange.end }),
-          supabase.rpc('get_receptionist_performance_kpis', { p_start_date: dateRange.start, p_end_date: dateRange.end }),
-          supabase.rpc('get_camarista_performance_kpis', { p_start_date: dateRange.start, p_end_date: dateRange.end })
+        const [cocherosRes, receptionistsRes, camaristasRes] = await Promise.allSettled([
+          apiClient.get("/analytics/employee-performance", { params: { role: "cochero", start_date: dateRange.start, end_date: dateRange.end } }),
+          apiClient.get("/analytics/employee-performance", { params: { role: "receptionist", start_date: dateRange.start, end_date: dateRange.end } }),
+          apiClient.get("/analytics/employee-performance", { params: { role: "camarista", start_date: dateRange.start, end_date: dateRange.end } }),
         ]);
 
-        if (cocherosRes.data) setCocheros(cocherosRes.data);
-        if (receptionistsRes.data) setReceptionists(receptionistsRes.data);
-        if (camaristasRes.data) setCamaristas(camaristasRes.data);
+        if (cocherosRes.status === 'fulfilled') {
+          const d = cocherosRes.value.data;
+          setCocheros(Array.isArray(d) ? d : (d?.items || d?.results || []));
+        }
+        if (receptionistsRes.status === 'fulfilled') {
+          const d = receptionistsRes.value.data;
+          setReceptionists(Array.isArray(d) ? d : (d?.items || d?.results || []));
+        }
+        if (camaristasRes.status === 'fulfilled') {
+          const d = camaristasRes.value.data;
+          setCamaristas(Array.isArray(d) ? d : (d?.items || d?.results || []));
+        }
       } catch (error) {
         console.error("Error fetching detailed KPIs:", error);
       } finally {

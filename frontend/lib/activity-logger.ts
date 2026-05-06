@@ -1,4 +1,4 @@
-import { createClient } from "./supabase/client";
+import { apiClient } from "@/lib/api/client";
 
 export type ActivityAction = 
   | 'LOGIN' 
@@ -24,30 +24,24 @@ interface LogOptions {
  * Centalized activity logging for Luxor SOP compliance (Rule #1)
  */
 export async function logActivity(action: ActivityAction, options: LogOptions) {
-  const supabase = createClient();
-  
   try {
     // Get current user if recipientId not provided
     let finalRecipientId = options.recipientId;
     if (!finalRecipientId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      finalRecipientId = user?.id;
+      try {
+        const { data: me } = await apiClient.get("/system/auth/me");
+        finalRecipientId = me?.id || me?.user_id;
+      } catch {}
     }
 
-    const { error } = await supabase
-      .from('activity_logs')
-      .insert({
-        action,
-        room_number: options.roomNumber,
-        valet_id: options.valetId,
-        recipient_id: finalRecipientId,
-        details: options.details,
-        reason: options.reason,
-      });
-
-    if (error) {
-      console.error('Error logging activity:', error);
-    }
+    await apiClient.post("/system/crud/activity_logs", {
+      action,
+      room_number: options.roomNumber,
+      valet_id: options.valetId,
+      recipient_id: finalRecipientId,
+      details: options.details,
+      reason: options.reason,
+    });
   } catch (err) {
     console.error('Unexpected error in logActivity:', err);
   }

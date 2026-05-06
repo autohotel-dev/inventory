@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { logAudit } from "@/lib/audit-logger";
 
@@ -8,9 +7,11 @@ export function LogoutButton() {
   const router = useRouter();
 
   const logout = async () => {
-    const supabase = createClient();
     logAudit("LOGOUT", { description: "Logout desde botón lateral" });
-    await supabase.auth.signOut();
+    try {
+      const { signOut } = await import('aws-amplify/auth');
+      await signOut();
+    } catch {}
     router.push("/auth/login");
   };
 

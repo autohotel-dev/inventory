@@ -16,7 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { type User } from "@supabase/supabase-js";
+// User data from Cognito
 import {
     LogOut,
     User as UserIcon,
@@ -27,7 +27,7 @@ import {
 import { logAudit } from "@/lib/audit-logger";
 
 export function UserNav() {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<{ email?: string; user_metadata?: Record<string, any> } | null>(null);
     const [initials, setInitials] = useState("U");
     const { error: showError } = useToast();
     const router = useRouter();

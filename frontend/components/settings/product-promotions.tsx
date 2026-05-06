@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PROMO_CONDITIONS } from "@/lib/promo-conditions";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -140,55 +140,42 @@ export function ProductPromotions() {
     // ---- Data loading ----
 
     const fetchPromotions = async () => {
-        const supabase = createClient();
-        const { data, error } = await supabase
-            .from("product_promotions")
-            .select(`
-                *,
-                product:products(id, name, price),
-                category:categories!product_promotions_category_id_fkey(id, name),
-                subcategory:subcategories(id, name)
-            `)
-            ;
-
-        if (error) {
+        try {
+            const { data: rawData } = await apiClient.get("/system/crud/product_promotions", { params: { include_relations: true } });
+            const data = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
+            setPromotions(data);
+        } catch (error) {
             console.error("Error fetching promotions:", error);
             toast.error("Error al cargar promociones");
-        } else {
-            setPromotions(data || []);
         }
     };
 
     useEffect(() => {
         const fetchAll = async () => {
-            const supabase = createClient();
-
-            // Fetch promotions
             await fetchPromotions();
 
-            // Fetch products for selector
-            const { data: prodData } = await supabase
-                .from("products")
-                .select("id, name, price, sku")
-                
-                .neq("sku", "SVC-ROOM")
-                .neq("sku", "SVC-DAMAGE")
-                ;
-            setProducts(prodData || []);
+            try {
+                const [prodRes, catRes, subRes] = await Promise.allSettled([
+                    apiClient.get("/inventory/products", { params: { exclude_sku: 'SVC-ROOM,SVC-DAMAGE', fields: 'id,name,price,sku' } }),
+                    apiClient.get("/catalogs/categories", { params: { fields: 'id,name' } }),
+                    apiClient.get("/catalogs/subcategories", { params: { fields: 'id,name,category_id' } }),
+                ]);
 
-            // Fetch categories
-            const { data: catData } = await supabase
-                .from("categories")
-                .select("id, name")
-                ;
-            setCategories(catData || []);
-
-            // Fetch subcategories
-            const { data: subData } = await supabase
-                .from("subcategories")
-                .select("id, name, category_id")
-                ;
-            setSubcategories(subData || []);
+                if (prodRes.status === 'fulfilled') {
+                    const raw = prodRes.value.data;
+                    setProducts(Array.isArray(raw) ? raw : (raw?.items || raw?.results || []));
+                }
+                if (catRes.status === 'fulfilled') {
+                    const raw = catRes.value.data;
+                    setCategories(Array.isArray(raw) ? raw : (raw?.items || raw?.results || []));
+                }
+                if (subRes.status === 'fulfilled') {
+                    const raw = subRes.value.data;
+                    setSubcategories(Array.isArray(raw) ? raw : (raw?.items || raw?.results || []));
+                }
+            } catch (err) {
+                console.error("Error fetching reference data:", err);
+            }
 
             setLoading(false);
         };
@@ -264,7 +251,6 @@ export function ProductPromotions() {
         }
 
         setSaving(true);
-        const supabase = createClient();
 
         try {
             const payload = {
@@ -281,30 +267,21 @@ export function ProductPromotions() {
                 start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
                 end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
                 conditions: formData.conditions,
-                updated_at: new Date().toISOString(),
             };
 
             if (editingPromo) {
-                const { error } = await supabase
-                    .from("product_promotions")
-                    .update(payload)
-                    ;
-                if (error) throw error;
-                toast.success("Promoción actualizada");
+                await apiClient.put(`/product-promotions/${editingPromo.id}`, payload);
+                toast.success("Promoci\u00f3n actualizada");
             } else {
-                const { data: { user } } = await supabase.auth.getUser();
-                const { error } = await supabase
-                    .from("product_promotions")
-                    .insert({ ...payload, created_by: user?.id || null });
-                if (error) throw error;
-                toast.success("Promoción creada");
+                await apiClient.post("/system/crud/product_promotions", payload);
+                toast.success("Promoci\u00f3n creada");
             }
 
             await fetchPromotions();
             setIsModalOpen(false);
         } catch (error) {
             console.error("Error saving promotion:", error);
-            toast.error("Error al guardar la promoción");
+            toast.error("Error al guardar la promoci\u00f3n");
         } finally {
             setSaving(false);
         }
@@ -312,34 +289,24 @@ export function ProductPromotions() {
 
     const handleDelete = async () => {
         if (!deleteConfirm) return;
-        const supabase = createClient();
-        const { error } = await supabase
-            .from("product_promotions")
-            .delete()
-            ;
-
-        if (error) {
-            toast.error("Error al eliminar la promoción");
-        } else {
+        try {
+            await apiClient.delete(`/product-promotions/${deleteConfirm.id}`);
             setPromotions(prev => prev.filter(p => p.id !== deleteConfirm.id));
-            toast.success("Promoción eliminada");
+            toast.success("Promoci\u00f3n eliminada");
+        } catch (error) {
+            toast.error("Error al eliminar la promoci\u00f3n");
         }
         setDeleteConfirm(null);
     };
 
     const toggleActive = async (promo: ProductPromotion) => {
-        const supabase = createClient();
-        const { error } = await supabase
-            .from("product_promotions")
-            .update({ is_active: !promo.is_active, updated_at: new Date().toISOString() })
-            ;
-
-        if (error) {
-            toast.error("Error al cambiar el estado");
-        } else {
+        try {
+            await apiClient.patch(`/product-promotions/${promo.id}`, { is_active: !promo.is_active });
             setPromotions(prev =>
                 prev.map(p => (p.id === promo.id ? { ...p, is_active: !p.is_active } : p))
             );
+        } catch (error) {
+            toast.error("Error al cambiar el estado");
         }
     };
 

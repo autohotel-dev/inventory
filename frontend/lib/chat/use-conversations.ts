@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { Conversation } from './chat-types';
+import { apiClient } from '@/lib/api/client';import { Conversation } from './chat-types';
 
 export interface EnrichedConversation {
     id: string;
@@ -24,7 +23,7 @@ export interface EnrichedConversation {
 export function useConversations(currentUser: any) {
     const [conversations, setConversations] = useState<EnrichedConversation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const supabase = useMemo(() => createClient(), []);
+    // Chat functionality pending migration to FastAPI
 
     const fetchConversations = useCallback(async () => {
         if (!currentUser) return;

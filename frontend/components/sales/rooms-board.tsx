@@ -252,9 +252,9 @@ function RoomsBoardInternal() {
       fetchRooms(true);
     };
 
-    window.addEventListener("supabase-reconnect", handleReconnect);
+    window.addEventListener("websocket-reconnect", handleReconnect);
     return () => {
-      window.removeEventListener("supabase-reconnect", handleReconnect);
+      window.removeEventListener("websocket-reconnect", handleReconnect);
     };
   }, [fetchRooms]);
 

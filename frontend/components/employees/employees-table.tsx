@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +49,6 @@ import {
 import { Employee, EMPLOYEE_ROLES } from "./types";
 
 export function EmployeesTable() {
-  const supabase = createClient();
   const { success, error: showError } = useToast();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -85,25 +84,18 @@ export function EmployeesTable() {
   const loadEmployees = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*, auth_user_id")
-        .is("deleted_at", null) // Filter out soft-deleted employees
-        ;
-
-      if (error) throw error;
-      setEmployees(data || []);
+      const res = await apiClient.get("/hr/employees/", { params: { limit: 10000 } });
+      const raw = res.data;
+      const data = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+      // Filter out soft-deleted employees
+      setEmployees(data.filter((e: any) => !e.deleted_at));
     } catch (err: any) {
       console.error("Error loading employees:", err);
-      if (err?.code === "42P01" || err?.message?.includes("does not exist")) {
-        showError("Tablas no encontradas", "Ejecuta el script SQL create-shifts-system.sql en Supabase");
-      } else {
-        showError("Error", err?.message || "No se pudieron cargar los empleados");
-      }
+      showError("Error", err?.response?.data?.detail || err?.message || "No se pudieron cargar los empleados");
     } finally {
       setLoading(false);
     }
-  }, [supabase, showError]);
+  }, [showError]);
 
   useEffect(() => {
     loadEmployees();
@@ -208,21 +200,16 @@ export function EmployeesTable() {
     setSaving(true);
     try {
       if (editingEmployee) {
-        // Actualizar
-        const { error } = await supabase
-          .from("employees")
-          .update({
-            first_name: formData.first_name.trim(),
-            last_name: formData.last_name.trim(),
-            email: formData.email.trim(),
-            phone: formData.phone.trim() || null,
-            role: formData.role,
-            pin_code: formData.pin_code.trim() || null,
-            is_active: formData.is_active,
-          })
-          ;
-
-        if (error) throw error;
+        // Actualizar via FastAPI
+        await apiClient.put(`/hr/employees/${editingEmployee.id}`, {
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim() || null,
+          role: formData.role,
+          pin_code: formData.pin_code.trim() || null,
+          is_active: formData.is_active,
+        });
 
         // Crear usuario de auth si se solicitó y no tiene uno
         if (formData.create_auth_user && !editingEmployee.auth_user_id) {
@@ -256,29 +243,20 @@ export function EmployeesTable() {
 
         success("Éxito", "Empleado actualizado correctamente");
       } else {
-        // Crear empleado
-        const { data: newEmployee, error } = await supabase
-          .from("employees")
-          .insert({
-            first_name: formData.first_name.trim(),
-            last_name: formData.last_name.trim(),
-            email: formData.email.trim(),
-            phone: formData.phone.trim() || null,
-            role: formData.role,
-            pin_code: formData.pin_code.trim() || null,
-            is_active: formData.is_active,
-          })
-          .select("id")
-          ;
+        // Crear empleado via FastAPI
+        const res = await apiClient.post("/hr/employees/", {
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim() || null,
+          role: formData.role,
+          pin_code: formData.pin_code.trim() || null,
+          is_active: formData.is_active,
+        });
 
-        if (error) {
-          if (error.code === "23505" || error.message?.includes("duplicate") || error.message?.includes("unique")) {
-            throw new Error("Ya existe un empleado con ese email");
-          }
-          throw error;
-        }
+        const newEmployee = res.data;
 
-        // Crear usuario en Supabase Auth si está habilitado
+        // Crear usuario de auth si está habilitado
         if (formData.create_auth_user && newEmployee) {
           const authResponse = await fetch("/api/employees/create-auth-user", {
             method: "POST",
@@ -293,7 +271,6 @@ export function EmployeesTable() {
           const authResult = await authResponse.json();
 
           if (!authResponse.ok) {
-            // El empleado se creó pero el usuario de auth falló
             showError(
               "Advertencia",
               `Empleado creado, pero error al crear usuario: ${authResult.error}. El empleado deberá iniciar sesión manualmente.`
@@ -310,7 +287,12 @@ export function EmployeesTable() {
       loadEmployees();
     } catch (err: any) {
       console.error("Error saving employee:", err);
-      showError("Error", err.message || "No se pudo guardar el empleado");
+      const msg = err?.response?.data?.detail || err.message || "No se pudo guardar el empleado";
+      if (typeof msg === 'string' && (msg.includes('duplicate') || msg.includes('unique'))) {
+        showError("Error", "Ya existe un empleado con ese email");
+      } else {
+        showError("Error", msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -322,28 +304,23 @@ export function EmployeesTable() {
 
     setSaving(true);
     try {
-      // 1. Crear email único para el registro borrado para liberar el email original
+      // Soft delete via FastAPI - mark as deleted and free the email
       const timestamp = new Date().getTime();
       const deletedEmail = `deleted_${timestamp}_${editingEmployee.email}`;
 
-      const { error } = await supabase
-        .from("employees")
-        .update({
-          deleted_at: new Date().toISOString(),
-          is_active: false,
-          email: deletedEmail, // Liberar el email original
-          // Opcional: Desvincular usuario de auth si se desea
-        })
-        ;
+      await apiClient.put(`/hr/employees/${editingEmployee.id}`, {
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+        email: deletedEmail,
+      });
 
-      if (error) throw error;
       success("Éxito", "Empleado eliminado correctamente");
       setIsDeleteModalOpen(false);
       setEditingEmployee(null);
       loadEmployees();
     } catch (err: any) {
       console.error("Error deleting employee:", err);
-      showError("Error", err.message || "No se pudo eliminar el empleado");
+      showError("Error", err?.response?.data?.detail || err.message || "No se pudo eliminar el empleado");
     } finally {
       setSaving(false);
     }

@@ -4,8 +4,7 @@
  * notifications table → Edge Function → Expo Push pipeline.
  */
 
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { apiClient } from '@/lib/api/client';
 import { NextResponse } from 'next/server';
 
 type NotificationType = 'comunicado' | 'warning' | 'urgent' | 'instruction' | 'recognition';
@@ -14,13 +13,12 @@ type TargetType = 'employee' | 'role' | 'all';
 interface SendStaffNotificationRequest {
     notificationType: NotificationType;
     targetType: TargetType;
-    targetEmployeeId?: string;   // when targetType === 'employee'
-    targetRoles?: string[];      // when targetType === 'role'
+    targetEmployeeId?: string;
+    targetRoles?: string[];
     title: string;
     message: string;
 }
 
-// Map notification types to display metadata
 const NOTIFICATION_META: Record<NotificationType, { emoji: string; label: string }> = {
     comunicado: { emoji: '📢', label: 'Comunicado' },
     warning: { emoji: '⚠️', label: 'Llamada de Atención' },
@@ -31,24 +29,25 @@ const NOTIFICATION_META: Record<NotificationType, { emoji: string; label: string
 
 export async function POST(req: Request) {
     try {
-        // 1. Verify authentication
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const userRes = await apiClient.get('/system/auth/me', {
+            headers: { Authorization: authHeader }
+        }).catch((e: any) => ({ data: null }));
+        const user = userRes.data;
 
-        if (authError || !user) {
+        if (!user) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
-        // 2. Verify role is admin, manager, or supervisor
-        const adminSupabase = createAdminClient();
-        const { data: senderEmployee } = await adminSupabase
-            .from('employees')
-            .select('id, first_name, last_name, role')
-            .eq('user_id', user.id)
-            .single();
+        const { data: senderEmpData } = await apiClient.get('/system/crud/employees', {
+            params: { user_id: user.id }
+        });
+        const senderEmployees = Array.isArray(senderEmpData) ? senderEmpData : (senderEmpData?.items || senderEmpData?.results || []);
+        const senderEmployee = senderEmployees[0];
 
-        // If no employee record found, the user might be a direct admin (fallback in use-user-role.ts)
-        // Allow them to proceed as admin
         const senderRole = senderEmployee?.role || 'admin';
         const senderName = senderEmployee
             ? `${senderEmployee.first_name || ''} ${senderEmployee.last_name || ''}`.trim() || 'Administración'
@@ -58,7 +57,6 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
         }
 
-        // 3. Parse and validate payload
         const payload: SendStaffNotificationRequest = await req.json();
 
         if (!payload.title?.trim() || !payload.message?.trim()) {
@@ -69,43 +67,36 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Tipo de notificación inválido' }, { status: 400 });
         }
 
-        // 4. Resolve target auth_user_ids
         let targetAuthUserIds: string[] = [];
 
         if (payload.targetType === 'employee') {
             if (!payload.targetEmployeeId) {
                 return NextResponse.json({ error: 'Empleado destino requerido' }, { status: 400 });
             }
-            const { data: emp } = await adminSupabase
-                .from('employees')
-                .select('auth_user_id')
-                .eq('id', payload.targetEmployeeId)
-                .single();
-
-            if (emp?.auth_user_id) {
-                targetAuthUserIds = [emp.auth_user_id];
+            const { data: empData } = await apiClient.get(`/system/crud/employees/${payload.targetEmployeeId}`);
+            if (empData?.auth_user_id) {
+                targetAuthUserIds = [empData.auth_user_id];
             }
         } else if (payload.targetType === 'role') {
             if (!payload.targetRoles?.length) {
                 return NextResponse.json({ error: 'Roles destino requeridos' }, { status: 400 });
             }
-            const { data: emps } = await adminSupabase
-                .from('employees')
-                .select('auth_user_id')
-                .in('role', payload.targetRoles)
-                .eq('is_active', true);
-
-            targetAuthUserIds = (emps || []).map(e => e.auth_user_id).filter(Boolean) as string[];
+            const { data: empsData } = await apiClient.get('/system/crud/employees', {
+                params: { is_active: true }
+            });
+            const emps = Array.isArray(empsData) ? empsData : (empsData?.items || empsData?.results || []);
+            targetAuthUserIds = emps
+                .filter((e: any) => payload.targetRoles?.includes(e.role))
+                .map((e: any) => e.auth_user_id)
+                .filter(Boolean);
         } else if (payload.targetType === 'all') {
-            const { data: emps } = await adminSupabase
-                .from('employees')
-                .select('auth_user_id')
-                .eq('is_active', true);
-
-            targetAuthUserIds = (emps || []).map(e => e.auth_user_id).filter(Boolean) as string[];
+            const { data: empsData } = await apiClient.get('/system/crud/employees', {
+                params: { is_active: true }
+            });
+            const emps = Array.isArray(empsData) ? empsData : (empsData?.items || empsData?.results || []);
+            targetAuthUserIds = emps.map((e: any) => e.auth_user_id).filter(Boolean);
         }
 
-        // Deduplicate
         targetAuthUserIds = [...new Set(targetAuthUserIds)];
 
         if (targetAuthUserIds.length === 0) {
@@ -115,7 +106,6 @@ export async function POST(req: Request) {
             }, { status: 404 });
         }
 
-        // 5. Build notification data
         const meta = NOTIFICATION_META[payload.notificationType];
         const notificationTitle = `${meta.emoji} ${payload.title}`;
         const notificationData = {
@@ -125,7 +115,6 @@ export async function POST(req: Request) {
             senderId: senderEmployee?.id || user.id,
         };
 
-        // 6. Insert into notifications table (this triggers the Edge Function webhook)
         const rows = targetAuthUserIds.map(uid => ({
             user_id: uid,
             type: 'system_alert',
@@ -135,14 +124,7 @@ export async function POST(req: Request) {
             is_read: false,
         }));
 
-        const { error: insertError, count } = await adminSupabase
-            .from('notifications')
-            .insert(rows);
-
-        if (insertError) {
-            console.error('[Staff Notifications] Insert error:', insertError);
-            return NextResponse.json({ error: 'Error al enviar notificaciones' }, { status: 500 });
-        }
+        await apiClient.post('/system/crud/notifications', rows);
 
         console.log(`[Staff Notifications] Sent ${targetAuthUserIds.length} notifications of type "${payload.notificationType}" by ${senderName}`);
 

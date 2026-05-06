@@ -5,7 +5,7 @@ import {
   Megaphone, AlertTriangle, Siren, ClipboardList, PartyPopper,
   Send, Loader2, Users, User, Shield, Clock, ChevronDown, Search, X, History
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 
 /* ── Types ── */
 type NotificationType = "comunicado" | "warning" | "urgent" | "instruction" | "recognition";
@@ -67,19 +67,18 @@ export default function StaffNotificationsPage() {
   // Fetch employees
   useEffect(() => {
     (async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("employees")
-        .select("id, first_name, last_name, role")
-        
-        
-        ;
-      if (data) {
+      try {
+        const { data: rawData } = await apiClient.get("/hr/employees", {
+          params: { is_active: true, fields: 'id,first_name,last_name,role' }
+        });
+        const data = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
         setEmployees(data.map((e: any) => ({
           id: e.id,
           name: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Sin nombre',
           role: e.role,
         })));
+      } catch (err) {
+        console.error("Error fetching employees:", err);
       }
     })();
   }, []);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckCircle, RefreshCw, AlertTriangle, AlertOctagon } from "lucide-react";
@@ -20,132 +20,86 @@ export function ShiftMigrationTool() {
         idsToMigrate: string[];
     } | null>(null);
 
-    const supabase = createClient();
-
     const analyzeShifts = async () => {
         setAnalyzing(true);
         try {
-            // 1. Obtener sesiones activas
-            const { data: activeSessions, error } = await supabase
-                .from("shift_sessions")
-                .select(`
-          id,
-          clock_in_at,
-          status,
-          employees (
-            id,
-            first_name,
-            last_name,
-            role
-          )
-        `)
-                .in("status", ["active", "open"]);
-
-            if (error) throw error;
+            // 1. Obtener sesiones activas via FastAPI
+            let activeSessions: any[] = [];
+            try {
+                const res = await apiClient.get("/system/crud/shift_sessions/", { params: { status: "active", limit: 100 } });
+                const raw = res.data;
+                activeSessions = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+            } catch (e) {
+                console.error("Error fetching active sessions:", e);
+            }
 
             // 2. Identificar sesión de recepción (Target)
-            let receptionSession = activeSessions?.find((s: any) =>
-                ['receptionist', 'admin', 'manager'].includes(s.employees?.role)
+            let receptionSession: any = activeSessions.find((s: any) =>
+                ['receptionist', 'admin', 'manager'].includes(s.employee_role || s.employees?.role)
             );
 
-            // Si no hay ninguno de esos, usar el primero que haya (fallback igual que en IncomeReport)
-            if (!receptionSession && activeSessions && activeSessions.length > 0) {
+            if (!receptionSession && activeSessions.length > 0) {
                 receptionSession = activeSessions[0];
             }
 
             if (!receptionSession) {
-                console.warn("No active reception shift found for migration target.");
-                // Ocultamos la alerta para no ser molestos cuando solo quieren ver el historial
-                // toast.error("No se encontró un turno de recepción activo.");
                 setMigrationStats(null);
                 return;
             }
 
-            // 3. Obtener TODOS los pagos posteriores al inicio del turno
-            // Fetch sales_order_id to link with rooms later
+            const empData = receptionSession.employees || receptionSession;
+            const receptionName = empData.employee_name || `${empData.first_name || ''} ${empData.last_name || ''}`.trim() || "Recepción";
 
-            
-            const { data: allPayments, error: paymentsError } = await supabase
-                .from("payments")
-                .select(`
-            id,
-            amount,
-            created_at,
-            shift_session_id,
-            sales_order_id,
-            collected_by,
-            shift_sessions (
-                employees (
-                    first_name, 
-                    role
-                )
-            )
-        `)
-                .gte("created_at", receptionSession.clock_in_at);
+            // 3. Obtener pagos posteriores al inicio del turno
+            let allPayments: any[] = [];
+            try {
+                const res = await apiClient.get("/system/crud/payments/", {
+                    params: { created_after: receptionSession.clock_in_at, limit: 10000 }
+                });
+                const raw = res.data;
+                allPayments = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+            } catch (e) {
+                console.error("Error fetching payments:", e);
+            }
 
-            if (paymentsError) throw paymentsError;
-            
-
-            // 4. Obtener información de habitaciones via sales_order_id (Manual Join para evitar error de relación)
-            // Extraer IDs de ordenes únicas
-            const salesOrderIds = Array.from(new Set(allPayments?.map((p: any) => p.sales_order_id).filter(Boolean)));
-
+            // 4. Obtener información de habitaciones via sales orders -> room_stays -> rooms
+            const salesOrderIds = Array.from(new Set(allPayments.map((p: any) => p.sales_order_id).filter(Boolean)));
             const salesOrderRoomMap = new Map<string, string>();
 
             if (salesOrderIds.length > 0) {
-                // Paso 4a: Obtener room_stays para tener room_id
-                const { data: stays, error: staysError } = await supabase
-                    .from("room_stays")
-                    .select("sales_order_id, room_id")
-                    .in("sales_order_id", salesOrderIds);
+                try {
+                    const staysRes = await apiClient.get("/system/crud/room_stays/", { params: { limit: 10000 } });
+                    const staysRaw = staysRes.data;
+                    const stays = Array.isArray(staysRaw) ? staysRaw : (staysRaw?.items || staysRaw?.results || []);
 
-                if (staysError) {
-                    console.error("Error fetching room stays:", staysError);
-                    toast.error("Error verificando habitaciones (stays)");
-                } else if (stays && stays.length > 0) {
+                    const roomsRes = await apiClient.get("/rooms/", { params: { limit: 1000 } });
+                    const roomsRaw = roomsRes.data;
+                    const rooms = Array.isArray(roomsRaw) ? roomsRaw : (roomsRaw?.items || roomsRaw?.results || []);
 
-                    // Paso 4b: Obtener nombres de rooms (USANDO NUMBER, NO NAME)
-                    const roomIds = Array.from(new Set(stays.map((s: any) => s.room_id).filter(Boolean)));
+                    const roomMap = new Map<string, string>();
+                    rooms.forEach((r: any) => roomMap.set(r.id, r.number));
 
-                    const { data: rooms, error: roomsError } = await supabase
-                        .from("rooms")
-                        .select("id, number") // FIX: Usar 'number' porque 'name' no existe
-                        .in("id", roomIds);
-
-                    if (roomsError) {
-                        console.error("Error fetching rooms:", roomsError);
-                        toast.error("Error verificando habitaciones (rooms)");
-                    } else {
-                        // Paso 4c: Mapear todo en memoria
-                        const roomMap = new Map<string, string>(); // room_id -> number
-                        rooms?.forEach((r: any) => {
-                            roomMap.set(r.id, r.number);
-                        });
-
-                        stays.forEach((s: any) => {
-                            const number = roomMap.get(s.room_id);
-                            if (s.sales_order_id && number) {
-                                salesOrderRoomMap.set(s.sales_order_id, number);
-                            }
-                        });
-                    }
+                    stays.forEach((s: any) => {
+                        const number = roomMap.get(s.room_id);
+                        if (s.sales_order_id && number) {
+                            salesOrderRoomMap.set(s.sales_order_id, number);
+                        }
+                    });
+                } catch (e) {
+                    console.error("Error fetching room info:", e);
                 }
             }
 
-            // FILTRADO DE HABITACIÓN 13 y conteos
+            // FILTRADO y conteos
             let totalFound = 0;
             let excludedCount = 0;
             let alreadyAssigned = 0;
             const idsToMigrate: string[] = [];
-
-            // Mapas para estadísticas
             const sourceMap = new Map<string, { name: string; count: number; id: string }>();
 
-            allPayments?.forEach((p: any) => {
+            allPayments.forEach((p: any) => {
                 const roomNumber = salesOrderRoomMap.get(p.sales_order_id);
 
-                // EXCLUSIÓN: Habitación 13 y 113
-                // Verifica contra el número de habitación (string)
                 if (roomNumber === '13' || roomNumber === '113' || roomNumber === 'Habitación 13' || roomNumber === 'Habitación 113') {
                     excludedCount++;
                     return;
@@ -153,36 +107,28 @@ export function ShiftMigrationTool() {
 
                 totalFound++;
 
-                // Si ya es del turno correcto, contarlo
                 if (p.shift_session_id === receptionSession.id) {
                     alreadyAssigned++;
                     return;
                 }
 
-
-                // Si no está en el turno correcto, verificar si necesita migración
-                // SOLO considerar para migración si está en un turno de cochero que tiene collected_by
-                const needsMigration = p.shift_session_id && 
+                const needsMigration = p.shift_session_id &&
                     p.shift_session_id !== receptionSession.id &&
                     p.shift_session_id !== "sin_turno" &&
-                    // Importante: Solo migrar si tiene collected_by (es un pago de cochero)
                     p.collected_by;
 
+                if (needsMigration) {
+                    idsToMigrate.push(p.id);
+                }
 
-                // Stats del origen - Priorizar collected_by para mostrar quién realmente cobró
                 const shiftId = p.shift_session_id || "sin_turno";
                 let empName = "Sin Turno";
-                
-                // Prioridad 1: Si está asignado a un turno, mostrar info del turno
+
                 if (p.shift_sessions?.employees) {
                     empName = `${p.shift_sessions.employees.first_name} (${p.shift_sessions.employees.role})`;
-                }
-                // Prioridad 2: Si tiene collected_by, mostrar indicador
-                else if (p.collected_by) {
+                } else if (p.collected_by) {
                     empName = `Cochero (ID: ${p.collected_by.slice(0, 8)}...)`;
-                }
-                // Prioridad 3: Si tiene shift_session_id pero no hay info
-                else if (p.shift_session_id) {
+                } else if (p.shift_session_id) {
                     empName = "Turno Desconocido/Cerrado";
                 }
 
@@ -198,7 +144,7 @@ export function ShiftMigrationTool() {
                 valetShifts: stats,
                 receptionShift: {
                     id: receptionSession.id,
-                    name: `${receptionSession.employees.first_name} ${receptionSession.employees.last_name}`,
+                    name: receptionName,
                     start: receptionSession.clock_in_at
                 },
                 totalPaymentsFound: totalFound,
@@ -221,24 +167,18 @@ export function ShiftMigrationTool() {
 
         setLoading(true);
         try {
-            // Migración segura por IDs (ya filtrados)
-            const { error, count } = await supabase
-                .from("payments")
-                .update({ shift_session_id: migrationStats.receptionShift!.id })
-                .in("id", migrationStats.idsToMigrate)
-                .select("id", { count: 'exact' });
+            // Migración via FastAPI
+            const res = await apiClient.post("/system/crud/payments/bulk-reassign/", {
+                payment_ids: migrationStats.idsToMigrate,
+                target_shift_session_id: migrationStats.receptionShift!.id
+            });
 
-            if (error) {
-                console.error("Error migrating payments:", error);
-                toast.error("Error migrando pagos");
-            } else {
-                toast.success(`Migración completada: ${count} pagos reasignados`);
-                await analyzeShifts();
+            toast.success(`Migración completada: ${migrationStats.idsToMigrate.length} pagos reasignados`);
+            await analyzeShifts();
 
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            }
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
 
         } catch (error) {
             console.error("Error executing migration:", error);

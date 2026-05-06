@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -89,31 +89,24 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
         }
 
         try {
-            const supabase = createClient();
-
-            // Insertar pagos de cliente
-            const validPayments = payments.filter(p => p.amount > 0);
+            // Payments and process_payment now via apiClient
+            const validPayments = payments.filter((p: any) => p.amount > 0);
             const isMultipago = validPayments.length > 1;
 
             if (isMultipago) {
                 // MULTIPAGO: Crear cargo principal + subpagos
-                const { data: mainPayment, error: mainError } = await supabase
-                    .from("payments")
-                    .insert({
-                        sales_order_id: order?.id,
-                        amount: totalAmount,
-                        payment_method: "PENDIENTE",
-                        reference: generatePaymentReference("CLI"),
-                        concept: "ABONO_CLIENTE",
-                        status: "PAGADO",
-                        payment_type: "COMPLETO",
-                    })
-                    .select("id")
-                    ;
+                const { data: mainPayment } = await apiClient.post("/system/crud/payments", {
+                    sales_order_id: order?.id,
+                    amount: totalAmount,
+                    payment_method: "PENDIENTE",
+                    reference: generatePaymentReference("CLI"),
+                    concept: "ABONO_CLIENTE",
+                    status: "PAGADO",
+                    payment_type: "COMPLETO",
+                });
 
-                if (mainError) {
-                    console.error("Error inserting main payment:", mainError);
-                } else if (mainPayment) {
+                const mainPaymentId = (mainPayment as any)?.id;
+                if (mainPaymentId) {
                     const subpayments = validPayments.map(p => ({
                         sales_order_id: order?.id,
                         amount: p.amount,
@@ -122,48 +115,30 @@ export function AdvancedCustomersSalesTable({ params }: Props) {
                         concept: "ABONO_CLIENTE",
                         status: "PAGADO",
                         payment_type: "PARCIAL",
-                        parent_payment_id: mainPayment.id,
+                        parent_payment_id: mainPaymentId,
                     }));
 
-                    const { error: subError } = await supabase
-                        .from("payments")
-                        .insert(subpayments);
-
-                    if (subError) {
-                        console.error("Error inserting subpayments:", subError);
-                    }
+                    await apiClient.post("/system/crud/payments", subpayments);
                 }
             } else if (validPayments.length === 1) {
                 // PAGO ÚNICO
                 const p = validPayments[0];
-                const { error: paymentsError } = await supabase
-                    .from("payments")
-                    .insert({
-                        sales_order_id: order?.id,
-                        amount: p.amount,
-                        payment_method: p.method,
-                        reference: p.reference || generatePaymentReference("CLI"),
-                        concept: "ABONO_CLIENTE",
-                        status: "PAGADO",
-                        payment_type: "COMPLETO",
-                    });
-
-                if (paymentsError) {
-                    console.error("Error inserting payment:", paymentsError);
-                }
-            }
-
-            const { data, error } = await supabase
-                .rpc("process_payment", {
-                    order_id: order?.id,
-                    payment_amount: totalAmount
+                await apiClient.post("/system/crud/payments", {
+                    sales_order_id: order?.id,
+                    amount: p.amount,
+                    payment_method: p.method,
+                    reference: p.reference || generatePaymentReference("CLI"),
+                    concept: "ABONO_CLIENTE",
+                    status: "PAGADO",
+                    payment_type: "COMPLETO",
                 });
-
-            if (error) {
-                console.error('Error creating payment:', error);
-                toast.error('Error al crear el pago');
-                return;
             }
+
+            const response = await apiClient.post('/sales/process-payment', {
+                order_id: order?.id,
+                payment_amount: totalAmount,
+            });
+            const data = [response.data];
 
             const result = data[0] as any;
 

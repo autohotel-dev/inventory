@@ -1,7 +1,7 @@
 /**
  * Servicio para operaciones relacionadas con órdenes de venta
  */
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Result, success, failure } from "@/lib/types/api";
 import { logger } from "@/lib/utils/logger";
 
@@ -24,18 +24,12 @@ export async function updateSalesOrderTotals(
     salesOrderId: string,
     additionalAmount: number
 ): Promise<Result<UpdateTotalsResult>> {
-    const supabase = createClient();
-
     try {
         // Obtener datos actuales de la orden
-        const { data: orderData, error: orderError } = await supabase
-            .from("sales_orders")
-            .select("subtotal, tax, paid_amount, remaining_amount")
-            
-            ;
+        const { data: orderData } = await apiClient.get(`/system/crud/sales_orders/${salesOrderId}`);
 
-        if (orderError || !orderData) {
-            logger.error("Error fetching sales order", { salesOrderId, error: orderError });
+        if (!orderData) {
+            logger.error("Error fetching sales order", { salesOrderId });
             return failure("No se pudo obtener la orden de venta", "ORDER_FETCH_ERROR");
         }
 
@@ -48,19 +42,11 @@ export async function updateSalesOrderTotals(
         const newRemaining = currentRemaining + additionalAmount;
 
         // Actualizar la orden
-        const { error: updateError } = await supabase
-            .from("sales_orders")
-            .update({
-                subtotal: newSubtotal,
-                total: newTotal,
-                remaining_amount: newRemaining,
-            })
-            ;
-
-        if (updateError) {
-            logger.error("Error updating sales order totals", { salesOrderId, error: updateError });
-            return failure("No se pudieron actualizar los totales", "ORDER_UPDATE_ERROR");
-        }
+        await apiClient.patch(`/system/crud/sales_orders/${salesOrderId}`, {
+            subtotal: newSubtotal,
+            total: newTotal,
+            remaining_amount: newRemaining,
+        });
 
         return success({
             newSubtotal,
@@ -81,17 +67,11 @@ export async function updateSalesOrderTotals(
 export async function getRemainingAmount(
     salesOrderId: string
 ): Promise<Result<number>> {
-    const supabase = createClient();
-
     try {
-        const { data, error } = await supabase
-            .from("sales_orders")
-            .select("remaining_amount")
-            
-            ;
+        const { data } = await apiClient.get(`/system/crud/sales_orders/${salesOrderId}`);
 
-        if (error || !data) {
-            logger.error("Error fetching remaining amount", { salesOrderId, error });
+        if (!data) {
+            logger.error("Error fetching remaining amount", { salesOrderId });
             return failure("No se pudo obtener el saldo pendiente", "REMAINING_FETCH_ERROR");
         }
 
@@ -112,19 +92,8 @@ export async function updateSalesOrderStatus(
     salesOrderId: string,
     status: string
 ): Promise<Result<boolean>> {
-    const supabase = createClient();
-
     try {
-        const { error } = await supabase
-            .from("sales_orders")
-            .update({ status })
-            ;
-
-        if (error) {
-            logger.error("Error updating sales order status", { salesOrderId, status, error });
-            return failure("No se pudo actualizar el estado", "STATUS_UPDATE_ERROR");
-        }
-
+        await apiClient.patch(`/system/crud/sales_orders/${salesOrderId}`, { status });
         return success(true);
     } catch (error) {
         logger.error("Unexpected error updating sales order status", error);
@@ -140,17 +109,11 @@ export async function updateSalesOrderStatus(
 export async function getSalesOrder(
     salesOrderId: string
 ): Promise<Result<any>> {
-    const supabase = createClient();
-
     try {
-        const { data, error } = await supabase
-            .from("sales_orders")
-            .select("*")
-            
-            ;
+        const { data } = await apiClient.get(`/system/crud/sales_orders/${salesOrderId}`);
 
-        if (error || !data) {
-            logger.error("Error fetching sales order", { salesOrderId, error });
+        if (!data) {
+            logger.error("Error fetching sales order", { salesOrderId });
             return failure("No se pudo obtener la orden de venta", "ORDER_FETCH_ERROR");
         }
 

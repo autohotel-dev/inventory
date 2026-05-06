@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ArrowRight, BedDouble, BarChart3, Smartphone, Zap, ShieldCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -13,12 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function LandingPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (user) {
-    redirect("/dashboard");
-  }
+  // Auth redirect handled by middleware
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

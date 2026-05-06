@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-
+// Admin client replaced by apiClient
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

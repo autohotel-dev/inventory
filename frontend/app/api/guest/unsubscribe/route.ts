@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api/client';
 
 export async function POST(request: NextRequest) {
     try {
@@ -19,44 +19,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Use Service Role Key to bypass RLS
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            }
-        );
+        let targetId = subscription_id;
 
-        let query = supabase
-            .from('guest_subscriptions')
-            .update({
-                is_active: false,
-                updated_at: new Date().toISOString(),
+        if (!targetId && endpoint) {
+            const { data: subsData } = await apiClient.get('/system/crud/guest_subscriptions', {
+                params: { is_active: true }
             });
-
-        if (subscription_id) {
-            query = query;
-        } else if (endpoint) {
-            // Find by endpoint in the JSONB column
-            // subscription_data ->> 'endpoint'
-            // We need to find the record first because filtering JSONB in update is tricky or we use a filter
-            // Ideally we filter by subscription_data->>'endpoint'
-            // But supabase-js update() works on columns.
-            // We should select id first.
-
-            const { data: sub } = await supabase
-                .from('guest_subscriptions')
-                .select('id')
-                
-                .filter('subscription_data->>endpoint', 'eq', endpoint)
-                ;
-
+            const subscriptions = Array.isArray(subsData) ? subsData : (subsData?.items || subsData?.results || []);
+            
+            const sub = subscriptions.find((s: any) => s.subscription_data?.endpoint === endpoint);
             if (sub) {
-                query = query;
+                targetId = sub.id;
             } else {
                 return NextResponse.json({
                     success: true,
@@ -65,10 +38,11 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const { error } = await query;
-
-        if (error) {
-            throw error;
+        if (targetId) {
+            await apiClient.patch(`/system/crud/guest_subscriptions/${targetId}`, {
+                is_active: false,
+                updated_at: new Date().toISOString(),
+            });
         }
 
         return NextResponse.json({

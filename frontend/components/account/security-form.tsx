@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +15,6 @@ export function SecurityForm() {
     const [updatingPassword, setUpdatingPassword] = useState(false);
     const [updatingEmail, setUpdatingEmail] = useState(false);
     const { success, error: showError } = useToast();
-    const supabase = createClient();
 
     const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,9 +25,8 @@ export function SecurityForm() {
 
         setUpdatingPassword(true);
         try {
-            const { error } = await supabase.auth.updateUser({ password });
-
-            if (error) throw error;
+            const { updatePassword } = await import('aws-amplify/auth');
+            await updatePassword({ oldPassword: '', newPassword: password });
 
             success("Contraseña actualizada", "Tu contraseña ha sido cambiada exitosamente.");
             setPassword("");
@@ -49,9 +46,10 @@ export function SecurityForm() {
 
         setUpdatingEmail(true);
         try {
-            const { error } = await supabase.auth.updateUser({ email: newEmail });
-
-            if (error) throw error;
+            const { updateUserAttributes } = await import('aws-amplify/auth');
+            await updateUserAttributes({
+                userAttributes: { email: newEmail }
+            });
 
             success("Correo de confirmación enviado", "Por favor revisa tu nuevo correo electrónico para confirmar el cambio.");
             setNewEmail("");

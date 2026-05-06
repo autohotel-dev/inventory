@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { ShiftSession } from "@/components/employees/types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense } from "@/types/expenses";
-import { createClient } from "@/lib/supabase/client";
+
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ interface UseShiftClosingProps {
 export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   const { success, error: showError } = useToast();
   const { printClosing, isPrinting: isPrintingClosing } = usePrintClosing();
-  const supabase = createClient();
+
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -215,10 +215,9 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         transactions: await Promise.all(summary.payments.map(async (payment: any) => {
           let items: any[] = [];
           if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {
-            const { data: orderItems } = await supabase
-              .from("sales_order_items")
-              .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, products(name, sku)")
-              ;
+            const { data: orderItems } = await apiClient.get("/system/crud/sales_order_items", {
+              params: { sales_order_id: payment.sales_order_id }
+            }).then(res => ({ data: Array.isArray(res.data) ? res.data : (res.data?.items || res.data?.results || []) }));
             const paymentTime = new Date(payment.created_at).getTime();
             const relatedItems = (orderItems || []).filter((item: any) => {
               if (!item.paid_at) return false;
@@ -276,20 +275,10 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       }
 
       // 2. Fetch room_stays that match those sales orders
-      const { data: staysData } = await supabase
-        .from("room_stays")
-        .select(`
-          id, check_in_at, vehicle_plate, status,
-          checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(first_name, last_name),
-          rooms!inner(number),
-          sales_orders!inner(
-            id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
-            sales_order_items(concept_type, unit_price, qty, shift_session_id)
-          )
-        `)
-        .in("sales_order_id", salesOrderIds)
-        .in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"])
-        ;
+      const { data: staysRaw } = await apiClient.get("/system/crud/room_stays", {
+        params: { sales_order_id: salesOrderIds.join(','), limit: 1000 }
+      });
+      const staysData = Array.isArray(staysRaw) ? staysRaw : (staysRaw?.items || staysRaw?.results || []);
 
       const filteredStays = (staysData || []).filter((stay: any) => {
         const roomNum = stay.rooms?.number;

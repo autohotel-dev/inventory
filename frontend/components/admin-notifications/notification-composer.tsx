@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Send, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 type TargetType = 'room' | 'all';
 
@@ -28,12 +28,10 @@ export function NotificationComposer() {
     useEffect(() => {
         async function fetchActiveRooms() {
             setIsLoadingRooms(true);
-            const supabase = createClient();
-            const { data } = await supabase
-                .from('guest_subscriptions')
-                .select('room_number')
-                
-                ;
+            const { data: rawData } = await apiClient.get('/system/crud/guest_subscriptions', {
+                params: { is_active: true }
+            });
+            const data = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
 
             if (data) {
                 // Deduplicate rooms

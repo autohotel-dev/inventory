@@ -47,7 +47,7 @@ import { BottlePackageRules } from "@/components/settings/bottle-package-rules";
 import { ProductPromotions } from "@/components/settings/product-promotions";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { logAudit } from "@/lib/audit-logger";
 import { AuditLogsViewer } from "@/components/settings/audit-logs-viewer";
 
@@ -208,22 +208,19 @@ function NuclearResetButton() {
     const [isConfirming, setIsConfirming] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [confirmText, setConfirmText] = useState("");
-    const supabase = createClient();
 
     const handleNuclearReset = async () => {
         if (confirmText !== "REINICIAR") { toast.error("Debes escribir REINICIAR exactamente para proceder"); return; }
         setIsLoading(true);
         try {
-            const { error } = await supabase.rpc("purgesystem", { confirm: confirmText });
-            if (error) {
-                console.error("Error in nuclear reset:", JSON.stringify(error, null, 2));
-                toast.error("Error al reiniciar el sistema", { description: error.message || error.code || JSON.stringify(error) });
-            } else {
-                logAudit("PURGE_SYSTEM", { description: "Reinicio nuclear ejecutado desde panel de mantenimiento" });
-                toast.success("Sistema reiniciado con éxito", { description: "Todos los datos de prueba han sido purgados." });
-                setTimeout(() => window.location.reload(), 1500);
-            }
-        } catch { toast.error("Error inesperado"); }
+            await apiClient.post("/system/purge", { confirm: confirmText });
+            logAudit("PURGE_SYSTEM", { description: "Reinicio nuclear ejecutado desde panel de mantenimiento" });
+            toast.success("Sistema reiniciado con \u00e9xito", { description: "Todos los datos de prueba han sido purgados." });
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (err: any) {
+            const msg = err?.response?.data?.detail || err?.message || "Error inesperado";
+            toast.error("Error al reiniciar el sistema", { description: msg });
+        }
         finally { setIsLoading(false); setIsConfirming(false); setConfirmText(""); }
     };
 

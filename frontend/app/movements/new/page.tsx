@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/api/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BatchMovementForm } from "@/components/movements/batch-movement-form";
 import { IndividualMovementForm } from "@/components/movements/individual-movement-form";
@@ -32,7 +32,6 @@ async function getFormData() {
 
 async function createMovementAction(formData: FormData) {
   "use server";
-  const supabase = await createClient();
 
   const type = String(formData.get("type") || "entry"); // entry | exit | transfer
   const product_id = String(formData.get("product_id") || "");
@@ -41,9 +40,13 @@ async function createMovementAction(formData: FormData) {
   const reason_code = String(formData.get("reason_code") || "ADJUSTMENT");
   const note = String(formData.get("note") || "");
 
-  // Get current auth user for created_by
-  const { data: { user } } = await supabase.auth.getUser();
-  const created_by = user?.id || null;
+  // Get current user from apiClient session
+  let created_by: string | null = null;
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const { data: me } = await apiClient.get("/system/auth/me");
+    created_by = me?.id || me?.user_id || null;
+  } catch {}
 
   if (!product_id) throw new Error("Product is required");
 
@@ -136,11 +139,14 @@ async function createMovementAction(formData: FormData) {
 
 async function createBatchMovementsAction(formData: FormData) {
   "use server";
-  const supabase = await createClient();
 
-  // Get current auth user for created_by
-  const { data: { user } } = await supabase.auth.getUser();
-  const created_by = user?.id || null;
+  // Get current user from apiClient session
+  let created_by: string | null = null;
+  try {
+    const { apiClient } = await import("@/lib/api/client");
+    const { data: me } = await apiClient.get("/system/auth/me");
+    created_by = me?.id || me?.user_id || null;
+  } catch {}
 
   const movementType = String(formData.get("movementType") || "IN");
   const reasonCode = String(formData.get("reasonCode") || "ADJUSTMENT");
@@ -282,17 +288,13 @@ async function createBatchMovementsAction(formData: FormData) {
 }
 
 export default async function NewMovementPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  // Auth check handled by middleware
 
   // Check role
   let employee = null;
   try {
-    const { apiClient } = await import("@/lib/api/client");
-    const res = await apiClient.get(`/system/crud/employees?auth_user_id=${user.id}&limit=1`);
-    if (res.data && res.data.length > 0) employee = res.data[0];
+    const res = await apiClient.get(`/system/auth/me`);
+    employee = res.data;
   } catch(e) {}
 
   const role = employee?.role as UserRole;

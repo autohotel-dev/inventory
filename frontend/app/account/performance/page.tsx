@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,92 +30,45 @@ interface EmployeeStats {
 export default function EmployeePerformancePage() {
   const [stats, setStats] = useState<EmployeeStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Get employee info
-        const { data: employee } = await supabase
-          .from("employees")
-          .select("id, first_name, last_name, role, auth_user_id")
-          
-          ;
-
-        if (!employee) return;
-
-        const name = [employee.first_name, employee.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Empleado";
-
-        // Get shifts worked (last 30 days)
-        const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
-        const { data: shifts } = await supabase
-          .from("shifts")
-          .select("id, shift_type, start_time, end_time, created_at, closed_by")
-          .gte("created_at", thirtyDaysAgo);
-
-        // Filter shifts worked by this employee
-        const myShifts = shifts?.filter((s: any) => s.closed_by === user.id) || [];
-
-        // Get stays created by this user (reception activity)
-        const { data: myStays } = await supabase
-          .from("room_stays")
-          .select("id, created_at, status")
-          
-          .gte("created_at", thirtyDaysAgo);
-
-        // Get payments processed by this user
-        const { data: myPayments } = await supabase
-          .from("payments")
-          .select("id, amount, created_at, status")
-          
-          
-          .gte("created_at", thirtyDaysAgo);
-
-        const totalRevenue = myPayments?.reduce((s: number, p: any) => s + (p.amount || 0), 0) || 0;
-        const totalStays = myStays?.length || 0;
-
-        // Build daily data
-        const dailyMap = new Map<string, { stays: number; revenue: number }>();
-        for (let i = 0; i < 30; i++) {
-          const d = subDays(new Date(), 29 - i);
-          const key = format(d, "yyyy-MM-dd");
-          dailyMap.set(key, { stays: 0, revenue: 0 });
-        }
-
-        myStays?.forEach((s: any) => {
-          const key = s.created_at?.split("T")[0];
-          if (key && dailyMap.has(key)) dailyMap.get(key)!.stays++;
+        // Get performance data from API
+        const { data: perfData } = await apiClient.get("/analytics/employee-performance", {
+          params: { days: 30 }
         });
 
-        myPayments?.forEach((p: any) => {
-          const key = p.created_at?.split("T")[0];
-          if (key && dailyMap.has(key)) dailyMap.get(key)!.revenue += p.amount || 0;
-        });
+        if (!perfData) return;
 
-        const dailyData = Array.from(dailyMap.entries()).map(([date, data]) => ({
-          date,
-          label: format(new Date(date + "T12:00:00"), "dd", { locale: es }),
-          ...data,
+        const name = perfData.name || "Empleado";
+        const totalRevenue = perfData.total_revenue || 0;
+        const totalStays = perfData.total_stays || 0;
+        const myShiftsCount = perfData.total_shifts || 0;
+
+        // Build daily data from API response
+        const dailyData = (perfData.daily_data || []).map((d: any) => ({
+          date: d.date,
+          label: format(new Date(d.date + "T12:00:00"), "dd", { locale: es }),
+          stays: d.stays || 0,
+          revenue: d.revenue || 0,
         }));
 
         // Generate badges
         const badges: EmployeeStats["badges"] = [];
-        if (myShifts.length >= 20) badges.push({ icon: <Star className="h-4 w-4" />, label: "Comprometido", color: "text-amber-500" });
-        if (totalRevenue > 50000) badges.push({ icon: <DollarSign className="h-4 w-4" />, label: "Alta Producción", color: "text-emerald-500" });
+        if (myShiftsCount >= 20) badges.push({ icon: <Star className="h-4 w-4" />, label: "Comprometido", color: "text-amber-500" });
+        if (totalRevenue > 50000) badges.push({ icon: <DollarSign className="h-4 w-4" />, label: "Alta Producci\u00f3n", color: "text-emerald-500" });
         if (totalStays > 100) badges.push({ icon: <Zap className="h-4 w-4" />, label: "Speed Demon", color: "text-blue-500" });
-        if (myShifts.length >= 25) badges.push({ icon: <Award className="h-4 w-4" />, label: "Empleado del Mes", color: "text-purple-500" });
+        if (myShiftsCount >= 25) badges.push({ icon: <Award className="h-4 w-4" />, label: "Empleado del Mes", color: "text-purple-500" });
 
         setStats({
           name,
-          role: employee.role || "Empleado",
-          totalShifts: myShifts.length,
+          role: perfData.role || "Empleado",
+          totalShifts: myShiftsCount,
           totalStays,
           totalRevenue: Math.round(totalRevenue),
-          avgPerShift: myShifts.length > 0 ? Math.round(totalRevenue / myShifts.length) : 0,
+          avgPerShift: myShiftsCount > 0 ? Math.round(totalRevenue / myShiftsCount) : 0,
           dailyData,
           badges,
         });
@@ -127,7 +80,7 @@ export default function EmployeePerformancePage() {
     };
 
     fetchStats();
-  }, [supabase]);
+  }, []);
 
   if (loading) {
     return (

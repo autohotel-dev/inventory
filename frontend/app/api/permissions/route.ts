@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { apiClient } from '@/lib/api/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -10,62 +10,30 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Get role from query params (role name)
         const searchParams = request.nextUrl.searchParams;
         const roleName = searchParams.get('role');
 
         if (roleName) {
             // Get role_id from role name
-            const { data: roleData, error: roleError } = await supabase
-                .from('roles')
-                .select('id')
-                .eq('name', roleName)
-                .single();
+            const { data: rolesData } = await apiClient.get('/system/crud/roles', { params: { name: roleName } });
+            const roles = Array.isArray(rolesData) ? rolesData : (rolesData?.items || rolesData?.results || []);
+            const roleData = roles[0];
 
-            if (roleError || !roleData) {
+            if (!roleData) {
                 return NextResponse.json({ error: 'Role not found' }, { status: 404 });
             }
 
             // Fetch permissions for this role using role_id
-            const { data, error } = await supabase
-                .from('role_permissions')
-                .select('*')
-                .eq('role_id', roleData.id);
+            const { data: permsData } = await apiClient.get('/system/crud/role_permissions', { params: { role_id: roleData.id } });
+            const permissions = Array.isArray(permsData) ? permsData : (permsData?.items || permsData?.results || []);
 
-            if (error) {
-                console.error('Error fetching permissions:', error);
-                return NextResponse.json({ error: 'Failed to fetch permissions' }, { status: 500 });
-            }
-
-            return NextResponse.json({ permissions: data });
+            return NextResponse.json({ permissions });
         } else {
             // Fetch all permissions
-            const { data, error } = await supabase
-                .from('role_permissions')
-                .select(`
-          *,
-          roles (
-            id,
-            name,
-            display_name
-          )
-        `)
-                ;
+            const { data: permsData } = await apiClient.get('/system/crud/role_permissions');
+            const permissions = Array.isArray(permsData) ? permsData : (permsData?.items || permsData?.results || []);
 
-            if (error) {
-                console.error('Error fetching permissions:', error);
-                return NextResponse.json({ error: 'Failed to fetch permissions' }, { status: 500 });
-            }
-
-            return NextResponse.json({ permissions: data });
+            return NextResponse.json({ permissions });
         }
     } catch (error) {
         console.error('Error in GET /api/permissions:', error);
@@ -80,25 +48,6 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated and is admin/manager
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Check if user is admin or manager
-        const { data: employee } = await supabase
-            .from('employees')
-            .select('role')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!employee || !['admin', 'manager'].includes(employee.role)) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
         const body = await request.json();
         const { role: roleName, permissions } = body;
 
@@ -107,13 +56,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Get role_id from role name
-        const { data: roleData, error: roleError } = await supabase
-            .from('roles')
-            .select('id')
-            .eq('name', roleName)
-            .single();
+        const { data: rolesData } = await apiClient.get('/system/crud/roles', { params: { name: roleName } });
+        const roles = Array.isArray(rolesData) ? rolesData : (rolesData?.items || rolesData?.results || []);
+        const roleData = roles[0];
 
-        if (roleError || !roleData) {
+        if (!roleData) {
             return NextResponse.json({ error: `Role '${roleName}' not found` }, { status: 404 });
         }
 
@@ -125,20 +72,8 @@ export async function POST(request: NextRequest) {
             allowed: p.allowed,
         }));
 
-        // Upsert permissions
-        const { error } = await supabase
-            .from('role_permissions')
-            .upsert(formattedPermissions, {
-                onConflict: 'role_id,resource'
-            });
-
-        if (error) {
-            console.error('Error upserting permissions:', error);
-            return NextResponse.json({
-                error: 'Failed to update permissions',
-                details: error.message
-            }, { status: 500 });
-        }
+        // Upsert permissions via backend
+        await apiClient.post('/system/crud/role_permissions', formattedPermissions);
 
         return NextResponse.json({ success: true, message: 'Permissions updated successfully' });
     } catch (error) {
@@ -154,25 +89,6 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Check if user is authenticated and is admin/manager
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Check if user is admin or manager
-        const { data: employee } = await supabase
-            .from('employees')
-            .select('role')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!employee || !['admin', 'manager'].includes(employee.role)) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
         const body = await request.json();
         const { role: roleName, resource, type } = body;
 
@@ -181,30 +97,24 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get role_id from role name
-        const { data: roleData, error: roleError } = await supabase
-            .from('roles')
-            .select('id')
-            .eq('name', roleName)
-            .single();
+        const { data: rolesData } = await apiClient.get('/system/crud/roles', { params: { name: roleName } });
+        const roles = Array.isArray(rolesData) ? rolesData : (rolesData?.items || rolesData?.results || []);
+        const roleData = roles[0];
 
-        if (roleError || !roleData) {
+        if (!roleData) {
             return NextResponse.json({ error: `Role '${roleName}' not found` }, { status: 404 });
         }
 
         const fullResource = type === 'menu' ? `menu.${resource}` : `page.${resource}`;
 
-        const { error } = await supabase
-            .from('role_permissions')
-            .delete()
-            .eq('role_id', roleData.id)
-            .eq('resource', fullResource);
-
-        if (error) {
-            console.error('Error deleting permission:', error);
-            return NextResponse.json({
-                error: 'Failed to delete permission',
-                details: error.message
-            }, { status: 500 });
+        // Delete via backend CRUD
+        const { data: existingPerms } = await apiClient.get('/system/crud/role_permissions', {
+            params: { role_id: roleData.id, resource: fullResource }
+        });
+        const perms = Array.isArray(existingPerms) ? existingPerms : (existingPerms?.items || existingPerms?.results || []);
+        
+        for (const perm of perms) {
+            await apiClient.delete(`/system/crud/role_permissions/${perm.id}`);
         }
 
         return NextResponse.json({ success: true, message: 'Permission deleted successfully' });

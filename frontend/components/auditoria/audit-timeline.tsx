@@ -10,7 +10,7 @@ import {
   LogOut, ShoppingBag, Wrench, Zap, DoorOpen, Home, Printer
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -174,29 +174,35 @@ export function AuditTimeline() {
   const { openPrintCenter } = usePrintCenter();
 
   const fetchEvents = useCallback(async () => {
-    const supabase = createClient();
-    const from = (currentPage - 1) * pageSize;
-    const to = from + pageSize - 1;
+    try {
+      const from = (currentPage - 1) * pageSize;
 
-    let query = supabase
-      .from("audit_logs")
-      .select("*", { count: "exact" })
+      const params: Record<string, any> = {
+        offset: from,
+        limit: pageSize,
+        order_by: 'created_at',
+        order_dir: 'desc',
+      };
+
+      if (filter === "anomalies") {
+        params.severity = 'ERROR,CRITICAL,WARNING';
+      } else if (filter === "reception") {
+        params.category = 'reception';
+      } else if (filter === "payments") {
+        params.category = 'payments';
+      } else if (filter === "auth") {
+        params.category = 'auth';
+      }
+
+      const { data: rawData, headers } = await apiClient.get("/system/crud/audit_logs", { params });
+      const eventsData = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
+      const totalFromHeader = headers?.['x-total-count'] || rawData?.total || rawData?.count;
       
-      .range(from, to);
-
-    if (filter === "reception") {
-      query = query;
-    } else if (filter === "payments") {
-      query = query;
-    } else if (filter === "anomalies") {
-      query = query.in("severity", ["ERROR", "CRITICAL", "WARNING"]);
-    } else if (filter === "auth") {
-      query = query;
+      setEvents(eventsData);
+      setTotalCount(totalFromHeader ? Number(totalFromHeader) : eventsData.length);
+    } catch (error) {
+      console.error("Error fetching audit events:", error);
     }
-
-    const { data, count } = await query;
-    setEvents(data || []);
-    setTotalCount(count || 0);
     setLoading(false);
   }, [filter, currentPage, pageSize]);
 

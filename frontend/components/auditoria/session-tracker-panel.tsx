@@ -7,7 +7,7 @@ import {
   Clock, User, LogIn, LogOut, Timer,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -37,64 +37,50 @@ export function SessionTrackerPanel() {
 
   useEffect(() => {
     const fetchSessions = async () => {
-      const supabase = createClient();
+      try {
+        const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
 
-      // Traer sesiones de las últimas 48h
-      const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const { data: rawData } = await apiClient.get("/system/crud/shift_sessions", {
+          params: { since: cutoff, limit: 30, include_employee: true, include_shift: true }
+        });
+        const data = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
 
-      const { data } = await supabase
-        .from("shift_sessions")
-        .select(`
-          id,
-          clock_in_at,
-          clock_out_at,
-          status,
-          employees!shift_sessions_employee_id_fkey(
-            first_name,
-            last_name,
-            role
-          ),
-          shift_definitions!shift_sessions_shift_definition_id_fkey(
-            name
-          )
-        `)
-        .gte("clock_in_at", cutoff)
-        
-        .limit(30);
+        if (!data.length) { setLoading(false); return; }
 
-      if (!data) { setLoading(false); return; }
+        // For each session, get action counts from audit logs
+        let countMap = new Map<string, number>();
+        try {
+          const sessionIds = data.map((s: any) => s.id);
+          const { data: actionCounts } = await apiClient.get("/system/crud/audit_logs", {
+            params: { session_ids: sessionIds.join(','), fields: 'session_id' }
+          });
+          const countsData = Array.isArray(actionCounts) ? actionCounts : (actionCounts?.items || actionCounts?.results || []);
+          countsData.forEach((a: any) => {
+            if (a.session_id) {
+              countMap.set(a.session_id, (countMap.get(a.session_id) || 0) + 1);
+            }
+          });
+        } catch { /* audit logs optional */ }
 
-      // Para cada sesión, contar acciones en audit_logs
-      const sessionIds = data.map((s: any) => s.id);
-      const { data: actionCounts } = await supabase
-        .from("audit_logs")
-        .select("session_id")
-        .in("session_id", sessionIds)
-        ;
+        const processed: ShiftSessionInfo[] = data.map((s: any) => {
+          const emp = s.employees || s.employee;
+          const shift = s.shift_definitions || s.shift;
+          return {
+            id: s.id,
+            employee_name: emp ? `${emp.first_name} ${emp.last_name}` : (s.employee_name || "Desconocido"),
+            employee_role: emp?.role || s.employee_role || "—",
+            shift_name: shift?.name || s.shift_name || "Sin turno",
+            clock_in_at: s.clock_in_at,
+            clock_out_at: s.clock_out_at,
+            status: s.status,
+            total_actions: countMap.get(s.id) || 0,
+          };
+        });
 
-      const countMap = new Map<string, number>();
-      (actionCounts || []).forEach((a: any) => {
-        if (a.session_id) {
-          countMap.set(a.session_id, (countMap.get(a.session_id) || 0) + 1);
-        }
-      });
-
-      const processed: ShiftSessionInfo[] = data.map((s: any) => {
-        const emp = s.employees as any;
-        const shift = s.shift_definitions as any;
-        return {
-          id: s.id,
-          employee_name: emp ? `${emp.first_name} ${emp.last_name}` : "Desconocido",
-          employee_role: emp?.role || "—",
-          shift_name: shift?.name || "Sin turno",
-          clock_in_at: s.clock_in_at,
-          clock_out_at: s.clock_out_at,
-          status: s.status,
-          total_actions: countMap.get(s.id) || 0,
-        };
-      });
-
-      setSessions(processed);
+        setSessions(processed);
+      } catch (error) {
+        console.error("Error fetching sessions:", error);
+      }
       setLoading(false);
     };
 

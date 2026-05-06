@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { apiClient } from '@/lib/api/client';
 import {
     sendNotificationToGuest,
     sendNotificationToRoom,
@@ -17,12 +17,17 @@ import {
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
         // Verify staff authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const userRes = await apiClient.get('/system/auth/me', {
+            headers: { Authorization: authHeader }
+        }).catch((e: any) => ({ data: null }));
+        const user = userRes.data;
 
-        if (authError || !user) {
+        if (!user) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }

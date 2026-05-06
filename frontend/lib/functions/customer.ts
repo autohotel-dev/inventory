@@ -1,7 +1,7 @@
 /**
  * Funciones para operaciones con clientes
  */
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Customer, CustomerSales } from "@/lib/types/inventory";
 import { Result, success, failure } from "@/lib/types/api";
 import { logger } from "@/lib/utils/logger";
@@ -12,28 +12,17 @@ import { logger } from "@/lib/utils/logger";
  * @returns Resultado con el cliente o error
  */
 export async function getCustomerResult(id: string): Promise<Result<Customer>> {
-    const supabase = createClient();
-
     logger.debug("Fetching customer", { customerId: id });
 
     try {
-        const { data: customersData, error: customersError } = await supabase
-            .from("customers")
-            .select("*")
-            
-            .maybeSingle();
+        const { data } = await apiClient.get(`/system/crud/customers/${id}`);
 
-        if (customersError) {
-            logger.error("Error fetching customer", { customerId: id, error: customersError });
-            return failure("No se pudo obtener el cliente", "CUSTOMER_FETCH_ERROR");
-        }
-
-        if (!customersData) {
+        if (!data) {
             logger.warn("Customer not found", { customerId: id });
             return failure("Cliente no encontrado", "CUSTOMER_NOT_FOUND");
         }
 
-        return success(customersData as Customer);
+        return success(data as Customer);
     } catch (error) {
         logger.error("Unexpected error fetching customer", error);
         return failure("Error inesperado al obtener cliente", "CUSTOMER_FETCH_EXCEPTION");
@@ -56,22 +45,12 @@ export async function getCustomer(id: string): Promise<Customer | null> {
  * @returns Resultado con el array de clientes o error
  */
 export async function getCustomersResult(): Promise<Result<Customer[]>> {
-    const supabase = createClient();
-
     logger.debug("Fetching all customers");
 
     try {
-        const { data: customersData, error: customersError } = await supabase
-            .from("customers")
-            .select("*")
-            ;
-
-        if (customersError) {
-            logger.error("Error fetching customers", customersError);
-            return failure("No se pudieron obtener los clientes", "CUSTOMERS_FETCH_ERROR");
-        }
-
-        return success((customersData as Customer[]) || []);
+        const { data } = await apiClient.get("/system/crud/customers");
+        const result = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        return success(result as Customer[]);
     } catch (error) {
         logger.error("Unexpected error fetching customers", error);
         return failure("Error inesperado al obtener clientes", "CUSTOMERS_FETCH_EXCEPTION");
@@ -94,23 +73,14 @@ export async function getCustomers(): Promise<Customer[]> {
  * @returns Resultado con el array de ventas o error
  */
 export async function getCustomerSalesResult(customerId: string): Promise<Result<CustomerSales[]>> {
-    const supabase = createClient();
-
     logger.debug("Fetching customer sales", { customerId });
 
     try {
-        const { data: customerSalesData, error: customerSalesError } = await supabase
-            .from("sales_orders")
-            .select("*")
-            
-            ;
-
-        if (customerSalesError) {
-            logger.error("Error fetching customer sales", { customerId, error: customerSalesError });
-            return failure("No se pudieron obtener las ventas del cliente", "CUSTOMER_SALES_FETCH_ERROR");
-        }
-
-        return success((customerSalesData as CustomerSales[]) || []);
+        const { data } = await apiClient.get("/system/crud/sales_orders", {
+            params: { customer_id: customerId }
+        });
+        const result = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        return success(result as CustomerSales[]);
     } catch (error) {
         logger.error("Unexpected error fetching customer sales", error);
         return failure("Error inesperado al obtener ventas", "CUSTOMER_SALES_FETCH_EXCEPTION");

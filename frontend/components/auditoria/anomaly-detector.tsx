@@ -15,7 +15,7 @@ import {
   Clock
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -78,31 +78,30 @@ export function AnomalyDetector() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const detectAnomalies = async () => {
-    const supabase = createClient();
-    
     try {
-      // Llamar a la función de detección de anomalías
-      const { data, error } = await supabase.rpc('detect_payment_anomalies');
+      // Call anomaly detection endpoint
+      const { data: rawData } = await apiClient.get("/system/crud/audit_logs", { params: { event_type: 'PAYMENT_ANOMALY', limit: 100 } });
+      const data = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
       
-      if (error) throw error;
-      
-      // Transformar datos al formato esperado
-      const transformedAnomalies = (data || []).map((anomaly: any) => ({
+      // Transform to expected format
+      const transformedAnomalies = data.map((anomaly: any) => ({
         id: `${anomaly.payment_id}-${anomaly.anomaly_type}`,
         payment_id: anomaly.payment_id,
         anomaly_type: anomaly.anomaly_type,
         description: anomaly.description,
         severity: anomaly.severity,
-        detected_at: new Date().toISOString(),
+        detected_at: anomaly.detected_at || new Date().toISOString(),
         metadata: anomaly
       }));
       
       setAnomalies(transformedAnomalies);
     } catch (error) {
       console.error('Error detecting anomalies:', error);
-      // Fallback: detectar anomalías manualmente
-      const manualAnomalies = await detectManualAnomalies();
-      setAnomalies(manualAnomalies);
+      // Fallback: manual detection
+      try {
+        const manualAnomalies = await detectManualAnomalies();
+        setAnomalies(manualAnomalies);
+      } catch { /* silent fallback */ }
     } finally {
       setLoading(false);
       setLastRefresh(new Date());
@@ -110,29 +109,33 @@ export function AnomalyDetector() {
   };
 
   const detectManualAnomalies = async (): Promise<Anomaly[]> => {
-    const supabase = createClient();
     const anomalies: Anomaly[] = [];
     
-    // Detectar pagos sin collected_by pero con método != EFECTIVO
-    const { data: paymentsWithoutCollector } = await supabase
-      .from("payments")
-      .select("id, payment_method, amount, created_at")
-      .is("collected_by", null)
-      .neq("payment_method", "EFECTIVO")
-      
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-    paymentsWithoutCollector?.forEach((payment: any) => {
-      anomalies.push({
-        id: `${payment.id}-missing-collector`,
-        payment_id: payment.id,
-        anomaly_type: 'MISSING_COLLECTED_BY',
-        description: `Pago de ${payment.payment_method} por $${payment.amount} sin información de cobrador`,
-        severity: 'WARNING',
-        detected_at: payment.created_at,
-        metadata: payment
+    try {
+      // Detect payments without collector
+      const { data: rawPayments } = await apiClient.get("/system/crud/payments", {
+        params: {
+          collected_by: 'null',
+          payment_method_neq: 'EFECTIVO',
+          since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        }
       });
-    });
+      const paymentsWithoutCollector = Array.isArray(rawPayments) ? rawPayments : (rawPayments?.items || rawPayments?.results || []);
+
+      paymentsWithoutCollector.forEach((payment: any) => {
+        anomalies.push({
+          id: `${payment.id}-missing-collector`,
+          payment_id: payment.id,
+          anomaly_type: 'MISSING_COLLECTED_BY',
+          description: `Pago de ${payment.payment_method} por $${payment.amount} sin información de cobrador`,
+          severity: 'WARNING',
+          detected_at: payment.created_at,
+          metadata: payment
+        });
+      });
+    } catch (err) {
+      console.error('Error in manual anomaly detection:', err);
+    }
 
     return anomalies;
   };

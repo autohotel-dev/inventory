@@ -19,7 +19,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -110,29 +110,11 @@ export function PaymentFlowTracer() {
     setFlowSteps([]);
 
     try {
-      const supabase = createClient();
-
       // Buscar detalles del pago
-      const { data: payment, error: paymentError } = await supabase
-        .from("payments")
-        .select(`
-          *,
-          sales_orders!inner (
-            room_id,
-            rooms!inner (
-              number
-            )
-          )
-        `)
-        .eq("id", searchQuery.trim())
-        .single();
+      const { data: payment } = await apiClient.get(`/system/crud/payments/${searchQuery.trim()}`);
 
-      if (paymentError) {
-        if (paymentError.code === 'PGRST116') {
-          setError('Pago no encontrado');
-        } else {
-          throw paymentError;
-        }
+      if (!payment) {
+        setError('Pago no encontrado');
         return;
       }
 
@@ -145,22 +127,25 @@ export function PaymentFlowTracer() {
         created_at: payment.created_at,
         collected_by: payment.collected_by,
         shift_session_id: payment.shift_session_id,
-        room_number: payment.sales_orders?.rooms?.number
+        room_number: payment.room_number || payment.sales_orders?.rooms?.number
       });
 
       // Buscar eventos de auditoría relacionados
-      const { data: auditEvents } = await supabase
-        .from("audit_logs")
-        .select("*")
-        .eq("entity_id", searchQuery.trim())
-        .eq("entity_type", "PAYMENT")
-        .order("created_at", { ascending: true });
+      try {
+        const { data: auditRaw } = await apiClient.get("/system/crud/audit_logs", {
+          params: { entity_id: searchQuery.trim(), entity_type: "PAYMENT", order_by: "created_at" }
+        });
+        const auditEvents = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.items || auditRaw?.results || []);
+        setFlowSteps(auditEvents);
+      } catch { /* audit logs optional */ }
 
-      setFlowSteps(auditEvents || []);
-
-    } catch (err) {
-      console.error('Error searching payment:', err);
-      setError('Error al buscar el pago');
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setError('Pago no encontrado');
+      } else {
+        console.error('Error searching payment:', err);
+        setError('Error al buscar el pago');
+      }
     } finally {
       setLoading(false);
     }

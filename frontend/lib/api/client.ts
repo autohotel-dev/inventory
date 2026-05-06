@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { telemetry } from '@/lib/telemetry';
 
-// Helper for telemetry module detection (copied from supabase wrapper)
+// Helper for telemetry module detection
 function getModuleNameFromUrl(url: string): string {
   if (typeof window !== 'undefined') {
     const pathname = window.location.pathname;
@@ -101,3 +101,31 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Helper para de-duplicar y cachear llamadas a /system/auth/me en el frontend
+let _authPromise: Promise<any> | null = null;
+let _cachedAuthData: any = null;
+let _lastAuthTime = 0;
+const AUTH_CACHE_TTL = 1000 * 5; // 5 segundos
+
+export async function fetchAuthUserDeduped() {
+  const now = Date.now();
+  if (_cachedAuthData && (now - _lastAuthTime) < AUTH_CACHE_TTL) {
+    return { data: _cachedAuthData };
+  }
+  
+  if (!_authPromise) {
+    _authPromise = apiClient.get('/system/auth/me')
+      .then(res => {
+        _cachedAuthData = res.data;
+        _lastAuthTime = Date.now();
+        _authPromise = null;
+        return res;
+      })
+      .catch(err => {
+        _authPromise = null;
+        throw err;
+      });
+  }
+  return _authPromise;
+}

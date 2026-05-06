@@ -1,4 +1,4 @@
-import { createClient } from "./supabase/client";
+import { apiClient } from "@/lib/api/client";
 
 export type AuditAction =
   | "INSERT"
@@ -42,8 +42,6 @@ interface AuditOptions {
  */
 export async function logAudit(action: AuditAction, options: AuditOptions = {}) {
   try {
-    const supabase = createClient();
-
     let eventType = "SYSTEM_EVENT";
     let entityType = options.tableName ?? "system";
     
@@ -68,21 +66,17 @@ export async function logAudit(action: AuditAction, options: AuditOptions = {}) 
       entityId = crypto.randomUUID();
     }
 
-    const { error } = await supabase.rpc("log_audit", {
-      p_event_type: eventType,
-      p_entity_type: entityType,
-      p_entity_id: entityId,
-      p_action: action,
-      p_description: options.description ?? null,
-      p_old_data: options.oldData ?? null,
-      p_new_data: options.newData ?? null,
-      p_metadata: options.metadata ?? {},
-      p_severity: options.severity ?? "INFO",
+    await apiClient.post("/system/crud/audit_logs", {
+      event_type: eventType,
+      entity_type: entityType,
+      entity_id: entityId,
+      action,
+      description: options.description ?? null,
+      old_data: options.oldData ?? null,
+      new_data: options.newData ?? null,
+      metadata: options.metadata ?? {},
+      severity: options.severity ?? "INFO",
     });
-
-    if (error) {
-      console.error("[audit-logger] Error:", error.message);
-    }
   } catch (err) {
     console.error("[audit-logger] Unexpected error:", err);
   }

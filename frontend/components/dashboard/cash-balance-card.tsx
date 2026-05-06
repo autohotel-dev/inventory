@@ -246,7 +246,7 @@ export function CashBalanceCard() {
                                     return;
                                 }
 
-                                const supabase_unused = null; // Migrated to apiClient
+                                // Migrated to apiClient
                                 try {
                                     await apiClient.post('/system/crud/shift_expenses', {
                                         shift_session_id: activeSession?.id,

@@ -1,24 +1,18 @@
 import { NextResponse } from 'next/server';
 import webpush from 'web-push';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api/client';
 
-// Triggered by Supabase Webhook: http://.../api/chat/send-push
-// Payload: { type: 'INSERT', table: 'messages', record: { ... }, old_record: null, schema: 'public' }
+// Triggered by webhook for new chat messages
 
 export async function POST(req: Request) {
     try {
-        const supabaseAdmin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
         webpush.setVapidDetails(
             process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
             process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
             process.env.VAPID_PRIVATE_KEY!
         );
 
-        // Authenticate the webhook source (optional, via a shared secret header)
+        // Authenticate the webhook source
         const secret = req.headers.get('x-webhook-secret');
         if (process.env.CHAT_WEBHOOK_SECRET && secret !== process.env.CHAT_WEBHOOK_SECRET) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -32,50 +26,36 @@ export async function POST(req: Request) {
         }
 
         const message = payload.record;
-
-        // Don't notify the sender
         const senderId = message.user_id;
 
-        // Fetch all generic subscribers EXCEPT the sender
-        // In a real app with "Rooms" or "teams", filter by that.
-        // For global chat: fetch ALL subscriptions where user_id != senderId
-        const { data: subscriptions, error } = await supabaseAdmin
-            .from('chat_subscriptions')
-            .select('*')
-            .neq('user_id', senderId);
-
-        if (error || !subscriptions) {
-            console.error('Error fetching subscriptions:', error);
-            return NextResponse.json({ error: 'Db error' }, { status: 500 });
-        }
+        // Fetch all subscriptions except sender via backend
+        const { data: subsData } = await apiClient.get('/system/crud/chat_subscriptions');
+        const subscriptions = (Array.isArray(subsData) ? subsData : (subsData?.items || subsData?.results || []))
+            .filter((s: any) => s.user_id !== senderId);
 
         const notificationPayload = JSON.stringify({
             title: `Nuevo mensaje de ${message.user_email?.split('@')[0] || 'Usuario'}`,
             body: message.content,
             icon: '/luxor-logo.png',
             data: {
-                url: '/dashboard?chat=open', // Custom logic to open chat
+                url: '/dashboard?chat=open',
                 messageId: message.id
             }
         });
 
         // Send parallel notifications
-        const sendPromises = subscriptions.map(async (sub) => {
+        const sendPromises = subscriptions.map(async (sub: any) => {
             try {
                 await webpush.sendNotification({
                     endpoint: sub.endpoint,
-                    keys: {
-                        auth: sub.auth,
-                        p256dh: sub.p256dh
-                    }
+                    keys: { auth: sub.auth, p256dh: sub.p256dh }
                 }, notificationPayload);
             } catch (err: any) {
                 if (err.statusCode === 410 || err.statusCode === 404) {
-                    // Subscription expired/gone, remove from DB
-                    await supabaseAdmin
-                        .from('chat_subscriptions')
-                        .delete()
-                        ;
+                    // Subscription expired, remove from DB
+                    try {
+                        await apiClient.delete(`/system/crud/chat_subscriptions/${sub.id}`);
+                    } catch {}
                 } else {
                     console.error('Error sending push:', err);
                 }
@@ -85,7 +65,6 @@ export async function POST(req: Request) {
         await Promise.all(sendPromises);
 
         return NextResponse.json({ success: true, count: subscriptions.length });
-
     } catch (e) {
         console.error('Error in send-push:', e);
         return NextResponse.json({ error: 'Server error' }, { status: 500 });

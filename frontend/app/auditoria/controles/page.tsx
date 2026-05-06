@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,39 +98,23 @@ export default function ControlesAuditoriaPage() {
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  const supabase = createClient();
-
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       const offset = (currentPage - 1) * pageSize;
-      const params: any = { p_limit: pageSize, p_offset: offset };
-      if (roomFilter.trim()) params.p_room_number = roomFilter.trim();
-      if (employeeFilter) params.p_employee_id = employeeFilter;
-      if (actionFilter) params.p_action_type = actionFilter;
-      if (dateFrom) params.p_date_from = new Date(dateFrom).toISOString();
-      if (dateTo) params.p_date_to = new Date(dateTo + "T23:59:59").toISOString();
+      const params: any = { limit: pageSize, offset };
+      if (roomFilter.trim()) params.room_number = roomFilter.trim();
+      if (employeeFilter) params.employee_id = employeeFilter;
+      if (actionFilter) params.action_type = actionFilter;
+      if (dateFrom) params.date_from = new Date(dateFrom).toISOString();
+      if (dateTo) params.date_to = new Date(dateTo + "T23:59:59").toISOString();
 
-      // Fetch page data
-      const { data, error } = await supabase.rpc("get_tv_audit_trail", params);
-      if (error) throw error;
-      setLogs(data || []);
+      const { data: rawData, headers } = await apiClient.get("/system/crud/audit_logs", { params });
+      const logsData = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
+      setLogs(logsData);
 
-      // Fetch total count with same filters
-      let countQuery = supabase
-        .from("room_asset_logs")
-        .select("id", { count: "exact", head: true })
-        .not("action_type", "is", null);
-
-      // Apply same filters for count
-      if (roomFilter.trim()) countQuery = countQuery.eq("room_number", roomFilter.trim());
-      if (employeeFilter) countQuery = countQuery.or(`employee_id.eq.${employeeFilter},assigned_to_employee_id.eq.${employeeFilter}`);
-      if (actionFilter) countQuery = countQuery.eq("action_type", actionFilter);
-      if (dateFrom) countQuery = countQuery.gte("created_at", new Date(dateFrom).toISOString());
-      if (dateTo) countQuery = countQuery.lte("created_at", new Date(dateTo + "T23:59:59").toISOString());
-
-      const { count } = await countQuery;
-      setTotalCount(count || 0);
+      const totalFromHeader = headers?.['x-total-count'] || rawData?.total || rawData?.count;
+      setTotalCount(totalFromHeader ? Number(totalFromHeader) : logsData.length);
     } catch (err) {
       console.error("Error fetching audit trail:", err);
     } finally {
@@ -142,12 +126,12 @@ export default function ControlesAuditoriaPage() {
     setStatsLoading(true);
     try {
       const params: any = {};
-      if (dateFrom) params.p_date_from = new Date(dateFrom).toISOString();
-      if (dateTo) params.p_date_to = new Date(dateTo + "T23:59:59").toISOString();
+      if (dateFrom) params.date_from = new Date(dateFrom).toISOString();
+      if (dateTo) params.date_to = new Date(dateTo + "T23:59:59").toISOString();
 
-      const { data, error } = await supabase.rpc("get_tv_audit_stats", params);
-      if (error) throw error;
-      setStats(data || []);
+      const { data: rawData } = await apiClient.get("/system/crud/audit_logs", { params });
+      const statsData = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
+      setStats(statsData);
     } catch (err) {
       console.error("Error fetching audit stats:", err);
     } finally {
@@ -156,13 +140,15 @@ export default function ControlesAuditoriaPage() {
   }, [dateFrom, dateTo]);
 
   const fetchEmployees = useCallback(async () => {
-    const { data } = await supabase
-      .from("employees")
-      .select("id, first_name, last_name")
-      .eq("is_active", true)
-      .ilike("role", "%cochero%")
-      .order("first_name");
-    setEmployees(data || []);
+    try {
+      const { data: rawData } = await apiClient.get("/hr/employees", {
+        params: { role: 'cochero', is_active: true, order_by: 'first_name' }
+      });
+      const empData = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
+      setEmployees(empData);
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+    }
   }, []);
 
   useEffect(() => {

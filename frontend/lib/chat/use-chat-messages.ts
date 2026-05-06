@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { luxorRealtimeClient } from '@/lib/api/websocket';
+import { apiClient } from '@/lib/api/client';import { luxorRealtimeClient } from '@/lib/api/websocket';
 import { ChatMessage } from './chat-types';
 
 const PAGE_SIZE = 50;
@@ -12,7 +11,7 @@ export function useChatMessages(conversationId: string | null) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [hasMore, setHasMore] = useState(true);
-    const supabase = useMemo(() => createClient(), []);
+    // Chat functionality pending migration to FastAPI
 
     // Keep track of the earliest loaded message time for pagination
     const oldestMessageTimeRef = useRef<string | null>(null);
@@ -115,7 +114,7 @@ export function useChatMessages(conversationId: string | null) {
             isMounted = false;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [supabase, conversationId]);
+    }, [conversationId]);
 
     return {
         messages,

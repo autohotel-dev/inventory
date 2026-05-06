@@ -1,50 +1,24 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
 
 // Detectar la URL base según el entorno
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
-    // En el cliente, usar la URL actual
     return window.location.origin;
   }
-  // Fallback a la variable de entorno
   return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 }
 
 export function GoogleLoginButton() {
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = createClient();
 
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
       
-      // Detectar automáticamente si estamos en local o producción
-      const baseUrl = getBaseUrl();
-      const redirectUrl = `${baseUrl}/auth/callback`;
-      
-      console.log('🔍 Google OAuth Debug:');
-      console.log('- Base URL:', baseUrl);
-      console.log('- Redirect URL:', redirectUrl);
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-
-      if (error) {
-        console.error('Error with Google login:', error.message);
-        alert('Error al iniciar sesión con Google: ' + error.message);
-        setIsLoading(false);
-      }
+      const { signInWithRedirect } = await import('aws-amplify/auth');
+      await signInWithRedirect({ provider: 'Google' });
     } catch (error) {
       console.error('Unexpected error:', error);
       alert('Error inesperado al iniciar sesión');

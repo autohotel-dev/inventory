@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,159 +43,151 @@ export function ExportManager() {
   const { success, error: showError } = useToast();
 
   const exportData = async (options: ExportOptions) => {
-    const supabase = createClient();
     setLoading(options.dataType);
 
     try {
       let data: any[] = [];
       let filename = '';
 
+      const fetchList = async (endpoint: string, params: any = {}) => {
+        const res = await apiClient.get(endpoint, { params: { ...params, limit: 100000 } });
+        const raw = res.data;
+        return Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+      };
+
       switch (options.dataType) {
         case 'products':
-          const { data: productsData } = await supabase
-            .from("products")
-            .select(`
-              *,
-              category:categories(name),
-              stock:stock(qty, warehouse:warehouses(name, code))
-            `);
+          const [productsData, stockData, categoriesData] = await Promise.all([
+            fetchList("/products/"),
+            fetchList("/stock/"),
+            fetchList("/categories/"),
+          ]);
 
-          data = (productsData || []).map((product: any) => {
-            const totalStock = product.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const stockByWarehouse = product.stock?.map((s: any) =>
-              `${s.warehouse?.name || 'N/A'}: ${s.qty || 0}`
+          const categoryMap = new Map(categoriesData.map((c: any) => [c.id, c.name]));
+
+          data = productsData.map((product: any) => {
+            const productStock = stockData.filter((s: any) => s.product_id === product.id);
+            const totalStock = productStock.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
+            const stockByWarehouse = productStock.map((s: any) =>
+              `${s.warehouse_name || s.warehouse_id || 'N/A'}: ${s.qty || 0}`
             ).join('; ') || 'Sin stock';
 
             return {
               'SKU': product.sku,
               'Nombre': product.name,
-              'Descripción': product.description || '',
-              'Categoría': product.category?.name || 'Sin categoría',
+              'Descripci\u00f3n': product.description || '',
+              'Categor\u00eda': categoryMap.get(product.category_id) || product.category?.name || 'Sin categor\u00eda',
               'Precio': product.price,
               'Costo': product.cost,
               'Stock Total': totalStock,
-              'Stock Mínimo': product.min_stock,
+              'Stock M\u00ednimo': product.min_stock,
               'Unidad': product.unit,
-              'Stock por Almacén': stockByWarehouse,
-              'Código de Barras': product.barcode || '',
+              'Stock por Almac\u00e9n': stockByWarehouse,
+              'C\u00f3digo de Barras': product.barcode || '',
               'Estado': product.is_active ? 'Activo' : 'Inactivo',
               'Valor Inventario': totalStock * product.price,
               'Margen (%)': product.cost > 0 ? (((product.price - product.cost) / product.cost) * 100).toFixed(2) : '0',
-              'Fecha Creación': new Date(product.created_at).toLocaleDateString()
+              'Fecha Creaci\u00f3n': new Date(product.created_at).toLocaleDateString()
             };
           });
           filename = `productos_${new Date().toISOString().split('T')[0]}`;
           break;
 
         case 'movements':
-          const { data: movementsData } = await supabase
-            .from("inventory_movements")
-            .select(`
-              *,
-              product:products(name, sku),
-              warehouse:warehouses(name, code)
-            `)
-            ;
+          const movementsData = await fetchList("/inventory/movements/");
 
-          data = (movementsData || []).map((movement: any) => ({
+          data = movementsData.map((movement: any) => ({
             'Fecha': new Date(movement.created_at).toLocaleDateString(),
             'Hora': new Date(movement.created_at).toLocaleTimeString(),
-            'Producto': movement.product?.name || 'Producto eliminado',
-            'SKU': movement.product?.sku || 'N/A',
-            'Almacén': movement.warehouse?.name || 'Almacén eliminado',
-            'Código Almacén': movement.warehouse?.code || 'N/A',
+            'Producto': movement.product_name || movement.product?.name || 'Producto eliminado',
+            'SKU': movement.product_sku || movement.product?.sku || 'N/A',
+            'Almac\u00e9n': movement.warehouse_name || movement.warehouse?.name || 'Almac\u00e9n eliminado',
+            'C\u00f3digo Almac\u00e9n': movement.warehouse_code || movement.warehouse?.code || 'N/A',
             'Tipo': movement.movement_type === 'IN' ? 'Entrada' :
               movement.movement_type === 'OUT' ? 'Salida' : 'Ajuste',
             'Cantidad': movement.quantity,
-            'Razón': movement.reason,
+            'Raz\u00f3n': movement.reason,
             'Notas': movement.notes || ''
           }));
           filename = `movimientos_${new Date().toISOString().split('T')[0]}`;
           break;
 
         case 'warehouses':
-          const { data: warehousesData } = await supabase
-            .from("warehouses")
-            .select(`
-              *,
-              stock:stock(qty, product:products(name, price))
-            `);
+          const [warehousesData, whStockData] = await Promise.all([
+            fetchList("/warehouses/"),
+            fetchList("/stock/"),
+          ]);
 
-          data = (warehousesData || []).map((warehouse: any) => {
-            const totalProducts = warehouse.stock?.length || 0;
-            const totalStock = warehouse.stock?.reduce((sum: number, s: any) => sum + (s.qty || 0), 0) || 0;
-            const totalValue = warehouse.stock?.reduce((sum: number, s: any) =>
-              sum + ((s.qty || 0) * (s.product?.price || 0)), 0
-            ) || 0;
+          data = warehousesData.map((warehouse: any) => {
+            const whStock = whStockData.filter((s: any) => s.warehouse_id === warehouse.id);
+            const totalProducts = whStock.length;
+            const totalStock = whStock.reduce((sum: number, s: any) => sum + (s.qty || 0), 0);
+            const totalValue = whStock.reduce((sum: number, s: any) =>
+              sum + ((s.qty || 0) * (s.product_price || 0)), 0
+            );
 
             return {
-              'Código': warehouse.code,
+              'C\u00f3digo': warehouse.code,
               'Nombre': warehouse.name,
-              'Dirección': warehouse.address || '',
+              'Direcci\u00f3n': warehouse.address || '',
               'Estado': warehouse.is_active ? 'Activo' : 'Inactivo',
-              'Productos Únicos': totalProducts,
+              'Productos \u00danicos': totalProducts,
               'Stock Total': totalStock,
               'Valor Total': totalValue.toFixed(2),
-              'Utilización (%)': Math.min((totalProducts / 100) * 100, 100).toFixed(1),
-              'Fecha Creación': new Date(warehouse.created_at).toLocaleDateString()
+              'Utilizaci\u00f3n (%)': Math.min((totalProducts / 100) * 100, 100).toFixed(1),
+              'Fecha Creaci\u00f3n': new Date(warehouse.created_at).toLocaleDateString()
             };
           });
           filename = `almacenes_${new Date().toISOString().split('T')[0]}`;
           break;
 
         case 'suppliers':
-          const { data: suppliersData } = await supabase
-            .from("suppliers")
-            .select("*");
+          const suppliersData = await fetchList("/suppliers/");
 
-          data = (suppliersData || []).map((supplier: any) => ({
+          data = suppliersData.map((supplier: any) => ({
             'Nombre': supplier.name,
             'Email': supplier.email || '',
-            'Teléfono': supplier.phone || '',
-            'Dirección': supplier.address || '',
+            'Tel\u00e9fono': supplier.phone || '',
+            'Direcci\u00f3n': supplier.address || '',
             'Estado': supplier.is_active ? 'Activo' : 'Inactivo',
-            'Fecha Creación': new Date(supplier.created_at).toLocaleDateString()
+            'Fecha Creaci\u00f3n': new Date(supplier.created_at).toLocaleDateString()
           }));
           filename = `proveedores_${new Date().toISOString().split('T')[0]}`;
           break;
 
         case 'analytics':
-          // Crear reporte de analytics
-          const { data: analyticsProducts } = await supabase
-            .from("products")
-            .select(`
-              *,
-              category:categories(name),
-              stock:stock(qty)
-            `);
+          const [analyticsProducts, analyticsStock, analyticsMovements] = await Promise.all([
+            fetchList("/products/"),
+            fetchList("/stock/"),
+            fetchList("/inventory/movements/"),
+          ]);
 
-          const { data: analyticsMovements } = await supabase
-            .from("inventory_movements")
-            .select("*")
-            .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+          // Filter recent movements (last 30 days)
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const recentMovements = analyticsMovements.filter((m: any) => new Date(m.created_at) >= thirtyDaysAgo);
 
-          const totalProducts = analyticsProducts?.length || 0;
-          const totalValue = analyticsProducts?.reduce((sum: number, p: any) => {
-            const stock = p.stock?.reduce((s: number, st: any) => s + (st.qty || 0), 0) || 0;
+          const totalProducts = analyticsProducts.length;
+          const totalValue = analyticsProducts.reduce((sum: number, p: any) => {
+            const stock = analyticsStock.filter((s: any) => s.product_id === p.id).reduce((s: number, st: any) => s + (st.qty || 0), 0);
             return sum + (stock * p.price);
-          }, 0) || 0;
+          }, 0);
 
           const movementsByType = {
-            IN: analyticsMovements?.filter((m: any) => m.movement_type === 'IN').length || 0,
-            OUT: analyticsMovements?.filter((m: any) => m.movement_type === 'OUT').length || 0,
-            ADJUSTMENT: analyticsMovements?.filter((m: any) => m.movement_type === 'ADJUSTMENT').length || 0
+            IN: recentMovements.filter((m: any) => m.movement_type === 'IN').length,
+            OUT: recentMovements.filter((m: any) => m.movement_type === 'OUT').length,
+            ADJUSTMENT: recentMovements.filter((m: any) => m.movement_type === 'ADJUSTMENT').length
           };
 
           data = [{
             'Fecha Reporte': new Date().toLocaleDateString(),
             'Total Productos': totalProducts,
             'Valor Total Inventario': totalValue.toFixed(2),
-            'Movimientos Últimos 30 días': analyticsMovements?.length || 0,
-            'Entradas (30 días)': movementsByType.IN,
-            'Salidas (30 días)': movementsByType.OUT,
-            'Ajustes (30 días)': movementsByType.ADJUSTMENT,
-            'Productos Activos': analyticsProducts?.filter((p: any) => p.is_active).length || 0,
-            'Productos Inactivos': analyticsProducts?.filter((p: any) => !p.is_active).length || 0
+            'Movimientos \u00daltimos 30 d\u00edas': recentMovements.length,
+            'Entradas (30 d\u00edas)': movementsByType.IN,
+            'Salidas (30 d\u00edas)': movementsByType.OUT,
+            'Ajustes (30 d\u00edas)': movementsByType.ADJUSTMENT,
+            'Productos Activos': analyticsProducts.filter((p: any) => p.is_active).length,
+            'Productos Inactivos': analyticsProducts.filter((p: any) => !p.is_active).length
           }];
           filename = `reporte_analytics_${new Date().toISOString().split('T')[0]}`;
           break;

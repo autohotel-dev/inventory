@@ -7,7 +7,7 @@ import {
   ShoppingBag, XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 
 interface MetricCard {
   title: string;

@@ -8,7 +8,7 @@ import {
   Timer, UserPlus, Wrench, Zap, Clock, TrendingUp,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 
 interface EmployeeActivity {
   employee_id: string;
@@ -82,18 +82,15 @@ export function EmployeeActivityPanel() {
 
   useEffect(() => {
     const fetchActivity = async () => {
-      const supabase = createClient();
-      const todayStart = new Date().toISOString().split("T")[0];
+      try {
+        const todayStart = new Date().toISOString().split("T")[0];
 
-      const { data } = await supabase
-        .from("audit_logs")
-        .select("employee_id, employee_name, user_role, action, created_at")
-        
-        
-        .gte("created_at", todayStart)
-        ;
+        const { data: rawData } = await apiClient.get("/system/crud/audit_logs", {
+          params: { since: todayStart, fields: 'employee_id,employee_name,user_role,action,created_at' }
+        });
+        const data = Array.isArray(rawData) ? rawData : (rawData?.items || rawData?.results || []);
 
-      if (!data) { setLoading(false); return; }
+        if (!data.length) { setLoading(false); return; }
 
       // Agrupar por empleado
       const map = new Map<string, EmployeeActivity>();
@@ -141,6 +138,9 @@ export function EmployeeActivityPanel() {
       // Ordenar por total de acciones (más activo primero)
       const sorted = Array.from(map.values()).sort((a, b) => b.total_actions - a.total_actions);
       setEmployees(sorted);
+      } catch (error) {
+        console.error("Error fetching employee activity:", error);
+      }
       setLoading(false);
     };
 

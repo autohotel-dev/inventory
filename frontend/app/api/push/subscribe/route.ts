@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { apiClient } from '@/lib/api/client';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -10,49 +9,39 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 });
         }
 
-        // 1. Verify user is authenticated using standard client
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        // 1. Verify user is authenticated
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const userRes = await apiClient.get('/system/auth/me', {
+            headers: { Authorization: authHeader }
+        }).catch((e: any) => ({ data: null }));
+        const user = userRes.data;
 
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 2. Save subscription using admin client to bypass RLS
-        const adminSupabase = createAdminClient();
+        // 2. Save subscription via backend CRUD
         const targetEmployeeId = employeeId || user.id;
 
-        const { error } = await adminSupabase
-            .from('push_subscriptions')
-            .upsert({
-                employee_id: targetEmployeeId,
-                endpoint: subscription.endpoint, // Extract endpoint for unique constraint
-                subscription: subscription, // Store full object including keys
-                user_agent: req.headers.get('user-agent') || 'unknown',
-                updated_at: new Date().toISOString()
-            }, { 
-                onConflict: 'endpoint'
-            });
-
-        if (error) {
-            console.error('Database Error in Push Subscribe:', {
-                message: error.message,
-                details: error.details,
-                hint: error.hint,
-                code: error.code
-            });
-            return NextResponse.json({ 
-                error: 'Database error', 
-                message: error.message,
-                code: error.code 
-            }, { status: 500 });
-        }
+        await apiClient.post('/system/crud/push_subscriptions', {
+            employee_id: targetEmployeeId,
+            endpoint: subscription.endpoint, // Extract endpoint for unique constraint
+            subscription: subscription, // Store full object including keys
+            user_agent: req.headers.get('user-agent') || 'unknown',
+            updated_at: new Date().toISOString()
+        });
 
         console.log('Push Subscribe Success');
 
         return NextResponse.json({ success: true });
-    } catch (e) {
+    } catch (e: any) {
         console.error('Error in push subscribe route:', e);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ 
+            error: 'Internal server error',
+            message: e?.message
+        }, { status: 500 });
     }
 }

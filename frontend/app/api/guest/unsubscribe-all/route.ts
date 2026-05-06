@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api/client';
 
 export async function POST(request: NextRequest) {
     try {
@@ -14,30 +13,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Use Service Role Key to bypass RLS
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            }
-        );
+        const { data: subsData } = await apiClient.get('/system/crud/guest_subscriptions', {
+            params: { room_number, is_active: true }
+        });
+        
+        const subscriptions = Array.isArray(subsData) ? subsData : (subsData?.items || subsData?.results || []);
 
-        // Mark all active subscriptions for this room as inactive
-        const { error } = await supabase
-            .from('guest_subscriptions')
-            .update({
+        for (const sub of subscriptions) {
+            await apiClient.patch(`/system/crud/guest_subscriptions/${sub.id}`, {
                 is_active: false,
-                updated_at: new Date().toISOString(),
-            })
-            
-            ;
-
-        if (error) {
-            throw error;
+                updated_at: new Date().toISOString()
+            });
         }
 
         return NextResponse.json({

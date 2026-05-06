@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { luxorRealtimeClient } from "@/lib/api/websocket";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, fetchAuthUserDeduped } from "@/lib/api/client";
 
 export interface Notification {
     id: string;
@@ -35,7 +35,7 @@ export function useNotifications(): UseNotificationsReturn {
     const [loading, setLoading] = useState(true);
     const fetchNotifications = useCallback(async () => {
         try {
-            const resAuth = await apiClient.get('/system/auth/me');
+            const resAuth = await fetchAuthUserDeduped();
             const authData = resAuth.data;
             const user = authData?.session?.user || authData?.user || authData;
 
@@ -59,7 +59,7 @@ export function useNotifications(): UseNotificationsReturn {
 
         let unsubscribe = () => {};
 
-        apiClient.get('/system/auth/me').then(resAuth => {
+        fetchAuthUserDeduped().then(resAuth => {
                 const user = resAuth.data?.user || resAuth.data;
                 if (!user) return;
 

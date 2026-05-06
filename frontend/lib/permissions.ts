@@ -3,7 +3,7 @@
  * Provides utilities for checking and managing role-based permissions
  */
 
-import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 export type PermissionType = 'menu' | 'page';
 export type UserRole = 'admin' | 'manager' | 'supervisor' | 'receptionist' | 'cochero' | 'camarista' | 'mantenimiento';
@@ -23,65 +23,48 @@ export interface Permission {
  * Fetch all permissions for a specific role
  */
 export async function getPermissionsByRole(role: UserRole): Promise<Permission[]> {
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-        .from('role_permissions')
-        .select('*')
-        
-        
-        ;
-
-    if (error) {
+    try {
+        const { data } = await apiClient.get("/system/crud/role_permissions", {
+            params: { role }
+        });
+        const result = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        return result;
+    } catch (error) {
         console.error('Error fetching permissions:', error);
         return [];
     }
-
-    return data || [];
 }
 
 /**
  * Fetch menu permissions for a specific role
  */
 export async function getMenuPermissions(role: UserRole): Promise<string[]> {
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-        .from('role_permissions')
-        .select('resource')
-        
-        
-        ;
-
-    if (error) {
+    try {
+        const { data } = await apiClient.get("/system/crud/role_permissions", {
+            params: { role, permission_type: 'menu', allowed: true }
+        });
+        const result = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        return result.map((p: any) => p.resource.replace('menu.', ''));
+    } catch (error) {
         console.error('Error fetching menu permissions:', error);
         return [];
     }
-
-    // Extract resource names (e.g., 'menu.dashboard' -> 'dashboard')
-    return data?.map((p: any) => p.resource.replace('menu.', '')) || [];
 }
 
 /**
  * Fetch page permissions for a specific role
  */
 export async function getPagePermissions(role: UserRole): Promise<string[]> {
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-        .from('role_permissions')
-        .select('resource')
-        
-        
-        ;
-
-    if (error) {
+    try {
+        const { data } = await apiClient.get("/system/crud/role_permissions", {
+            params: { role, permission_type: 'page', allowed: true }
+        });
+        const result = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        return result.map((p: any) => p.resource.replace('page.', ''));
+    } catch (error) {
         console.error('Error fetching page permissions:', error);
         return [];
     }
-
-    // Extract resource names (e.g., 'page./dashboard' -> '/dashboard')
-    return data?.map((p: any) => p.resource.replace('page.', '')) || [];
 }
 
 /**
@@ -92,25 +75,17 @@ export async function hasPermission(
     resource: string,
     type: PermissionType
 ): Promise<boolean> {
-    const supabase = createClient();
-
-    // Construct the full resource identifier
-    const fullResource = type === 'menu' ? `menu.${resource}` : `page.${resource}`;
-
-    const { data, error } = await supabase
-        .from('role_permissions')
-        .select('allowed')
-        
-        
-        
-        ;
-
-    if (error) {
+    try {
+        const fullResource = type === 'menu' ? `menu.${resource}` : `page.${resource}`;
+        const { data } = await apiClient.get("/system/crud/role_permissions", {
+            params: { role, resource: fullResource, limit: 1 }
+        });
+        const results = Array.isArray(data) ? data : (data?.items || data?.results || []);
+        return results.length > 0 ? results[0].allowed : false;
+    } catch (error) {
         console.error('Error checking permission:', error);
         return false;
     }
-
-    return data?.allowed || false;
 }
 
 /**
@@ -122,27 +97,19 @@ export async function updatePermission(
     type: PermissionType,
     allowed: boolean
 ): Promise<boolean> {
-    const supabase = createClient();
-
-    const fullResource = type === 'menu' ? `menu.${resource}` : `page.${resource}`;
-
-    const { error } = await supabase
-        .from('role_permissions')
-        .upsert({
+    try {
+        const fullResource = type === 'menu' ? `menu.${resource}` : `page.${resource}`;
+        await apiClient.post("/system/crud/role_permissions", {
             role,
             resource: fullResource,
             permission_type: type,
             allowed,
-        }, {
-            onConflict: 'role,resource'
         });
-
-    if (error) {
+        return true;
+    } catch (error) {
         console.error('Error updating permission:', error);
         return false;
     }
-
-    return true;
 }
 
 /**
@@ -152,27 +119,23 @@ export async function bulkUpdatePermissions(
     role: UserRole,
     permissions: Array<{ resource: string; type: PermissionType; allowed: boolean }>
 ): Promise<boolean> {
-    const supabase = createClient();
+    try {
+        const formattedPermissions = permissions.map(p => ({
+            role,
+            resource: p.type === 'menu' ? `menu.${p.resource}` : `page.${p.resource}`,
+            permission_type: p.type,
+            allowed: p.allowed,
+        }));
 
-    const formattedPermissions = permissions.map(p => ({
-        role,
-        resource: p.type === 'menu' ? `menu.${p.resource}` : `page.${p.resource}`,
-        permission_type: p.type,
-        allowed: p.allowed,
-    }));
-
-    const { error } = await supabase
-        .from('role_permissions')
-        .upsert(formattedPermissions, {
-            onConflict: 'role,resource'
-        });
-
-    if (error) {
+        // Insert each permission individually via CRUD
+        for (const perm of formattedPermissions) {
+            await apiClient.post("/system/crud/role_permissions", perm);
+        }
+        return true;
+    } catch (error) {
         console.error('Error bulk updating permissions:', error);
         return false;
     }
-
-    return true;
 }
 
 /**

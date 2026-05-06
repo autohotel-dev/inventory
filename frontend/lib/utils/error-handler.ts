@@ -1,4 +1,4 @@
-import { PostgrestError } from "@supabase/supabase-js";
+// Error handler utilities
 
 /**
  * FIX #10: Better error messages

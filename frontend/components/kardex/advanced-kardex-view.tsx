@@ -59,7 +59,7 @@ export function AdvancedKardexView() {
   const fetchProducts = async () => {
     try {
       const { apiClient } = await import("@/lib/api/client");
-      
+
       const [
         { data: productsData },
         { data: stockData },
@@ -115,7 +115,7 @@ export function AdvancedKardexView() {
 
     try {
       const { apiClient } = await import("@/lib/api/client");
-      
+
       const [
         { data: movementsData },
         { data: productData },
@@ -145,8 +145,8 @@ export function AdvancedKardexView() {
           runningBalance = movement.quantity;
         }
 
-        const warehouse = warehousesMap.get(movement.warehouse_id);
-        const reason = reasonsMap.get(movement.reason_id);
+        const warehouse = warehousesMap.get(movement.warehouse_id) as any;
+        const reason = reasonsMap.get(movement.reason_id) as any;
 
         return {
           id: movement.id,

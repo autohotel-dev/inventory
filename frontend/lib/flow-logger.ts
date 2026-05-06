@@ -1,5 +1,4 @@
 import { apiClient } from "@/lib/api/client";
-import { createClient } from "./supabase/client";
 
 // ─── Event Type Catalog ──────────────────────────────────────────────────────
 
@@ -139,21 +138,15 @@ interface CreateFlowOptions {
  */
 export async function getOrCreateFlow(options: CreateFlowOptions): Promise<string | null> {
   try {
-    const supabase = createClient();
-    const { data, error } = await supabase.rpc("create_or_get_flow", {
-      p_room_stay_id: options.room_stay_id,
-      p_sales_order_id: options.sales_order_id || null,
-      p_room_id: options.room_id || null,
-      p_room_number: options.room_number,
-      p_shift_session_id: options.shift_session_id || null,
+    const { data } = await apiClient.post("/system/crud/operation_flows", {
+      room_stay_id: options.room_stay_id,
+      sales_order_id: options.sales_order_id || null,
+      room_id: options.room_id || null,
+      room_number: options.room_number,
+      shift_session_id: options.shift_session_id || null,
     });
 
-    if (error) {
-      console.error("[flow-logger] Error creating/getting flow:", error.message);
-      return null;
-    }
-
-    return data as string;
+    return (data as any)?.id || data as string || null;
   } catch (err) {
     console.error("[flow-logger] Unexpected error in getOrCreateFlow:", err);
     return null;
@@ -169,11 +162,9 @@ export async function getOrCreateFlow(options: CreateFlowOptions): Promise<strin
  */
 export async function logFlowEvent(flowId: string, options: FlowEventOptions): Promise<void> {
   try {
-    const supabase = createClient();
-
     const category = options.event_category || EVENT_CATEGORY_MAP[options.event_type] || "SYSTEM";
 
-    const { error } = await apiClient.post("/system/crud/flow_events", {
+    await apiClient.post("/system/crud/flow_events", {
       flow_id: flowId,
       event_type: options.event_type,
       event_category: category,
@@ -182,11 +173,7 @@ export async function logFlowEvent(flowId: string, options: FlowEventOptions): P
       actor_name: options.actor_name || null,
       actor_role: options.actor_role || null,
       metadata: options.metadata || {},
-    }) as any;
-
-    if (error) {
-      console.error("[flow-logger] Error logging event:", error.message);
-    }
+    });
   } catch (err) {
     console.error("[flow-logger] Unexpected error in logFlowEvent:", err);
   }
@@ -198,15 +185,10 @@ export async function logFlowEvent(flowId: string, options: FlowEventOptions): P
  */
 export async function completeFlow(flowId: string): Promise<void> {
   try {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("operation_flows")
-      .update({ status: "COMPLETADO", completed_at: new Date().toISOString() })
-      ;
-
-    if (error) {
-      console.error("[flow-logger] Error completing flow:", error.message);
-    }
+    await apiClient.patch(`/system/crud/operation_flows/${flowId}`, {
+      status: "COMPLETADO",
+      completed_at: new Date().toISOString(),
+    });
   } catch (err) {
     console.error("[flow-logger] Unexpected error in completeFlow:", err);
   }
@@ -218,15 +200,10 @@ export async function completeFlow(flowId: string): Promise<void> {
  */
 export async function cancelFlow(flowId: string): Promise<void> {
   try {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("operation_flows")
-      .update({ status: "CANCELADO", completed_at: new Date().toISOString() })
-      ;
-
-    if (error) {
-      console.error("[flow-logger] Error cancelling flow:", error.message);
-    }
+    await apiClient.patch(`/system/crud/operation_flows/${flowId}`, {
+      status: "CANCELADO",
+      completed_at: new Date().toISOString(),
+    });
   } catch (err) {
     console.error("[flow-logger] Unexpected error in cancelFlow:", err);
   }
@@ -253,22 +230,11 @@ export async function startFlowWithEvent(
  */
 export async function findActiveFlow(roomStayId: string): Promise<string | null> {
   try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("operation_flows")
-      .select("id")
-      
-      
-      
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error("[flow-logger] Error finding flow:", error.message);
-      return null;
-    }
-
-    return data?.id || null;
+    const { data } = await apiClient.get("/system/crud/operation_flows", {
+      params: { room_stay_id: roomStayId, status: 'EN_CURSO', limit: 1 }
+    });
+    const flows = Array.isArray(data) ? data : (data?.items || data?.results || []);
+    return flows.length > 0 ? flows[0].id : null;
   } catch (err) {
     console.error("[flow-logger] Unexpected error in findActiveFlow:", err);
     return null;

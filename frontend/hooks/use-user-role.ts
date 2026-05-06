@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, fetchAuthUserDeduped } from "@/lib/api/client";
 import { useLuxorRealtime } from "./use-luxor-realtime";
 import { Hub } from "aws-amplify/utils";
 
@@ -43,7 +43,7 @@ export function useUserRole(): UserRoleData {
   const fetchUserRole = useCallback(async () => {
     try {
       // Intentamos obtener el usuario actual mediante el BFF API
-      const { data } = await apiClient.get('/system/auth/me').then(res => ({ data: res.data })).catch(() => ({ data: null }));
+      const { data } = await fetchAuthUserDeduped().then(res => ({ data: res.data })).catch(() => ({ data: null }));
 
       if (data) {
         setRole(data.role as UserRole);

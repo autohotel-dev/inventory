@@ -2,7 +2,7 @@
 import { apiClient } from "@/lib/api/client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +74,6 @@ interface EmployeeRow {
 }
 
 export function ScheduleCalendar() {
-  const supabase = createClient();
   const { success, error: showError } = useToast();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -122,44 +121,34 @@ export function ScheduleCalendar() {
       const startDate = toDateString(weekDays[0]);
       const endDate = toDateString(weekDays[6]);
 
-      const [employeesRes, shiftsRes, schedulesRes] = await Promise.all([
-        supabase
-          .from("employees")
-          .select("*")
-          
-          .in("role", ["receptionist", "manager"])
-          ,
-        supabase
-          .from("shift_definitions")
-          .select("*")
-          
-          ,
-        supabase
-          .from("employee_schedules")
-          .select("*, shift_definitions:shift_definition_id(*)")
-          .gte("schedule_date", startDate)
-          .lte("schedule_date", endDate),
+      const [employeesRes, shiftsRes, schedulesRes] = await Promise.allSettled([
+        apiClient.get("/hr/employees/", { params: { role: "receptionist,manager", limit: 10000 } }),
+        apiClient.get("/system/crud/shift_definitions/", { params: { limit: 100 } }),
+        apiClient.get("/system/crud/employee_schedules/", { params: { start_date: startDate, end_date: endDate, limit: 10000 } }),
       ]);
 
-      if (employeesRes.error) throw employeesRes.error;
-      if (shiftsRes.error) throw shiftsRes.error;
-      if (schedulesRes.error) throw schedulesRes.error;
+      const empData = employeesRes.status === 'fulfilled' ? employeesRes.value.data : [];
+      const shiftData = shiftsRes.status === 'fulfilled' ? shiftsRes.value.data : [];
+      const schedData = schedulesRes.status === 'fulfilled' ? schedulesRes.value.data : [];
 
-      setEmployees(employeesRes.data || []);
-      setShifts(shiftsRes.data || []);
-      setSchedules(schedulesRes.data || []);
+      const empList = Array.isArray(empData) ? empData : (empData?.items || empData?.results || []);
+      const shiftList = Array.isArray(shiftData) ? shiftData : (shiftData?.items || shiftData?.results || []);
+      const schedList = Array.isArray(schedData) ? schedData : (schedData?.items || schedData?.results || []);
+
+      // Filter by role client-side if API doesn't support role filter
+      const filteredEmps = empList.filter((e: any) => ['receptionist', 'manager'].includes(e.role));
+
+      setEmployees(filteredEmps);
+      setShifts(shiftList);
+      setSchedules(schedList);
       setPendingChanges(new Map());
     } catch (err: any) {
       console.error("Error loading data:", err);
-      if (err?.code === "42P01" || err?.message?.includes("does not exist")) {
-        showError("Tablas no encontradas", "Ejecuta el script SQL en Supabase");
-      } else {
-        showError("Error", err?.message || "No se pudieron cargar los datos");
-      }
+      showError("Error", err?.message || "No se pudieron cargar los datos");
     } finally {
       setLoading(false);
     }
-  }, [supabase, weekDays, showError]);
+  }, [weekDays, showError]);
 
   useEffect(() => {
     loadData();
@@ -246,16 +235,12 @@ export function ScheduleCalendar() {
         const shiftDef = shifts.find((s) => s.code === value.shift);
 
         if (existing) {
-          // Actualizar
+          // Actualizar via FastAPI
           operations.push(
-            supabase
-              .from("employee_schedules")
-              .update({
-                shift_definition_id: value.isDayOff ? null : shiftDef?.id,
-                is_day_off: value.isDayOff,
-              })
-              
-              .then()
+            apiClient.put(`/employee-schedules/${existing.id}`, {
+              shift_definition_id: value.isDayOff ? null : shiftDef?.id,
+              is_day_off: value.isDayOff,
+            }).then()
           );
         } else {
           // Insertar

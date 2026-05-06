@@ -2,7 +2,6 @@ import { apiClient } from "@/lib/api/client";
 /**
  * Servicio para operaciones relacionadas con pagos
  */
-import { createClient } from "@/lib/supabase/client";
 import { Result, success, failure } from "@/lib/types/api";
 import {
     PAYMENT_REFERENCE_PREFIX,
@@ -59,32 +58,22 @@ export function generatePaymentReference(
 export async function createPayment(
     data: CreatePaymentData
 ): Promise<Result<string>> {
-    const supabase = createClient();
-
     try {
-        const { data: payment, error } = await supabase
-            .from("payments")
-            .insert({
-                sales_order_id: data.salesOrderId,
-                amount: data.amount,
-                payment_method: data.paymentMethod,
-                reference: data.reference || generatePaymentReference(),
-                concept: data.concept,
-                status: data.status || PAYMENT_STATUS.PAGADO,
-                payment_type: data.paymentType || PAYMENT_TYPE.COMPLETO,
-                ...(data.parentPaymentId && { parent_payment_id: data.parentPaymentId }),
-                ...(data.terminalCode && { terminal_code: data.terminalCode }),
-            })
-            .select("id")
-            ;
+        const { data: payment } = await apiClient.post("/system/crud/payments", {
+            sales_order_id: data.salesOrderId,
+            amount: data.amount,
+            payment_method: data.paymentMethod,
+            reference: data.reference || generatePaymentReference(),
+            concept: data.concept,
+            status: data.status || PAYMENT_STATUS.PAGADO,
+            payment_type: data.paymentType || PAYMENT_TYPE.COMPLETO,
+            ...(data.parentPaymentId && { parent_payment_id: data.parentPaymentId }),
+            ...(data.terminalCode && { terminal_code: data.terminalCode }),
+        });
 
-        if (error) {
-            logger.error("Error creating payment", error);
-            return failure("No se pudo crear el pago", "PAYMENT_CREATE_ERROR");
-        }
-
-        logAudit("INSERT", { tableName: "payments", recordId: payment.id, description: `Pago creado: $${data.amount} (${data.paymentMethod})` });
-        return success(payment.id);
+        const paymentId = (payment as any)?.id;
+        logAudit("INSERT", { tableName: "payments", recordId: paymentId, description: `Pago creado: $${data.amount} (${data.paymentMethod})` });
+        return success(paymentId);
     } catch (error) {
         logger.error("Unexpected error creating payment", error);
         return failure("Error inesperado al crear el pago", "PAYMENT_CREATE_EXCEPTION");
@@ -103,29 +92,24 @@ export async function createMultiPayment(
     payments: ServicePaymentEntry[],
     concept: PaymentConcept
 ): Promise<Result<string>> {
-    const supabase = createClient();
-
     try {
         const validPayments = payments.filter((p) => p.amount > 0);
         const totalAmount = validPayments.reduce((sum, p) => sum + p.amount, 0);
 
         // Crear pago principal
-        const { data: mainPayment, error: mainError } = await supabase
-            .from("payments")
-            .insert({
-                sales_order_id: salesOrderId,
-                amount: totalAmount,
-                payment_method: PAYMENT_METHODS.PENDIENTE,
-                reference: generatePaymentReference(),
-                concept,
-                status: PAYMENT_STATUS.PAGADO,
-                payment_type: PAYMENT_TYPE.COMPLETO,
-            })
-            .select("id")
-            ;
+        const { data: mainPayment } = await apiClient.post("/system/crud/payments", {
+            sales_order_id: salesOrderId,
+            amount: totalAmount,
+            payment_method: PAYMENT_METHODS.PENDIENTE,
+            reference: generatePaymentReference(),
+            concept,
+            status: PAYMENT_STATUS.PAGADO,
+            payment_type: PAYMENT_TYPE.COMPLETO,
+        });
 
-        if (mainError || !mainPayment) {
-            logger.error("Error creating main payment", mainError);
+        const mainPaymentId = (mainPayment as any)?.id;
+        if (!mainPaymentId) {
+            logger.error("Error creating main payment - no ID returned");
             return failure("No se pudo crear el pago principal", "MAIN_PAYMENT_ERROR");
         }
 
@@ -138,23 +122,17 @@ export async function createMultiPayment(
             concept,
             status: PAYMENT_STATUS.PAGADO,
             payment_type: PAYMENT_TYPE.PARCIAL,
-            parent_payment_id: mainPayment.id,
+            parent_payment_id: mainPaymentId,
             ...(p.method === PAYMENT_METHODS.TARJETA && p.terminal
                 ? { terminal_code: p.terminal }
                 : {}),
         }));
 
-        const { error: subError } = await supabase
-            .from("payments")
-            .insert(subpayments);
+        // Batch insert subpayments
+        await apiClient.post("/system/crud/payments", subpayments);
 
-        if (subError) {
-            logger.error("Error creating subpayments", subError);
-            return failure("No se pudieron crear los subpagos", "SUBPAYMENT_ERROR");
-        }
-
-        logAudit("INSERT", { tableName: "payments", recordId: mainPayment.id, description: `Multipago creado: $${totalAmount} (${validPayments.length} pagos)` });
-        return success(mainPayment.id);
+        logAudit("INSERT", { tableName: "payments", recordId: mainPaymentId, description: `Multipago creado: $${totalAmount} (${validPayments.length} pagos)` });
+        return success(mainPaymentId);
     } catch (error) {
         logger.error("Unexpected error creating multi payment", error);
         return failure("Error inesperado al crear el multipago", "MULTIPAYMENT_EXCEPTION");
@@ -162,7 +140,7 @@ export async function createMultiPayment(
 }
 
 /**
- * Procesa un pago usando la función RPC de Supabase
+ * Procesa un pago usando el endpoint de la API
  * @param orderId - ID de la orden
  * @param paymentAmount - Monto del pago
  * @returns Resultado del procesamiento
@@ -171,10 +149,7 @@ export async function processPayment(
     orderId: string,
     paymentAmount: number
 ): Promise<Result<boolean>> {
-    const supabase = createClient();
-
     try {
-        const { apiClient } = await import("@/lib/api/client");
         const response = await apiClient.post('/sales/process-payment', {
             order_id: orderId,
             payment_amount: paymentAmount
