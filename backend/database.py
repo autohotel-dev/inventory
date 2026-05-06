@@ -8,7 +8,7 @@ database_url = os.getenv("DATABASE_URL")
 
 # Engine global de SQLAlchemy
 # Configuramos pool_pre_ping para que reintente conexiones muertas, útil en Serverless
-engine = create_engine(database_url, pool_pre_ping=True) if database_url else None
+engine = create_engine(database_url, pool_pre_ping=True, pool_size=20, max_overflow=30) if database_url else None
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

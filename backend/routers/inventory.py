@@ -293,15 +293,16 @@ def get_inventory_movements(
         ))
         
     total = query.count()
-    items = query.order_by(InventoryMovements.created_at.desc()).offset(page * limit).limit(limit).all()
+    from sqlalchemy.orm import joinedload
+    items = query.order_by(InventoryMovements.created_at.desc()).offset(page * limit).limit(limit).options(
+        joinedload(InventoryMovements.product),
+        joinedload(InventoryMovements.warehouse)
+    ).all()
     
-    # Needs related data format (products, warehouses, users) for frontend compat
-    # We will just return the raw models and let the frontend adapt, or we can format it here.
-    # To keep it simple, we format it.
     formatted_items = []
     for item in items:
-        prod = db.query(Products).filter(Products.id == item.product_id).first()
-        wh = db.query(Warehouses).filter(Warehouses.id == item.warehouse_id).first()
+        prod = item.product
+        wh = item.warehouse
         formatted_items.append({
             **item.__dict__,
             "products": {"name": prod.name if prod else "", "sku": prod.sku if prod else "", "price": prod.price if prod else 0},

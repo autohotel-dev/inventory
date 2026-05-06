@@ -96,7 +96,7 @@ export function AdvancedSalesTable() {
   const fetchEmployees = async () => {
     try {
       const { apiClient } = await import("@/lib/api/client");
-      const { data } = await apiClient.get('/hr/employees/list');
+      const { data } = await apiClient.get('/hr/employees');
       if (data) {
         setEmployees(data);
       }

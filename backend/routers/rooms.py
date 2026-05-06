@@ -44,27 +44,53 @@ from models.rooms import RoomAssets
 
 @router.get("/dashboard", response_model=list[RoomDashboardResponse])
 def get_rooms_dashboard(db: Session = Depends(get_db)):
+    # 1. Fetch base rooms
     rooms = db.query(Rooms).order_by(Rooms.number).all()
+    
+    # 2. Fetch all RoomTypes
+    room_types_list = db.query(RoomTypes).all()
+    room_types_map = {rt.id: rt for rt in room_types_list}
+    
+    # 3. Fetch all TV Remotes
+    tv_remotes_list = db.query(RoomAssets).filter(RoomAssets.asset_type == 'TV_REMOTE').all()
+    tv_remotes_map = {ra.room_id: ra for ra in tv_remotes_list}
+    
+    # 4. Fetch all Active Stays
+    active_stays_list = db.query(RoomStays).filter(RoomStays.status == 'ACTIVA').all()
+    active_stays_map = {stay.room_id: stay for stay in active_stays_list}
+    
+    # Extract sales order IDs
+    sales_order_ids = [stay.sales_order_id for stay in active_stays_list if stay.sales_order_id]
+    
+    # 5. Fetch Orders, Items, and Payments in bulk
+    orders_map = {}
+    items_map = {}
+    payments_map = {}
+    
+    if sales_order_ids:
+        orders_list = db.query(SalesOrders).filter(SalesOrders.id.in_(sales_order_ids)).all()
+        orders_map = {order.id: order for order in orders_list}
+        
+        items_list = db.query(SalesOrderItems).filter(SalesOrderItems.sales_order_id.in_(sales_order_ids)).all()
+        for item in items_list:
+            items_map.setdefault(item.sales_order_id, []).append(item)
+            
+        payments_list = db.query(Payments).filter(Payments.sales_order_id.in_(sales_order_ids)).all()
+        for payment in payments_list:
+            payments_map.setdefault(payment.sales_order_id, []).append(payment)
+    
     dashboard_data = []
 
     for room in rooms:
-        # Relaciones
-        room_type = db.query(RoomTypes).filter(RoomTypes.id == room.room_type_id).first()
-        tv_remote = db.query(RoomAssets).filter(
-            RoomAssets.room_id == room.id, 
-            RoomAssets.asset_type == 'TV_REMOTE'
-        ).first()
-
-        active_stay = db.query(RoomStays).filter(
-            RoomStays.room_id == room.id, 
-            RoomStays.status == 'ACTIVA'
-        ).first()
+        room_type = room_types_map.get(room.room_type_id)
+        tv_remote = tv_remotes_map.get(room.id)
+        active_stay = active_stays_map.get(room.id)
 
         stay_dashboard = None
         if active_stay:
-            order = db.query(SalesOrders).filter(SalesOrders.id == active_stay.sales_order_id).first()
-            items = db.query(SalesOrderItems).filter(SalesOrderItems.sales_order_id == active_stay.sales_order_id).all()
-            payments = db.query(Payments).filter(Payments.sales_order_id == active_stay.sales_order_id).all()
+            order = orders_map.get(active_stay.sales_order_id)
+            items = items_map.get(active_stay.sales_order_id, [])
+            payments = payments_map.get(active_stay.sales_order_id, [])
 
             has_pending_payment = order and (order.remaining_amount or 0) > 0
 

@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
+from fastapi.middleware.gzip import GZipMiddleware
 from routers import system, catalogs, inventory, rooms, sales, hr, services
 from telemetry_middleware import TelemetryMiddleware
 
@@ -9,6 +10,9 @@ app = FastAPI(title="Luxor API", version="1.0.0")
 
 # Telemetría Global
 app.add_middleware(TelemetryMiddleware)
+
+# Compresión GZIP para payloads JSON grandes
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Configurar CORS (ajustar en producción)
 app.add_middleware(
