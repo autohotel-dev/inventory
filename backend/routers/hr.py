@@ -45,6 +45,9 @@ def get_manager_data(
     
     # Get user role
     user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.id).first()
+    if not user_emp and current_user.email:
+        user_emp = db.query(Employees).filter(Employees.email == current_user.email).first()
+        
     user_role = user_emp.role if user_emp else None
     
     return {

@@ -32,7 +32,7 @@ async function getDashboardData() {
       apiClient.get('/system/crud/stock'),
       apiClient.get('/system/crud/purchase_orders?status=OPEN'),
       apiClient.get('/system/crud/sales_orders?status=OPEN'),
-      apiClient.get('/system/crud/inventory_movements?limit=5')
+      apiClient.get('/inventory/movements?limit=5')
     ]);
 
     productsCount = pData?.length || 0;
@@ -40,8 +40,7 @@ async function getDashboardData() {
     poOpen = poData?.length || 0;
     soOpen = soData?.length || 0;
     
-    // Minimal mapping since the relation mapping (products:product_id(sku, name), warehouses...) might be missing if API doesn't expand them
-    lastMoves = movesData || [];
+    lastMoves = movesData?.items || [];
   } catch(e) {}
 
   return {

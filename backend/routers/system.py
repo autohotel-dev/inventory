@@ -691,7 +691,7 @@ def get_auth_me(db: Session = Depends(get_db), current_user: CurrentUser = Depen
     # Verificar turno activo
     active_shift = db.query(ShiftSessions).filter(
         ShiftSessions.employee_id == employee.id,
-        ShiftSessions.status == "open"
+        ShiftSessions.status == "active"
     ).first()
     
     return {
