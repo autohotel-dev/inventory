@@ -160,3 +160,39 @@ class RoomDashboardResponse(BaseModel):
     room_assets: Optional[List[dict]] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+# --- Live Operations ---
+class LiveOperationEventResponse(BaseModel):
+    id: uuid.UUID
+    action: str
+    severity: str
+    createdAt: datetime
+    description: Optional[str] = None
+    metadata: Optional[dict] = None
+    employeeName: Optional[str] = None
+    amount: Optional[float] = None
+    
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+class LiveOperationFlowResponse(BaseModel):
+    id: uuid.UUID
+    visualId: str
+    roomNumber: str
+    status: str
+    checkInAt: datetime
+    checkOutAt: Optional[datetime] = None
+    expectedCheckOutAt: Optional[datetime] = None
+    vehiclePlate: Optional[str] = None
+    valetEmployeeId: Optional[uuid.UUID] = None
+    receptionEmployeeId: Optional[uuid.UUID] = None
+    roomId: Optional[uuid.UUID] = None
+    events: List[LiveOperationEventResponse] = []
+    
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+class RecentShiftResponse(BaseModel):
+    id: uuid.UUID
+    clock_in_at: datetime
+    employees: Optional[dict] = None
+    
+    model_config = ConfigDict(from_attributes=True)

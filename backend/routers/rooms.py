@@ -542,3 +542,71 @@ def get_room_audit_trail(room_number: str, limit: int = 20, offset: int = 0, db:
     finally:
         cursor.close()
         conn.close()
+
+# --- LIVE OPERATIONS ---
+from schemas.rooms import RecentShiftResponse, LiveOperationFlowResponse, LiveOperationEventResponse
+from models.system import OperationFlows, FlowEvents
+from models.hr import ShiftSessions, Employees
+from sqlalchemy.orm import joinedload
+
+@router.get("/shifts/recent-reception", response_model=list[RecentShiftResponse])
+def get_recent_reception_shifts(db: Session = Depends(get_db)):
+    # Traer turnos recientes (preferiblemente de recepcionistas)
+    shifts = db.query(ShiftSessions).join(Employees).filter(
+        Employees.role.ilike('%recep%')
+    ).order_by(ShiftSessions.clock_in_at.desc()).limit(10).all()
+    
+    if not shifts:
+        shifts = db.query(ShiftSessions).order_by(ShiftSessions.clock_in_at.desc()).limit(10).all()
+        
+    return shifts
+
+@router.get("/live-operations/flows", response_model=list[LiveOperationFlowResponse])
+def get_live_operations_flows(status: str = "ALL", shift_id: str = "ALL", db: Session = Depends(get_db)):
+    query = db.query(OperationFlows).options(
+        joinedload(OperationFlows.room_stay),
+        joinedload(OperationFlows.flow_events)
+    )
+    
+    if status and status != "ALL":
+        query = query.filter(OperationFlows.status == status)
+        
+    if shift_id and shift_id != "ALL":
+        query = query.filter(OperationFlows.shift_session_id == shift_id)
+        
+    flows = query.order_by(OperationFlows.started_at.desc()).limit(50).all()
+    
+    result = []
+    for f in flows:
+        flow_resp = LiveOperationFlowResponse(
+            id=f.room_stay_id or f.id,
+            visualId=f"FL-{f.flow_number:05d}",
+            roomNumber=f.room_number,
+            status=f.status,
+            checkInAt=f.started_at,
+            checkOutAt=f.completed_at,
+            receptionEmployeeId=f.created_by,
+            roomId=f.room_id,
+            events=[]
+        )
+        
+        if f.room_stay:
+            flow_resp.expectedCheckOutAt = f.room_stay.expected_check_out_at
+            flow_resp.vehiclePlate = f.room_stay.vehicle_plate
+            flow_resp.valetEmployeeId = f.room_stay.valet_employee_id
+            
+        for ev in sorted(f.flow_events, key=lambda x: x.created_at):
+            flow_resp.events.append(LiveOperationEventResponse(
+                id=ev.id,
+                action=ev.event_type,
+                severity='INFO',
+                createdAt=ev.created_at,
+                description=ev.description,
+                metadata=ev.metadata_,
+                employeeName=ev.actor_name,
+                amount=None
+            ))
+            
+        result.append(flow_resp)
+        
+    return result
