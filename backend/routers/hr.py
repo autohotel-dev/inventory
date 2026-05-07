@@ -726,6 +726,27 @@ def get_income_report(
     return {"entries": entries}
 
 # --- SHIFT CLOSING HISTORY & DETAILS ---
+
+def _safe_serialize(val):
+    """Convierte tipos Python a tipos JSON-safe."""
+    import decimal as _decimal
+    import datetime as _datetime
+    if val is None:
+        return None
+    if isinstance(val, uuid.UUID):
+        return str(val)
+    if isinstance(val, _decimal.Decimal):
+        return float(val)
+    if isinstance(val, (_datetime.datetime, _datetime.date)):
+        return val.isoformat()
+    if isinstance(val, _datetime.time):
+        return str(val)
+    if isinstance(val, dict):
+        return {k: _safe_serialize(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_safe_serialize(v) for v in val]
+    return val
+
 @router.get("/shift-closings/history")
 def get_shift_closings_history(
     page: int = 1,
@@ -735,36 +756,45 @@ def get_shift_closings_history(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    from sqlalchemy import func
-    
-    query = db.query(ShiftClosings)
-    
-    # Simple role check
-    user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.sub).first()
-    is_admin = user_emp and user_emp.role in ["admin", "manager"]
-    
-    if not is_admin and employee_id:
-        query = query.filter(ShiftClosings.employee_id == uuid.UUID(employee_id))
-    elif employee_id:
-        query = query.filter(ShiftClosings.employee_id == uuid.UUID(employee_id))
+    import traceback
+    try:
+        query = db.query(ShiftClosings)
         
-    if status_filter != "all":
-        query = query.filter(ShiftClosings.status == status_filter)
+        # Simple role check
+        user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.sub).first()
+        is_admin = user_emp and user_emp.role in ["admin", "manager"]
         
-    total = query.count()
-    offset = (page - 1) * limit
-    closings = query.order_by(ShiftClosings.created_at.desc()).offset(offset).limit(limit).all()
-    
-    results = []
-    for c in closings:
-        emp = db.query(Employees).filter(Employees.id == c.employee_id).first()
-        shift = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == c.shift_definition_id).first()
-        c_dict = {col.name: getattr(c, col.name) for col in c.__table__.columns}
-        c_dict["employees"] = {"first_name": emp.first_name, "last_name": emp.last_name, "role": emp.role} if emp else None
-        c_dict["shift_definitions"] = {"name": shift.name, "start_time": str(shift.start_time), "end_time": str(shift.end_time)} if shift else None
-        results.append(c_dict)
+        if not is_admin and employee_id:
+            query = query.filter(ShiftClosings.employee_id == uuid.UUID(employee_id))
+        elif employee_id:
+            query = query.filter(ShiftClosings.employee_id == uuid.UUID(employee_id))
+            
+        if status_filter != "all":
+            query = query.filter(ShiftClosings.status == status_filter)
+            
+        total = query.count()
+        offset = (page - 1) * limit
+        closings = query.order_by(ShiftClosings.created_at.desc()).offset(offset).limit(limit).all()
         
-    return {"data": results, "total": total}
+        results = []
+        for c in closings:
+            emp = db.query(Employees).filter(Employees.id == c.employee_id).first()
+            shift = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == c.shift_definition_id).first()
+            
+            c_dict = {}
+            for col in c.__table__.columns:
+                c_dict[col.name] = _safe_serialize(getattr(c, col.name))
+            
+            c_dict["employees"] = {"first_name": emp.first_name, "last_name": emp.last_name, "role": emp.role} if emp else None
+            c_dict["employee_name"] = f"{emp.first_name} {emp.last_name}" if emp else None
+            c_dict["shift_definitions"] = {"name": shift.name, "start_time": str(shift.start_time), "end_time": str(shift.end_time)} if shift else None
+            results.append(c_dict)
+            
+        return {"data": results, "total": total}
+    except Exception as e:
+        print(f"[SHIFT-CLOSINGS-HISTORY] ERROR: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/shift-closings/{id}/details")
 def get_shift_closing_details(id: str, db: Session = Depends(get_db)):
