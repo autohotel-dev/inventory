@@ -17,18 +17,24 @@ import {
 // ─── Types ───────────────────────────────────────────────────────────
 
 interface AuditLog {
-  log_id: string;
+  id?: string;
+  log_id?: string;
   created_at: string;
   room_number: string;
   room_id: string;
-  action_type: string;
-  previous_status: string | null;
-  new_status: string;
-  action_by_name: string;
-  action_by_id: string | null;
-  assigned_to_name: string;
-  assigned_to_id: string | null;
-  notes: string | null;
+  action_type?: string;
+  action?: string;
+  event_type?: string;
+  previous_status?: string | null;
+  new_status?: string;
+  old_data?: any;
+  new_data?: any;
+  action_by_name?: string;
+  employee_name?: string;
+  action_by_id?: string | null;
+  assigned_to_name?: string;
+  assigned_to_id?: string | null;
+  notes?: string | null;
 }
 
 interface AuditStat {
@@ -444,14 +450,14 @@ export default function ControlesAuditoriaPage() {
                       icon: <History size={12} />,
                     };
                     return (
-                      <tr key={log.log_id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                      <tr key={log.id || log.log_id || Math.random().toString()} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
                         <td className="py-3 px-3">
                           <div className="text-xs font-mono text-zinc-400 whitespace-nowrap">
                             {formatTimestamp(log.created_at)}
                           </div>
                         </td>
                         <td className="text-center py-3 px-3">
-                          <span className="text-lg font-black text-white">{log.room_number}</span>
+                          <span className="text-lg font-black text-white">{log.room_number || "—"}</span>
                         </td>
                         <td className="py-3 px-3">
                           <div className={cn(
@@ -464,16 +470,16 @@ export default function ControlesAuditoriaPage() {
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1 text-[10px] font-mono text-zinc-500">
-                            <span>{translateStatus(log.previous_status)}</span>
+                            <span>{translateStatus(log.previous_status || (log.old_data as any)?.status)}</span>
                             <ArrowRight size={10} className="text-zinc-700" />
-                            <span className="font-bold text-zinc-300">{translateStatus(log.new_status)}</span>
+                            <span className="font-bold text-zinc-300">{translateStatus(log.new_status || (log.new_data as any)?.status)}</span>
                           </div>
                         </td>
                         <td className="py-3 px-3">
-                          <span className="text-xs font-bold text-zinc-300">{log.action_by_name}</span>
+                          <span className="text-xs font-bold text-zinc-300">{log.action_by_name || log.employee_name || "Sistema"}</span>
                         </td>
                         <td className="py-3 px-3">
-                          {log.assigned_to_name !== "—" ? (
+                          {(log.assigned_to_name && log.assigned_to_name !== "—") ? (
                             <div className="flex items-center gap-1">
                               <UserCheck size={12} className="text-amber-400" />
                               <span className="text-xs font-bold text-amber-300">{log.assigned_to_name}</span>
