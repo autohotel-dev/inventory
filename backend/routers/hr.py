@@ -547,50 +547,7 @@ def get_receptionist_dashboard_metrics(
 
 from models.hr import ShiftClosings, ShiftClosingDetails, ShiftClosingReviews
 
-@router.get("/shift-closings/history")
-def get_shift_closing_history(
-    page: int = 0,
-    limit: int = 15,
-    employee_id: Optional[str] = None,
-    status: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    query = db.query(ShiftClosings)
-    if employee_id:
-        query = query.filter(ShiftClosings.closed_by == uuid.UUID(employee_id))
-    if status:
-        query = query.filter(ShiftClosings.status == status)
-        
-    total = query.count()
-    items = query.order_by(ShiftClosings.created_at.desc()).offset(page * limit).limit(limit).options(
-        joinedload(ShiftClosings.closed_by_employee),
-        joinedload(ShiftClosings.shift_session).joinedload(ShiftSessions.employee)
-    ).all()
-    
-    results = []
-    for item in items:
-        # Fetch basic details to include in history row
-        details = db.query(ShiftClosingDetails).filter(ShiftClosingDetails.shift_closing_id == item.id).first()
-        review = db.query(ShiftClosingReviews).filter(ShiftClosingReviews.shift_closing_id == item.id).first()
-        
-        results.append({
-            "id": str(item.id),
-            "created_at": item.created_at.isoformat(),
-            "status": item.status,
-            "discrepancy_amount": float(item.discrepancy_amount or 0),
-            "expected_amount": float(item.expected_amount or 0),
-            "declared_amount": float(item.declared_amount or 0),
-            "closed_by_employee": {"first_name": item.closed_by_employee.first_name, "last_name": item.closed_by_employee.last_name} if item.closed_by_employee else None,
-            "shift_session": {
-                "clock_in_at": item.shift_session.clock_in_at.isoformat() if item.shift_session and item.shift_session.clock_in_at else None,
-                "clock_out_at": item.shift_session.clock_out_at.isoformat() if item.shift_session and item.shift_session.clock_out_at else None,
-                "employees": {"first_name": item.shift_session.employee.first_name, "last_name": item.shift_session.employee.last_name} if item.shift_session and item.shift_session.employee else None
-            } if item.shift_session else None,
-            "details": {"cash_declared": float(details.cash_declared)} if details else None,
-            "reviews": [{"status": review.status, "notes": review.notes}] if review else []
-        })
-        
-    return {"items": results, "total": total}
+
 
 @router.get("/shift-closings/{closing_id}")
 def get_shift_closing_single(closing_id: str, db: Session = Depends(get_db)):

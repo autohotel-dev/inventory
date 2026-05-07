@@ -35,7 +35,7 @@ function IncomeReportContent() {
             // 1. Obtener turnos activos via FastAPI
             let activeSessions: any[] = [];
             try {
-                const res = await apiClient.get("/system/crud/shift_sessions/", { params: { status: "active", limit: 50 } });
+                const res = await apiClient.get("/system/crud/shift_sessions/", { params: { status: "active", limit: 50, _expand: "employees" } });
                 const raw = res.data;
                 activeSessions = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
             } catch (e) {
@@ -65,9 +65,9 @@ function IncomeReportContent() {
             // 2. Obtener cierres históricos
             let closedShifts: any[] = [];
             try {
-                const res = await apiClient.get("/hr/shift-closings/", { params: { limit: 50 } });
+                const res = await apiClient.get("/hr/shift-closings/history", { params: { limit: 50 } });
                 const raw = res.data;
-                closedShifts = Array.isArray(raw) ? raw : (raw?.items || raw?.results || []);
+                closedShifts = Array.isArray(raw) ? raw : (raw?.data || raw?.items || raw?.results || []);
             } catch (e) {
                 console.error("Error fetching closed shifts:", e);
             }
@@ -95,16 +95,8 @@ function IncomeReportContent() {
                 };
             })];
 
-            const allowedRoles = ['receptionist'];
-            const filteredShifts = allShifts.filter(s => {
-                if (s.is_current) return true;
-                const empRole = s.employees?.role || s.role;
-                if (empRole) return allowedRoles.includes(empRole);
-                return false;
-            });
-
-            console.log("📊 Filtered shifts:", filteredShifts);
-            setShifts(filteredShifts);
+            console.log("📊 Filtered shifts:", allShifts);
+            setShifts(allShifts);
 
             if (reportType === 'shift' && !selectedShift && activeSession) {
                 setSelectedShift(activeSession.id);

@@ -43,7 +43,8 @@ export function useUserRole(): UserRoleData {
   const fetchUserRole = useCallback(async () => {
     try {
       // Intentamos obtener el usuario actual mediante el BFF API
-      const { data } = await fetchAuthUserDeduped().then(res => ({ data: res.data })).catch(() => ({ data: null }));
+      const res = await fetchAuthUserDeduped();
+      const data = res?.data;
 
       if (data) {
         setRole(data.role as UserRole);
@@ -53,7 +54,7 @@ export function useUserRole(): UserRoleData {
         setUserEmail(data.userEmail);
         setHasActiveShift(data.hasActiveShift);
       } else {
-        // Usuario no autenticado o error
+        // Usuario no autenticado (ej: 401) o sin datos
         setRole(null);
         setEmployeeId(null);
         setEmployeeName(null);
@@ -61,9 +62,20 @@ export function useUserRole(): UserRoleData {
         setUserEmail(null);
         setHasActiveShift(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching user role:", err);
-      setRole("admin"); // Fallback a admin si hay error crítico
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        setRole(null);
+        setEmployeeId(null);
+        setEmployeeName(null);
+        setUserId(null);
+        setUserEmail(null);
+      } else {
+        // Network error o 5xx (ej: reinicio del servidor)
+        // Mantenemos el rol actual si existe, o usamos admin por defecto para evitar
+        // degradar la sesión durante un reinicio transitorio.
+        setRole(prev => prev || "admin");
+      }
       setHasActiveShift(false);
     } finally {
       setIsLoading(false);
