@@ -81,7 +81,7 @@ export function DetailedPerformanceDashboard() {
         if (cocherosRes.status === 'fulfilled') {
           const d = cocherosRes.value.data;
           const items = Array.isArray(d) ? d : (d?.items || d?.results || []);
-          setCocheros(items.map((i: any) => ({
+          setCocheros(items.filter((i: any) => i.role === 'cochero' || i.role === 'valet').map((i: any) => ({
             employee_id: i.id || i.employee_id,
             employee_name: i.name || i.employee_name,
             total_checkins: i.checkIns ?? i.total_checkins ?? 0,
@@ -95,7 +95,7 @@ export function DetailedPerformanceDashboard() {
         if (receptionistsRes.status === 'fulfilled') {
           const d = receptionistsRes.value.data;
           const items = Array.isArray(d) ? d : (d?.items || d?.results || []);
-          setReceptionists(items.map((i: any) => ({
+          setReceptionists(items.filter((i: any) => i.role === 'receptionist').map((i: any) => ({
             employee_id: i.id || i.employee_id,
             employee_name: i.name || i.employee_name,
             total_entries_processed: i.checkIns ?? i.total_entries_processed ?? 0,
@@ -109,7 +109,7 @@ export function DetailedPerformanceDashboard() {
         if (camaristasRes.status === 'fulfilled') {
           const d = camaristasRes.value.data;
           const items = Array.isArray(d) ? d : (d?.items || d?.results || []);
-          setCamaristas(items.map((i: any) => ({
+          setCamaristas(items.filter((i: any) => i.role === 'camarista' || i.role === 'cleaner').map((i: any) => ({
             employee_id: i.id || i.employee_id,
             employee_name: i.name || i.employee_name,
             total_rooms_cleaned: i.checkIns ?? i.total_rooms_cleaned ?? 0,
