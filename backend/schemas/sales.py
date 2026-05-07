@@ -72,6 +72,25 @@ class SalesOrderItemResponse(SalesOrderItemBase):
     total: Optional[Decimal] = None
     is_paid: bool
     paid_at: Optional[datetime] = None
+    delivery_notes: Optional[str] = None
+    payment_method: Optional[str] = None
+    delivery_picked_up_at: Optional[datetime] = None
+    tip_amount: Optional[Decimal] = Decimal('0.00')
+    delivery_picked_up_by: Optional[uuid.UUID] = None
+    shift_session_id: Optional[uuid.UUID] = None
+    payment_amount_received: Optional[Decimal] = None
+    is_cancelled: Optional[bool] = False
+    cancellation_reason: Optional[str] = None
+    delivery_accepted_at: Optional[datetime] = None
+    issue_description: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
+    payment_received_by: Optional[uuid.UUID] = None
+    delivery_accepted_by: Optional[uuid.UUID] = None
+    payment_received_at: Optional[datetime] = None
+    cancelled_by: Optional[uuid.UUID] = None
+    created_at: Optional[datetime] = None
+    tip_method: Optional[str] = None
+    delivery_completed_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,6 +120,9 @@ class SalesOrderResponse(SalesOrderBase):
     updated_at: datetime
     remaining_amount: Optional[Decimal] = Decimal('0.00')
     paid_amount: Optional[Decimal] = Decimal('0.00')
+    order_date: Optional[datetime] = None
+    created_by: Optional[uuid.UUID] = None
+    shift_session_id: Optional[uuid.UUID] = None
     items: List[SalesOrderItemResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
@@ -148,5 +170,14 @@ class PaymentResponse(PaymentBase):
     id: uuid.UUID
     payment_number: Optional[str] = None
     created_at: datetime
+    parent_payment_id: Optional[uuid.UUID] = None
+    confirmed_at: Optional[datetime] = None
+    collected_at: Optional[datetime] = None
+    employee_id: Optional[uuid.UUID] = None
+    notes: Optional[str] = None
+    collected_by: Optional[uuid.UUID] = None
+    tip_amount: Optional[Decimal] = Decimal('0.00')
+    created_by: Optional[uuid.UUID] = None
+    confirmed_by: Optional[uuid.UUID] = None
     
     model_config = ConfigDict(from_attributes=True)

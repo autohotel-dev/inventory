@@ -32,6 +32,11 @@ class EmployeeResponse(EmployeeBase):
     id: uuid.UUID
     created_at: datetime
     auth_user_id: Optional[uuid.UUID] = None
+    role_id: Optional[uuid.UUID] = None
+    updated_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
+    push_token_updated_at: Optional[datetime] = None
+    push_token: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -79,6 +84,8 @@ class EmployeeScheduleUpdate(BaseModel):
 class EmployeeScheduleResponse(EmployeeScheduleBase):
     id: uuid.UUID
     created_at: datetime
+    created_by: Optional[uuid.UUID] = None
+    updated_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,5 +166,12 @@ class ShiftClosingResponse(ShiftClosingBase):
     id: uuid.UUID
     reviewed_at: Optional[datetime] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    transfer_difference: Optional[Decimal] = Decimal('0.00')
+    reviewed_by: Optional[uuid.UUID] = None
+    rejection_reason: Optional[str] = None
+    original_closing_id: Optional[uuid.UUID] = None
+    is_correction: Optional[bool] = False
+    declared_transfer: Optional[Decimal] = Decimal('0.00')
     
     model_config = ConfigDict(from_attributes=True)

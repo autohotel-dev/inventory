@@ -108,6 +108,12 @@ class RoomStayResponse(RoomStayBase):
     checkout_valet_employee_id: Optional[uuid.UUID] = None
     checkout_payment_data: Optional[dict] = None
     sales_orders: Optional[dict] = None
+    tolerance_started_at: Optional[datetime] = None
+    checkout_shift_session_id: Optional[uuid.UUID] = None
+    vehicle_requested_at: Optional[datetime] = None
+    guest_access_token: Optional[str] = None
+    valet_checkout_requested_at: Optional[datetime] = None
+    tolerance_type: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 

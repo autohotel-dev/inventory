@@ -29,6 +29,7 @@ class ProductUpdate(ProductBase):
 class ProductResponse(ProductBase):
     id: uuid.UUID
     created_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -144,6 +145,8 @@ class InventoryMovementResponse(InventoryMovementBase):
     id: uuid.UUID
     created_by: Optional[uuid.UUID]
     created_at: Optional[datetime]
+    reason: Optional[str] = None
+    notes: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
