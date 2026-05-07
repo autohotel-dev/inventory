@@ -747,6 +747,41 @@ def _safe_serialize(val):
         return [_safe_serialize(v) for v in val]
     return val
 
+@router.get("/shift-closings/debug")
+def debug_shift_closings_history(
+    limit: int = 5,
+    db: Session = Depends(get_db)
+):
+    """TEMP DEBUG: endpoint sin auth para diagnosticar el 500."""
+    import logging
+    logger = logging.getLogger("hr.debug")
+    try:
+        logger.error("[DEBUG] Starting shift-closings debug endpoint")
+        
+        total = db.query(ShiftClosings).count()
+        closings = db.query(ShiftClosings).order_by(ShiftClosings.created_at.desc()).limit(limit).all()
+        
+        results = []
+        for i, c in enumerate(closings):
+            emp = db.query(Employees).filter(Employees.id == c.employee_id).first()
+            shift = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == c.shift_definition_id).first()
+            
+            c_dict = {}
+            for col in c.__table__.columns:
+                c_dict[col.name] = _safe_serialize(getattr(c, col.name))
+            
+            c_dict["employees"] = {"first_name": emp.first_name, "last_name": emp.last_name, "role": emp.role} if emp else None
+            c_dict["employee_name"] = f"{emp.first_name} {emp.last_name}" if emp else None
+            c_dict["shift_definitions"] = {"name": shift.name, "start_time": str(shift.start_time), "end_time": str(shift.end_time)} if shift else None
+            results.append(c_dict)
+        
+        return {"data": results, "total": total, "debug": "OK"}
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"[DEBUG] CRASH: {e}\n{tb}")
+        return {"error": str(e), "traceback": tb}
+
 @router.get("/shift-closings/history")
 def get_shift_closings_history(
     page: int = 1,
@@ -756,13 +791,16 @@ def get_shift_closings_history(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    import traceback
+    import logging, traceback
+    logger = logging.getLogger("hr.shift_closings")
     try:
         query = db.query(ShiftClosings)
         
         # Simple role check
+        logger.error(f"[SHIFT-CLOSINGS] current_user.id={current_user.id}")
         user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.id).first()
         is_admin = user_emp and user_emp.role in ["admin", "manager"]
+        logger.error(f"[SHIFT-CLOSINGS] user_emp={user_emp is not None}, is_admin={is_admin}")
         
         if not is_admin and employee_id:
             query = query.filter(ShiftClosings.employee_id == uuid.UUID(employee_id))
@@ -775,6 +813,7 @@ def get_shift_closings_history(
         total = query.count()
         offset = (page - 1) * limit
         closings = query.order_by(ShiftClosings.created_at.desc()).offset(offset).limit(limit).all()
+        logger.error(f"[SHIFT-CLOSINGS] total={total}, fetched={len(closings)}")
         
         results = []
         for c in closings:
@@ -789,11 +828,12 @@ def get_shift_closings_history(
             c_dict["employee_name"] = f"{emp.first_name} {emp.last_name}" if emp else None
             c_dict["shift_definitions"] = {"name": shift.name, "start_time": str(shift.start_time), "end_time": str(shift.end_time)} if shift else None
             results.append(c_dict)
-            
+        
+        logger.error(f"[SHIFT-CLOSINGS] Returning {len(results)} results")
         return {"data": results, "total": total}
     except Exception as e:
-        print(f"[SHIFT-CLOSINGS-HISTORY] ERROR: {e}")
-        traceback.print_exc()
+        tb = traceback.format_exc()
+        logger.error(f"[SHIFT-CLOSINGS] ERROR: {e}\n{tb}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/shift-closings/{id}/details")
