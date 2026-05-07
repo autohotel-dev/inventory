@@ -152,7 +152,7 @@ class TelemetryEvent(BaseModel):
     event_type: str
     component: str
     action: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Any] = None
     level: str = "INFO"
 
 @router.post("/telemetry")
@@ -761,7 +761,7 @@ class TelemetryEventFrontend(BaseModel):
     action_type: str
     action_name: str
     duration_ms: Optional[int] = None
-    payload: Optional[Dict[str, Any]] = None
+    payload: Optional[Any] = None
     endpoint: Optional[str] = None
     is_success: Optional[bool] = None
     error_details: Optional[Any] = None
