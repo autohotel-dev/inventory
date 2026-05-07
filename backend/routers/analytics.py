@@ -228,7 +228,7 @@ def get_room_stays_report(start_date: str, end_date: str):
             LEFT JOIN rooms r ON rs.room_id = r.id
             LEFT JOIN employees vs ON rs.valet_employee_id = vs.id
             LEFT JOIN employees ve ON rs.checkout_valet_employee_id = ve.id
-            LEFT JOIN sales_orders so ON rs.id = so.room_stay_id
+            LEFT JOIN sales_orders so ON rs.sales_order_id = so.id
             WHERE rs.created_at >= %s AND rs.created_at <= %s
         """
         cursor.execute(query, (start_date, f"{end_date}T23:59:59"))
