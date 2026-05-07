@@ -885,7 +885,6 @@ def purge_system(req: PurgeRequest, db: Session = Depends(get_db)):
             "notifications",
             "shift_sessions",
             "shift_closings",
-            "cash_register_shifts",
             "operation_flows",
             "flow_events",
             "room_cleanings"
