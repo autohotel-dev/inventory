@@ -392,7 +392,7 @@ def get_stock_alerts():
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stock s ON p.id = s.product_id
             LEFT JOIN warehouses w ON s.warehouse_id = w.id
-            WHERE p.deleted_at IS NULL
+            WHERE p.is_active = TRUE
         """)
         raw_products = cursor.fetchall()
         
@@ -485,7 +485,7 @@ def get_profitability_report():
             LEFT JOIN categories c ON p.category_id = c.id
             INNER JOIN sales_order_items soi ON p.id = soi.product_id
             INNER JOIN sales_orders so ON soi.sales_order_id = so.id
-            WHERE so.status = 'CLOSED' AND p.deleted_at IS NULL
+            WHERE so.status = 'CLOSED' AND p.is_active = TRUE
         """)
         rows = cursor.fetchall()
         
@@ -606,7 +606,7 @@ def get_dashboard_overview():
             SELECT p.id, p.min_stock, COALESCE(SUM(s.qty), 0) as total_stock
             FROM products p
             LEFT JOIN stock s ON p.id = s.product_id
-            WHERE p.deleted_at IS NULL
+            WHERE p.is_active = TRUE
             GROUP BY p.id, p.min_stock
         """)
         critical_stock_count = 0
@@ -623,7 +623,7 @@ def get_dashboard_overview():
                 SUM(COALESCE(soi.total, soi.qty * soi.unit_price)) as revenue
             FROM sales_order_items soi
             INNER JOIN products p ON soi.product_id = p.id
-            WHERE soi.created_at >= %s AND p.deleted_at IS NULL
+            WHERE soi.created_at >= %s AND p.is_active = TRUE
             GROUP BY p.id, p.name, p.sku
             ORDER BY revenue DESC
             LIMIT 5
