@@ -709,6 +709,7 @@ def get_income_report(
     # Exclude specific rooms
     query = query.filter(Rooms.number.notin_(['13', '113', 'Habitación 13', 'Habitación 113']))
     
+    actual_session_id_str = None
     if report_type == "shift" and shift_id:
         # The frontend may pass a shift_closing.id OR a shift_session.id
         # Try ShiftSessions first, then fall back to ShiftClosings
@@ -722,6 +723,7 @@ def get_income_report(
                 shift = db.query(ShiftSessions).filter(ShiftSessions.id == closing.shift_session_id).first()
         
         if shift:
+            actual_session_id_str = str(shift.id)
             query = query.filter(RoomStays.check_in_at >= shift.clock_in_at)
             if shift.clock_out_at:
                 query = query.filter(RoomStays.check_in_at <= shift.clock_out_at)
@@ -755,9 +757,9 @@ def get_income_report(
             items = order.sales_order_items
             payments = order.payments
             
-        if report_type == "shift" and shift_id:
-            items = [i for i in items if str(i.shift_session_id) == shift_id]
-            payments = [p for p in payments if str(p.shift_session_id) == shift_id]
+        if report_type == "shift" and actual_session_id_str:
+            items = [i for i in items if str(i.shift_session_id) == actual_session_id_str]
+            payments = [p for p in payments if str(p.shift_session_id) == actual_session_id_str]
             
         valid_payments = [p for p in payments if p.status != "PENDIENTE" and (p.concept or "").upper() != "CHECKOUT" and p.payment_method != "PENDIENTE"]
         
