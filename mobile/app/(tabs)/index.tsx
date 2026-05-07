@@ -6,7 +6,8 @@ import { useTheme } from '../../contexts/theme-context';
 import { useFeedback } from '../../contexts/feedback-context';
 import { useValetActions } from '../../hooks/use-valet-actions';
 import { Clock, CheckCircle2, Car, LogOut, ShoppingBag, RefreshCw, ChevronRight, DollarSign, Zap, AlertTriangle, TrendingUp } from 'lucide-react-native';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { useRealtimeSubscription } from '../../lib/api/websocket';
 import * as Haptics from 'expo-haptics';
 
 export default function DashboardScreen() {
@@ -65,65 +66,55 @@ export default function DashboardScreen() {
     const fetchStats = useCallback(async () => {
         try {
             // Habitaciones con estancia activa
-            const { data: rooms } = await supabase
-                .from("rooms")
-                .select(`
-                    id, number,
-                    room_stays!inner(
-                        id, status, vehicle_plate, valet_employee_id,
-                        checkout_valet_employee_id, vehicle_requested_at,
-                        valet_checkout_requested_at
-                    )
-                `)
-                .eq("room_stays.status", "ACTIVA");
-
+            const { data: rooms } = await apiClient.get('/rooms/active-stays');
             const activeRooms = rooms || [];
 
-            const entries = activeRooms.filter(r => {
-                const stay = (r as any).room_stays?.[0];
+            const entries = activeRooms.filter((r: any) => {
+                const stay = r.room_stays?.[0];
                 return stay && !stay.vehicle_plate;
             });
 
-            const inStay = activeRooms.filter(r => {
-                const stay = (r as any).room_stays?.[0];
+            const inStay = activeRooms.filter((r: any) => {
+                const stay = r.room_stays?.[0];
                 return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id;
             }).length;
 
-            const urgents = activeRooms.filter(r => {
-                const stay = (r as any).room_stays?.[0];
+            const urgents = activeRooms.filter((r: any) => {
+                const stay = r.room_stays?.[0];
                 return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id &&
                     (stay.vehicle_requested_at || stay.valet_checkout_requested_at);
             });
 
-            const { count: servicesCount } = await supabase
-                .from('sales_order_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('concept_type', 'CONSUMPTION')
-                .eq('is_paid', false)
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
+            const { data: servicesData } = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    concept_type: 'eq.CONSUMPTION',
+                    is_paid: 'eq.false',
+                    delivery_status: 'not.in.(CANCELLED,COMPLETED,DELIVERED)'
+                }
+            });
 
             setStats({
                 entries: entries.length,
                 inStay,
                 checkouts: urgents.length,
-                services: servicesCount || 0
+                services: servicesData?.length || 0
             });
 
             // Build urgent rooms list for quick actions (entries + urgent checkouts)
             const urgentList = [
-                ...entries.map(r => ({
+                ...entries.map((r: any) => ({
                     id: r.id,
-                    number: (r as any).number,
-                    stayId: (r as any).room_stays?.[0]?.id,
+                    number: r.number,
+                    stayId: r.room_stays?.[0]?.id,
                     type: 'entry' as const,
                     label: 'Entrada pendiente'
                 })),
-                ...urgents.map(r => ({
+                ...urgents.map((r: any) => ({
                     id: r.id,
-                    number: (r as any).number,
-                    stayId: (r as any).room_stays?.[0]?.id,
+                    number: r.number,
+                    stayId: r.room_stays?.[0]?.id,
                     type: 'checkout' as const,
-                    label: (r as any).room_stays?.[0]?.valet_checkout_requested_at ? 'Revisión de salida' : 'Vehículo solicitado'
+                    label: r.room_stays?.[0]?.valet_checkout_requested_at ? 'Revisión de salida' : 'Vehículo solicitado'
                 }))
             ];
             setUrgentRooms(urgentList.slice(0, 5)); // Max 5
@@ -131,54 +122,59 @@ export default function DashboardScreen() {
             // Personal stats (collected money in this shift)
             if (employeeId && hasActiveShift) {
                 // Get active shift session to know start time
-                const { data: session } = await supabase
-                    .from('shift_sessions')
-                    .select('clock_in_at')
-                    .eq('employee_id', employeeId)
-                    .in('status', ['active', 'open'])
-                    .is('clock_out_at', null)
-                    .order('clock_in_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                    params: {
+                        employee_id: `eq.${employeeId}`,
+                        status: 'in.(active,open)',
+                        clock_out_at: 'is.null',
+                        order: 'clock_in_at.desc',
+                        limit: 1
+                    }
+                });
+                const session = sessions?.[0];
 
                 if (session?.clock_in_at) {
                     setShiftStartTime(session.clock_in_at);
 
                     // Payments collected by this employee during this shift
-                    const { data: payments } = await supabase
-                        .from('payments')
-                        .select('amount')
-                        .eq('collected_by', employeeId)
-                        .gte('created_at', session.clock_in_at)
-                        .eq('status', 'COMPLETADO');
+                    const { data: payments } = await apiClient.get('/system/crud/payments', {
+                        params: {
+                            collected_by: `eq.${employeeId}`,
+                            created_at: `gte.${session.clock_in_at}`,
+                            status: 'eq.COMPLETADO'
+                        }
+                    });
 
-                    const totalCollected = (payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+                    const totalCollected = (payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
                     // Count my actions during shift
-                    const { count: myEntries } = await supabase
-                        .from('room_stays')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('valet_employee_id', employeeId)
-                        .gte('check_in_at', session.clock_in_at);
+                    const { data: myEntries } = await apiClient.get('/system/crud/room_stays', {
+                        params: {
+                            valet_employee_id: `eq.${employeeId}`,
+                            check_in_at: `gte.${session.clock_in_at}`
+                        }
+                    });
 
-                    const { count: myCheckouts } = await supabase
-                        .from('room_stays')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('checkout_valet_employee_id', employeeId)
-                        .gte('updated_at', session.clock_in_at);
+                    const { data: myCheckouts } = await apiClient.get('/system/crud/room_stays', {
+                        params: {
+                            checkout_valet_employee_id: `eq.${employeeId}`,
+                            updated_at: `gte.${session.clock_in_at}`
+                        }
+                    });
 
-                    const { count: myServices } = await supabase
-                        .from('sales_order_items')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('delivery_accepted_by', employeeId)
-                        .in('delivery_status', ['DELIVERED', 'COMPLETED'])
-                        .gte('delivery_completed_at', session.clock_in_at);
+                    const { data: myServices } = await apiClient.get('/system/crud/sales_order_items', {
+                        params: {
+                            delivery_accepted_by: `eq.${employeeId}`,
+                            delivery_status: 'in.(DELIVERED,COMPLETED)',
+                            delivery_completed_at: `gte.${session.clock_in_at}`
+                        }
+                    });
 
                     setMyStats({
                         totalCollected,
-                        entriesHandled: myEntries || 0,
-                        checkoutsHandled: myCheckouts || 0,
-                        servicesDelivered: myServices || 0
+                        entriesHandled: myEntries?.length || 0,
+                        checkoutsHandled: myCheckouts?.length || 0,
+                        servicesDelivered: myServices?.length || 0
                     });
                 }
             }
@@ -194,25 +190,22 @@ export default function DashboardScreen() {
         fetchCurrentShift();
         fetchStatsRef.current();
 
-        const channel = supabase.channel('dashboard-stats')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, () => fetchStatsRef.current())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, () => fetchStatsRef.current())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchStatsRef.current())
-            .subscribe();
+        const unsubscribeWS = useRealtimeSubscription('global', () => {
+            fetchStatsRef.current();
+        });
 
         const interval = setInterval(() => fetchStatsRef.current(), 30000);
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribeWS();
             clearInterval(interval);
         };
     }, []);
 
     const fetchCurrentShift = async () => {
-        const { data: shifts } = await supabase
-            .from("shift_definitions")
-            .select("*")
-            .eq("is_active", true);
+        const { data: shifts } = await apiClient.get("/system/crud/shift_definitions", {
+            params: { is_active: 'eq.true' }
+        });
 
         if (!shifts?.length) return;
 
@@ -243,16 +236,13 @@ export default function DashboardScreen() {
         setLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
-            const { error } = await supabase
-                .from("shift_sessions")
-                .insert({
-                    employee_id: employeeId,
-                    shift_definition_id: currentShift.id,
-                    clock_in_at: new Date().toISOString(),
-                    status: "active",
-                });
+            await apiClient.post("/system/crud/shift_sessions", {
+                employee_id: employeeId,
+                shift_definition_id: currentShift.id,
+                clock_in_at: new Date().toISOString(),
+                status: "active",
+            });
 
-            if (error) throw error;
             await refresh();
             showFeedback('¡Bienvenido!', 'Tu turno ha iniciado correctamente');
         } catch (err: any) {

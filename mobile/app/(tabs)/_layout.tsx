@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Home, LayoutDashboard, UserCircle, ShoppingBag, Tv } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { useRealtimeSubscription } from '../../lib/api/websocket';
 import { SyncQueue } from '../../lib/sync-queue';
 import { useUserRole } from '../../hooks/use-user-role';
 
@@ -23,52 +24,45 @@ export default function TabLayout() {
 
     // Conteo liviano de servicios pendientes para el badge del tab
     const fetchPendingCount = useCallback(async () => {
-        // Servicios pendientes
-        const { count: serviceCount } = await supabase
-            .from('sales_order_items')
-            .select('id', { count: 'exact', head: true })
-            .eq('concept_type', 'CONSUMPTION')
-            .is('delivery_accepted_by', null)
-            .eq('is_paid', false)
-            .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
-        setPendingServiceCount(serviceCount || 0);
+        try {
+            // Servicios pendientes
+            const resServices = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    concept_type: 'eq.CONSUMPTION',
+                    delivery_accepted_by: 'is.null',
+                    is_paid: 'eq.false',
+                    delivery_status: 'not.in.(CANCELLED,COMPLETED,DELIVERED)'
+                }
+            });
+            setPendingServiceCount(resServices.data?.length || 0);
 
-        // Habitaciones activas sin vehículo (pendientes de entrada)
-        const { data: rooms } = await supabase
-            .from("rooms")
-            .select(`
-                id,
-                room_stays!inner(
-                    id,
-                    vehicle_plate,
-                    valet_employee_id,
-                    vehicle_requested_at,
-                    valet_checkout_requested_at
-                )
-            `)
-            .eq("room_stays.status", "ACTIVA");
+            // Habitaciones activas sin vehículo (pendientes de entrada)
+            const resRooms = await apiClient.get('/rooms/active-stays'); // Un nuevo endpoint o consulta adaptada
+            // Como no tenemos PostgREST directo igual que Supabase, llamaremos a active-stays si existe
+            // O usaremos /system/crud/room_stays?status=eq.ACTIVA
+            const resStays = await apiClient.get('/system/crud/room_stays', {
+                params: { status: 'eq.ACTIVA' }
+            });
 
-        const activeRooms = rooms || [];
-        const entries = activeRooms.filter(r => {
-            const stay = (r as any).room_stays?.[0];
-            return stay && !stay.vehicle_plate;
-        }).length;
-        const urgentCheckouts = activeRooms.filter(r => {
-            const stay = (r as any).room_stays?.[0];
-            return stay && stay.vehicle_plate && 
-                (stay.vehicle_requested_at || stay.valet_checkout_requested_at);
-        }).length;
-        setPendingEntryCount(entries + urgentCheckouts);
+            const activeStays = resStays.data || [];
+            const entries = activeStays.filter((stay: any) => !stay.vehicle_plate).length;
+            const urgentCheckouts = activeStays.filter((stay: any) => stay.vehicle_plate && 
+                (stay.vehicle_requested_at || stay.valet_checkout_requested_at)).length;
+            setPendingEntryCount(entries + urgentCheckouts);
 
-        // TVs pendientes
-        if (employeeId) {
-            const { count: tvCount } = await supabase
-                .from('room_assets')
-                .select('id', { count: 'exact', head: true })
-                .eq('asset_type', 'TV_REMOTE')
-                .eq('status', 'PENDIENTE_ENCENDIDO')
-                .eq('assigned_employee_id', employeeId);
-            setPendingTvCount(tvCount || 0);
+            // TVs pendientes
+            if (employeeId) {
+                const resTvs = await apiClient.get('/system/crud/room_assets', {
+                    params: {
+                        asset_type: 'eq.TV_REMOTE',
+                        status: 'eq.PENDIENTE_ENCENDIDO',
+                        assigned_employee_id: `eq.${employeeId}`
+                    }
+                });
+                setPendingTvCount(resTvs.data?.length || 0);
+            }
+        } catch (error) {
+            console.error("Error fetching pending counts:", error);
         }
     }, [employeeId]);
 
@@ -85,11 +79,10 @@ export default function TabLayout() {
             timeout = setTimeout(() => fetchRef.current(), 1500);
         };
 
-        const channel = supabase.channel('tab-badge-counts')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_assets' }, debouncedFetch)
-            .subscribe();
+        const unsubscribeWS = useRealtimeSubscription('global', () => {
+            // Recargamos en cualquier actualización en el WS
+            debouncedFetch();
+        });
 
         // Limpiar la cola offline cada que vuelva la conexión
         const unsubscribeNetwork = SyncQueue.setupNetworkListener((count) => {
@@ -98,7 +91,7 @@ export default function TabLayout() {
         });
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribeWS();
             clearTimeout(timeout);
             unsubscribeNetwork();
         };

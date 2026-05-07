@@ -30,3 +30,41 @@ class TelemetryTracker {
 }
 
 export const telemetry = new TelemetryTracker();
+
+// Configurar el "Flusher" que manda los datos cada 5 segundos
+setInterval(async () => {
+  const events = telemetry.getAndClearBuffer();
+  if (events.length === 0) return;
+
+  try {
+    const { apiClient } = await import('./api/client');
+    const { fetchAuthSession } = await import('aws-amplify/auth');
+    
+    let userId = null;
+    try {
+      const session = await fetchAuthSession();
+      userId = session.userSub;
+    } catch {
+      // Ignorar
+    }
+
+    const insertPayload = events.map(event => ({
+      user_id: userId,
+      module: event.module,
+      page: event.page,
+      action_type: event.action_type,
+      action_name: event.action_name,
+      duration_ms: event.duration_ms || null,
+      payload: event.payload || null,
+      endpoint: event.endpoint || null,
+      is_success: event.is_success,
+      error_details: event.error_details || null,
+      created_at: event.timestamp || new Date().toISOString()
+    }));
+
+    // El endpoint de telemetría bulk
+    await apiClient.post('/system/telemetry/bulk', insertPayload);
+  } catch (error) {
+    console.error('[Telemetry Móvil] Fallo al sincronizar:', error);
+  }
+}, 5000);

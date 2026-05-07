@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api/client';
 import { useFeedback } from '../contexts/feedback-context';
 import { PaymentEntry } from '../lib/payment-types';
 
@@ -19,13 +19,11 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         setLoading(true);
         try {
             // UPDATE atómico via RPC para evitar problemas de caché de PostgREST
-            const { data: updated, error } = await supabase.rpc('claim_checkout_valet', {
+            const { data: updated } = await apiClient.post('/system/rpc/claim_checkout_valet', {
                 p_stay_id: stayId,
                 p_valet_id: valetId,
                 p_person_count: personCount
             });
-
-            if (error) throw error;
 
             if (!updated) {
                 showFeedback('Ya asignada', 'Esta salida ya fue procesada por otro cochero', 'error');
@@ -44,21 +42,26 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
             // Obtener nombre del cochero
             let valetName = 'Cochero';
             try {
-                const { data: emp } = await supabase
-                    .from('employees')
-                    .select('first_name')
-                    .eq('id', valetId)
-                    .single();
+                const { data: emps } = await apiClient.get('/system/crud/employees', {
+                    params: {
+                        select: 'first_name',
+                        id: `eq.${valetId}`,
+                        limit: 1
+                    }
+                });
+                const emp = emps?.[0];
                 if (emp?.first_name) valetName = emp.first_name;
             } catch { /* fallback */ }
 
             // Notificar a recepcionistas activos (no-crítico)
             try {
-                const { data: receptionSessions } = await supabase
-                    .from('shift_sessions')
-                    .select('employees!inner(auth_user_id, role)')
-                    .eq('status', 'active')
-                    .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+                const { data: receptionSessions } = await apiClient.get('/system/crud/shift_sessions', {
+                    params: {
+                        select: 'employees!inner(auth_user_id,role)',
+                        status: 'eq.active',
+                        'employees.role': 'in.(receptionist,admin,supervisor,gerente)'
+                    }
+                });
 
                 if (receptionSessions && receptionSessions.length > 0) {
                     const uniqueUserIds = new Set<string>();
@@ -77,7 +80,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                             data: { type: 'CHECKOUT_READY', roomNumber, stayId },
                             is_read: false,
                         }));
-                        await supabase.from('notifications').insert(notifications);
+                        await apiClient.post('/system/crud/notifications', notifications);
                     }
                 }
             } catch (notifErr) {
@@ -105,13 +108,11 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         setLoading(true);
         try {
             // UPDATE atómico via RPC
-            const { data: updated, error } = await supabase.rpc('propose_checkout_valet', {
+            const { data: updated } = await apiClient.post('/system/rpc/propose_checkout_valet', {
                 p_stay_id: stayId,
                 p_valet_id: valetId,
                 p_payments: payments
             });
-
-            if (error) throw error;
 
             if (!updated) {
                 showFeedback('Ya asignada', 'Esta salida ya fue avisada por otro cochero', 'error');
@@ -122,20 +123,21 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
             // Obtener nombre del cochero
             let valetName = 'Cochero';
             try {
-                const { data: emp } = await supabase
-                    .from('employees')
-                    .select('first_name')
-                    .eq('id', valetId)
-                    .single();
+                const { data: emps } = await apiClient.get('/system/crud/employees', {
+                    params: { select: 'first_name', id: `eq.${valetId}`, limit: 1 }
+                });
+                const emp = emps?.[0];
                 if (emp?.first_name) valetName = emp.first_name;
             } catch { /* fallback */ }
 
             // Notificar a recepcionistas activos
-            const { data: receptionSessions } = await supabase
-                .from('shift_sessions')
-                .select('employees!inner(auth_user_id, role)')
-                .eq('status', 'active')
-                .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+            const { data: receptionSessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    select: 'employees!inner(auth_user_id,role)',
+                    status: 'eq.active',
+                    'employees.role': 'in.(receptionist,admin,supervisor,gerente)'
+                }
+            });
 
             if (receptionSessions && receptionSessions.length > 0) {
                 const uniqueUserIds = new Set<string>();
@@ -154,7 +156,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                         data: { type: 'CHECKOUT_REQUESTED', roomNumber, stayId },
                         is_read: false,
                     }));
-                    await supabase.from('notifications').insert(notifications);
+                    await apiClient.post('/system/crud/notifications', notifications);
                 }
             }
 
@@ -181,16 +183,16 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .maybeSingle();
+            const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    employee_id: `eq.${valetId}`,
+                    status: 'eq.active',
+                    limit: 1
+                }
+            });
+            const session = sessions?.[0];
 
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
+            const { data: items } = await apiClient.post('/system/crud/sales_order_items', [{
                     sales_order_id: salesOrderId,
                     concept_type: 'DAMAGE_CHARGE',
                     description: `DAÑO: ${description}`,
@@ -198,14 +200,11 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     qty: 1,
                     total: amount,
                     is_paid: false
-                })
-                .select()
-                .single();
-
-            if (itemError) throw itemError;
+                }]);
+            const item = items?.[0];
 
             for (const p of payments) {
-                const { error: insErr } = await supabase.from('payments').insert({
+                await apiClient.post('/system/crud/payments', [{
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -218,8 +217,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
-                });
-                if (insErr) throw insErr;
+                }]);
             }
 
             showFeedback('✅ Daño Informado', `Hab. ${roomNumber}: Cargo por $${amount.toFixed(2)} generado. Corrobora el cobro en recepción.`);
@@ -243,16 +241,16 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .maybeSingle();
+            const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    employee_id: `eq.${valetId}`,
+                    status: 'eq.active',
+                    limit: 1
+                }
+            });
+            const session = sessions?.[0];
 
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
+            const { data: items } = await apiClient.post('/system/crud/sales_order_items', [{
                     sales_order_id: salesOrderId,
                     concept_type: 'EXTRA_HOUR',
                     description: 'HORA EXTRA (COCHERO)',
@@ -260,14 +258,11 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     qty: 1,
                     total: amount,
                     is_paid: false
-                })
-                .select()
-                .single();
-
-            if (itemError) throw itemError;
+                }]);
+            const item = items?.[0];
 
             for (const p of payments) {
-                const { error: insErr } = await supabase.from('payments').insert({
+                await apiClient.post('/system/crud/payments', [{
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -280,8 +275,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
-                });
-                if (insErr) throw insErr;
+                }]);
             }
 
             showFeedback('✅ Hora Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
@@ -305,16 +299,16 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .maybeSingle();
+            const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    employee_id: `eq.${valetId}`,
+                    status: 'eq.active',
+                    limit: 1
+                }
+            });
+            const session = sessions?.[0];
 
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
+            const { data: items } = await apiClient.post('/system/crud/sales_order_items', [{
                     sales_order_id: salesOrderId,
                     concept_type: 'EXTRA_PERSON',
                     description: 'PERSONA EXTRA (COCHERO)',
@@ -322,14 +316,11 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     qty: 1,
                     total: amount,
                     is_paid: false
-                })
-                .select()
-                .single();
-
-            if (itemError) throw itemError;
+                }]);
+            const item = items?.[0];
 
             for (const p of payments) {
-                const { error: insErr } = await supabase.from('payments').insert({
+                await apiClient.post('/system/crud/payments', [{
                     sales_order_id: salesOrderId,
                     amount: p.amount,
                     payment_method: p.method,
@@ -342,8 +333,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     collected_by: valetId,
                     collected_at: new Date().toISOString(),
                     shift_session_id: session?.id || null,
-                });
-                if (insErr) throw insErr;
+                }]);
             }
 
             showFeedback('✅ Persona Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
@@ -366,23 +356,23 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase.rpc('verify_asset_presence', {
+            const { data } = await apiClient.post('/system/rpc/verify_asset_presence', {
                 p_room_id: roomId,
                 p_asset_type: assetType,
                 p_is_present: isPresent,
                 p_employee_id: employeeId
             });
-
-            if (error) throw error;
             
             if (data?.success) {
                 // Notificar a recepción si no está
                 if (!isPresent) {
-                    const { data: receptionSessions } = await supabase
-                        .from('shift_sessions')
-                        .select('employees!inner(auth_user_id, role)')
-                        .eq('status', 'active')
-                        .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+                    const { data: receptionSessions } = await apiClient.get('/system/crud/shift_sessions', {
+                        params: {
+                            select: 'employees!inner(auth_user_id,role)',
+                            status: 'eq.active',
+                            'employees.role': 'in.(receptionist,admin,supervisor,gerente)'
+                        }
+                    });
 
                     if (receptionSessions && receptionSessions.length > 0) {
                         const uniqueUserIds = new Set<string>();
@@ -401,7 +391,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                                 data: { type: 'ASSET_MISSING', roomId },
                                 is_read: false,
                             }));
-                            await supabase.from('notifications').insert(notifications);
+                            await apiClient.post('/system/crud/notifications', notifications);
                         }
                     }
                 }

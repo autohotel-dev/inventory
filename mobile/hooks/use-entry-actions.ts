@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api/client';
 import { useFeedback } from '../contexts/feedback-context';
 import { PaymentEntry } from '../lib/payment-types';
 import { SyncQueue } from '../lib/sync-queue';
@@ -32,12 +32,10 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
             }
 
             // UPDATE atómico via RPC
-            const { data: updated, error } = await supabase.rpc('claim_entry_valet', {
+            const { data: updated } = await apiClient.post('/system/rpc/claim_entry_valet', {
                 p_stay_id: stayId,
                 p_valet_id: valetId
             });
-
-            if (error) throw error;
 
             if (!updated) {
                 showFeedback('Ya asignada', 'Esta entrada ya fue aceptada por otro cochero', 'error');
@@ -79,54 +77,49 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
 
         try {
             // --- 1. Actualizar room_stay con datos del vehículo ---
-            const { error: stayError } = await supabase
-                .from('room_stays')
-                .update({
-                    vehicle_plate: vehicleData.plate.trim().toUpperCase(),
-                    vehicle_brand: vehicleData.brand.trim(),
-                    vehicle_model: vehicleData.model.trim(),
-                    valet_employee_id: valetId,
-                    current_people: personCount,
-                    total_people: Math.max(personCount, totalPeople || 0),
-                    vehicle_requested_at: null,
-                    valet_checkout_requested_at: null,
-                    checkout_payment_data: payments.map(p => ({
-                        amount: p.amount,
-                        method: p.method,
-                        reference: p.reference,
-                        terminal: p.terminal,
-                        cardType: p.cardType,
-                        cardLast4: p.cardLast4,
-                        concept: 'ENTRADA'
-                    }))
-                })
-                .eq('id', stayId);
-
-            if (stayError) {
-                console.error('Error updating room stay:', stayError);
-                throw stayError;
-            }
+            await apiClient.patch(`/system/crud/room_stays/${stayId}`, {
+                vehicle_plate: vehicleData.plate.trim().toUpperCase(),
+                vehicle_brand: vehicleData.brand.trim(),
+                vehicle_model: vehicleData.model.trim(),
+                valet_employee_id: valetId,
+                current_people: personCount,
+                total_people: Math.max(personCount, totalPeople || 0),
+                vehicle_requested_at: null,
+                valet_checkout_requested_at: null,
+                checkout_payment_data: payments.map(p => ({
+                    amount: p.amount,
+                    method: p.method,
+                    reference: p.reference,
+                    terminal: p.terminal,
+                    cardType: p.cardType,
+                    cardLast4: p.cardLast4,
+                    concept: 'ENTRADA'
+                }))
+            });
 
             // --- 2. Obtener sesión activa ---
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .maybeSingle();
+            const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    employee_id: `eq.${valetId}`,
+                    status: 'eq.active',
+                    limit: 1
+                }
+            });
+            const session = sessions?.[0];
 
             // --- 3. Buscar pago pendiente de ESTANCIA ---
-            const { data: pendingMain, error: pendingMainError } = await supabase
-                .from('payments')
-                .select('id, amount')
-                .eq('sales_order_id', salesOrderId)
-                .eq('concept', 'ESTANCIA')
-                .eq('status', 'PENDIENTE')
-                .is('parent_payment_id', null)
-                .order('created_at', { ascending: true })
-                .maybeSingle();
-
-            if (pendingMainError) throw pendingMainError;
+            const { data: pendingMains } = await apiClient.get('/system/crud/payments', {
+                params: {
+                    select: 'id,amount',
+                    sales_order_id: `eq.${salesOrderId}`,
+                    concept: 'eq.ESTANCIA',
+                    status: 'eq.PENDIENTE',
+                    parent_payment_id: 'is.null',
+                    order: 'created_at.asc',
+                    limit: 1
+                }
+            });
+            const pendingMain = pendingMains?.[0];
 
             if (!pendingMain?.id) {
                 showFeedback('Sin pago pendiente', 'No se encontró el cargo de la estancia.', 'warning');
@@ -141,7 +134,7 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 console.log(`  - Payment ${i}: $${p.amount} - ${p.method}`);
                 
                 if (i === 0) {
-                    const { error: updErr } = await supabase.from('payments').update({
+                    await apiClient.patch(`/system/crud/payments/${pendingMain.id}`, {
                         amount: p.amount,
                         payment_method: p.method,
                         terminal_code: p.terminal,
@@ -152,10 +145,9 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    }).eq('id', pendingMain.id);
-                    if (updErr) throw updErr;
+                    });
                 } else {
-                    const { error: insErr } = await supabase.from('payments').insert({
+                    await apiClient.post('/system/crud/payments', [{
                         sales_order_id: salesOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -170,8 +162,7 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    });
-                    if (insErr) throw insErr;
+                    }]);
                 }
             }
 
@@ -181,13 +172,15 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 console.log(`📦 Generando ${extraCount} conceptos EXTRA_PERSON a $${extraPersonPrice} c/u`);
 
                 // Obtener product_id de servicio (el mismo que usa ROOM_BASE)
-                const { data: existingItem } = await supabase
-                    .from('sales_order_items')
-                    .select('product_id')
-                    .eq('sales_order_id', salesOrderId)
-                    .eq('concept_type', 'ROOM_BASE')
-                    .limit(1)
-                    .maybeSingle();
+                const { data: existingItems } = await apiClient.get('/system/crud/sales_order_items', {
+                    params: {
+                        select: 'product_id',
+                        sales_order_id: `eq.${salesOrderId}`,
+                        concept_type: 'eq.ROOM_BASE',
+                        limit: 1
+                    }
+                });
+                const existingItem = existingItems?.[0];
 
                 const serviceProductId = existingItem?.product_id;
                 if (!serviceProductId) {
@@ -195,47 +188,47 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 } else {
                     for (let i = 0; i < extraCount; i++) {
                         // Crear sales_order_item
-                        const { error: itemErr } = await supabase.from('sales_order_items').insert({
-                            sales_order_id: salesOrderId,
-                            product_id: serviceProductId,
-                            qty: 1,
-                            unit_price: extraPersonPrice,
-                            concept_type: 'EXTRA_PERSON',
-                            is_paid: false,
-                            delivery_status: 'DELIVERED', // Ya está en la habitación
-                        });
-                        if (itemErr) {
+                        try {
+                            await apiClient.post('/system/crud/sales_order_items', [{
+                                sales_order_id: salesOrderId,
+                                product_id: serviceProductId,
+                                qty: 1,
+                                unit_price: extraPersonPrice,
+                                concept_type: 'EXTRA_PERSON',
+                                is_paid: false,
+                                delivery_status: 'DELIVERED', // Ya está en la habitación
+                            }]);
+                        } catch (itemErr) {
                             console.error(`Error creating EXTRA_PERSON item ${i + 1}:`, itemErr);
                         }
 
                         // Crear pago PENDIENTE por persona extra
-                        const { error: payErr } = await supabase.from('payments').insert({
-                            sales_order_id: salesOrderId,
-                            amount: extraPersonPrice,
-                            payment_method: 'PENDIENTE',
-                            concept: 'PERSONA_EXTRA',
-                            status: 'PENDIENTE',
-                            payment_type: 'COMPLETO',
-                            shift_session_id: session?.id || null,
-                        });
-                        if (payErr) {
+                        try {
+                            await apiClient.post('/system/crud/payments', [{
+                                sales_order_id: salesOrderId,
+                                amount: extraPersonPrice,
+                                payment_method: 'PENDIENTE',
+                                concept: 'PERSONA_EXTRA',
+                                status: 'PENDIENTE',
+                                payment_type: 'COMPLETO',
+                                shift_session_id: session?.id || null,
+                            }]);
+                        } catch (payErr) {
                             console.error(`Error creating PERSONA_EXTRA payment ${i + 1}:`, payErr);
                         }
                     }
 
                     // Actualizar totales de la sales_order
                     const extraTotal = extraCount * extraPersonPrice;
-                    const { data: currentOrder } = await supabase
-                        .from('sales_orders')
-                        .select('total, remaining_amount')
-                        .eq('id', salesOrderId)
-                        .single();
+                    const { data: currentOrder } = await apiClient.get(`/system/crud/sales_orders/${salesOrderId}`, {
+                        params: { select: 'total,remaining_amount' }
+                    });
 
                     if (currentOrder) {
-                        await supabase.from('sales_orders').update({
+                        await apiClient.patch(`/system/crud/sales_orders/${salesOrderId}`, {
                             total: (currentOrder.total || 0) + extraTotal,
                             remaining_amount: (currentOrder.remaining_amount || 0) + extraTotal,
-                        }).eq('id', salesOrderId);
+                        });
                     }
 
                     console.log(`✅ ${extraCount} conceptos EXTRA_PERSON creados exitosamente`);
@@ -260,13 +253,11 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase.rpc('confirm_tv_on', {
+            const { data } = await apiClient.post('/system/rpc/confirm_tv_on', {
                 p_room_id: roomId,
                 p_employee_id: employeeId
             });
 
-            if (error) throw error;
-            
             if (data?.success) {
                 showFeedback('TV Encendida', data.message || 'Televisión confirmada como encendida');
                 await onRefresh();

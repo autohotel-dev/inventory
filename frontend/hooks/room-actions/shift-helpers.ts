@@ -96,6 +96,16 @@ export async function getCurrentEmployeeId(_supabase?: any): Promise<string | nu
   }
 }
 
+export async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const { data } = await apiClient.get("/system/auth/me") as any;
+    return data?.userId || null;
+  } catch (err) {
+    console.error("Error getting current user id:", err);
+    return null;
+  }
+}
+
 // ─── Reception Employee ID (uses cached context) ────────────────────
 
 export async function getReceptionEmployeeId(_supabase?: any): Promise<string | null> {

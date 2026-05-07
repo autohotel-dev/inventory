@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { View, Text, TouchableOpacity, RefreshControl, Modal, KeyboardAvoidingView, Platform, Alert, ScrollView, Dimensions, TextInput } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { useRealtimeSubscription } from '../../lib/api/websocket';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useEntryActions } from '../../hooks/use-entry-actions';
 import { useCheckoutActions } from '../../hooks/use-checkout-actions';
@@ -111,23 +112,10 @@ export default function RoomsScreen() {
     const fetchRooms = useCallback(async (quiet = false) => {
         if (!quiet && isInitialLoad) setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from("rooms")
-                .select(`
-                    *,
-                    room_types(*),
-                    room_stays!inner(
-                        *,
-                        sales_orders(
-                            *,
-                            sales_order_items(*)
-                        )
-                    )
-                `)
-                .eq("room_stays.status", "ACTIVA")
-                .order("number");
-
-            if (error) throw error;
+            // El backend tiene un endpoint /rooms/dashboard que ya nos da las habitaciones
+            // o podemos construir una ruta que traiga lo necesario.
+            // Asumiremos que el backend devuelve un arreglo de rooms con la forma esperada.
+            const { data } = await apiClient.get("/rooms/active-stays");
             setRooms(data || []);
         } catch (error) {
             console.error("Error fetching rooms:", error);
@@ -151,16 +139,12 @@ export default function RoomsScreen() {
             timeout = setTimeout(() => fetchRoomsRef.current(true), 1000);
         };
 
-        const channel = supabase.channel('valet-rooms-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, debouncedFetch)
-            .subscribe();
+        const unsubscribeWS = useRealtimeSubscription('global', () => {
+            debouncedFetch();
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribeWS();
             clearTimeout(timeout);
         };
     }, []); // Sin dependencias → se monta UNA sola vez
@@ -517,14 +501,12 @@ export default function RoomsScreen() {
             // Marcar el item como entregado/verificado por el cochero
             // NOTA: No marcamos is_paid: true ni insertamos pagos automáticamente.
             // Recepción verificará el dinero y marcará como pagado.
-            await supabase.from('sales_order_items')
-                .update({
-                    delivery_status: 'DELIVERED',
-                    delivery_completed_at: new Date().toISOString(),
-                    delivery_accepted_by: employeeId,
-                    issue_description: JSON.stringify(metadataWithPayment)
-                })
-                .eq('id', roomChangeItem.id);
+            await apiClient.patch(`/system/crud/sales_order_items/${roomChangeItem.id}`, {
+                delivery_status: 'DELIVERED',
+                delivery_completed_at: new Date().toISOString(),
+                delivery_accepted_by: employeeId,
+                issue_description: JSON.stringify(metadataWithPayment)
+            });
 
             // Feedback visual
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, RefreshControl, ScrollView, Dimensions, Alert, TextInput } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { useRealtimeSubscription } from '../../lib/api/websocket';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useTheme } from '../../contexts/theme-context';
 import { Tv, Search, CheckCircle2, AlertTriangle, ArrowRight, Clock, Zap, ChevronRight, User } from 'lucide-react-native';
@@ -62,12 +63,11 @@ export default function AssetsScreen() {
         if (!employeeId) return;
         setAuditLoading(true);
         try {
-            const { data, error } = await supabase.rpc('get_tv_audit_trail', {
+            const { data } = await apiClient.post('/system/rpc/get_tv_audit_trail', {
                 p_employee_id: employeeId,
                 p_limit: 50,
                 p_offset: 0,
             });
-            if (error) throw error;
             setAuditLogs(data || []);
         } catch (err) {
             console.error('Error fetching audit history:', err);
@@ -79,17 +79,12 @@ export default function AssetsScreen() {
     const fetchRooms = useCallback(async (quiet = false) => {
         if (!quiet) setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from("rooms")
-                .select(`
-                    id,
-                    number,
-                    status,
-                    room_assets ( id, asset_type, status, assigned_employee_id )
-                `)
-                .order("number");
-
-            if (error) throw error;
+            const { data } = await apiClient.get('/system/crud/rooms', {
+                params: {
+                    select: 'id,number,status,room_assets(id,asset_type,status,assigned_employee_id)',
+                    order: 'number'
+                }
+            });
             
             const formattedData = (data || []).map((r: any) => {
                 const tvRemote = r.room_assets?.find((a: any) => a.asset_type === 'TV_REMOTE');
@@ -104,7 +99,7 @@ export default function AssetsScreen() {
             });
             
             // Sort to push missing/unregistered to top if needed, or just by number
-            formattedData.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+            formattedData.sort((a: any, b: any) => parseInt(a.number) - parseInt(b.number));
             
             setRooms(formattedData);
         } catch (error) {
@@ -118,26 +113,21 @@ export default function AssetsScreen() {
     const fetchRoomsRef = useRef(fetchRooms);
     useEffect(() => { fetchRoomsRef.current = fetchRooms; }, [fetchRooms]);
 
-    useEffect(() => {
-        fetchRoomsRef.current();
-
+    const debouncedFetch = useCallback(() => {
         let timeout: NodeJS.Timeout;
-        const debouncedFetch = () => {
+        return () => {
             clearTimeout(timeout);
             timeout = setTimeout(() => fetchRoomsRef.current(true), 800);
         };
+    }, []);
 
-        const channelName = `assets-realtime`;
-        const channel = supabase.channel(channelName)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_assets' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, debouncedFetch)
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('✅ [Assets] Realtime conectado');
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.warn('⚠️ [Assets] Error en canal, usando polling');
-                }
-            });
+    const fetchRoomsThrottled = useMemo(() => debouncedFetch(), [debouncedFetch]);
+
+    // Use Realtime Subscription instead of direct supabase channel
+    const unsubscribeAssets = useRealtimeSubscription('assets-realtime', fetchRoomsThrottled);
+
+    useEffect(() => {
+        fetchRoomsRef.current();
 
         // Polling de respaldo cada 10s
         const pollInterval = setInterval(() => {
@@ -145,11 +135,10 @@ export default function AssetsScreen() {
         }, 10000);
 
         return () => {
-            supabase.removeChannel(channel);
-            clearTimeout(timeout);
+            unsubscribeAssets();
             clearInterval(pollInterval);
         };
-    }, []);
+    }, [unsubscribeAssets]);
 
     const onRefresh = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useTheme } from '../../contexts/theme-context';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { signOut } from 'aws-amplify/auth';
 import { LogOut, User, Mail, Shield, Sun, Moon, Smartphone, RefreshCw, CheckCircle, Wifi } from 'lucide-react-native';
 import { useConfirm } from '../../contexts/confirm-context';
 import { useFeedback } from '../../contexts/feedback-context';
@@ -21,20 +22,21 @@ export default function ProfileScreen() {
                 try {
                     // Auto-close shift if active
                     if (hasActiveShift && employeeId) {
-                        await supabase
-                            .from("shift_sessions")
-                            .update({
-                                clock_out_at: new Date().toISOString(),
-                                status: "pending_closing",
-                            })
-                            .eq("employee_id", employeeId)
-                            .in("status", ["active", "open"])
-                            .is("clock_out_at", null);
+                        await apiClient.patch('/system/crud/shift_sessions', {
+                            clock_out_at: new Date().toISOString(),
+                            status: "pending_closing",
+                        }, {
+                            params: {
+                                employee_id: employeeId,
+                                status: "in.(active,open)",
+                                clock_out_at: "is.null"
+                            }
+                        });
                     }
                 } catch (error) {
                     console.error("Error auto-closing shift:", error);
                 } finally {
-                    await supabase.auth.signOut();
+                    await signOut();
                 }
             },
             { type: 'danger', confirmText: 'Salir', cancelText: 'Cancelar' }

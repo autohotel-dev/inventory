@@ -788,3 +788,38 @@ def resolve_uuids(req: ResolveUuidsRequest, db: Session = Depends(get_db)):
     finally:
         cursor.close()
         conn.close()
+from fastapi import APIRouter, HTTPException, Depends, Body
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from database import get_db
+import json
+
+@router.post("/rpc/{function_name}")
+def execute_rpc(function_name: str, payload: dict = Body(...), db: Session = Depends(get_db)):
+    try:
+        # Prevent SQL injection on function_name by simple validation
+        if not function_name.isidentifier():
+            raise HTTPException(status_code=400, detail="Invalid function name")
+        
+        # Build parameter string
+        params_list = []
+        bind_params = {}
+        for key, value in payload.items():
+            params_list.append(f":{key}")
+            # If value is list/dict, pass it as json string to be cast to jsonb in pg
+            if isinstance(value, (list, dict)):
+                bind_params[key] = json.dumps(value)
+            else:
+                bind_params[key] = value
+                
+        # Some params might need explicit casting, but SQLAlchemy handles basic types
+        param_str = ", ".join([f"{k} := :{k}" for k in bind_params.keys()])
+        
+        query = text(f"SELECT {function_name}({param_str})")
+        
+        result = db.execute(query, bind_params).scalar()
+        db.commit()
+        return result
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

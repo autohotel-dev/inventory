@@ -3,7 +3,10 @@ import { Platform, Alert, AppState } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api/client';
+import { getCurrentUser } from 'aws-amplify/auth';
+import { useRealtimeSubscription } from '../lib/api/websocket';
+import { wsManager } from '../lib/api/websocket';
 import { router } from 'expo-router';
 import SimpleEventEmitter from '../lib/event-emitter';
 
@@ -12,9 +15,7 @@ export const notificationEventEmitter = new SimpleEventEmitter();
 
 // Cache global para evitar duplicados entre Realtime y Push
 const processedNotificationsMap: { [key: string]: number } = {};
-// Mantener referencia al canal activo para evitar duplicados
-let globalSystemNotifChannel: any = null;
-let currentSubscribedUserId: string | null = null;
+// La suscripción realtime global se maneja ahora a través del hook useRealtimeSubscription
 
 /**
  * Normaliza los IDs de negocio para de-duplicar correctamente.
@@ -146,77 +147,47 @@ export function useNotifications(employeeId: string | null) {
         if (!employeeId) return;
 
         let isMounted = true;
+        let unsubscribeFn: (() => void) | undefined;
 
         const setupRealtime = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!isMounted || !user) return;
-
-            const authUserId = user.id;
-
-            // Si el canal ya existe para este usuario, no hacemos nada
-            if (globalSystemNotifChannel && currentSubscribedUserId === authUserId) {
-                console.log('[Notifications] Canal activo y válido, manteniendo suscripción.');
+            let authUserId;
+            try {
+                const user = await getCurrentUser();
+                authUserId = user.userId;
+            } catch {
                 return;
             }
 
-            // Si el canal existía para otro usuario o está muerto, lo limpiamos
-            if (globalSystemNotifChannel) {
-                console.log('[Notifications] Limpiando canal anterior antes de re-suscripción');
-                supabase.removeChannel(globalSystemNotifChannel);
-                globalSystemNotifChannel = null;
-            }
+            if (!isMounted || !authUserId) return;
 
-            console.log('[Notifications] Creando suscripción Realtime filtrada para:', authUserId);
-            currentSubscribedUserId = authUserId;
+            unsubscribeFn = wsManager.subscribe(`system-notifications-${authUserId}`, (payload) => {
+                const newNotif = payload.data || payload;
+                const businessId = getNormalizedId(newNotif.data) || newNotif.id;
+                const type = newNotif.data?.type || 'SYSTEM';
 
-            globalSystemNotifChannel = supabase
-                .channel(`system-notifications-${authUserId}`)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'INSERT',
-                        schema: 'public',
-                        table: 'notifications',
-                        filter: `user_id=eq.${authUserId}`
-                    },
-                    (payload) => {
-                        const newNotif = payload.new as any;
-                        const businessId = getNormalizedId(newNotif.data) || newNotif.id;
-                        const type = newNotif.data?.type || 'SYSTEM';
+                console.log(`[Notifications] Evento Realtime recibido: ${type}:${businessId}`);
 
-                        console.log(`[Notifications] Evento Realtime recibido: ${type}:${businessId}`);
-
-                        // SOLO NOTIFICAR SI LA APP ESTÁ EN PRIMER PLANO
-                        if (AppState.currentState === 'active') {
-                            console.log(`[Notifications] -> Emitiendo alerta in-app: ${newNotif.title}`);
-
-                            // Emitir evento para que el contexto de in-app notifications lo muestre
-                            notificationEventEmitter.emit('inAppNotification', {
-                                type: type,
-                                title: newNotif.title || 'Nueva Notificación',
-                                message: newNotif.message || '',
-                                data: { ...newNotif.data, type, id: businessId }
-                            });
-                        } else {
-                            console.log(`[Notifications] Omitiendo alerta (App en segundo plano): ${type}:${businessId}`);
-                        }
-                    }
-                )
-                .subscribe((status: string) => {
-                    console.log(`[Notifications] Estado del canal (${authUserId}):`, status);
-                    if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                        globalSystemNotifChannel = null;
-                        currentSubscribedUserId = null;
-                    }
-                });
+                if (AppState.currentState === 'active') {
+                    console.log(`[Notifications] -> Emitiendo alerta in-app: ${newNotif.title}`);
+                    notificationEventEmitter.emit('inAppNotification', {
+                        type: type,
+                        title: newNotif.title || 'Nueva Notificación',
+                        message: newNotif.message || '',
+                        data: { ...newNotif.data, type, id: businessId }
+                    });
+                } else {
+                    console.log(`[Notifications] Omitiendo alerta (App en segundo plano): ${type}:${businessId}`);
+                }
+            });
         };
 
         setupRealtime();
 
         return () => {
             isMounted = false;
-            // No destruimos el canal global aquí para permitir que sobreviva a re-renders menores
-            // pero sí limpiamos cuando la app se cierra de verdad o el employeeId cambia drásticamente
+            if (unsubscribeFn) {
+                unsubscribeFn();
+            }
         };
     }, [employeeId]);
 
@@ -292,17 +263,11 @@ async function savePushToken(employeeId: string, token: string) {
     try {
         console.log('[Notifications] Guardando token para empleado:', employeeId);
         // Guardar o actualizar el token en la tabla de empleados
-        const { data, error } = await supabase
-            .from('employees')
-            .update({ push_token: token, push_token_updated_at: new Date().toISOString() })
-            .eq('id', employeeId)
-            .select();
-
-        if (error) {
-            console.error('[Notifications] Error saving push token:', error);
-        } else {
-            console.log('[Notifications] Token guardado exitosamente:', data);
-        }
+        await apiClient.patch(`/system/crud/employees/${employeeId}`, {
+            push_token: token,
+            push_token_updated_at: new Date().toISOString()
+        });
+        console.log('[Notifications] Token guardado exitosamente');
     } catch (error) {
         console.error('[Notifications] Error saving push token:', error);
     }
@@ -419,13 +384,16 @@ export async function sendPushNotificationToEmployee(
 ) {
     try {
         // Obtener el token del empleado
-        const { data: employee, error } = await supabase
-            .from('employees')
-            .select('push_token')
-            .eq('id', employeeId)
-            .single();
+        const { data: emps } = await apiClient.get('/system/crud/employees', {
+            params: {
+                select: 'push_token',
+                id: `eq.${employeeId}`,
+                limit: 1
+            }
+        });
+        const employee = emps?.[0];
 
-        if (error || !employee?.push_token) {
+        if (!employee?.push_token) {
             console.log('No push token found for employee:', employeeId);
             return;
         }
@@ -461,17 +429,16 @@ export async function sendPushNotificationToAllValets(
 ) {
     try {
         // Obtener todos los empleados con rol de valet/cochero que tengan turno activo
-        const { data: activeValets, error } = await supabase
-            .from('shift_sessions')
-            .select(`
-                employee_id,
-                employees!inner(push_token, role)
-            `)
-            .eq('status', 'active')
-            .in('employees.role', ['valet', 'cochero', 'Cochero']);
+        const { data: activeValets } = await apiClient.get('/system/crud/shift_sessions', {
+            params: {
+                select: 'employee_id,employees!inner(push_token,role)',
+                status: 'eq.active',
+                'employees.role': 'in.(valet,cochero,Cochero)'
+            }
+        });
 
-        if (error || !activeValets) {
-            console.error('Error getting active valets:', error);
+        if (!activeValets) {
+            console.error('Error getting active valets');
             return;
         }
 

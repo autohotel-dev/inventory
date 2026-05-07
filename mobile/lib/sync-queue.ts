@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { supabase } from './supabase';
+import { apiClient } from './api/client';
 
 export interface SyncTask {
     id: string;
@@ -60,24 +60,18 @@ export class SyncQueue {
                 try {
                     let result;
                     if (task.type === 'UPDATE' && task.table && task.matchCriteria) {
-                        let query = supabase.from(task.table).update(task.payload);
-                        // Aplicar todos los criterios match
+                        let queryParams = new URLSearchParams();
                         for (const [key, value] of Object.entries(task.matchCriteria)) {
-                            query = query.eq(key, value);
+                            queryParams.append(key, `eq.${value}`);
                         }
-                        result = await query;
+                        await apiClient.patch(`/system/crud/${task.table}?${queryParams.toString()}`, task.payload);
                     } else if (task.type === 'INSERT' && task.table) {
-                        result = await supabase.from(task.table).insert(task.payload);
+                        await apiClient.post(`/system/crud/${task.table}`, Array.isArray(task.payload) ? task.payload : [task.payload]);
                     } else if (task.type === 'RPC' && task.rpcName) {
-                        result = await supabase.rpc(task.rpcName, task.payload);
+                        await apiClient.post(`/system/rpc/${task.rpcName}`, task.payload);
                     }
 
-                    if (result?.error) {
-                        console.error(`[SyncQueue] Fallo ejecutando tarea ${task.id}`, result.error);
-                        // Depende de la estrategia: podríamos detener el ciclo o reintentar
-                    } else {
-                        successCount++;
-                    }
+                    successCount++;
                 } catch (err) {
                     console.error(`[SyncQueue] Excepción crítica ejecutando tarea ${task.id}`, err);
                 }

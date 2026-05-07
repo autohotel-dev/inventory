@@ -1,7 +1,8 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTheme } from '../../contexts/theme-context';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { signOut } from 'aws-amplify/auth';
 import { TouchableOpacity, View, Text, Modal, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { LogOut, UserCircle, RefreshCw, Sun, Moon, Smartphone, Wifi, X } from 'lucide-react-native';
 import { useUserRole } from '../../hooks/use-user-role';
@@ -25,21 +26,19 @@ export default function CamaristaLayout() {
             async () => {
                 try {
                     if (hasActiveShift && employeeId) {
-                        await supabase
-                            .from("shift_sessions")
-                            .update({
+                        await apiClient.patch(
+                            `/system/crud/shift_sessions?employee_id=eq.${employeeId}&status=in.(active,open)&clock_out_at=is.null`,
+                            {
                                 clock_out_at: new Date().toISOString(),
                                 status: "pending_closing",
-                            })
-                            .eq("employee_id", employeeId)
-                            .in("status", ["active", "open"])
-                            .is("clock_out_at", null);
+                            }
+                        );
                     }
                 } catch (error) {
                     console.error("Error auto-closing shift:", error);
                 } finally {
                     setProfileVisible(false);
-                    await supabase.auth.signOut();
+                    await signOut();
                     router.replace('/login');
                 }
             },

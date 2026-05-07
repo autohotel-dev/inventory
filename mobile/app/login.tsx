@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, useColorScheme, Alert } from 'react-native';
-import { supabase } from '../lib/supabase';
 import { ShieldCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useFeedback } from '../contexts/feedback-context';
@@ -79,13 +78,15 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: authEmail,
+            const { signIn } = await import('aws-amplify/auth');
+            
+            const result = await signIn({
+                username: authEmail,
                 password: authPwd,
             });
 
-            if (error) {
-                showFeedback('Error de acceso', error.message, 'error');
+            if (result.nextStep.signInStep !== 'DONE') {
+                showFeedback('Atención', `Paso requerido: ${result.nextStep.signInStep}`, 'warning');
             } else {
                 if (!useSaved) {
                     await SecureStore.setItemAsync('luxor_valet_email', authEmail);
@@ -95,7 +96,8 @@ export default function LoginScreen() {
                 // Delegamos la navegación al RootLayoutNav que checa el role.
             }
         } catch (err: any) {
-            showFeedback('Error', 'Ocurrió un error inesperado al intentar entrar.', 'error');
+            // Manejar excepciones específicas de Amplify si es necesario
+            showFeedback('Error de acceso', err.message || 'Ocurrió un error inesperado al intentar entrar.', 'error');
         } finally {
             setLoading(false);
         }

@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "../lib/supabase";
+import { apiClient } from '../lib/api/client';
+import { getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
+import { useRealtimeSubscription } from '../lib/api/websocket';
 
 export type UserRole = "admin" | "manager" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
 
@@ -27,9 +30,10 @@ export function useUserRole(): UserRoleData {
   const fetchUserRole = useCallback(async () => {
     setIsLoading(true); // CRITICAL: signal consumers to wait for fresh data
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-      if (userError || !user) {
+      let authUser;
+      try {
+        authUser = await getCurrentUser();
+      } catch (userError) {
         setRole(null);
         setUserId(null);
         setUserEmail(null);
@@ -38,32 +42,48 @@ export function useUserRole(): UserRoleData {
         return;
       }
 
-      setUserId(user.id);
-      setUserEmail(user.email || null);
+      let email = null;
+      try {
+        const attrs = await fetchUserAttributes();
+        email = attrs.email || null;
+      } catch (e) {
+        // Ignorar si no podemos traer el email
+      }
+
+      setUserId(authUser.userId);
+      setUserEmail(email);
 
       // Search for linked employee
-      let { data: employee, error: employeeError } = await supabase
-        .from("employees")
-        .select("id, first_name, last_name, role")
-        .eq("auth_user_id", user.id)
-        .eq("is_active", true)
-        .single();
+      let employee = null;
+      try {
+        const { data: emps } = await apiClient.get('/system/crud/employees', {
+            params: {
+                select: 'id,first_name,last_name,role',
+                auth_user_id: `eq.${authUser.userId}`,
+                is_active: 'eq.true',
+                limit: 1
+            }
+        });
+        employee = emps?.[0];
 
-      if (employeeError || !employee) {
-        console.log("[SHIFT DEBUG] No direct employee link, trying email fallback...");
-        // Search by email as fallback
-        const { data: employeeByEmail } = await supabase
-          .from("employees")
-          .select("id, first_name, last_name, role")
-          .eq("email", user.email)
-          .eq("is_active", true)
-          .single();
-
-        employee = employeeByEmail;
+        if (!employee && email) {
+            console.log("[SHIFT DEBUG] No direct employee link, trying email fallback...");
+            const { data: empsByEmail } = await apiClient.get('/system/crud/employees', {
+                params: {
+                    select: 'id,first_name,last_name,role',
+                    email: `eq.${email}`,
+                    is_active: 'eq.true',
+                    limit: 1
+                }
+            });
+            employee = empsByEmail?.[0];
+        }
+      } catch (err) {
+        console.log("[SHIFT DEBUG] Error fetching employee", err);
       }
 
       if (!employee) {
-        console.log("[SHIFT DEBUG] Employee not found for user:", user.email);
+        console.log("[SHIFT DEBUG] Employee not found for user:", email);
         setRole(null); // Valet app only for linked employees
         setHasActiveShift(false);
       } else {
@@ -73,18 +93,22 @@ export function useUserRole(): UserRoleData {
         setEmployeeName(`${employee.first_name} ${employee.last_name}`);
 
         // Check for active shift
-        const { data: session, error: shiftError } = await supabase
-          .from("shift_sessions")
-          .select("id, status")
-          .eq("employee_id", employee.id)
-          .in("status", ["active", "open"])
-          .limit(1)
-          .maybeSingle();
-
-        if (shiftError) console.error("[SHIFT DEBUG] Error checking shift:", shiftError);
-        console.log("[SHIFT DEBUG] Shift session result:", session);
-
-        setHasActiveShift(!!session);
+        try {
+          const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+            params: {
+              select: 'id,status',
+              employee_id: `eq.${employee.id}`,
+              status: 'in.(active,open)',
+              limit: 1
+            }
+          });
+          const session = sessions?.[0];
+          console.log("[SHIFT DEBUG] Shift session result:", session);
+          setHasActiveShift(!!session);
+        } catch (shiftError) {
+          console.error("[SHIFT DEBUG] Error checking shift:", shiftError);
+          setHasActiveShift(false);
+        }
       }
     } catch (err) {
       console.error("Error fetching user role:", err);
@@ -97,40 +121,26 @@ export function useUserRole(): UserRoleData {
   useEffect(() => {
     fetchUserRole();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchUserRole();
+    const unsubscribe = Hub.listen('auth', (data) => {
+      if (data.payload.event === 'signedIn' || data.payload.event === 'signedOut') {
+        fetchUserRole();
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, [fetchUserRole]);
 
   // Subscripción en tiempo real para cambios de turno
+  const unsubscribeWS = useRealtimeSubscription(`employee:${employeeId}`, () => {
+    console.log("[SHIFT SYNC] Shift change detected");
+    fetchUserRole();
+  });
+
   useEffect(() => {
-    if (!employeeId) return;
-
-    console.log("[SHIFT SYNC] Subscribing to shift_sessions for employee:", employeeId);
-    
-    const channel = supabase
-      .channel(`shift-sync-${employeeId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "shift_sessions",
-          filter: `employee_id=eq.${employeeId}`,
-        },
-        (payload) => {
-          console.log("[SHIFT SYNC] Shift change detected:", payload.eventType);
-          fetchUserRole();
-        }
-      )
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribeWS();
     };
-  }, [employeeId, fetchUserRole]);
+  }, [unsubscribeWS]);
 
   return {
     role,

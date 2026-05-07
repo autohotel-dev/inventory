@@ -1,6 +1,11 @@
 import { Stack } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { Hub } from 'aws-amplify/utils';
+import { fetchAuthSession } from 'aws-amplify/auth';
+import { configureAmplify } from '../lib/amplify';
+
+// Configurar AWS Cognito
+configureAmplify();
 import { useRouter, useSegments } from 'expo-router';
 import { useUserRole } from '../hooks/use-user-role';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -27,36 +32,51 @@ function RootLayoutNav() {
     useEffect(() => {
         if (roleLoading) return;
 
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            const seg = segments[0];
+        const checkSession = async () => {
+            try {
+                const session = await fetchAuthSession();
+                const seg = segments[0];
 
-            if (!session) {
+                if (!session.tokens) {
+                    if (seg !== 'login') {
+                        router.replace('/login');
+                    }
+                    return;
+                }
+
+                // Hay sesión activa — redirigir según rol
+                if (role === 'camarista') {
+                    if (seg !== 'camarista') {
+                        router.replace('/camarista');
+                    }
+                } else if (role) {
+                    if (seg === 'login' || !seg || seg === '' || seg === 'camarista') {
+                        router.replace('/(tabs)');
+                    }
+                }
+            } catch (err) {
+                const seg = segments[0];
                 if (seg !== 'login') {
                     router.replace('/login');
                 }
-                return;
             }
+        };
 
-            // Hay sesión activa — redirigir según rol
-            if (role === 'camarista') {
-                if (seg !== 'camarista') {
-                    router.replace('/camarista');
-                }
-            } else if (role) {
-                if (seg === 'login' || !seg || seg === '' || seg === 'camarista') {
-                    router.replace('/(tabs)');
-                }
-            }
-        });
+        checkSession();
 
         // Escuchar cambios de auth (login/logout)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!session) {
-                router.replace('/login');
+        const unsubscribe = Hub.listen('auth', ({ payload }) => {
+            switch (payload.event) {
+                case 'signedIn':
+                    checkSession();
+                    break;
+                case 'signedOut':
+                    router.replace('/login');
+                    break;
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => unsubscribe();
     }, [role, roleLoading, segments]);
 
     return (

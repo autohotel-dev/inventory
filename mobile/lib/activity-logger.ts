@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { apiClient } from './api/client';
 
 export async function logActivity({
     action,
@@ -18,7 +18,7 @@ export async function logActivity({
     valet_id?: string;
 }) {
     try {
-        const { error } = await supabase.from('audit_logs').insert({
+        await apiClient.post('/system/crud/audit_logs', [{
             event_type: 'MOBILE_ACTION',
             entity_type: 'mobile_app',
             entity_id: '00000000-0000-0000-0000-000000000000',
@@ -32,8 +32,7 @@ export async function logActivity({
                 valet_id
             },
             created_at: new Date().toISOString()
-        });
-        if (error) console.error("Error logging activity to audit_logs:", error);
+        }]);
     } catch (err) {
         console.error("Critical error in logActivity:", err);
     }

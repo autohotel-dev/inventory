@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, TextInput, Modal, Alert, Switch, Animated } from 'react-native';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api/client';
+import { useRealtimeSubscription } from '../../lib/api/websocket';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useValetActions } from '../../hooks/use-valet-actions';
 import { useTheme } from '../../contexts/theme-context';
@@ -38,38 +39,25 @@ export default function ServicesScreen() {
         }
 
         try {
-            // Pending
-            const { data: pending } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products(name),
-                    sales_orders(
-                        room_stays(
-                            rooms(number)
-                        )
-                    )
-                `)
-                .eq('concept_type', 'CONSUMPTION')
-                .is('delivery_accepted_by', null)
-                .eq('is_paid', false)
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
+            // Se asume que el backend retorna los datos en la misma estructura gracias al ORM
+            const { data: pending } = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    select: '*,products(name),sales_orders(room_stays(rooms(number)))',
+                    concept_type: 'eq.CONSUMPTION',
+                    delivery_accepted_by: 'is.null',
+                    is_paid: 'eq.false',
+                    delivery_status: 'not.in.(CANCELLED,COMPLETED,DELIVERED)'
+                }
+            });
 
-            // My services
-            const { data: mine } = await supabase
-                .from('sales_order_items')
-                .select(`
-                    *,
-                    products(name),
-                    sales_orders(
-                        room_stays(
-                            rooms(number)
-                        )
-                    )
-                `)
-                .eq('concept_type', 'CONSUMPTION')
-                .eq('delivery_accepted_by', employeeId)
-                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT']);
+            const { data: mine } = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    select: '*,products(name),sales_orders(room_stays(rooms(number)))',
+                    concept_type: 'eq.CONSUMPTION',
+                    delivery_accepted_by: `eq.${employeeId}`,
+                    delivery_status: 'in.(ACCEPTED,IN_TRANSIT)'
+                }
+            });
 
             setPendingConsumptions(pending || []);
             setMyConsumptions(mine || []);
@@ -98,18 +86,9 @@ export default function ServicesScreen() {
             timeout = setTimeout(() => fetchDataRef.current(), 800);
         };
 
-        const channelName = `valet-services-${employeeId}`;
-        const channel = supabase.channel(channelName)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('✅ [Services] Realtime conectado');
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.warn('⚠️ [Services] Error en canal, usando polling');
-                }
-            });
+        const unsubscribeWS = useRealtimeSubscription('global', () => {
+            debouncedFetch();
+        });
 
         // Polling de respaldo cada 10s (mobile puede perder websockets en background)
         const pollInterval = setInterval(() => {
@@ -117,7 +96,7 @@ export default function ServicesScreen() {
         }, 10000);
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribeWS();
             clearTimeout(timeout);
             clearInterval(pollInterval);
         };

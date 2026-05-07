@@ -9,7 +9,7 @@ import { Room } from "@/components/sales/room-types";
 import {
   generatePaymentReference,
 } from "@/hooks/room-actions";
-import { getCurrentEmployeeId, getCurrentShiftId } from "@/hooks/room-actions/shift-helpers";
+import { getCurrentEmployeeId, getCurrentShiftId, getCurrentUserId } from "@/hooks/room-actions/shift-helpers";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { getGuestPortalURL } from "@/lib/utils/guest-portal-qr";
@@ -105,6 +105,7 @@ export function ConnectedQuickCheckinModal({
 
       const currentShiftId = await getCurrentShiftId();
       const currentEmployeeId = await getCurrentEmployeeId();
+      const currentUserId = await getCurrentUserId();
 
       const { apiClient } = await import("@/lib/api/client");
 
@@ -124,7 +125,7 @@ export function ConnectedQuickCheckinModal({
           status: "OPEN",
           remaining_amount: totalPrice, // Todo pendiente
           paid_amount: 0,
-          created_by: currentEmployeeId,
+          created_by: currentUserId,
           shift_session_id: currentShiftId,
         });
         salesOrder = orderRes.data;
@@ -192,7 +193,7 @@ export function ConnectedQuickCheckinModal({
           concept: "ESTANCIA",
           status: "PENDIENTE",
           payment_type: "COMPLETO",
-          created_by: currentEmployeeId,
+          created_by: currentUserId,
           shift_session_id: currentShiftId,
           employee_id: currentEmployeeId,
         });

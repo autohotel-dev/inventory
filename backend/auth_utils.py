@@ -42,9 +42,7 @@ def get_cognito_public_keys():
         print(f"Error fetching JWKS: {e}")
         return []
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> CurrentUser:
-    token = credentials.credentials
-    
+def verify_token(token: str) -> CurrentUser:
     if not COGNITO_USER_POOL_ID:
         # Fallback a Supabase JWT si Cognito no está configurado
         supabase_secret = os.getenv("SUPABASE_JWT_SECRET")
@@ -111,5 +109,12 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
     except jwt.InvalidTokenError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> CurrentUser:
+    token = credentials.credentials
+    return verify_token(token)
+

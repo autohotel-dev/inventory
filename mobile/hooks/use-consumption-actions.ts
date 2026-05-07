@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api/client';
 import { useFeedback } from '../contexts/feedback-context';
 import { PaymentEntry } from '../lib/payment-types';
 import { SalesOrderItem } from '../lib/types';
@@ -11,27 +11,25 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
     const handleAcceptConsumption = useCallback(async (consumptionId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         try {
-            const { data: item } = await supabase
-                .from('sales_order_items')
-                .select('delivery_accepted_by')
-                .eq('id', consumptionId)
-                .single();
+            const { data: items } = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    select: 'delivery_accepted_by',
+                    id: `eq.${consumptionId}`,
+                    limit: 1
+                }
+            });
+            const item = items?.[0];
 
             if (item?.delivery_accepted_by && item.delivery_accepted_by !== valetId) {
                 showFeedback('Ya asignada', 'Este servicio ya fue aceptado por otro cochero', 'error');
                 return false;
             }
 
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_accepted_by: valetId,
-                    delivery_accepted_at: new Date().toISOString(),
-                    delivery_status: 'ACCEPTED'
-                })
-                .eq('id', consumptionId);
-
-            if (error) throw error;
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
+                delivery_accepted_by: valetId,
+                delivery_accepted_at: new Date().toISOString(),
+                delivery_status: 'ACCEPTED'
+            });
             showFeedback('¡Éxito!', `Entrega asignada para Hab. ${roomNumber}`);
             await onRefresh();
             return true;
@@ -50,27 +48,29 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         try {
             const itemIds = items.map(item => item.id);
 
-            const { data: existingItems } = await supabase
-                .from('sales_order_items')
-                .select('id, delivery_accepted_by')
-                .in('id', itemIds);
+            const { data: existingItems } = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    select: 'id,delivery_accepted_by',
+                    id: `in.(${itemIds.join(',')})`
+                }
+            });
 
-            const alreadyAccepted = existingItems?.find(item => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
+            const alreadyAccepted = existingItems?.find((item: any) => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
             if (alreadyAccepted) {
                 showFeedback('Ya asignada', 'Uno o más servicios ya fueron aceptados por otro cochero', 'error');
                 return false;
             }
 
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            // Bulk update not directly supported by generic patch /id, 
+            // but we can loop or use a specialized endpoint if needed.
+            // For now, doing it sequentially as itemIds shouldn't be huge
+            await Promise.all(itemIds.map(id => 
+                apiClient.patch(`/system/crud/sales_order_items/${id}`, {
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
                 })
-                .in('id', itemIds);
-
-            if (error) throw error;
+            ));
             showFeedback('¡Éxito!', `${items.length} entregas asignadas para Hab. ${roomNumber}`);
             await onRefresh();
             return true;
@@ -104,30 +104,26 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
     ) => {
         setLoading(true);
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .maybeSingle();
+            const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    employee_id: `eq.${valetId}`,
+                    status: 'eq.active',
+                    limit: 1
+                }
+            });
+            const session = sessions?.[0];
 
-            const { error: updateError } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'DELIVERED',
-                    delivery_completed_at: new Date().toISOString(),
-                    delivery_notes: notes || null,
-                    is_paid: false
-                })
-                .eq('id', consumptionId);
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
+                delivery_status: 'DELIVERED',
+                delivery_completed_at: new Date().toISOString(),
+                delivery_notes: notes || null,
+                is_paid: false
+            });
 
-            if (updateError) throw updateError;
-
-            const { data: itemData } = await supabase
-                .from('sales_order_items')
-                .select('sales_order_id, concept_type')
-                .eq('id', consumptionId)
-                .single();
+            const { data: itemDataArr } = await apiClient.get('/system/crud/sales_order_items', {
+                params: { select: 'sales_order_id,concept_type', id: `eq.${consumptionId}`, limit: 1 }
+            });
+            const itemData = itemDataArr?.[0];
             
             const salesOrderId = itemData?.sales_order_id;
             const itemConceptType = itemData?.concept_type;
@@ -138,16 +134,19 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
 
             for (const p of payments) {
                 // Intentar buscar un pago PENDIENTE de la misma orden y monto
-                const { data: existingPending } = await supabase
-                    .from('payments')
-                    .select('id')
-                    .eq('sales_order_id', salesOrderId)
-                    .eq('status', 'PENDIENTE')
-                    .eq('amount', p.amount)
-                    .maybeSingle();
+                const { data: existingPendings } = await apiClient.get('/system/crud/payments', {
+                    params: {
+                        select: 'id',
+                        sales_order_id: `eq.${salesOrderId}`,
+                        status: 'eq.PENDIENTE',
+                        amount: `eq.${p.amount}`,
+                        limit: 1
+                    }
+                });
+                const existingPending = existingPendings?.[0];
 
                 if (existingPending) {
-                    const { error: updErr } = await supabase.from('payments').update({
+                    await apiClient.patch(`/system/crud/payments/${existingPending.id}`, {
                         payment_method: p.method,
                         terminal_code: p.terminal,
                         card_last_4: p.cardLast4,
@@ -157,10 +156,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    }).eq('id', existingPending.id);
-                    if (updErr) throw updErr;
+                    });
                 } else {
-                    const { error: insErr } = await supabase.from('payments').insert({
+                    await apiClient.post('/system/crud/payments', [{
                         sales_order_id: salesOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -173,8 +171,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    });
-                    if (insErr) throw insErr;
+                    }]);
                 }
             }
 
@@ -200,27 +197,26 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         if (items.length === 0) return false;
         setLoading(true);
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .maybeSingle();
+            const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
+                params: {
+                    employee_id: `eq.${valetId}`,
+                    status: 'eq.active',
+                    limit: 1
+                }
+            });
+            const session = sessions?.[0];
 
             const itemIds = items.map(item => item.id);
             const salesOrderIds = [...new Set(items.map(i => i.sales_order_id))];
 
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            await Promise.all(itemIds.map(id => 
+                apiClient.patch(`/system/crud/sales_order_items/${id}`, {
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
                     delivery_notes: notes || null,
                     is_paid: false
                 })
-                .in('id', itemIds);
-
-            if (error) throw error;
+            ));
 
             const mainOrderId = salesOrderIds[0];
             const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
@@ -228,17 +224,19 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
             const paymentConcept = getPaymentConcept(items[0]?.concept_type);
 
             for (const p of payments) {
-                // Intentar buscar un pago PENDIENTE de la misma orden y monto
-                const { data: existingPending } = await supabase
-                    .from('payments')
-                    .select('id')
-                    .eq('sales_order_id', mainOrderId)
-                    .eq('status', 'PENDIENTE')
-                    .eq('amount', p.amount)
-                    .maybeSingle();
+                const { data: existingPendings } = await apiClient.get('/system/crud/payments', {
+                    params: {
+                        select: 'id',
+                        sales_order_id: `eq.${mainOrderId}`,
+                        status: 'eq.PENDIENTE',
+                        amount: `eq.${p.amount}`,
+                        limit: 1
+                    }
+                });
+                const existingPending = existingPendings?.[0];
 
                 if (existingPending) {
-                    const { error: updErr } = await supabase.from('payments').update({
+                    await apiClient.patch(`/system/crud/payments/${existingPending.id}`, {
                         payment_method: p.method,
                         terminal_code: p.terminal,
                         card_last_4: p.cardLast4,
@@ -248,10 +246,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    }).eq('id', existingPending.id);
-                    if (updErr) throw updErr;
+                    });
                 } else {
-                    const { error: insErr } = await supabase.from('payments').insert({
+                    await apiClient.post('/system/crud/payments', [{
                         sales_order_id: mainOrderId,
                         amount: p.amount,
                         payment_method: p.method,
@@ -264,8 +261,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                         collected_by: valetId,
                         collected_at: new Date().toISOString(),
                         shift_session_id: session?.id || null,
-                    });
-                    if (insErr) throw insErr;
+                    }]);
                 }
             }
 
@@ -284,15 +280,10 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
     const handleCancelConsumption = useCallback(async (consumptionId: string) => {
         setLoading(true);
         try {
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
-                    delivery_status: 'CANCELLED',
-                    cancellation_reason: 'Cancelado desde app móvil'
-                })
-                .eq('id', consumptionId);
-
-            if (error) throw error;
+            await apiClient.patch(`/system/crud/sales_order_items/${consumptionId}`, {
+                delivery_status: 'CANCELLED',
+                cancellation_reason: 'Cancelado desde app móvil'
+            });
             await onRefresh();
             return true;
         } catch (error: any) {
@@ -310,27 +301,26 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         try {
             const itemIds = items.map(item => item.id);
 
-            const { data: existingItems } = await supabase
-                .from('sales_order_items')
-                .select('id, delivery_accepted_by')
-                .in('id', itemIds);
+            const { data: existingItems } = await apiClient.get('/system/crud/sales_order_items', {
+                params: {
+                    select: 'id,delivery_accepted_by',
+                    id: `in.(${itemIds.join(',')})`
+                }
+            });
 
-            const alreadyAccepted = existingItems?.find(item => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
+            const alreadyAccepted = existingItems?.find((item: any) => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
             if (alreadyAccepted) {
                 showFeedback('Ya asignada', 'Esta verificación ya fue aceptada por otro cochero', 'error');
                 return false;
             }
 
-            const { error } = await supabase
-                .from('sales_order_items')
-                .update({
+            await Promise.all(itemIds.map(id => 
+                apiClient.patch(`/system/crud/sales_order_items/${id}`, {
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
                 })
-                .in('id', itemIds);
-
-            if (error) throw error;
+            ));
             showFeedback('¡En Camino! 🫡', `Has aceptado verificar la Hab. ${roomNumber}`);
             await onRefresh();
             return true;

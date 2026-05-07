@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { apiClient } from './api/client';
 
 const OFFLINE_QUEUE_KEY = '@autohotel:offline_queue';
 
@@ -72,17 +72,11 @@ export const syncOfflineQueue = async (): Promise<number> => {
           updatePayload.notes = action.payload.notes;
         }
 
-        const { error } = await supabase
-          .from('rooms')
-          .update(updatePayload)
-          .eq('id', action.payload.roomId);
-
-        if (error) {
-          console.error(`[OfflineQueue] Falló sync de acción ${action.id}:`, error);
-          // Opcional: Podríamos dejar la acción en la cola si falla por razones no relacionadas con red,
-          // pero si falla por validación (RLS, estado inválido), es mejor descartarla para no bloquear la cola.
-        } else {
+        try {
+          await apiClient.patch(`/system/crud/rooms/${action.payload.roomId}`, updatePayload);
           successCount++;
+        } catch (error) {
+          console.error(`[OfflineQueue] Falló sync de acción ${action.id}:`, error);
         }
       }
     } catch (e) {
