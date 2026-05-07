@@ -8,8 +8,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://plblcxppezsfxwqgbnrn.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYmxjeHBwZXpzZnh3cWdibnJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNzM1ODUsImV4cCI6MjA3NTY0OTU4NX0.nWDC1RWVGO3QZnZK8kmnMyZlgTaInZrIe4gA71Gyh7s"
+        "EXPO_PUBLIC_AWS_COGNITO_USER_POOL_ID": "us-east-1_rS38PqJhx",
+        "EXPO_PUBLIC_AWS_COGNITO_USER_POOL_CLIENT_ID": "787rkc0o605ftkmmq4hatvg0kb",
+        "EXPO_PUBLIC_API_URL": "https://luxor-backend-li1y.onrender.com",
+        "EXPO_PUBLIC_WS_URL": "wss://luxor-backend-li1y.onrender.com/ws"
       }
     },
     "preview": {
@@ -19,16 +21,20 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://plblcxppezsfxwqgbnrn.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYmxjeHBwZXpzZnh3cWdibnJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNzM1ODUsImV4cCI6MjA3NTY0OTU4NX0.nWDC1RWVGO3QZnZK8kmnMyZlgTaInZrIe4gA71Gyh7s"
+        "EXPO_PUBLIC_AWS_COGNITO_USER_POOL_ID": "us-east-1_rS38PqJhx",
+        "EXPO_PUBLIC_AWS_COGNITO_USER_POOL_CLIENT_ID": "787rkc0o605ftkmmq4hatvg0kb",
+        "EXPO_PUBLIC_API_URL": "https://luxor-backend-li1y.onrender.com",
+        "EXPO_PUBLIC_WS_URL": "wss://luxor-backend-li1y.onrender.com/ws"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://plblcxppezsfxwqgbnrn.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYmxjeHBwZXpzZnh3cWdibnJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwNzM1ODUsImV4cCI6MjA3NTY0OTU4NX0.nWDC1RWVGO3QZnZK8kmnMyZlgTaInZrIe4gA71Gyh7s"
+        "EXPO_PUBLIC_AWS_COGNITO_USER_POOL_ID": "us-east-1_rS38PqJhx",
+        "EXPO_PUBLIC_AWS_COGNITO_USER_POOL_CLIENT_ID": "787rkc0o605ftkmmq4hatvg0kb",
+        "EXPO_PUBLIC_API_URL": "https://luxor-backend-li1y.onrender.com",
+        "EXPO_PUBLIC_WS_URL": "wss://luxor-backend-li1y.onrender.com/ws"
       }
     }
   },
