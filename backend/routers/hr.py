@@ -710,9 +710,17 @@ def get_income_report(
     query = query.filter(Rooms.number.notin_(['13', '113', 'Habitación 13', 'Habitación 113']))
     
     if report_type == "shift" and shift_id:
-        # Complex logic to get stays related to a shift...
-        # For simplicity in migration, just query by time if shift is provided
-        shift = db.query(ShiftSessions).filter(ShiftSessions.id == uuid.UUID(shift_id)).first()
+        # The frontend may pass a shift_closing.id OR a shift_session.id
+        # Try ShiftSessions first, then fall back to ShiftClosings
+        shift_uuid = uuid.UUID(shift_id)
+        shift = db.query(ShiftSessions).filter(ShiftSessions.id == shift_uuid).first()
+        
+        if not shift:
+            # The ID might be from shift_closings — look up the session from there
+            closing = db.query(ShiftClosings).filter(ShiftClosings.id == shift_uuid).first()
+            if closing and closing.shift_session_id:
+                shift = db.query(ShiftSessions).filter(ShiftSessions.id == closing.shift_session_id).first()
+        
         if shift:
             query = query.filter(RoomStays.check_in_at >= shift.clock_in_at)
             if shift.clock_out_at:
