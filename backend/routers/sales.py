@@ -45,7 +45,7 @@ def get_sales_orders(
     date_to: Optional[str] = None,
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
-    current_user: dict = Depends(get_current_user)
+    current_user: CurrentUser = Depends(get_current_user)
 ):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -65,9 +65,9 @@ def get_sales_orders(
         params = []
         
         # Check permissions (only admins can see everything, others see only their own)
-        if current_user.get('role') != 'admin' and current_user.get('role') != 'manager':
+        if "admin" not in current_user.groups and "manager" not in current_user.groups:
             query += " AND so.created_by = %s"
-            params.append(current_user.get('id'))
+            params.append(current_user.id)
         elif employee_id and employee_id != 'ALL':
             # Need to get auth_user_id for this employee
             cursor.execute("SELECT auth_user_id FROM employees WHERE id = %s", (employee_id,))
@@ -230,7 +230,7 @@ class AdvancedOrderCreate(BaseModel):
     payments: List[AdvancedPayment]
 
 @router.post("/orders/advanced")
-def create_advanced_order(order: AdvancedOrderCreate, current_user: dict = Depends(get_current_user)):
+def create_advanced_order(order: AdvancedOrderCreate, current_user: CurrentUser = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -252,7 +252,7 @@ def create_advanced_order(order: AdvancedOrderCreate, current_user: dict = Depen
             RETURNING id
         """, (
             order_id, order.customer_id, order.warehouse_id, order.currency, order.notes,
-            order.subtotal, order.tax, order.total, "OPEN", remaining_amount, total_paid, current_user.get('id')
+            order.subtotal, order.tax, order.total, "OPEN", remaining_amount, total_paid, current_user.id
         ))
         
         # Process Payments
@@ -267,7 +267,7 @@ def create_advanced_order(order: AdvancedOrderCreate, current_user: dict = Depen
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     main_payment_id, order_id, total_paid, "PENDIENTE", f"VTA-{int(time.time())}", 
-                    "VENTA", "PAGADO", "COMPLETO", current_user.get('id')
+                    "VENTA", "PAGADO", "COMPLETO", current_user.id
                 ))
                 
                 for p in valid_payments:
@@ -277,7 +277,7 @@ def create_advanced_order(order: AdvancedOrderCreate, current_user: dict = Depen
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         str(uuid.uuid4()), order_id, p.amount, p.method, p.reference or f"SUB-{int(time.time())}",
-                        "VENTA", "PAGADO", "PARCIAL", main_payment_id, current_user.get('id')
+                        "VENTA", "PAGADO", "PARCIAL", main_payment_id, current_user.id
                     ))
             else:
                 p = valid_payments[0]
@@ -287,7 +287,7 @@ def create_advanced_order(order: AdvancedOrderCreate, current_user: dict = Depen
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     str(uuid.uuid4()), order_id, p.amount, p.method, p.reference or f"VTA-{int(time.time())}",
-                    "VENTA", "PAGADO", "COMPLETO", current_user.get('id')
+                    "VENTA", "PAGADO", "COMPLETO", current_user.id
                 ))
 
         # Insert Items

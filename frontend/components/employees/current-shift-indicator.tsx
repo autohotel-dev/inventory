@@ -198,7 +198,7 @@ export function CurrentShiftIndicator({
                     {activeSession.employees.first_name} {activeSession.employees.last_name}
                   </p>
                   <p className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     En línea desde {new Date(activeSession.clock_in_at).toLocaleTimeString("es-MX", {
                       hour: "2-digit",
                       minute: "2-digit",
