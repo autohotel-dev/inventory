@@ -50,7 +50,9 @@ import {
   Lock,
   Key,
   BadgeCheck,
-  Fingerprint
+  Fingerprint,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Employee, EMPLOYEE_ROLES } from "./types";
 
@@ -60,6 +62,8 @@ export function EmployeesTable() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPin, setShowPin] = useState(false);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -624,13 +628,20 @@ export function EmployeesTable() {
                   <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
                   <Input
                     id="pin_code"
-                    type="password"
+                    type={showPin ? "text" : "password"}
                     maxLength={6}
                     value={formData.pin_code}
                     onChange={(e) => setFormData({ ...formData, pin_code: e.target.value.replace(/\D/g, "") })}
                     placeholder="••••••"
-                    className="pl-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors text-center font-mono tracking-widest"
+                    className="pl-9 pr-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors text-center font-mono tracking-widest text-zinc-100 placeholder:text-zinc-600"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -697,12 +708,19 @@ export function EmployeesTable() {
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/50" />
                         <Input
                           id="password"
-                          type="password"
+                          type={showPassword ? "text" : "password"}
                           value={formData.password}
                           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                           placeholder="Mayúscula, minúscula, número y símbolo"
-                          className="pl-9 bg-black/40 border-primary/30 focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all text-primary-foreground placeholder:text-zinc-600"
+                          className="pl-9 pr-9 bg-black/40 border-primary/30 focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all text-zinc-100 placeholder:text-zinc-600"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-primary transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
                       </div>
                       <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
                         <Shield className="h-3 w-3" /> Política de seguridad obligatoria (Mín. 8 caracteres)
