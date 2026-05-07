@@ -758,9 +758,9 @@ def get_shift_closings_history(
     results = []
     for c in closings:
         emp = db.query(Employees).filter(Employees.id == c.employee_id).first()
-        shift = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == c.shift_id).first()
+        shift = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == c.shift_definition_id).first()
         c_dict = {col.name: getattr(c, col.name) for col in c.__table__.columns}
-        c_dict["employees"] = {"first_name": emp.first_name, "last_name": emp.last_name} if emp else None
+        c_dict["employees"] = {"first_name": emp.first_name, "last_name": emp.last_name, "role": emp.role} if emp else None
         c_dict["shift_definitions"] = {"name": shift.name, "start_time": str(shift.start_time), "end_time": str(shift.end_time)} if shift else None
         results.append(c_dict)
         
