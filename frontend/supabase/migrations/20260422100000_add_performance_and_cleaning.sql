@@ -172,7 +172,7 @@ BEGIN
     'CHECK_IN'::TEXT AS entity_type,
     'Demora en dar entrada a vehículo'::TEXT AS description,
     COALESCE(e.first_name || ' ' || e.last_name, 'Sin asignar') AS employee_name,
-    EXTRACT(EPOCH FROM (NOW() - COALESCE(rs.vehicle_requested_at, rs.created_at)))/60::INTEGER AS minutes_elapsed,
+    (EXTRACT(EPOCH FROM (NOW() - COALESCE(rs.vehicle_requested_at, rs.created_at)))/60)::INTEGER AS minutes_elapsed,
     CASE 
       WHEN EXTRACT(EPOCH FROM (NOW() - COALESCE(rs.vehicle_requested_at, rs.created_at)))/60 > 20 THEN 'CRITICAL'::TEXT
       ELSE 'WARNING'::TEXT 
@@ -189,7 +189,7 @@ BEGIN
     'CHECK_OUT'::TEXT AS entity_type,
     'Demora en entrega de vehículo'::TEXT AS description,
     COALESCE(e.first_name || ' ' || e.last_name, 'Sin asignar') AS employee_name,
-    EXTRACT(EPOCH FROM (NOW() - rs.valet_checkout_requested_at))/60::INTEGER AS minutes_elapsed,
+    (EXTRACT(EPOCH FROM (NOW() - rs.valet_checkout_requested_at))/60)::INTEGER AS minutes_elapsed,
     CASE 
       WHEN EXTRACT(EPOCH FROM (NOW() - rs.valet_checkout_requested_at))/60 > 25 THEN 'CRITICAL'::TEXT
       ELSE 'WARNING'::TEXT 
@@ -206,7 +206,7 @@ BEGIN
     'CLEANING'::TEXT AS entity_type,
     'Habitación ' || r.number || ' demora en limpieza'::TEXT AS description,
     COALESCE(e.first_name || ' ' || e.last_name, 'Camarista sin asignar') AS employee_name,
-    EXTRACT(EPOCH FROM (NOW() - r.cleaning_started_at))/60::INTEGER AS minutes_elapsed,
+    (EXTRACT(EPOCH FROM (NOW() - r.cleaning_started_at))/60)::INTEGER AS minutes_elapsed,
     CASE 
       WHEN EXTRACT(EPOCH FROM (NOW() - r.cleaning_started_at))/60 > 60 THEN 'CRITICAL'::TEXT
       ELSE 'WARNING'::TEXT 
