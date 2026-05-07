@@ -1,13 +1,17 @@
 import time
 import json
+import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from sqlalchemy.orm import Session
 from datetime import datetime
+from fastapi import HTTPException
 
 from database import SessionLocal
 from models.system import SystemTelemetry
+
+logger = logging.getLogger("telemetry")
 
 class TelemetryMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -21,9 +25,10 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
             if not is_success:
                 error_details = {"status_code": response.status_code}
         except Exception as exc:
-            response = Response("Internal Server Error", status_code=500)
-            is_success = False
-            error_details = {"exception": str(exc), "type": type(exc).__name__}
+            # Log the actual exception for debugging
+            logger.error(f"[TelemetryMiddleware] Exception on {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
+            # Re-raise so FastAPI's exception handlers can process it properly
+            raise
 
         duration_ms = int((time.time() - start_time) * 1000)
 
@@ -32,7 +37,7 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         if hasattr(request.state, "user"):
             user_id = getattr(request.state.user, "id", None)
 
-        # Loggear telemetría en background/db
+        # Loggear telemetría en background/db (solo para requests exitosos o errores HTTP normales)
         db: Session = SessionLocal()
         try:
             telemetry = SystemTelemetry(
