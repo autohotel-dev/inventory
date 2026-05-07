@@ -45,11 +45,11 @@ export function RoomHourManagementModal({
             case "custom": {
                 const hours = parseInt(customHours) || 0;
                 if (isCourtesy) return 0;
-                const pricePerHour = room.room_types.extra_hour_price || 0;
+                const pricePerHour = Number(room.room_types.extra_hour_price || 0);
                 return hours * pricePerHour;
             }
             case "renew":
-                return room.room_types.base_price || 0;
+                return Number(room.room_types.base_price || 0);
             case "promo4h": {
                 const roomTypeName = room.room_types.name;
                 return FOUR_HOUR_PROMO_PRICES[roomTypeName] || 0;
@@ -129,7 +129,7 @@ export function RoomHourManagementModal({
                             Hab. {room.number} – {room.room_types?.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                            Precio base: ${room.room_types?.base_price?.toFixed(2)} | Hora extra: ${room.room_types?.extra_hour_price?.toFixed(2)}
+                            Precio base: ${Number(room.room_types?.base_price || 0).toFixed(2)} | Hora extra: ${Number(room.room_types?.extra_hour_price || 0).toFixed(2)}
                         </p>
                     </div>
 

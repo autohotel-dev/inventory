@@ -46,7 +46,7 @@ export function ConnectedManagePeopleModal({
     return Math.max(0, 60 - elapsed);
   })();
 
-  const extraPersonPrice = room.room_types?.extra_person_price || 0;
+  const extraPersonPrice = Number(room.room_types?.extra_person_price || 0);
   const isHotelRoom = room.room_types?.is_hotel || false;
 
   const handleAddPersonNewWrapper = async () => {

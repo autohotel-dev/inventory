@@ -56,10 +56,10 @@ export function QuickCheckinModal({
   const [durationNights, setDurationNights] = useState(1);
 
   const maxPeople = roomType?.max_people ?? 4;
-  const extraPersonPrice = roomType?.extra_person_price ?? 0;
+  const extraPersonPrice = Number(roomType?.extra_person_price ?? 0);
   const extraPeopleCount = Math.max(0, initialPeople - 2);
   const extraPeopleCost = extraPeopleCount * extraPersonPrice;
-  const basePricePerNight = (roomType?.base_price ?? 0) + extraPeopleCost;
+  const basePricePerNight = Number(roomType?.base_price ?? 0) + extraPeopleCost;
   const totalPrice = roomType?.is_hotel ? (basePricePerNight * durationNights) : basePricePerNight;
 
   // Calcular hora de salida estimada

@@ -82,8 +82,8 @@ export function ConnectedQuickCheckinModal({
         expectedCheckout.setHours(expectedCheckout.getHours() + hours);
       }
 
-      const basePrice = roomType.base_price ?? 0;
-      const extraPersonPrice = roomType.extra_person_price ?? 0;
+      const basePrice = Number(roomType.base_price ?? 0);
+      const extraPersonPrice = Number(roomType.extra_person_price ?? 0);
       const extraPeopleCount = Math.max(0, data.initialPeople - 2);
       const extraPeopleCost = extraPeopleCount * extraPersonPrice;
       const totalPrice =

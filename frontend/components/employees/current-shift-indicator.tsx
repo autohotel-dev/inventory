@@ -193,7 +193,9 @@ export function CurrentShiftIndicator({
                   </span>
                 </div>
                 <div>
-                  <p className="text-[10px] text-primary/80 font-bold uppercase tracking-wider mb-0.5">Operador Activo</p>
+                  <p className="text-[10px] text-primary/80 font-bold uppercase tracking-wider mb-0.5">
+                    {EMPLOYEE_ROLES.find(r => r.value === activeSession.employees?.role)?.label || activeSession.employees?.role || "Operador Activo"}
+                  </p>
                   <p className="font-bold text-base text-foreground leading-none mb-1">
                     {activeSession.employees.first_name} {activeSession.employees.last_name}
                   </p>

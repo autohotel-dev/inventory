@@ -110,8 +110,8 @@ export function ConnectedStartStayModal({
         expectedCheckout.setHours(12, 0, 0, 0);
       }
 
-      const basePrice = roomType.base_price ?? 0;
-      const extraPersonPrice = roomType.extra_person_price ?? 0;
+      const basePrice = Number(roomType.base_price ?? 0);
+      const extraPersonPrice = Number(roomType.extra_person_price ?? 0);
 
       // Calcular costo extra por personas adicionales (más de 2)
       const extraPeopleCount = Math.max(0, initialPeople - 2);

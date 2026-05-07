@@ -77,8 +77,8 @@ export function ConnectedChangeRoomModal({
       await apiClient.patch(`/system/crud/rooms/${data.newRoomId}`, { status: "OCUPADA" });
 
       // 4. Calcular diferencia de precio (positivo = cobro, negativo = devolución)
-      const oldPrice = room.room_types?.base_price || 0;
-      const newPrice = newRoom.room_types?.base_price || 0;
+      const oldPrice = Number(room.room_types?.base_price || 0);
+      const newPrice = Number(newRoom.room_types?.base_price || 0);
       const priceDifference = newPrice - oldPrice; // Positivo = upgrade, Negativo = downgrade
 
       if (priceDifference !== 0) {
