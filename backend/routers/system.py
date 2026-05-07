@@ -894,7 +894,7 @@ def purge_system(req: PurgeRequest, db: Session = Depends(get_db)):
         db.execute(text(truncate_sql))
         
         # Reset rooms
-        db.execute(text("UPDATE rooms SET status = 'LIBRE', is_hotel = FALSE;"))
+        db.execute(text("UPDATE rooms SET status = 'LIBRE';"))
         
         db.commit()
         return {"status": "success", "message": "Sistema purgado correctamente"}
