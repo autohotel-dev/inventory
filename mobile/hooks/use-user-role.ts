@@ -59,8 +59,8 @@ export function useUserRole(): UserRoleData {
         const { data: emps } = await apiClient.get('/system/crud/employees', {
             params: {
                 select: 'id,first_name,last_name,role',
-                auth_user_id: `eq.${authUser.userId}`,
-                is_active: 'eq.true',
+                auth_user_id: authUser.userId,
+                is_active: 'true',
                 limit: 1
             }
         });
@@ -71,8 +71,8 @@ export function useUserRole(): UserRoleData {
             const { data: empsByEmail } = await apiClient.get('/system/crud/employees', {
                 params: {
                     select: 'id,first_name,last_name,role',
-                    email: `eq.${email}`,
-                    is_active: 'eq.true',
+                    email: email,
+                    is_active: 'true',
                     limit: 1
                 }
             });
@@ -97,8 +97,8 @@ export function useUserRole(): UserRoleData {
           const { data: sessions } = await apiClient.get('/system/crud/shift_sessions', {
             params: {
               select: 'id,status',
-              employee_id: `eq.${employee.id}`,
-              status: 'in.(active,open)',
+              employee_id: employee.id,
+              status: 'active',
               limit: 1
             }
           });

@@ -218,7 +218,9 @@ async function registerForPushNotificationsAsync(showFeedback: (title: string, m
         });
     }
 
-    if (Device.isDevice) {
+    const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+
+    if (Device.isDevice && !isExpoGo) {
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
 
@@ -253,7 +255,7 @@ async function registerForPushNotificationsAsync(showFeedback: (title: string, m
             });
         }
     } else {
-        console.log('Push notifications require a physical device');
+        console.log('[Notifications] Push notifications disabled: Requires a physical device or running inside Expo Go');
     }
 
     return token;

@@ -353,9 +353,49 @@ def generic_read(table_name: str, request: Request, limit: int = 100, db: Sessio
         
         # Apply filters from query params
         for key, value in request.query_params.items():
-            if key in ('limit', 'offset', 'order'): continue
+            if key in ('limit', 'offset', 'order', 'select'): continue
             if key in table.columns:
-                stmt = stmt.where(table.c[key] == value)
+                col = table.c[key]
+                if isinstance(value, str):
+                    prefix_val = value
+                    
+                    if prefix_val.startswith("eq."):
+                        v = prefix_val[3:]
+                        if v.lower() == 'true': v = True
+                        elif v.lower() == 'false': v = False
+                        elif v.lower() == 'null': v = None
+                        stmt = stmt.where(col == v)
+                    elif prefix_val.startswith("neq."):
+                        v = prefix_val[4:]
+                        if v.lower() == 'true': v = True
+                        elif v.lower() == 'false': v = False
+                        elif v.lower() == 'null': v = None
+                        stmt = stmt.where(col != v)
+                    elif prefix_val.startswith("gt."):
+                        stmt = stmt.where(col > prefix_val[3:])
+                    elif prefix_val.startswith("gte."):
+                        stmt = stmt.where(col >= prefix_val[4:])
+                    elif prefix_val.startswith("lt."):
+                        stmt = stmt.where(col < prefix_val[3:])
+                    elif prefix_val.startswith("lte."):
+                        stmt = stmt.where(col <= prefix_val[4:])
+                    elif prefix_val == "is.null":
+                        stmt = stmt.where(col.is_(None))
+                    elif prefix_val == "not.is.null" or prefix_val == "is.not.null":
+                        stmt = stmt.where(col.isnot(None))
+                    elif prefix_val.startswith("in."):
+                        vals = prefix_val[3:].strip("()").split(",")
+                        stmt = stmt.where(col.in_(vals))
+                    elif prefix_val.startswith("not.in."):
+                        vals = prefix_val[7:].strip("()").split(",")
+                        stmt = stmt.where(~col.in_(vals))
+                    else:
+                        v = prefix_val
+                        if str(v).lower() == 'true': v = True
+                        elif str(v).lower() == 'false': v = False
+                        stmt = stmt.where(col == v)
+                else:
+                    stmt = stmt.where(table.c[key] == value)
                 
         # Handle simple ordering
         order = request.query_params.get('order')

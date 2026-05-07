@@ -63,7 +63,7 @@ setInterval(async () => {
     }));
 
     // El endpoint de telemetría bulk
-    await apiClient.post('/system/telemetry/bulk', insertPayload);
+    await apiClient.post('/system/ops-sync', { events: insertPayload });
   } catch (error) {
     console.error('[Telemetry Móvil] Fallo al sincronizar:', error);
   }

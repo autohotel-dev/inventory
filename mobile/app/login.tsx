@@ -77,13 +77,19 @@ export default function LoginScreen() {
         }
 
         setLoading(true);
+        console.log("[LOGIN DEBUG] Iniciando petición a Cognito para:", authEmail);
         try {
             const { signIn } = await import('aws-amplify/auth');
             
+            console.log("[LOGIN DEBUG] Ejecutando signIn...");
             const result = await signIn({
-                username: authEmail,
+                username: authEmail.trim(),
                 password: authPwd,
+                options: {
+                    authFlowType: 'USER_PASSWORD_AUTH'
+                }
             });
+            console.log("[LOGIN DEBUG] Respuesta de signIn exitosa:", result);
 
             if (result.nextStep.signInStep !== 'DONE') {
                 showFeedback('Atención', `Paso requerido: ${result.nextStep.signInStep}`, 'warning');
@@ -96,9 +102,14 @@ export default function LoginScreen() {
                 // Delegamos la navegación al RootLayoutNav que checa el role.
             }
         } catch (err: any) {
+            console.error("[LOGIN DEBUG] EXCEPCIÓN DETECTADA:", JSON.stringify(err, null, 2));
+            console.error("[LOGIN DEBUG] Error Name:", err.name);
+            console.error("[LOGIN DEBUG] Error Message:", err.message);
+            console.error("[LOGIN DEBUG] Error Stack:", err.stack);
             // Manejar excepciones específicas de Amplify si es necesario
             showFeedback('Error de acceso', err.message || 'Ocurrió un error inesperado al intentar entrar.', 'error');
         } finally {
+            console.log("[LOGIN DEBUG] Petición finalizada");
             setLoading(false);
         }
     };
