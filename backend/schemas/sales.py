@@ -60,6 +60,10 @@ class SalesOrderItemBase(BaseModel):
     delivery_status: str = "PENDING_VALET"
 
 class SalesOrderItemCreate(SalesOrderItemBase):
+    sales_order_id: uuid.UUID
+    is_paid: Optional[bool] = False
+    paid_at: Optional[datetime] = None
+    payment_method: Optional[str] = None
     shift_session_id: Optional[uuid.UUID] = None
 
 class SalesOrderItemResponse(SalesOrderItemBase):
