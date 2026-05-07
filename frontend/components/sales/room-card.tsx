@@ -388,11 +388,11 @@ export function RoomCardComponent({
                 "TV: Control en habitación"
               }
               className={cn(
-                "h-5 w-5 flex items-center justify-center rounded-md border shadow-sm transition-all hover:scale-110",
-                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/20 border-orange-500/50 text-orange-400 animate-pulse" :
-                tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
-                tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/30 border-red-500/60 text-red-400 animate-pulse" :
-                "bg-zinc-500/20 border-zinc-500/50 text-zinc-400" // EN_HABITACION / SIN_REGISTRO
+                "h-5 w-5 flex items-center justify-center rounded-md border shadow-sm transition-all hover:scale-110 cursor-pointer",
+                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500 border-orange-400 text-white animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
+                tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500 border-emerald-400 text-white shadow-[0_0_8px_rgba(16,185,129,0.6)]" :
+                tvRemoteStatus === "EXTRAVIADO" ? "bg-red-600 border-red-500 text-white animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.6)]" :
+                "bg-zinc-800 border-zinc-600 text-zinc-200 hover:bg-zinc-700 hover:text-white" // EN_HABITACION / SIN_REGISTRO
               )}
             >
               <Tv className="h-3 w-3" />
