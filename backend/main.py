@@ -54,5 +54,42 @@ def read_root():
 def health_check():
     return {"status": "healthy", "version": "1.0.0"}
 
+@app.get("/debug/shift-closings")
+def debug_shift_closings(limit: int = 3):
+    """TEMP: debug endpoint sin auth para diagnosticar 500."""
+    import traceback, uuid, decimal, datetime
+    from database import get_db as _get_db
+    from models.hr import ShiftClosings, Employees, ShiftDefinitions
+    
+    def _ser(val):
+        if val is None: return None
+        if isinstance(val, uuid.UUID): return str(val)
+        if isinstance(val, decimal.Decimal): return float(val)
+        if isinstance(val, (datetime.datetime, datetime.date)): return val.isoformat()
+        if isinstance(val, datetime.time): return str(val)
+        if isinstance(val, dict): return {k: _ser(v) for k, v in val.items()}
+        if isinstance(val, (list, tuple)): return [_ser(v) for v in val]
+        return val
+    
+    db = next(_get_db())
+    try:
+        total = db.query(ShiftClosings).count()
+        closings = db.query(ShiftClosings).order_by(ShiftClosings.created_at.desc()).limit(limit).all()
+        results = []
+        for c in closings:
+            emp = db.query(Employees).filter(Employees.id == c.employee_id).first()
+            shift = db.query(ShiftDefinitions).filter(ShiftDefinitions.id == c.shift_definition_id).first()
+            c_dict = {}
+            for col in c.__table__.columns:
+                c_dict[col.name] = _ser(getattr(c, col.name))
+            c_dict["employees"] = {"first_name": emp.first_name, "last_name": emp.last_name, "role": emp.role} if emp else None
+            c_dict["shift_definitions"] = {"name": shift.name} if shift else None
+            results.append(c_dict)
+        return {"data": results, "total": total, "fetched": len(results), "debug": "OK"}
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
+    finally:
+        db.close()
+
 # Handler para AWS Lambda (Solo para endpoints HTTP, WebSockets requieren un servidor persistente)
 handler = Mangum(app)
