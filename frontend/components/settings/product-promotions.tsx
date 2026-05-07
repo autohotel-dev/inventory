@@ -319,7 +319,7 @@ export function ProductPromotions() {
             case "PERCENT_DISCOUNT":
                 return `${promo.discount_percent}% de descuento`;
             case "FIXED_PRICE":
-                return `$${promo.fixed_price?.toFixed(2)} precio especial`;
+                return `$${Number(promo.fixed_price || 0).toFixed(2)} precio especial`;
             default:
                 return "";
         }
@@ -680,7 +680,7 @@ export function ProductPromotions() {
                                                 <span className="font-medium">{p.name}</span>
                                                 <span className="text-xs text-muted-foreground ml-2">{p.sku}</span>
                                             </div>
-                                            <span className="text-xs font-mono text-muted-foreground">${p.price.toFixed(2)}</span>
+                                            <span className="text-xs font-mono text-muted-foreground">${Number(p.price || 0).toFixed(2)}</span>
                                         </button>
                                     ))}
                                     {filteredProducts.length === 0 && (
