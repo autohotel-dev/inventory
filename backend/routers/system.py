@@ -863,3 +863,42 @@ def execute_rpc(function_name: str, payload: dict = Body(...), db: Session = Dep
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+from pydantic import BaseModel
+class PurgeRequest(BaseModel):
+    confirm: str
+
+@router.post("/purge")
+def purge_system(req: PurgeRequest, db: Session = Depends(get_db)):
+    if req.confirm != "REINICIAR":
+        raise HTTPException(status_code=400, detail="Palabra clave incorrecta")
+        
+    try:
+        # Tables to truncate
+        tables = [
+            "room_stays",
+            "sales_orders",
+            "sales_order_items",
+            "payments",
+            "audit_logs",
+            "system_telemetry",
+            "notifications",
+            "shift_sessions",
+            "shift_closings",
+            "cash_register_shifts",
+            "operation_flows",
+            "flow_events",
+            "room_cleanings"
+        ]
+        
+        truncate_sql = f"TRUNCATE TABLE {', '.join(tables)} RESTART IDENTITY CASCADE;"
+        db.execute(text(truncate_sql))
+        
+        # Reset rooms
+        db.execute(text("UPDATE rooms SET status = 'LIBRE', is_hotel = FALSE;"))
+        
+        db.commit()
+        return {"status": "success", "message": "Sistema purgado correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error purgando datos: {str(e)}")
