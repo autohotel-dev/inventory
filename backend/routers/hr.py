@@ -761,7 +761,7 @@ def get_shift_closings_history(
         query = db.query(ShiftClosings)
         
         # Simple role check
-        user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.sub).first()
+        user_emp = db.query(Employees).filter(Employees.auth_user_id == current_user.id).first()
         is_admin = user_emp and user_emp.role in ["admin", "manager"]
         
         if not is_admin and employee_id:
