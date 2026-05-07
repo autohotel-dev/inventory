@@ -437,8 +437,9 @@ export default function ControlesAuditoriaPage() {
                 </thead>
                 <tbody>
                   {logs.map(log => {
-                    const meta = ACTION_LABELS[log.action_type] || {
-                      label: log.action_type.replace(/_/g, " "),
+                    const actionType = log.action_type || log.action || log.event_type || "DESCONOCIDO";
+                    const meta = ACTION_LABELS[actionType] || {
+                      label: String(actionType).replace(/_/g, " "),
                       color: "text-zinc-400 bg-zinc-500/10 border-zinc-500/20",
                       icon: <History size={12} />,
                     };
