@@ -279,14 +279,20 @@ def generic_create(table_name: str, payload: Dict[str, Any] | List[Dict[str, Any
     table = get_table(table_name)
     try:
         if isinstance(payload, list):
-            stmt = insert(table).values(payload)
+            stmt = insert(table).values(payload).returning(*table.c)
         else:
-            stmt = insert(table).values(**payload)
-        # Using returning to get the ids, but sqlite/postgres differ.
-        # Just execute and commit
+            stmt = insert(table).values(**payload).returning(*table.c)
+            
         result = db.execute(stmt)
         db.commit()
-        return {"status": "success"}
+        
+        # Return the inserted row(s) to mimic Supabase .select() behavior
+        rows = [dict(r) for r in result.mappings().all()]
+        
+        if not isinstance(payload, list) and len(rows) == 1:
+            return rows[0]
+            
+        return rows
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -296,10 +302,13 @@ def generic_update(table_name: str, id: str, payload: Dict[str, Any], db: Sessio
     table = get_table(table_name)
     try:
         # Assuming the primary key is 'id'
-        # SQLAlchemy requires casting or handling UUIDs properly.
-        stmt = update(table).where(table.c.id == id).values(**payload)
-        db.execute(stmt)
+        stmt = update(table).where(table.c.id == id).values(**payload).returning(*table.c)
+        result = db.execute(stmt)
         db.commit()
+        
+        row = result.mappings().first()
+        if row:
+            return dict(row)
         return {"status": "success"}
     except Exception as e:
         db.rollback()
