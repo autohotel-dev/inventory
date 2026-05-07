@@ -30,11 +30,38 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
   const [loading, setLoading] = useState(false);
   const [loadingCocheros, setLoadingCocheros] = useState(true);
 
+  const [currentAssignedEmployeeId, setCurrentAssignedEmployeeId] = useState<string | null>(null);
+  const [showFullList, setShowFullList] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       fetchActiveCocheros();
+      fetchCurrentAssignment();
+    } else {
+      setShowFullList(false);
+      setCurrentAssignedEmployeeId(null);
+      setSelectedCochero(null);
     }
-  }, [isOpen]);
+  }, [isOpen, room, assetType]);
+
+  const fetchCurrentAssignment = async () => {
+    if (!room) return;
+    try {
+      const { data } = await apiClient.get(`/system/crud/room_assets?room_id=${room.id}&asset_type=${assetType}`) as any;
+      const asset = Array.isArray(data) ? data[0] : (data?.items?.[0] || data?.results?.[0]);
+      if (asset?.assigned_employee_id) {
+        setCurrentAssignedEmployeeId(asset.assigned_employee_id);
+        setSelectedCochero(asset.assigned_employee_id);
+        setShowFullList(false);
+      } else {
+        setCurrentAssignedEmployeeId(null);
+        setShowFullList(true);
+      }
+    } catch (e) {
+      console.error("Error fetching current assignment:", e);
+      setShowFullList(true);
+    }
+  };
 
   const fetchActiveCocheros = async () => {
     setLoadingCocheros(true);
@@ -183,7 +210,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-              {cocheros.map((cochero) => (
+              {(showFullList ? cocheros : cocheros.filter(c => c.id === currentAssignedEmployeeId)).map((cochero) => (
                 <button
                   key={cochero.id}
                   onClick={() => setSelectedCochero(cochero.id)}
@@ -198,10 +225,19 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
                   </div>
                   <div className="text-left">
                     <div className="font-bold">{cochero.first_name} {cochero.last_name}</div>
-                    <div className="text-xs uppercase tracking-widest opacity-70">Cochero</div>
+                    <div className="text-xs uppercase tracking-widest opacity-70">Cochero {currentAssignedEmployeeId === cochero.id ? '(Asignado)' : ''}</div>
                   </div>
                 </button>
               ))}
+              {!showFullList && currentAssignedEmployeeId && (
+                <Button 
+                  variant="outline" 
+                  className="mt-2 text-xs border-dashed text-zinc-400 hover:text-white" 
+                  onClick={() => setShowFullList(true)}
+                >
+                  Cambiar de Cochero
+                </Button>
+              )}
             </div>
           )}
         </div>
