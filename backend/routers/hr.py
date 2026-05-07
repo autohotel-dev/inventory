@@ -550,13 +550,8 @@ from models.hr import ShiftClosings, ShiftClosingDetails, ShiftClosingReviews
 
 
 @router.get("/shift-closings/{closing_id}")
-def get_shift_closing_single(closing_id: str, db: Session = Depends(get_db)):
-    try:
-        closing_uuid = uuid.UUID(closing_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid closing ID format")
-    
-    item = db.query(ShiftClosings).filter(ShiftClosings.id == closing_uuid).first()
+def get_shift_closing_single(closing_id: uuid.UUID, db: Session = Depends(get_db)):
+    item = db.query(ShiftClosings).filter(ShiftClosings.id == closing_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
         
