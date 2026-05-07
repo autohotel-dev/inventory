@@ -465,7 +465,7 @@ def get_executive_raw_data(days: int = 30, db: Session = Depends(get_db)):
     from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
     
     stays_query = text("""
-        SELECT id, created_at, check_in_at, check_out_at, status, room_id
+        SELECT id, created_at, check_in_at, actual_check_out_at as check_out_at, status, room_id
         FROM room_stays
         WHERE created_at >= :from_date
     """)
@@ -479,8 +479,8 @@ def get_executive_raw_data(days: int = 30, db: Session = Depends(get_db)):
     payments = [dict(r) for r in db.execute(payments_query, {"from_date": from_date}).mappings().all()]
     
     shifts_query = text("""
-        SELECT id, shift_type, start_time, end_time, created_at
-        FROM shifts
+        SELECT id, shift_definition_id as shift_type, clock_in_at as start_time, clock_out_at as end_time, created_at
+        FROM shift_sessions
         WHERE created_at >= :from_date
     """)
     # Wait, the table might be shift_definitions. The frontend queried 'shifts'. Let's see if the table exists.
@@ -694,7 +694,7 @@ def get_prediction_raw_data(db: Session = Depends(get_db)):
     today_str = datetime.now().strftime("%Y-%m-%d")
     
     # 1. Historical stays (last 30 days)
-    stays_query = text("SELECT id, created_at, check_in_at, check_out_at, status FROM room_stays WHERE created_at >= :start AND created_at <= :end")
+    stays_query = text("SELECT id, created_at, check_in_at, actual_check_out_at as check_out_at, status FROM room_stays WHERE created_at >= :start AND created_at <= :end")
     stays = [dict(r) for r in db.execute(stays_query, {"start": thirty_days_ago, "end": today_str + " 23:59:59"}).mappings().all()]
     
     # 2. Historical payments
