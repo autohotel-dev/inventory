@@ -361,17 +361,15 @@ export function EmployeesTable() {
     }
     
     return sortedEmployees.map((employee) => (
-      <TableRow key={employee.id}>
+      <TableRow key={employee.id} className="hover:bg-primary/5 transition-colors border-white/5 group">
         <TableCell>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-medium">
-                {employee.first_name[0]}
-                {employee.last_name[0]}
-              </span>
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center text-primary font-bold shadow-inner group-hover:scale-105 transition-transform">
+              {employee.first_name[0]}
+              {employee.last_name[0]}
             </div>
             <div>
-              <p className="font-medium">
+              <p className="font-semibold text-zinc-100 group-hover:text-primary transition-colors">
                 {employee.first_name} {employee.last_name}
               </p>
               {employee.hired_at && (
@@ -445,78 +443,78 @@ export function EmployeesTable() {
     <div className="space-y-6">
       {/* Header con estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border rounded-lg p-4 flex items-center gap-4">
-          <div className="p-3 rounded-full bg-blue-500/10">
-            <Users className="h-6 w-6 text-blue-500" />
+        <div className="bg-zinc-900/40 border border-white/5 backdrop-blur-md rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <Users className="h-6 w-6 text-blue-400" />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Total Empleados</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Empleados</p>
+            <p className="text-3xl font-bold text-zinc-100">{stats.total}</p>
           </div>
         </div>
-        <div className="bg-card border rounded-lg p-4 flex items-center gap-4">
-          <div className="p-3 rounded-full bg-green-500/10">
-            <UserCheck className="h-6 w-6 text-green-500" />
+        <div className="bg-zinc-900/40 border border-white/5 backdrop-blur-md rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+          <div className="p-3.5 rounded-xl bg-green-500/10 border border-green-500/20">
+            <UserCheck className="h-6 w-6 text-green-400" />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Activos</p>
-            <p className="text-2xl font-bold">{stats.active}</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Activos</p>
+            <p className="text-3xl font-bold text-zinc-100">{stats.active}</p>
           </div>
         </div>
-        <div className="bg-card border rounded-lg p-4 flex items-center gap-4">
-          <div className="p-3 rounded-full bg-red-500/10">
-            <UserX className="h-6 w-6 text-red-500" />
+        <div className="bg-zinc-900/40 border border-white/5 backdrop-blur-md rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
+            <UserX className="h-6 w-6 text-red-400" />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Inactivos</p>
-            <p className="text-2xl font-bold">{stats.inactive}</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Inactivos</p>
+            <p className="text-3xl font-bold text-zinc-100">{stats.inactive}</p>
           </div>
         </div>
       </div>
 
       {/* Barra de acciones */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-zinc-900/20 p-4 rounded-2xl border border-white/5 mt-6 mb-6">
+        <div className="relative flex-1 w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input
             placeholder="Buscar empleados..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 bg-black/40 border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all rounded-xl"
           />
         </div>
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-xl px-6">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Empleado
         </Button>
       </div>
 
       {/* Tabla */}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="bg-zinc-900/30 border border-white/5 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-sm">
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="bg-black/40">
+            <TableRow className="border-white/5 hover:bg-transparent">
               <TableHead>
-                <Button variant="ghost" onClick={() => handleSort('name')} className="flex items-center gap-1 p-0 hover:bg-transparent -ml-2">
+                <Button variant="ghost" onClick={() => handleSort('name')} className="flex items-center gap-1 p-0 hover:bg-transparent -ml-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-200">
                   Empleado <ArrowUpDown className="h-3 w-3" />
                 </Button>
               </TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => handleSort('email')} className="flex items-center gap-1 p-0 hover:bg-transparent">
+                <Button variant="ghost" onClick={() => handleSort('email')} className="flex items-center gap-1 p-0 hover:bg-transparent text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-200">
                   Contacto <ArrowUpDown className="h-3 w-3" />
                 </Button>
               </TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => handleSort('role')} className="flex items-center gap-1 p-0 hover:bg-transparent">
+                <Button variant="ghost" onClick={() => handleSort('role')} className="flex items-center gap-1 p-0 hover:bg-transparent text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-200">
                   Rol <ArrowUpDown className="h-3 w-3" />
                 </Button>
               </TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => handleSort('is_active')} className="flex items-center gap-1 p-0 hover:bg-transparent">
+                <Button variant="ghost" onClick={() => handleSort('is_active')} className="flex items-center gap-1 p-0 hover:bg-transparent text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-200">
                   Estado <ArrowUpDown className="h-3 w-3" />
                 </Button>
               </TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
+              <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
