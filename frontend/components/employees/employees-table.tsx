@@ -189,10 +189,14 @@ export function EmployeesTable() {
       return;
     }
 
-    // Validar contraseña si se va a crear usuario
-    if (!editingEmployee && formData.create_auth_user) {
-      if (!formData.password || formData.password.length < 6) {
-        showError("Error", "La contraseña debe tener al menos 6 caracteres");
+    // Validar contraseña de AWS Cognito si se requiere
+    const requiresPassword = (!editingEmployee && formData.create_auth_user) || 
+                             (editingEmployee && !editingEmployee.auth_user_id && formData.create_auth_user);
+                             
+    if (requiresPassword) {
+      const pwd = formData.password;
+      if (!pwd || pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/\d/.test(pwd) || !/[\W_]/.test(pwd)) {
+        showError("Contraseña Insegura", "La contraseña debe tener mínimo 8 caracteres, incluir mayúscula, minúscula, número y símbolo especial.");
         return;
       }
     }
@@ -213,11 +217,6 @@ export function EmployeesTable() {
 
         // Crear usuario de auth si se solicitó y no tiene uno
         if (formData.create_auth_user && !editingEmployee.auth_user_id) {
-          if (!formData.password || formData.password.length < 6) {
-            showError("Error", "La contraseña debe tener al menos 6 caracteres");
-            setSaving(false);
-            return;
-          }
 
           try {
             await apiClient.post("/hr/employees/create-auth-user", {
@@ -324,6 +323,112 @@ export function EmployeesTable() {
     );
   };
 
+  // Prevenir re-renders masivos de la tabla al escribir en el formulario
+  const renderTableRows = useMemo(() => {
+    if (loading) {
+      return (
+        <TableRow>
+          <TableCell colSpan={5} className="text-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+            <p className="text-muted-foreground mt-2">Cargando empleados...</p>
+          </TableCell>
+        </TableRow>
+      );
+    }
+    if (sortedEmployees.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={5} className="text-center py-8">
+            <UserCircle className="h-12 w-12 mx-auto text-muted-foreground/50" />
+            <p className="text-muted-foreground mt-2">
+              {searchTerm ? "No se encontraron empleados" : "No hay empleados registrados"}
+            </p>
+          </TableCell>
+        </TableRow>
+      );
+    }
+    
+    return sortedEmployees.map((employee) => (
+      <TableRow key={employee.id}>
+        <TableCell>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-sm font-medium">
+                {employee.first_name[0]}
+                {employee.last_name[0]}
+              </span>
+            </div>
+            <div>
+              <p className="font-medium">
+                {employee.first_name} {employee.last_name}
+              </p>
+              {employee.hired_at && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Desde {new Date(employee.hired_at).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="space-y-1">
+            <p className="text-sm flex items-center gap-1">
+              <Mail className="h-3 w-3 text-muted-foreground" />
+              {employee.email}
+            </p>
+            {employee.phone && (
+              <p className="text-sm flex items-center gap-1">
+                <Phone className="h-3 w-3 text-muted-foreground" />
+                {employee.phone}
+              </p>
+            )}
+          </div>
+        </TableCell>
+        <TableCell>{getRoleBadge(employee.role)}</TableCell>
+        <TableCell>
+          <div className="flex flex-col gap-1">
+            <Badge variant={employee.is_active ? "default" : "secondary"}>
+              {employee.is_active ? "Activo" : "Inactivo"}
+            </Badge>
+            {employee.auth_user_id ? (
+              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+                <Shield className="h-3 w-3 mr-1" />
+                Vinculado
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
+                Sin vincular
+              </Badge>
+            )}
+          </div>
+        </TableCell>
+        <TableCell className="text-right">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleEdit(employee)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-red-500 hover:text-red-600"
+              onClick={() => {
+                setEditingEmployee(employee);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    ));
+  }, [loading, sortedEmployees, searchTerm]);
+
   return (
     <div className="space-y-6">
       {/* Header con estadísticas */}
@@ -403,103 +508,7 @@ export function EmployeesTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                  <p className="text-muted-foreground mt-2">Cargando empleados...</p>
-                </TableCell>
-              </TableRow>
-            ) : sortedEmployees.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  <UserCircle className="h-12 w-12 mx-auto text-muted-foreground/50" />
-                  <p className="text-muted-foreground mt-2">
-                    {searchTerm ? "No se encontraron empleados" : "No hay empleados registrados"}
-                  </p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              sortedEmployees.map((employee) => (
-                <TableRow key={employee.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-medium">
-                          {employee.first_name[0]}
-                          {employee.last_name[0]}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {employee.first_name} {employee.last_name}
-                        </p>
-                        {employee.hired_at && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Desde {new Date(employee.hired_at).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <p className="text-sm flex items-center gap-1">
-                        <Mail className="h-3 w-3 text-muted-foreground" />
-                        {employee.email}
-                      </p>
-                      {employee.phone && (
-                        <p className="text-sm flex items-center gap-1">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          {employee.phone}
-                        </p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getRoleBadge(employee.role)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <Badge variant={employee.is_active ? "default" : "secondary"}>
-                        {employee.is_active ? "Activo" : "Inactivo"}
-                      </Badge>
-                      {employee.auth_user_id ? (
-                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Vinculado
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
-                          Sin vincular
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(employee)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-500 hover:text-red-600"
-                        onClick={() => {
-                          setEditingEmployee(employee);
-                          setIsDeleteModalOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            {renderTableRows}
           </TableBody>
         </Table>
       </div>
@@ -651,8 +660,8 @@ export function EmployeesTable() {
                       onChange={(e) =>
                         setFormData({ ...formData, password: e.target.value })
                       }
-                      placeholder="Mínimo 6 caracteres"
-                      minLength={6}
+                      placeholder="Mayúscula, minúscula, número y símbolo"
+                      minLength={8}
                     />
                     <p className="text-xs text-muted-foreground">
                       El empleado usará esta contraseña para iniciar sesión
@@ -707,8 +716,8 @@ export function EmployeesTable() {
                           onChange={(e) =>
                             setFormData({ ...formData, password: e.target.value })
                           }
-                          placeholder="Mínimo 6 caracteres"
-                          minLength={6}
+                          placeholder="Mayúscula, minúscula, número y símbolo"
+                          minLength={8}
                         />
                       </div>
                     )}
