@@ -52,7 +52,9 @@ import {
   BadgeCheck,
   Fingerprint,
   Eye,
-  EyeOff
+  EyeOff,
+  CheckCircle2,
+  Circle
 } from "lucide-react";
 import { Employee, EMPLOYEE_ROLES } from "./types";
 
@@ -722,9 +724,28 @@ export function EmployeesTable() {
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <Shield className="h-3 w-3" /> Política de seguridad obligatoria (Mín. 8 caracteres)
-                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+                        <div className={`flex items-center gap-1.5 transition-colors ${formData.password.length >= 8 ? 'text-green-500' : 'text-zinc-500'}`}>
+                          {formData.password.length >= 8 ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Mínimo 8 caracteres
+                        </div>
+                        <div className={`flex items-center gap-1.5 transition-colors ${/[A-Z]/.test(formData.password) ? 'text-green-500' : 'text-zinc-500'}`}>
+                          {/[A-Z]/.test(formData.password) ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Una mayúscula
+                        </div>
+                        <div className={`flex items-center gap-1.5 transition-colors ${/[a-z]/.test(formData.password) ? 'text-green-500' : 'text-zinc-500'}`}>
+                          {/[a-z]/.test(formData.password) ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Una minúscula
+                        </div>
+                        <div className={`flex items-center gap-1.5 transition-colors ${/\d/.test(formData.password) ? 'text-green-500' : 'text-zinc-500'}`}>
+                          {/\d/.test(formData.password) ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Un número
+                        </div>
+                        <div className={`flex items-center gap-1.5 transition-colors col-span-2 ${/[\W_]/.test(formData.password) ? 'text-green-500' : 'text-zinc-500'}`}>
+                          {/[\W_]/.test(formData.password) ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Un símbolo especial (@, $, !, etc)
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
