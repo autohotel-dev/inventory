@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -45,6 +46,11 @@ import {
   UserCheck,
   UserX,
   ArrowUpDown,
+  User,
+  Lock,
+  Key,
+  BadgeCheck,
+  Fingerprint
 } from "lucide-react";
 import { Employee, EMPLOYEE_ROLES } from "./types";
 
@@ -515,82 +521,95 @@ export function EmployeesTable() {
 
       {/* Modal de crear/editar */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="w-[95vw] sm:w-full max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingEmployee ? "Editar Empleado" : "Nuevo Empleado"}
+        <DialogContent className="w-[95vw] sm:w-full max-w-lg p-0 overflow-hidden bg-background/95 backdrop-blur-xl border-zinc-800/60 shadow-2xl">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-blue-500 to-purple-600"></div>
+          
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/5 bg-white/5">
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              <UserCircle className="h-5 w-5 text-primary" />
+              {editingEmployee ? "Editar Perfil del Empleado" : "Registrar Nuevo Empleado"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-zinc-400">
               {editingEmployee
-                ? "Modifica los datos del empleado"
-                : "Ingresa los datos del nuevo empleado"}
+                ? "Actualiza la información de contacto, rol y acceso al sistema."
+                : "Ingresa los datos para registrar un empleado y concederle acceso."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            {/* Información Básica */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="first_name">Nombre *</Label>
-                <Input
-                  id="first_name"
-                  value={formData.first_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, first_name: e.target.value })
-                  }
-                  placeholder="Juan"
-                />
+                <Label htmlFor="first_name" className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Nombre</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="first_name"
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    placeholder="Juan"
+                    className="pl-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="last_name">Apellido *</Label>
-                <Input
-                  id="last_name"
-                  value={formData.last_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, last_name: e.target.value })
-                  }
-                  placeholder="Pérez"
-                />
+                <Label htmlFor="last_name" className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Apellido</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="last_name"
+                    value={formData.last_name}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    placeholder="Pérez"
+                    className="pl-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                placeholder="juan@ejemplo.com"
-              />
+            {/* Contacto */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
+                <Label htmlFor="email" className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Correo Electrónico</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="juan@ejemplo.com"
+                    className="pl-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2 col-span-2 sm:col-span-1">
+                <Label htmlFor="phone" className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Teléfono</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+52 123 456 7890"
+                    className="pl-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">Teléfono</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-                placeholder="+52 123 456 7890"
-              />
-            </div>
-
+            {/* Configuración de Puesto */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="role">Rol *</Label>
+                <Label htmlFor="role" className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Rol Asignado</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value: Employee["role"]) =>
-                    setFormData({ ...formData, role: value })
-                  }
+                  onValueChange={(value: Employee["role"]) => setFormData({ ...formData, role: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-zinc-900/50 border-zinc-800 focus:ring-primary/50 transition-colors">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-zinc-900 border-zinc-800">
                     {EMPLOYEE_ROLES.map((role) => (
                       <SelectItem key={role.value} value={role.value}>
                         {role.label}
@@ -600,85 +619,53 @@ export function EmployeesTable() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pin_code">PIN (opcional)</Label>
-                <Input
-                  id="pin_code"
-                  type="password"
-                  maxLength={6}
-                  value={formData.pin_code}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pin_code: e.target.value.replace(/\D/g, "") })
-                  }
-                  placeholder="••••••"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={formData.is_active}
-                onChange={(e) =>
-                  setFormData({ ...formData, is_active: e.target.checked })
-                }
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label htmlFor="is_active" className="cursor-pointer">
-                Empleado activo
-              </Label>
-            </div>
-
-            {/* Sección de acceso al sistema - solo al crear */}
-            {!editingEmployee && (
-              <div className="border-t pt-4 mt-4 space-y-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="create_auth_user"
-                    checked={formData.create_auth_user}
-                    onChange={(e) =>
-                      setFormData({ ...formData, create_auth_user: e.target.checked })
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
+                <Label htmlFor="pin_code" className="text-xs font-medium text-zinc-400 uppercase tracking-wider">PIN Rápido (Opcional)</Label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="pin_code"
+                    type="password"
+                    maxLength={6}
+                    value={formData.pin_code}
+                    onChange={(e) => setFormData({ ...formData, pin_code: e.target.value.replace(/\D/g, "") })}
+                    placeholder="••••••"
+                    className="pl-9 bg-zinc-900/50 border-zinc-800 focus:border-primary/50 transition-colors text-center font-mono tracking-widest"
                   />
-                  <Label htmlFor="create_auth_user" className="cursor-pointer font-medium">
-                    Crear acceso al sistema
-                  </Label>
                 </div>
-                <p className="text-xs text-muted-foreground -mt-2">
-                  Permite que el empleado inicie sesión en el sistema con su email y contraseña
-                </p>
-
-                {formData.create_auth_user && (
-                  <div className="space-y-2 pl-6 border-l-2 border-primary/20">
-                    <Label htmlFor="password">Contraseña *</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
-                      placeholder="Mayúscula, minúscula, número y símbolo"
-                      minLength={8}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      El empleado usará esta contraseña para iniciar sesión
-                    </p>
-                  </div>
-                )}
               </div>
-            )}
+            </div>
 
-            {/* Mostrar estado de vinculación al editar */}
-            {editingEmployee && (
-              <div className="border-t pt-4 mt-4 space-y-3">
-                <div className="flex items-center gap-2">
+            {/* Estado de Cuenta */}
+            <div className="flex items-center justify-between bg-zinc-900/40 p-4 rounded-xl border border-white/5">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Estado Operativo</Label>
+                <p className="text-xs text-muted-foreground">Define si el empleado está activo en la nómina.</p>
+              </div>
+              <Switch
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+              />
+            </div>
+
+            {/* Accesos al Sistema (AWS Cognito) */}
+            <div className="bg-primary/5 border border-primary/20 p-5 rounded-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-primary/10 pb-3">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Fingerprint className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Acceso al Sistema</h3>
+                  <p className="text-xs text-primary/70">Credenciales AWS Cognito</p>
+                </div>
+              </div>
+
+              {editingEmployee && (
+                <div className="flex items-center gap-2 mb-2">
                   <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Acceso al sistema:</span>
+                  <span className="text-sm font-medium">Estado actual:</span>
                   {editingEmployee.auth_user_id ? (
                     <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                      <BadgeCheck className="h-3 w-3 mr-1" />
                       Vinculado
                     </Badge>
                   ) : (
@@ -687,53 +674,57 @@ export function EmployeesTable() {
                     </Badge>
                   )}
                 </div>
+              )}
 
-                {/* Opción para crear acceso a empleados existentes */}
-                {!editingEmployee.auth_user_id && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="create_auth_user_edit"
-                        checked={formData.create_auth_user}
-                        onChange={(e) =>
-                          setFormData({ ...formData, create_auth_user: e.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                      <Label htmlFor="create_auth_user_edit" className="cursor-pointer">
-                        Crear acceso al sistema ahora
-                      </Label>
+              {(!editingEmployee || !editingEmployee.auth_user_id) && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5 pr-4">
+                      <Label className="text-sm font-medium text-zinc-200">Generar Acceso Digital</Label>
+                      <p className="text-xs text-zinc-500">Permitirá iniciar sesión usando su email y contraseña.</p>
                     </div>
+                    <Switch
+                      checked={formData.create_auth_user}
+                      onCheckedChange={(checked) => setFormData({ ...formData, create_auth_user: checked })}
+                      className="data-[state=checked]:bg-primary"
+                    />
+                  </div>
 
-                    {formData.create_auth_user && (
-                      <div className="space-y-2 pl-6 border-l-2 border-primary/20">
-                        <Label htmlFor="password_edit">Contraseña *</Label>
+                  {formData.create_auth_user && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                      <Label htmlFor="password" className="text-xs font-medium text-primary/80 uppercase tracking-wider">Contraseña Maestra</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/50" />
                         <Input
-                          id="password_edit"
+                          id="password"
                           type="password"
                           value={formData.password}
-                          onChange={(e) =>
-                            setFormData({ ...formData, password: e.target.value })
-                          }
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                           placeholder="Mayúscula, minúscula, número y símbolo"
-                          minLength={8}
+                          className="pl-9 bg-black/40 border-primary/30 focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all text-primary-foreground placeholder:text-zinc-600"
                         />
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                      <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+                        <Shield className="h-3 w-3" /> Política de seguridad obligatoria (Mín. 8 caracteres)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+          <DialogFooter className="px-6 py-4 bg-zinc-900/40 border-t border-white/5 sm:justify-between">
+            <Button variant="ghost" className="hover:bg-white/5" onClick={() => setIsModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button 
+              onClick={handleSave} 
+              disabled={saving}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+            >
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editingEmployee ? "Guardar Cambios" : "Crear Empleado"}
+              {editingEmployee ? "Guardar Cambios" : "Confirmar Registro"}
             </Button>
           </DialogFooter>
         </DialogContent>
