@@ -58,6 +58,39 @@ export function PurchasesSalesDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>('30d');
 
   const fetchDashboardData = async () => {
+    setLoading(true);
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Mock data since the backend endpoint doesn't exist yet
+    setStats({
+      purchases: {
+        total: 145,
+        thisMonth: 32,
+        lastMonth: 28,
+        totalAmount: 245000,
+        thisMonthAmount: 48500,
+        avgOrderValue: 1515.60,
+        topSupplier: "Distribuidora Hotelera S.A.",
+        pendingOrders: 4
+      },
+      sales: {
+        total: 856,
+        thisMonth: 124,
+        lastMonth: 115,
+        totalAmount: 890500,
+        thisMonthAmount: 145600,
+        avgOrderValue: 1174.20,
+        topCustomer: "Público General",
+        pendingOrders: 12
+      },
+      trends: {
+        purchasesTrend: 14.2,
+        salesTrend: 7.8,
+        revenueTrend: 9.5,
+        profitMargin: 66.7
+      }
+    });
     setLoading(false);
   };
 
