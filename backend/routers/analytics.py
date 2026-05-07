@@ -43,14 +43,14 @@ def get_employee_performance(date: Optional[str] = None):
                 # Fallback shift_sessions
                 cursor.execute("""
                     SELECT id FROM shift_sessions 
-                    WHERE employee_id = %s AND DATE(start_time) = %s
+                    WHERE employee_id = %s AND DATE(clock_in_at) = %s
                 """, (emp_id, target_date))
                 shifts = cursor.fetchall()
                 shift_ids = tuple([s['id'] for s in shifts])
                 
                 if shift_ids:
                     cursor.execute("""
-                        SELECT id, check_in_at, check_out_at 
+                        SELECT id, check_in_at, actual_check_out_at as check_out_at 
                         FROM room_stays WHERE shift_session_id IN %s
                     """, (shift_ids,))
                     stays = cursor.fetchall()
@@ -66,7 +66,7 @@ def get_employee_performance(date: Optional[str] = None):
                     # Segundo fallback por pagos directos (receptionist/valet)
                     if role == 'valet':
                         cursor.execute("""
-                            SELECT id, check_in_at, check_out_at FROM room_stays 
+                            SELECT id, check_in_at, actual_check_out_at as check_out_at FROM room_stays 
                             WHERE valet_employee_id = %s AND DATE(check_in_at) = %s
                         """, (emp_id, target_date))
                         checkins = cursor.fetchall()
@@ -276,7 +276,7 @@ def get_kpis_dashboard(start_date: str, end_date: str, prev_start_date: str, pre
         data['roomsList'] = cursor.fetchall()
         
         # periodPayments
-        cursor.execute("SELECT amount, payment_method, type, stay_id FROM payments WHERE created_at >= %s AND created_at <= %s", (start_date, end_date))
+        cursor.execute("SELECT amount, payment_method, payment_type as type, sales_order_id as stay_id FROM payments WHERE created_at >= %s AND created_at <= %s", (start_date, end_date))
         data['periodPayments'] = cursor.fetchall()
         
         # prevPeriodPayments
@@ -292,7 +292,7 @@ def get_kpis_dashboard(start_date: str, end_date: str, prev_start_date: str, pre
         data['prevPeriodCheckins'] = cursor.fetchall()
         
         # completedStays
-        cursor.execute("SELECT check_in_at, check_out_at FROM room_stays WHERE check_out_at >= %s AND check_out_at <= %s", (start_date, end_date))
+        cursor.execute("SELECT check_in_at, actual_check_out_at as check_out_at FROM room_stays WHERE actual_check_out_at >= %s AND actual_check_out_at <= %s", (start_date, end_date))
         data['completedStays'] = [{'check_in_at': r['check_in_at'].isoformat() if r['check_in_at'] else None, 'check_out_at': r['check_out_at'].isoformat() if r['check_out_at'] else None} for r in cursor.fetchall()]
         
         # pendingTickets
@@ -398,8 +398,8 @@ def get_stock_alerts():
         
         # 2. Get recent consumptions
         cursor.execute("""
-            SELECT product_id, SUM(quantity) as total_quantity
-            FROM order_items 
+            SELECT product_id, SUM(qty) as total_quantity
+            FROM sales_order_items 
             WHERE created_at >= %s
             GROUP BY product_id
         """, (thirty_days_ago,))
