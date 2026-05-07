@@ -235,7 +235,7 @@ def get_telemetry(
     # Resolve employee names
     resolved_items = []
     for item in items:
-        item_dict = {c.name: getattr(item, c.name) for c.table.columns in item.__table__.columns}
+        item_dict = {c.name: getattr(item, c.name) for c in item.__table__.columns}
         if item.user_id:
             emp = db.query(Employees).filter(Employees.auth_user_id == item.user_id).first()
             item_dict["employee_name"] = f"{emp.first_name} {emp.last_name}".strip() if emp else "Sistema / Anónimo"
