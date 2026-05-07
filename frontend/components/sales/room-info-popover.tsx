@@ -329,7 +329,7 @@ export function RoomInfoPopover({
                     </div>
                     <div className="flex justify-between items-center group/item">
                       <span className="text-zinc-500 font-bold">TARIFA BASE</span>
-                      <span className="text-white font-bold group-hover/item:text-primary transition-colors">${room.room_types?.base_price?.toFixed(2) || "0.00"} MXN</span>
+                      <span className="text-white font-bold group-hover/item:text-primary transition-colors">${Number(room.room_types?.base_price || 0).toFixed(2)} MXN</span>
                     </div>
                     {extraHours > 0 && (
                       <div className="flex justify-between items-center text-pink-400 font-bold">
@@ -423,7 +423,7 @@ export function RoomInfoPopover({
                 {room.room_types?.base_price && (
                   <div className="bg-white/5 px-4 py-2 rounded-2xl border border-white/5 text-center">
                     <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Tarifa Inicial</span>
-                    <span className="text-lg font-black text-white italic tracking-tighter">${room.room_types.base_price.toFixed(2)} MXN</span>
+                    <span className="text-lg font-black text-white italic tracking-tighter">${Number(room.room_types.base_price || 0).toFixed(2)} MXN</span>
                   </div>
                 )}
               </div>
