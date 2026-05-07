@@ -105,6 +105,9 @@ class RoomStayResponse(RoomStayBase):
     actual_check_out_at: Optional[datetime] = None
     valet_employee_id: Optional[uuid.UUID] = None
     shift_session_id: Optional[uuid.UUID] = None
+    checkout_valet_employee_id: Optional[uuid.UUID] = None
+    checkout_payment_data: Optional[dict] = None
+    sales_orders: Optional[dict] = None
     
     model_config = ConfigDict(from_attributes=True)
 

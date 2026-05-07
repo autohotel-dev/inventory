@@ -99,6 +99,8 @@ class SalesOrderResponse(SalesOrderBase):
     order_number: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    remaining_amount: Optional[Decimal] = Decimal('0.00')
+    paid_amount: Optional[Decimal] = Decimal('0.00')
     items: List[SalesOrderItemResponse] = []
     
     model_config = ConfigDict(from_attributes=True)

@@ -163,10 +163,13 @@ def get_rooms_dashboard(db: Session = Depends(get_db)):
                 "current_people": active_stay.current_people,
                 "total_people": active_stay.total_people,
                 "valet_employee_id": str(active_stay.valet_employee_id) if active_stay.valet_employee_id else None,
+                "vehicle_plate": active_stay.vehicle_plate,
+                "checkout_valet_employee_id": str(active_stay.checkout_valet_employee_id) if active_stay.checkout_valet_employee_id else None,
+                "checkout_payment_data": active_stay.checkout_payment_data,
                 "sales_orders": {
                     "id": str(active_stay.sales_order_id),
                     "remaining_amount": float(order.remaining_amount) if order and order.remaining_amount else 0,
-                    "payments": [{"id": str(p.id), "status": p.status, "confirmed_at": p.confirmed_at.isoformat() if p.confirmed_at else None} for p in payments],
+                    "payments": [{"id": str(p.id), "status": p.status, "concept": p.concept, "confirmed_at": p.confirmed_at.isoformat() if p.confirmed_at else None} for p in payments],
                     "sales_order_items": [{"id": str(i.id), "delivery_status": i.delivery_status, "concept_type": i.concept_type, "created_at": i.created_at.isoformat() if i.created_at else None} for i in items]
                 }
             }] if active_stay else [],
