@@ -80,15 +80,43 @@ export function DetailedPerformanceDashboard() {
 
         if (cocherosRes.status === 'fulfilled') {
           const d = cocherosRes.value.data;
-          setCocheros(Array.isArray(d) ? d : (d?.items || d?.results || []));
+          const items = Array.isArray(d) ? d : (d?.items || d?.results || []);
+          setCocheros(items.map((i: any) => ({
+            employee_id: i.id || i.employee_id,
+            employee_name: i.name || i.employee_name,
+            total_checkins: i.checkIns ?? i.total_checkins ?? 0,
+            avg_checkin_time_minutes: i.avgStayTime ?? i.avg_checkin_time_minutes ?? 0,
+            total_checkouts: i.checkOuts ?? i.total_checkouts ?? 0,
+            avg_checkout_time_minutes: i.avgStayTime ?? i.avg_checkout_time_minutes ?? 0,
+            total_services: (i.checkIns ?? 0) + (i.checkOuts ?? 0) + (i.total_services ?? 0),
+            is_active: i.status !== 'inactive'
+          })));
         }
         if (receptionistsRes.status === 'fulfilled') {
           const d = receptionistsRes.value.data;
-          setReceptionists(Array.isArray(d) ? d : (d?.items || d?.results || []));
+          const items = Array.isArray(d) ? d : (d?.items || d?.results || []);
+          setReceptionists(items.map((i: any) => ({
+            employee_id: i.id || i.employee_id,
+            employee_name: i.name || i.employee_name,
+            total_entries_processed: i.checkIns ?? i.total_entries_processed ?? 0,
+            total_exits_processed: i.checkOuts ?? i.total_exits_processed ?? 0,
+            total_extras_charged: i.total_extras_charged ?? 0,
+            total_revenue: i.revenue ?? i.total_revenue ?? 0,
+            anomalies_detected: i.anomalies_detected ?? 0,
+            is_active: i.status !== 'inactive'
+          })));
         }
         if (camaristasRes.status === 'fulfilled') {
           const d = camaristasRes.value.data;
-          setCamaristas(Array.isArray(d) ? d : (d?.items || d?.results || []));
+          const items = Array.isArray(d) ? d : (d?.items || d?.results || []);
+          setCamaristas(items.map((i: any) => ({
+            employee_id: i.id || i.employee_id,
+            employee_name: i.name || i.employee_name,
+            total_rooms_cleaned: i.checkIns ?? i.total_rooms_cleaned ?? 0,
+            avg_cleaning_time_minutes: i.avgStayTime ?? i.avg_cleaning_time_minutes ?? 0,
+            currently_cleaning: i.currently_cleaning ?? 0,
+            is_active: i.status !== 'inactive'
+          })));
         }
       } catch (error) {
         console.error("Error fetching detailed KPIs:", error);
