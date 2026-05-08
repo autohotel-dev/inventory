@@ -45,4 +45,8 @@ export interface ChatContextType {
     currentUser: any;
     activeConversationId: string | null;
     setActiveConversationId: (id: string | null) => void;
+    convList: any[];
+    isConvLoading: boolean;
+    startDirectConversation: (otherUserId: string) => Promise<string | null>;
+    refreshConversations: () => Promise<void>;
 }

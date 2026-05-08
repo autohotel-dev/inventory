@@ -19,6 +19,7 @@ export interface EnrichedConversation {
     // Resolved participant name for direct conversations
     other_user_name?: string;
     other_user_id?: string;
+    unread_count: number;
 }
 
 export function useConversations(currentUser: any) {
@@ -98,6 +99,24 @@ export function useConversations(currentUser: any) {
                 }
             }
 
+            // Fetch unread message counts per conversation
+            let unreadMap = new Map<string, number>();
+            if (convIds.length > 0) {
+                const { data: unreadMessages } = await supabase
+                    .from('messages')
+                    .select('conversation_id')
+                    .in('conversation_id', convIds)
+                    .eq('is_read', false)
+                    .neq('user_id', currentUser.id)
+                    .is('deleted_at', null);
+
+                if (unreadMessages) {
+                    unreadMessages.forEach((msg: any) => {
+                        unreadMap.set(msg.conversation_id, (unreadMap.get(msg.conversation_id) || 0) + 1);
+                    });
+                }
+            }
+
             // Enrich conversations
             const enriched: EnrichedConversation[] = data.map((conv: any) => {
                 const otherParticipant = conv.participants?.find((p: any) => p.user_id !== currentUser.id);
@@ -109,6 +128,7 @@ export function useConversations(currentUser: any) {
                     last_message: lastMessageMap.get(conv.id) || undefined,
                     other_user_name: otherUserName,
                     other_user_id: otherUserId,
+                    unread_count: unreadMap.get(conv.id) || 0,
                 };
             });
 

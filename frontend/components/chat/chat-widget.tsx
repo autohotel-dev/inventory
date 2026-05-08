@@ -27,7 +27,7 @@ import {
     MessageCircle, X, Send, User, ShieldAlert, Loader2, 
     Paperclip, MoreVertical, Pencil, Trash2, ChevronDown, ChevronLeft, AlertCircle, RotateCcw, Smile
 } from 'lucide-react';
-import { useConversations, EnrichedConversation } from '@/lib/chat/use-conversations';
+import type { EnrichedConversation } from '@/lib/chat/use-conversations';
 import { useToast } from '@/hooks/use-toast';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -71,15 +71,16 @@ export function ChatWidget() {
         deleteMessage,
         activeConversationId,
         setActiveConversationId,
-        currentUser
+        currentUser,
+        convList,
+        isConvLoading,
+        startDirectConversation,
     } = useChat();
     const { error: toastError } = useToast();
     const [inputValue, setInputValue] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
     const topRef = useRef<HTMLDivElement>(null);
     const scrollAreaViewportRef = useRef<HTMLDivElement | null>(null);
-    
-    const { conversations: convList, isLoading: isConvLoading, startDirectConversation } = useConversations(currentUser);
 
     const [isSending, setIsSending] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -395,29 +396,57 @@ export function ChatWidget() {
                                                 lastMsgPreview = isImage ? `${sender}: 📷 Imagen` : `${sender}: ${conv.last_message.content}`;
                                                 lastMsgTime = formatMessageTime(conv.last_message.created_at);
                                             }
+                                            const hasUnread = conv.unread_count > 0;
 
                                             return (
                                                 <div 
                                                     key={conv.id} 
                                                     onClick={() => setActiveConversationId(conv.id)}
-                                                    className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted/50 cursor-pointer transition-all active:scale-[0.98]"
+                                                    className={cn(
+                                                        "flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all active:scale-[0.98]",
+                                                        hasUnread 
+                                                            ? "bg-primary/[0.06] hover:bg-primary/[0.1] border border-primary/10" 
+                                                            : "hover:bg-muted/50"
+                                                    )}
                                                 >
                                                     <div className="relative">
-                                                        <div className={cn("h-12 w-12 rounded-full flex items-center justify-center shrink-0 capitalize font-bold text-sm", isGlobal ? "bg-zinc-900 text-zinc-50" : "bg-primary/10 text-primary")}>
+                                                        <div className={cn(
+                                                            "h-12 w-12 rounded-full flex items-center justify-center shrink-0 capitalize font-bold text-sm",
+                                                            isGlobal ? "bg-zinc-900 text-zinc-50" : "bg-primary/10 text-primary"
+                                                        )}>
                                                             {isGlobal ? convIcon : convTitle.substring(0,2).toUpperCase()}
                                                         </div>
                                                         {!isGlobal && isOtherOnline && (
                                                             <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-emerald-500 rounded-full border-2 border-background" />
                                                         )}
+                                                        {hasUnread && (
+                                                            <div className="absolute -top-0.5 -left-0.5 h-3 w-3 bg-blue-500 rounded-full border-2 border-background animate-pulse" />
+                                                        )}
                                                     </div>
                                                     <div className="flex-1 overflow-hidden">
                                                         <div className="flex items-center justify-between gap-2">
-                                                            <h4 className="text-sm font-semibold truncate capitalize">{convTitle}</h4>
-                                                            {lastMsgTime && (
-                                                                <span className="text-[10px] text-muted-foreground/60 shrink-0">{lastMsgTime}</span>
-                                                            )}
+                                                            <h4 className={cn(
+                                                                "text-sm truncate capitalize",
+                                                                hasUnread ? "font-bold text-foreground" : "font-semibold"
+                                                            )}>{convTitle}</h4>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                {lastMsgTime && (
+                                                                    <span className={cn(
+                                                                        "text-[10px] shrink-0",
+                                                                        hasUnread ? "text-blue-400 font-semibold" : "text-muted-foreground/60"
+                                                                    )}>{lastMsgTime}</span>
+                                                                )}
+                                                                {hasUnread && (
+                                                                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white px-1.5 shadow-sm">
+                                                                        {conv.unread_count > 9 ? '9+' : conv.unread_count}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <p className="text-xs text-muted-foreground truncate opacity-70 mt-0.5">{lastMsgPreview}</p>
+                                                        <p className={cn(
+                                                            "text-xs truncate mt-0.5",
+                                                            hasUnread ? "text-foreground/80 font-medium" : "text-muted-foreground opacity-70"
+                                                        )}>{lastMsgPreview}</p>
                                                     </div>
                                                 </div>
                                             )

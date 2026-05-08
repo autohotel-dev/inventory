@@ -6,6 +6,7 @@ import { ChatContextType } from '@/lib/chat/chat-types';
 import { useChatMessages } from '@/lib/chat/use-chat-messages';
 import { useChatNotifications } from '@/lib/chat/use-chat-notifications';
 import { useChatPresence } from '@/lib/chat/use-chat-presence';
+import { useConversations } from '@/lib/chat/use-conversations';
 import { useSoundEngine } from '@/hooks/use-sound-notifications';
 import { useToast } from '@/hooks/use-toast';
 
@@ -40,6 +41,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Use dedicated presence hook which manages its own channel 'presence:global'
     const { onlineUsers, typingUsers, handleTypingInput } = useChatPresence(currentUser);
 
+    const { conversations: convList, isLoading: isConvLoading, startDirectConversation, refresh: refreshConversations } = useConversations(currentUser);
+
+    // Initialize global unread count from DB on mount
+    useEffect(() => {
+        if (!currentUser) return;
+        const fetchInitialUnread = async () => {
+            const { count, error } = await supabase
+                .from('messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('is_read', false)
+                .neq('user_id', currentUser.id);
+            
+            if (!error && count && count > 0) {
+                setUnreadCount(count);
+            }
+        };
+        fetchInitialUnread();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentUser?.id]);
+
     // Monitor for new messages to update unread count and notify
     const lastMessageIdRef = useRef<string | null>(null);
 
@@ -58,10 +79,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, [messages, isOpen, currentUser, notifyNewMessage]);
 
-    // Reset unread count AND mark as read when opening
+    // Reset unread count AND mark as read when opening a conversation
     useEffect(() => {
-        if (isOpen && messages.length > 0) {
-            setUnreadCount(0);
+        if (isOpen && activeConversationId && messages.length > 0) {
+            setUnreadCount(prev => {
+                const unreadInConv = messages.filter(m => !m.is_read && m.user_id !== currentUser?.id).length;
+                return Math.max(0, prev - unreadInConv);
+            });
             
             // Mark all current unread messages from others as read
             const unreadIds = messages
@@ -75,10 +99,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     .in('id', unreadIds)
                     .then(({ error }: { error: any }) => {
                         if (error) console.error('Error marking messages as read:', error);
+                        else refreshConversations(); // Update per-conversation unread badges
                     });
             }
         }
-    }, [isOpen, messages, currentUser, supabase]);
+    }, [isOpen, activeConversationId, messages, currentUser, supabase, refreshConversations]);
 
     // Flash browser tab title when there are unread messages
     useEffect(() => {
@@ -139,7 +164,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         editMessage,
         deleteMessage,
         activeConversationId,
-        setActiveConversationId
+        setActiveConversationId,
+        convList,
+        isConvLoading,
+        startDirectConversation,
+        refreshConversations,
     };
 
     return (
