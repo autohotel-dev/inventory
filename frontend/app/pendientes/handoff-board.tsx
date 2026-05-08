@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 type Priority = "baja" | "media" | "alta" | "urgente";
 type Status = "pendiente" | "en_progreso" | "resuelto";
@@ -36,7 +37,7 @@ export function HandoffBoard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userName, setUserName] = useState("Staff");
 
   // Filters
@@ -57,7 +58,7 @@ export function HandoffBoard() {
   const [newRoom, setNewRoom] = useState("");
   const [resolveNote, setResolveNote] = useState("");
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchNotes = useCallback(async () => {
     setLoading(true);
@@ -70,7 +71,7 @@ export function HandoffBoard() {
     const { data } = await q;
     setNotes(data || []);
     setLoading(false);
-  }, [filterStatus, filterPriority, search]);
+  }, [supabase, filterStatus, filterPriority, search]);
 
   useEffect(() => {
     const init = async () => {
@@ -82,7 +83,7 @@ export function HandoffBoard() {
       }
     };
     init();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
@@ -90,13 +91,13 @@ export function HandoffBoard() {
   useEffect(() => {
     const ch = supabase.channel("handoff-notes")
       .on("postgres_changes", { event: "*", schema: "public", table: "shift_handoff_notes" }, () => fetchNotes())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "handoff_note_comments" }, (p: any) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "handoff_note_comments" }, (p: { new: Comment }) => {
         const c = p.new as Comment;
         setComments(prev => ({ ...prev, [c.note_id]: [...(prev[c.note_id] || []), c] }));
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [fetchNotes]);
+  }, [supabase, fetchNotes]);
 
   const fetchComments = async (noteId: string) => {
     const { data } = await supabase.from("handoff_note_comments").select("*").eq("note_id", noteId).order("created_at", { ascending: true });
@@ -363,7 +364,7 @@ export function HandoffBoard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowResolve(null)}>
           <div className="w-full max-w-lg mx-4 rounded-3xl bg-[#12121a] border border-white/[0.08] p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-white mb-2">✅ Resolver Pendiente</h2>
-            <p className="text-sm text-white/40 mb-4">"{showResolve.title}"</p>
+            <p className="text-sm text-white/40 mb-4">&ldquo;{showResolve.title}&rdquo;</p>
             <textarea value={resolveNote} onChange={e => setResolveNote(e.target.value)} placeholder="¿Cómo se resolvió? (opcional)" rows={3}
               className="w-full px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 resize-none" />
             <div className="flex gap-2 mt-4 justify-end">
