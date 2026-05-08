@@ -92,6 +92,8 @@ export interface RoomActionContext {
   checkAuthorization: (actionName: string) => boolean;
   setActionLoading: (loading: boolean) => void;
   onRefresh: () => Promise<void>;
+  /** Instantly update a room in the react-query cache for optimistic UI */
+  optimisticRoomUpdate: (roomId: string, updates: Record<string, unknown>) => void;
   /** Synchronous lock to prevent double-click race conditions */
   isLocked: () => boolean;
   lock: () => void;

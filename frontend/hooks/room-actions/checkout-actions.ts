@@ -197,6 +197,19 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         return;
       }
 
+      // ⚡ Optimistic UI update — instant visual feedback
+      const optimisticUpdates: Record<string, unknown> = {
+        status: newStatus,
+        notes: newStatus === "LIBRE" ? null : (notes ?? room.notes),
+      };
+      // When freeing a room, clear the active stay so the card renders correctly
+      if (newStatus === "LIBRE") {
+        optimisticUpdates.room_stays = (room.room_stays || []).map((s: any) =>
+          s.status === "ACTIVA" ? { ...s, status: "FINALIZADA" } : s
+        );
+      }
+      ctx.optimisticRoomUpdate(room.id, optimisticUpdates);
+
       toast.success(successMessage);
 
       // Flow Event (fire-and-forget — no blocking)

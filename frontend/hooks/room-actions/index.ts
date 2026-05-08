@@ -12,6 +12,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUserRole } from "@/hooks/use-user-role";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
@@ -71,6 +72,7 @@ export interface UseRoomActionsReturn {
 export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsReturn {
   const [actionLoading, setActionLoading] = useState(false);
   const actionLockRef = useRef(false);
+  const queryClient = useQueryClient();
   const { isReceptionist, isAdmin, isManager } = useUserRole();
 
   const checkAuthorization = (actionName: string) => {
@@ -83,10 +85,21 @@ export function useRoomActions(onRefresh: () => Promise<void>): UseRoomActionsRe
     return true;
   };
 
+  // Optimistic update: instantly mutate the react-query cache for a room
+  const optimisticRoomUpdate = (roomId: string, updates: Record<string, unknown>) => {
+    queryClient.setQueryData<Room[]>(["rooms"], (old) => {
+      if (!old) return old;
+      return old.map(room =>
+        room.id === roomId ? { ...room, ...updates } : room
+      );
+    });
+  };
+
   const ctx: RoomActionContext = {
     checkAuthorization,
     setActionLoading,
     onRefresh,
+    optimisticRoomUpdate,
     isLocked: () => actionLockRef.current,
     lock: () => { actionLockRef.current = true; },
     unlock: () => { actionLockRef.current = false; },
