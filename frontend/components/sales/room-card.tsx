@@ -388,14 +388,14 @@ export function RoomCardComponent({
                 "TV: Control en habitación"
               }
               className={cn(
-                "h-5 w-5 flex items-center justify-center rounded-md border shadow-sm transition-all hover:scale-110",
-                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/20 border-orange-500/50 text-orange-400 animate-pulse" :
-                tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
-                tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/30 border-red-500/60 text-red-400 animate-pulse" :
-                "bg-zinc-500/20 border-zinc-500/50 text-zinc-400" // EN_HABITACION / SIN_REGISTRO
+                "h-6 w-6 flex items-center justify-center rounded-md border shadow-md transition-all hover:scale-125 active:scale-95",
+                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/30 border-orange-400 text-orange-300 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.5)]" :
+                tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.4)]" :
+                tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/40 border-red-400 text-red-300 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" :
+                "bg-zinc-500/30 border-zinc-400 text-zinc-300 shadow-[0_0_4px_rgba(161,161,170,0.3)]"
               )}
             >
-              <Tv className="h-3 w-3" />
+              <Tv className="h-3.5 w-3.5" />
             </button>
           )}
           {statusBadge}

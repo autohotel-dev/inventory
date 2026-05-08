@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,7 +18,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { UserCog, Loader2 } from "lucide-react";
+import { UserCog, Loader2, User, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface EditValetModalProps {
@@ -48,6 +48,7 @@ export function EditValetModal({
     const [selectedValetId, setSelectedValetId] = useState<string>("none");
     const [loading, setLoading] = useState(false);
     const [loadingValets, setLoadingValets] = useState(true);
+    const [showChangeMode, setShowChangeMode] = useState(false);
 
     // Cargar cocheros disponibles
     useEffect(() => {
@@ -70,8 +71,17 @@ export function EditValetModal({
         if (isOpen) {
             loadValets();
             setSelectedValetId(currentValetId || "none");
+            setShowChangeMode(false); // Reset on open
         }
     }, [isOpen, currentValetId]);
+
+    // Determine if a valet is currently assigned
+    const currentValet = useMemo(() => {
+        if (!currentValetId || currentValetId === "none") return null;
+        return valets.find(v => v.id === currentValetId) || null;
+    }, [currentValetId, valets]);
+
+    const hasAssignedValet = !!currentValet;
 
     const handleSave = async () => {
         setLoading(true);
@@ -111,41 +121,74 @@ export function EditValetModal({
                 </DialogHeader>
 
                 <div className="py-4">
-                    <Label htmlFor="valet">Cochero</Label>
                     {loadingValets ? (
                         <div className="flex items-center justify-center py-4">
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
+                    ) : hasAssignedValet && !showChangeMode ? (
+                        /* ──── Vista de cochero asignado ──── */
+                        <div className="space-y-4">
+                            <Label className="text-muted-foreground text-xs uppercase tracking-wider">Cochero Asignado</Label>
+                            <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-emerald-500/20 border border-emerald-500/40">
+                                    <User className="h-5 w-5 text-emerald-400" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-semibold text-foreground">
+                                        {currentValet.first_name} {currentValet.last_name}
+                                    </p>
+                                    <p className="text-xs text-emerald-400">Cochero activo</p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="w-full gap-2 border-dashed"
+                                onClick={() => setShowChangeMode(true)}
+                            >
+                                <RefreshCw className="h-4 w-4" />
+                                Cambiar Cochero
+                            </Button>
+                        </div>
                     ) : (
-                        <Select
-                            value={selectedValetId}
-                            onValueChange={setSelectedValetId}
-                            disabled={loading || valets.length === 0}
-                        >
-                            <SelectTrigger className="mt-2">
-                                <SelectValue
-                                    placeholder={
-                                        valets.length === 0
-                                            ? "No hay cocheros registrados"
-                                            : "Selecciona un cochero"
-                                    }
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Sin asignar</SelectItem>
-                                {valets.map((valet) => (
-                                    <SelectItem key={valet.id} value={valet.id}>
-                                        {valet.first_name} {valet.last_name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                    {valets.length === 0 && !loadingValets && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                            No hay empleados con rol &quot;Cochero&quot; activos. Crea uno primero en
-                            gestión de empleados.
-                        </p>
+                        /* ──── Vista de selección (sin cochero o modo cambio) ──── */
+                        <div className="space-y-3">
+                            {showChangeMode && hasAssignedValet && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+                                    <RefreshCw className="h-3 w-3" />
+                                    Cambiando desde: <span className="font-medium text-foreground">{currentValet?.first_name} {currentValet?.last_name}</span>
+                                </div>
+                            )}
+                            <Label htmlFor="valet">Cochero</Label>
+                            <Select
+                                value={selectedValetId}
+                                onValueChange={setSelectedValetId}
+                                disabled={loading || valets.length === 0}
+                            >
+                                <SelectTrigger className="mt-2">
+                                    <SelectValue
+                                        placeholder={
+                                            valets.length === 0
+                                                ? "No hay cocheros registrados"
+                                                : "Selecciona un cochero"
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Sin asignar</SelectItem>
+                                    {valets.map((valet) => (
+                                        <SelectItem key={valet.id} value={valet.id}>
+                                            {valet.first_name} {valet.last_name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {valets.length === 0 && !loadingValets && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    No hay empleados con rol &quot;Cochero&quot; activos. Crea uno primero en
+                                    gestión de empleados.
+                                </p>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -153,10 +196,13 @@ export function EditValetModal({
                     <Button variant="outline" onClick={onClose} disabled={loading}>
                         Cancelar
                     </Button>
-                    <Button onClick={handleSave} disabled={loading || loadingValets}>
-                        {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        Guardar
-                    </Button>
+                    {/* Only show save when in selection mode or no valet assigned */}
+                    {(!hasAssignedValet || showChangeMode) && (
+                        <Button onClick={handleSave} disabled={loading || loadingValets}>
+                            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Guardar
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
