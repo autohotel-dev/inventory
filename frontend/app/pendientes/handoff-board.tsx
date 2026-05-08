@@ -85,7 +85,8 @@ export function HandoffBoard() {
     else if (filterStatus !== "all") q = q.eq("status", filterStatus);
     if (filterPriority !== "all") q = q.eq("priority", filterPriority);
     if (filterEmployee !== "all") q = q.eq("created_by_name", filterEmployee);
-    if (filterShift !== "all") q = q.eq("created_shift_name", filterShift);
+    if (filterShift === "none") q = q.is("created_shift_name", null);
+    else if (filterShift !== "all") q = q.eq("created_shift_name", filterShift);
     if (search) q = q.or(`title.ilike.%${search}%,description.ilike.%${search}%,room_number.ilike.%${search}%`);
 
     const { data } = await q;
@@ -319,6 +320,7 @@ export function HandoffBoard() {
             className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white/70 focus:outline-none min-w-[140px]">
             <option value="all">🕐 Todos los turnos</option>
             {shifts.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            <option value="none">⚠️ Sin turno asignado</option>
           </select>
           <input placeholder="🔍 Buscar..." value={search} onChange={e => setSearch(e.target.value)}
             className="flex-1 min-w-[150px] h-8 px-3 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
@@ -326,15 +328,19 @@ export function HandoffBoard() {
 
         {/* NOTES LIST */}
         {loading ? (
-          <div className="flex flex-col items-center py-24">
-            <div className="w-10 h-10 border-2 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
-            <p className="text-sm text-white/30">Cargando pendientes...</p>
+          <div className="flex flex-col items-center justify-center py-32 rounded-3xl border border-white/[0.03] bg-white/[0.01] backdrop-blur-sm">
+            <div className="w-12 h-12 border-2 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-6" />
+            <p className="text-sm font-medium text-white/40 tracking-wide uppercase">Cargando bitácora...</p>
           </div>
         ) : notes.length === 0 ? (
-          <div className="flex flex-col items-center py-24 border border-dashed border-white/[0.06] rounded-3xl">
-            <span className="text-4xl mb-4">🎉</span>
-            <p className="text-base font-semibold text-white/40 mb-1">No hay pendientes</p>
-            <p className="text-xs text-white/20">¡Todo está al día! Crea uno nuevo si necesitas dejar una nota.</p>
+          <div className="flex flex-col items-center justify-center py-32 rounded-3xl border border-dashed border-white/[0.08] bg-white/[0.01] backdrop-blur-sm">
+            <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center mb-5 border border-white/[0.05]">
+              <span className="text-2xl">🎉</span>
+            </div>
+            <p className="text-lg font-bold text-white/70 mb-2">No hay pendientes por mostrar</p>
+            <p className="text-sm text-white/30 text-center max-w-sm">
+              La vista actual no tiene registros. ¡Todo el equipo está al día!
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -345,30 +351,37 @@ export function HandoffBoard() {
               const noteComments = comments[note.id] || [];
 
               return (
-                <div key={note.id} className={`rounded-2xl border transition-all duration-300 ${expanded ? "border-white/[0.1] bg-white/[0.025]" : "border-white/[0.04] bg-white/[0.01] hover:border-white/[0.07]"}`}>
-                  <button onClick={() => toggleExpand(note.id)} className="w-full flex items-start gap-3 px-5 py-4 text-left">
-                    <span className={`text-white/25 text-[10px] mt-1.5 transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${ps.bg} ${ps.text}`}>{ps.label}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${ss.bg} ${ss.text}`}>{ss.label}</span>
-                        {note.room_number && <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/[0.04] border border-white/[0.06] text-white/50">🏨 {note.room_number}</span>}
-                      </div>
-                      <p className="text-sm font-semibold text-white/85 leading-snug">{note.title}</p>
-                      {note.description && <p className="text-xs text-white/35 mt-0.5 line-clamp-1">{note.description}</p>}
+                <div key={note.id} className={`group rounded-2xl border transition-all duration-300 overflow-hidden ${expanded ? "border-white/[0.15] bg-white/[0.03] shadow-2xl shadow-black/50" : "border-white/[0.05] bg-white/[0.015] hover:border-amber-500/30 hover:bg-white/[0.02] hover:shadow-xl hover:shadow-amber-500/5 backdrop-blur-sm"}`}>
+                  <button onClick={() => toggleExpand(note.id)} className="w-full flex items-start gap-4 px-6 py-5 text-left relative">
+                    {/* Hover subtle glow */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    
+                    <div className={`mt-1.5 shrink-0 transition-transform duration-300 ${expanded ? "rotate-90 text-amber-400" : "text-white/20 group-hover:text-amber-500/50"}`}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                     </div>
-                    <div className="text-right shrink-0 space-y-0.5">
-                      <p className="text-[10px] text-white/20 tabular-nums">{relTime(note.created_at)}</p>
-                      <p className="text-[10px] text-white/30">👤 {note.created_by_name}</p>
-                      {note.created_shift_name && <p className="text-[9px] text-amber-400/50">🕐 {note.created_shift_name}</p>}
-                      {note.taken_by_name && <p className="text-[9px] text-blue-400/50">📋 {note.taken_by_name}</p>}
-                      {note.resolved_by_name && <p className="text-[9px] text-emerald-400/50">✅ {note.resolved_by_name}</p>}
+                    
+                    <div className="flex-1 min-w-0 z-10">
+                      <div className="flex items-center gap-2.5 flex-wrap mb-2">
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${ps.bg} ${ps.text}`}>{ps.label}</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${ss.bg} ${ss.text}`}>{ss.label}</span>
+                        {note.room_number && <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.05] border border-white/[0.08] text-white/60 shadow-sm">🏨 HAB {note.room_number}</span>}
+                      </div>
+                      <p className={`text-base font-bold leading-snug transition-colors ${expanded ? "text-white" : "text-white/90 group-hover:text-white"}`}>{note.title}</p>
+                      {note.description && <p className="text-sm text-white/40 mt-1 line-clamp-1 group-hover:text-white/50 transition-colors">{note.description}</p>}
+                    </div>
+                    
+                    <div className="text-right shrink-0 z-10 space-y-1">
+                      <p className="text-[11px] font-medium text-white/30 tabular-nums">{relTime(note.created_at)}</p>
+                      <p className="text-[11px] font-medium text-white/40">👤 {note.created_by_name}</p>
+                      {note.created_shift_name && <p className="text-[10px] font-medium text-amber-400/60">🕐 {note.created_shift_name}</p>}
+                      {note.taken_by_name && <p className="text-[10px] font-medium text-blue-400/60">📋 {note.taken_by_name}</p>}
+                      {note.resolved_by_name && <p className="text-[10px] font-medium text-emerald-400/60">✅ {note.resolved_by_name}</p>}
                     </div>
                   </button>
 
                   {expanded && (
-                    <div className="border-t border-white/[0.04] px-5 py-4 space-y-3">
-                      {note.description && <p className="text-xs text-white/50 leading-relaxed whitespace-pre-wrap">{note.description}</p>}
+                    <div className="border-t border-white/[0.06] bg-black/20 px-6 py-5 space-y-5">
+                      {note.description && <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">{note.description}</p>}
 
                       {/* METADATA GRID */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rounded-xl bg-white/[0.02] border border-white/[0.04] p-3">
@@ -401,35 +414,35 @@ export function HandoffBoard() {
                       </div>
 
                       {/* ACTIONS */}
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2.5 mt-2">
                         {(note.status === "pendiente" || note.status === "reabierto") && (
                           <button onClick={(e) => { e.stopPropagation(); handleTake(note); }}
-                            className="h-8 px-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all">
+                            className="h-8 px-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:from-amber-500/20 hover:to-orange-500/20 hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-500/10 transition-all">
                             📋 Tomar
                           </button>
                         )}
                         {note.status === "en_progreso" && (
                           <button onClick={(e) => { e.stopPropagation(); handleReassign(note); }}
-                            className="h-8 px-4 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold hover:bg-violet-500/20 transition-all">
+                            className="h-8 px-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold hover:from-violet-500/20 hover:to-fuchsia-500/20 hover:border-violet-500/30 hover:shadow-lg hover:shadow-violet-500/10 transition-all">
                             🔀 Liberar / Reasignar
                           </button>
                         )}
                         {note.status !== "resuelto" && (
                           <button onClick={(e) => { e.stopPropagation(); setShowResolve(note); }}
-                            className="h-8 px-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-all">
+                            className="h-8 px-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold hover:from-emerald-500/20 hover:to-teal-500/20 hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/10 transition-all">
                             ✅ Resolver
                           </button>
                         )}
                         {note.status === "resuelto" && (
                           <button onClick={(e) => { e.stopPropagation(); handleReopen(note); }}
-                            className="h-8 px-4 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold hover:bg-violet-500/20 transition-all">
+                            className="h-8 px-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold hover:from-indigo-500/20 hover:to-blue-500/20 hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/10 transition-all">
                             🔄 Reabrir
                           </button>
                         )}
                         {note.status !== "resuelto" && (
                           <select value={note.priority}
                             onChange={(e) => { e.stopPropagation(); handleChangePriority(note, e.target.value as Priority); }}
-                            className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-[11px] text-white/60 focus:outline-none cursor-pointer">
+                            className="h-8 px-3 rounded-xl bg-[#141420] border border-white/[0.08] text-[11px] font-medium text-white/70 focus:outline-none focus:ring-1 focus:ring-amber-500/30 hover:border-white/[0.15] cursor-pointer transition-all shadow-sm">
                             <option value="baja">⚪ Baja</option>
                             <option value="media">🟡 Media</option>
                             <option value="alta">🟠 Alta</option>
