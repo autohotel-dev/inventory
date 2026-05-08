@@ -1,3 +1,12 @@
+export interface MessageReaction {
+    id: string;
+    message_id: string;
+    user_id: string;
+    user_email: string;
+    emoji: string;
+    created_at: string;
+}
+
 export interface ChatMessage {
     id: string;
     conversation_id: string;
@@ -8,16 +17,18 @@ export interface ChatMessage {
     is_admin: boolean;
     is_read: boolean;
     media_url?: string;
-    message_type: 'text' | 'image';
+    message_type: 'text' | 'image' | 'audio' | 'file';
     is_edited: boolean;
     deleted_at: string | null;
+    is_pinned?: boolean;
     reply_to_id?: string | null;
     reply_to?: {
         id: string;
         content: string;
         user_email: string;
-        message_type: 'text' | 'image';
+        message_type: 'text' | 'image' | 'audio' | 'file';
     } | null;
+    reactions?: MessageReaction[];
 }
 
 export interface Conversation {
@@ -35,7 +46,7 @@ export interface ConversationParticipant {
 
 export interface ChatContextType {
     messages: ChatMessage[];
-    sendMessage: (content: string, mediaUrl?: string, messageType?: 'text' | 'image') => Promise<void>;
+    sendMessage: (content: string, mediaUrl?: string, messageType?: 'text' | 'image' | 'audio' | 'file') => Promise<void>;
     retryMessage: (failedId: string) => Promise<void>;
     editMessage: (id: string, newContent: string) => Promise<void>;
     deleteMessage: (id: string) => Promise<void>;
@@ -58,4 +69,7 @@ export interface ChatContextType {
     refreshConversations: () => Promise<void>;
     replyTo: ChatMessage | null;
     setReplyTo: (msg: ChatMessage | null) => void;
+    toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+    togglePin: (messageId: string, isPinned: boolean) => Promise<void>;
+    searchMessages: (query: string) => Promise<ChatMessage[]>;
 }

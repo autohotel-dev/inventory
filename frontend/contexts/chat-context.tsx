@@ -35,7 +35,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const { messages, sendMessage: sendMsgFn, retryMessage: retryMsgFn, isLoading, hasMore, loadMore, uploadMedia, editMessage, deleteMessage } = useChatMessages(activeConversationId);
+    const { messages, sendMessage: sendMsgFn, retryMessage: retryMsgFn, isLoading, hasMore, loadMore, uploadMedia, editMessage, deleteMessage, toggleReaction: toggleReactionFn, togglePin: togglePinFn, searchMessages: searchMsgFn } = useChatMessages(activeConversationId);
     // Note: useChatMessages currently creates its own subscription. This is fine for now but optimization for later.
 
     const { notifyNewMessage } = useChatNotifications(currentUser?.id, isOpen);
@@ -138,7 +138,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const sendMessage = async (content: string, mediaUrl?: string, messageType: 'text' | 'image' = 'text') => {
+    const sendMessage = async (content: string, mediaUrl?: string, messageType: 'text' | 'image' | 'audio' | 'file' = 'text') => {
         if (!currentUser) return;
         try {
             const replyData = replyTo ? {
@@ -148,10 +148,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 message_type: replyTo.message_type,
             } : undefined;
             await sendMsgFn(content, currentUser, mediaUrl, messageType, replyTo?.id, replyData);
-            setReplyTo(null); // Clear reply after sending
+            setReplyTo(null);
         } catch {
             toastError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.');
         }
+    };
+
+    const toggleReaction = async (messageId: string, emoji: string) => {
+        if (!currentUser) return;
+        await toggleReactionFn(messageId, emoji, currentUser);
+    };
+
+    const togglePin = async (messageId: string, isPinned: boolean) => {
+        await togglePinFn(messageId, isPinned);
+    };
+
+    const searchMessages = async (query: string) => {
+        return searchMsgFn(query);
     };
 
     const value = {
@@ -179,6 +192,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         refreshConversations,
         replyTo,
         setReplyTo,
+        toggleReaction,
+        togglePin,
+        searchMessages,
     };
 
     return (

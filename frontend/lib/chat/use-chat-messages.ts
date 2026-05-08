@@ -2,10 +2,24 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { ChatMessage } from './chat-types';
+import { ChatMessage, MessageReaction } from './chat-types';
 
 const PAGE_SIZE = 20;
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB for files/audio
+
+const ALLOWED_FILE_TYPES: Record<string, string[]> = {
+    image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    file: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+           'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+           'text/plain', 'text/csv'],
+    audio: ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg'],
+};
+
+function getMessageType(file: File): 'image' | 'file' | 'audio' {
+    if (ALLOWED_FILE_TYPES.image.includes(file.type)) return 'image';
+    if (ALLOWED_FILE_TYPES.audio.includes(file.type)) return 'audio';
+    return 'file';
+}
 
 export function useChatMessages(conversationId: string | null) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -15,6 +29,25 @@ export function useChatMessages(conversationId: string | null) {
 
     // Keep track of the earliest loaded message time for pagination
     const oldestMessageTimeRef = useRef<string | null>(null);
+
+    const fetchReactions = useCallback(async (messageIds: string[]): Promise<Map<string, MessageReaction[]>> => {
+        const map = new Map<string, MessageReaction[]>();
+        if (messageIds.length === 0) return map;
+
+        const { data } = await supabase
+            .from('message_reactions')
+            .select('*')
+            .in('message_id', messageIds);
+
+        if (data) {
+            data.forEach((r: MessageReaction) => {
+                const existing = map.get(r.message_id) || [];
+                existing.push(r);
+                map.set(r.message_id, existing);
+            });
+        }
+        return map;
+    }, [supabase]);
 
     const fetchMessages = useCallback(async (loadMore = false) => {
         if (!conversationId) return;
@@ -50,25 +83,31 @@ export function useChatMessages(conversationId: string | null) {
                     setHasMore(false);
                 }
 
-                setMessages(prev => loadMore ? [...newMessages, ...prev] : newMessages);
+                // Fetch reactions for these messages
+                const reactionMap = await fetchReactions(newMessages.map(m => m.id));
+                const enriched = newMessages.map(m => ({
+                    ...m,
+                    reactions: reactionMap.get(m.id) || [],
+                }));
+
+                setMessages(prev => loadMore ? [...enriched, ...prev] : enriched);
             }
         } catch (err) {
             console.error("Exception fetching messages:", err);
         } finally {
             setIsLoading(false);
         }
-    }, [supabase, conversationId]);
+    }, [supabase, conversationId, fetchReactions]);
 
 
     const uploadMedia = async (file: File): Promise<string> => {
-        // Validate file size
         if (file.size > MAX_FILE_SIZE) {
-            throw new Error(`El archivo excede el límite de 5MB (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+            throw new Error(`El archivo excede el límite de 10MB (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
         }
 
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-            throw new Error('Solo se permiten archivos de imagen');
+        const allAllowed = [...ALLOWED_FILE_TYPES.image, ...ALLOWED_FILE_TYPES.file, ...ALLOWED_FILE_TYPES.audio];
+        if (!allAllowed.includes(file.type)) {
+            throw new Error('Tipo de archivo no soportado. Usa imágenes, PDFs, documentos o audio.');
         }
 
         const fileExt = file.name.split('.').pop();
@@ -80,7 +119,7 @@ export function useChatMessages(conversationId: string | null) {
             .upload(filePath, file);
 
         if (error) {
-            throw new Error('Error al subir la imagen. Intenta de nuevo.');
+            throw new Error('Error al subir el archivo. Intenta de nuevo.');
         }
 
         const { data: { publicUrl } } = supabase.storage
@@ -90,10 +129,9 @@ export function useChatMessages(conversationId: string | null) {
         return publicUrl;
     };
 
-    const sendMessage = async (content: string, user: any, mediaUrl?: string, messageType: 'text' | 'image' = 'text', replyToId?: string | null, replyToData?: ChatMessage['reply_to']) => {
+    const sendMessage = async (content: string, user: any, mediaUrl?: string, messageType: 'text' | 'image' | 'audio' | 'file' = 'text', replyToId?: string | null, replyToData?: ChatMessage['reply_to']) => {
         if (!conversationId) return;
 
-        // Optimistic Update
         const tempId = `temp-${Date.now()}`;
         const optimisticMessage: ChatMessage = {
             id: tempId,
@@ -110,6 +148,7 @@ export function useChatMessages(conversationId: string | null) {
             deleted_at: null,
             reply_to_id: replyToId || null,
             reply_to: replyToData || null,
+            reactions: [],
         };
 
         setMessages(prev => [...prev, optimisticMessage]);
@@ -136,7 +175,7 @@ export function useChatMessages(conversationId: string | null) {
             ));
             throw error;
         } else if (data) {
-            setMessages(prev => prev.map(m => m.id === tempId ? (data as ChatMessage) : m));
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...data, reactions: [] } as ChatMessage : m));
         }
     };
 
@@ -144,20 +183,14 @@ export function useChatMessages(conversationId: string | null) {
         const failedMsg = messages.find(m => m.id === failedId);
         if (!failedMsg) return;
 
-        // Remove the failed message
         setMessages(prev => prev.filter(m => m.id !== failedId));
-
-        // Re-send
         await sendMessage(failedMsg.content, user, failedMsg.media_url, failedMsg.message_type);
     };
 
     const editMessage = async (id: string, newContent: string) => {
         if (!newContent.trim()) return;
 
-        // Save original for rollback
         const originalMsg = messages.find(m => m.id === id);
-        
-        // Optimistic Update
         setMessages(prev => prev.map(m => m.id === id ? { ...m, content: newContent, is_edited: true } : m));
 
         const { error } = await supabase
@@ -166,7 +199,6 @@ export function useChatMessages(conversationId: string | null) {
             .eq('id', id);
 
         if (error) {
-            // Rollback optimistic update
             if (originalMsg) {
                 setMessages(prev => prev.map(m => m.id === id ? originalMsg : m));
             }
@@ -175,10 +207,7 @@ export function useChatMessages(conversationId: string | null) {
     };
 
     const deleteMessage = async (id: string) => {
-        // Save original for rollback
         const originalMsg = messages.find(m => m.id === id);
-
-        // Optimistic Update (Soft Delete)
         setMessages(prev => prev.map(m => m.id === id ? { ...m, deleted_at: new Date().toISOString() } : m));
 
         const { error } = await supabase
@@ -187,7 +216,6 @@ export function useChatMessages(conversationId: string | null) {
             .eq('id', id);
 
         if (error) {
-            // Rollback
             if (originalMsg) {
                 setMessages(prev => prev.map(m => m.id === id ? originalMsg : m));
             }
@@ -195,12 +223,90 @@ export function useChatMessages(conversationId: string | null) {
         }
     };
 
-    // Realtime subscription for current conversation
+    // Toggle emoji reaction
+    const toggleReaction = async (messageId: string, emoji: string, user: any) => {
+        const msg = messages.find(m => m.id === messageId);
+        if (!msg) return;
+
+        const existingReaction = msg.reactions?.find(r => r.emoji === emoji && r.user_id === user.id);
+
+        if (existingReaction) {
+            // Remove reaction (optimistic)
+            setMessages(prev => prev.map(m => 
+                m.id === messageId 
+                    ? { ...m, reactions: (m.reactions || []).filter(r => r.id !== existingReaction.id) } 
+                    : m
+            ));
+            await supabase.from('message_reactions').delete().eq('id', existingReaction.id);
+        } else {
+            // Add reaction (optimistic)
+            const tempReaction: MessageReaction = {
+                id: `temp-${Date.now()}`,
+                message_id: messageId,
+                user_id: user.id,
+                user_email: user.email,
+                emoji,
+                created_at: new Date().toISOString(),
+            };
+            setMessages(prev => prev.map(m => 
+                m.id === messageId 
+                    ? { ...m, reactions: [...(m.reactions || []), tempReaction] } 
+                    : m
+            ));
+            const { data } = await supabase
+                .from('message_reactions')
+                .insert({ message_id: messageId, user_id: user.id, user_email: user.email, emoji })
+                .select()
+                .single();
+            if (data) {
+                setMessages(prev => prev.map(m => 
+                    m.id === messageId 
+                        ? { ...m, reactions: (m.reactions || []).map(r => r.id === tempReaction.id ? data : r) } 
+                        : m
+                ));
+            }
+        }
+    };
+
+    // Toggle pin
+    const togglePin = async (messageId: string, isPinned: boolean) => {
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_pinned: !isPinned } : m));
+        
+        const { error } = await supabase
+            .from('messages')
+            .update({ is_pinned: !isPinned })
+            .eq('id', messageId);
+
+        if (error) {
+            setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_pinned: isPinned } : m));
+        }
+    };
+
+    // Search messages
+    const searchMessages = async (query: string): Promise<ChatMessage[]> => {
+        if (!conversationId || !query.trim()) return [];
+
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*, reply_to:reply_to_id(id, content, user_email, message_type)')
+            .eq('conversation_id', conversationId)
+            .is('deleted_at', null)
+            .ilike('content', `%${query}%`)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (error) {
+            console.error('Search error:', error);
+            return [];
+        }
+        return (data || []) as ChatMessage[];
+    };
+
+    // Realtime subscription
     useEffect(() => {
         let isMounted = true;
         let channel: ReturnType<typeof supabase.channel> | null = null;
         
-        // Reset state when switching conversations
         setMessages([]);
         setHasMore(true);
         oldestMessageTimeRef.current = null;
@@ -222,26 +328,23 @@ export function useChatMessages(conversationId: string | null) {
                         if (!isMounted) return;
                         
                         if (payload.eventType === 'INSERT') {
-                            const newMsg = payload.new as ChatMessage;
+                            const newMsg = { ...payload.new, reactions: [] } as ChatMessage;
                             setMessages(prev => {
-                                // Clean dedup: only check for temp-id messages with matching content
                                 const hasTempDuplicate = prev.some(
                                     m => m.id.toString().startsWith('temp-') && m.content === newMsg.content && m.user_id === newMsg.user_id
                                 );
                                 if (hasTempDuplicate) {
-                                    // Replace the temp message with the real one
                                     return prev
                                         .filter(m => !(m.id.toString().startsWith('temp-') && m.content === newMsg.content && m.user_id === newMsg.user_id))
                                         .concat(newMsg)
                                         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
                                 }
-                                // Skip if already present (exact ID match)
                                 if (prev.some(m => m.id === newMsg.id)) return prev;
                                 return [...prev, newMsg];
                             });
                         } else if (payload.eventType === 'UPDATE') {
                             const updatedMsg = payload.new as ChatMessage;
-                            setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
+                            setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...updatedMsg, reactions: m.reactions || [] } : m));
                         } else if (payload.eventType === 'DELETE') {
                             const deletedMsgId = payload.old.id as string;
                             setMessages(prev => prev.filter(m => m.id !== deletedMsgId));
@@ -273,6 +376,9 @@ export function useChatMessages(conversationId: string | null) {
         loadMore: () => fetchMessages(true),
         uploadMedia,
         editMessage,
-        deleteMessage
+        deleteMessage,
+        toggleReaction,
+        togglePin,
+        searchMessages,
     };
 }

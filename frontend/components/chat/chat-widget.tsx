@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useChat } from '@/contexts/chat-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,10 @@ import {
 import { 
     MessageCircle, X, Send, User, ShieldAlert, Loader2, 
     Paperclip, Pencil, Trash2, ChevronDown, ChevronLeft, AlertCircle, RotateCcw, Smile,
-    Reply, ArrowDown
+    Reply, ArrowDown, Search, Pin, PinOff, FileText, Mic, Square, Headphones
 } from 'lucide-react';
 import type { EnrichedConversation } from '@/lib/chat/use-conversations';
+import type { ChatMessage } from '@/lib/chat/chat-types';
 import { useToast } from '@/hooks/use-toast';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -78,6 +79,9 @@ export function ChatWidget() {
         startDirectConversation,
         replyTo,
         setReplyTo,
+        toggleReaction,
+        togglePin,
+        searchMessages,
     } = useChat();
     const { error: toastError } = useToast();
     const [inputValue, setInputValue] = useState("");
@@ -95,6 +99,23 @@ export function ChatWidget() {
     const [showEmoji, setShowEmoji] = useState(false);
     const [showScrollBottom, setShowScrollBottom] = useState(false);
     const firstUnreadIdRef = useRef<string | null>(null);
+
+    // Search state
+    const [showSearch, setShowSearch] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Quick reaction emojis
+    const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+    const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
+
+    // Voice recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordingChunksRef = useRef<Blob[]>([]);
+    const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Track previous height for scroll preservation
     const prevScrollHeightRef = useRef(0);
@@ -166,6 +187,100 @@ export function ChatWidget() {
         inputRef.current?.focus();
     };
 
+    // Search handler
+    const handleSearch = useCallback(async (query: string) => {
+        setSearchQuery(query);
+        if (!query.trim()) {
+            setSearchResults([]);
+            return;
+        }
+        setIsSearching(true);
+        const results = await searchMessages(query);
+        setSearchResults(results);
+        setIsSearching(false);
+    }, [searchMessages]);
+
+    // Voice recording
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorderRef.current = mediaRecorder;
+            recordingChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
+                const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+                if (blob.size > 0) {
+                    const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+                    setIsSending(true);
+                    try {
+                        const url = await uploadMedia(file);
+                        await sendMessage(`🎤 Nota de voz (${recordingTime}s)`, url, 'audio');
+                    } catch {
+                        toastError('Error', 'No se pudo enviar la nota de voz.');
+                    }
+                    setIsSending(false);
+                }
+                setRecordingTime(0);
+            };
+
+            mediaRecorder.start(100);
+            setIsRecording(true);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+        } catch {
+            toastError('Error', 'No se pudo acceder al micrófono.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+            mediaRecorderRef.current = null;
+            recordingChunksRef.current = [];
+            setIsRecording(false);
+            setRecordingTime(0);
+            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    // URL detection for link previews
+    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+    const renderMessageContent = (content: string) => {
+        const parts = content.split(urlRegex);
+        return parts.map((part, i) => {
+            if (part.match(urlRegex)) {
+                const domain = new URL(part).hostname.replace('www.', '');
+                return (
+                    <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 decoration-1 opacity-90 hover:opacity-100 transition-opacity inline-flex items-center gap-1"
+                    >
+                        🔗 {domain}
+                    </a>
+                );
+            }
+            return <span key={i}>{part}</span>;
+        });
+    };
+
     // Handle Scroll Position after messages change
     useLayoutEffect(() => {
         if (!scrollAreaViewportRef.current) return;
@@ -199,9 +314,14 @@ export function ChatWidget() {
         const file = e.target.files?.[0];
         if (file) {
             setSelectedFile(file);
-            const reader = new FileReader();
-            reader.onloadend = () => setPreviewUrl(reader.result as string);
-            reader.readAsDataURL(file);
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onloadend = () => setPreviewUrl(reader.result as string);
+                reader.readAsDataURL(file);
+            } else {
+                // For non-image files, use a placeholder preview
+                setPreviewUrl(null);
+            }
         }
     };
 
@@ -232,14 +352,20 @@ export function ChatWidget() {
         setIsSending(true);
         try {
             let mediaUrl = undefined;
-            let messageType: 'text' | 'image' = 'text';
+            let messageType: 'text' | 'image' | 'audio' | 'file' = 'text';
 
             if (selectedFile) {
                 mediaUrl = await uploadMedia(selectedFile);
-                messageType = 'image';
+                if (selectedFile.type.startsWith('image/')) {
+                    messageType = 'image';
+                } else if (selectedFile.type.startsWith('audio/')) {
+                    messageType = 'audio';
+                } else {
+                    messageType = 'file';
+                }
             }
 
-            await sendMessage(inputValue, mediaUrl, messageType);
+            await sendMessage(inputValue || (messageType === 'file' ? `📎 ${selectedFile?.name || 'Archivo'}` : inputValue), mediaUrl, messageType);
             
             setInputValue("");
             setSelectedFile(null);
@@ -367,15 +493,58 @@ export function ChatWidget() {
                                     </CardDescription>
                                 </div>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setIsOpen(false)}
-                                className="h-9 w-9 rounded-2xl hover:bg-white/10 text-zinc-300 hover:text-white transition-all active:scale-90"
-                            >
-                                <X className="h-5 w-5" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                {activeConversationId && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => { setShowSearch(!showSearch); setSearchQuery(''); setSearchResults([]); }}
+                                        className={cn("h-9 w-9 rounded-2xl hover:bg-white/10 text-zinc-300 hover:text-white transition-all active:scale-90", showSearch && "bg-white/10 text-white")}
+                                    >
+                                        <Search className="h-4 w-4" />
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setIsOpen(false)}
+                                    className="h-9 w-9 rounded-2xl hover:bg-white/10 text-zinc-300 hover:text-white transition-all active:scale-90"
+                                >
+                                    <X className="h-5 w-5" />
+                                </Button>
+                            </div>
                         </div>
+
+                        {/* Search Bar */}
+                        {showSearch && (
+                            <div className="px-3 pb-2 animate-in slide-in-from-top-2 duration-200">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar mensajes..."
+                                        value={searchQuery}
+                                        onChange={(e) => handleSearch(e.target.value)}
+                                        className="w-full h-8 pl-9 pr-3 rounded-lg bg-white/10 border border-white/10 text-xs text-zinc-100 placeholder:text-zinc-400 outline-none focus:ring-1 focus:ring-white/20 transition-all"
+                                        autoFocus
+                                    />
+                                    {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-zinc-400" />}
+                                </div>
+                                {searchResults.length > 0 && (
+                                    <div className="mt-2 max-h-40 overflow-y-auto rounded-lg bg-black/30 border border-white/10">
+                                        {searchResults.map(r => (
+                                            <div key={r.id} className="px-3 py-2 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0">
+                                                <span className="text-[10px] text-zinc-400 block">{r.user_email.split('@')[0]} · {new Date(r.created_at).toLocaleDateString()}</span>
+                                                <span className="text-[11px] text-zinc-200 line-clamp-1">{r.content}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {searchQuery && !isSearching && searchResults.length === 0 && (
+                                    <p className="text-[10px] text-zinc-400 mt-1 px-1">Sin resultados</p>
+                                )}
+                            </div>
+                        )}
                     </CardHeader>
 
                     <CardContent className="flex-1 p-0 overflow-hidden relative bg-muted/5">
@@ -607,6 +776,10 @@ export function ChatWidget() {
                                                                     <Reply className="h-4 w-4" />
                                                                     <span>Responder</span>
                                                                 </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => togglePin(msg.id, !!msg.is_pinned)} className="cursor-pointer gap-2">
+                                                                    {msg.is_pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                                                                    <span>{msg.is_pinned ? 'Desfijar' : 'Fijar'}</span>
+                                                                </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => handleEditStart(msg)} className="cursor-pointer gap-2">
                                                                     <Pencil className="h-4 w-4" />
                                                                     <span>Editar</span>
@@ -649,6 +822,13 @@ export function ChatWidget() {
                                                     </div>
                                                 ) : (
                                                     <>
+                                                        {/* Pin indicator */}
+                                                        {msg.is_pinned && (
+                                                            <div className={cn("flex items-center gap-1 mb-1 text-[9px] font-semibold", isMe ? "text-amber-300/80" : "text-amber-500/80")}>
+                                                                <Pin className="h-3 w-3" /> Fijado
+                                                            </div>
+                                                        )}
+
                                                         {msg.message_type === 'image' && msg.media_url && (
                                                             <div className="mb-2 -mx-2 -mt-1 overflow-hidden rounded-xl border border-black/5 bg-black/5 shadow-inner">
                                                                 <img 
@@ -658,6 +838,44 @@ export function ChatWidget() {
                                                                     onClick={() => window.open(msg.media_url, '_blank')}
                                                                 />
                                                             </div>
+                                                        )}
+
+                                                        {/* Audio player */}
+                                                        {msg.message_type === 'audio' && msg.media_url && (
+                                                            <div className="flex items-center gap-2 min-w-[180px]">
+                                                                <Headphones className={cn("h-4 w-4 shrink-0", isMe ? "text-zinc-300" : "text-primary")} />
+                                                                <audio controls preload="none" className="h-8 w-full [&::-webkit-media-controls-panel]:bg-transparent">
+                                                                    <source src={msg.media_url} type="audio/webm" />
+                                                                </audio>
+                                                            </div>
+                                                        )}
+
+                                                        {/* File preview */}
+                                                        {msg.message_type === 'file' && msg.media_url && (
+                                                            <a 
+                                                                href={msg.media_url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className={cn(
+                                                                    "flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors min-w-[150px]",
+                                                                    isMe ? "bg-white/10 hover:bg-white/15" : "bg-muted/30 hover:bg-muted/50"
+                                                                )}
+                                                            >
+                                                                <div className={cn(
+                                                                    "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                                                                    isMe ? "bg-white/15" : "bg-primary/10"
+                                                                )}>
+                                                                    <FileText className={cn("h-4 w-4", isMe ? "text-zinc-200" : "text-primary")} />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <span className="text-xs font-medium truncate block">
+                                                                        {msg.media_url.split('/').pop()?.split('-').slice(1).join('-') || 'Documento'}
+                                                                    </span>
+                                                                    <span className={cn("text-[9px]", isMe ? "text-zinc-400" : "text-muted-foreground")}>
+                                                                        Toca para abrir
+                                                                    </span>
+                                                                </div>
+                                                            </a>
                                                         )}
 
                                                         {editingId === msg.id ? (
@@ -683,7 +901,7 @@ export function ChatWidget() {
                                                             </div>
                                                         ) : (
                                                             <>
-                                                                <span className="whitespace-pre-wrap">{msg.content}</span>
+                                                                <span className="whitespace-pre-wrap">{renderMessageContent(msg.content)}</span>
                                                                 {msg.is_edited && (
                                                                     <span className="text-[8px] opacity-40 ml-1.5 font-medium tracking-tight uppercase">Editado</span>
                                                                 )}
@@ -707,6 +925,56 @@ export function ChatWidget() {
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* Emoji Reactions Display */}
+                                            {msg.reactions && msg.reactions.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1 px-1">
+                                                    {Object.entries(
+                                                        msg.reactions.reduce((acc: Record<string, { count: number; users: string[]; hasMe: boolean }>, r) => {
+                                                            if (!acc[r.emoji]) acc[r.emoji] = { count: 0, users: [], hasMe: false };
+                                                            acc[r.emoji].count++;
+                                                            acc[r.emoji].users.push(r.user_email.split('@')[0]);
+                                                            if (r.user_id === currentUser?.id) acc[r.emoji].hasMe = true;
+                                                            return acc;
+                                                        }, {})
+                                                    ).map(([emoji, data]) => (
+                                                        <button
+                                                            key={emoji}
+                                                            onClick={() => toggleReaction(msg.id, emoji)}
+                                                            title={(data as any).users.join(', ')}
+                                                            className={cn(
+                                                                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] border transition-all active:scale-95",
+                                                                (data as any).hasMe
+                                                                    ? "bg-primary/10 border-primary/30 text-primary"
+                                                                    : "bg-muted/30 border-border/30 text-muted-foreground hover:bg-muted/50"
+                                                            )}
+                                                        >
+                                                            <span>{emoji}</span>
+                                                            <span className="font-medium text-[10px]">{(data as any).count}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Quick Reaction Bar */}
+                                            {!msg.deleted_at && !isFailed && (
+                                                <div className={cn(
+                                                    "absolute -bottom-3 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10",
+                                                    isMe ? "right-2" : "left-2"
+                                                )}>
+                                                    <div className="flex items-center gap-0.5 bg-background/95 border border-border/40 rounded-full px-1 py-0.5 shadow-lg backdrop-blur-sm">
+                                                        {QUICK_REACTIONS.map(emoji => (
+                                                            <button
+                                                                key={emoji}
+                                                                onClick={() => toggleReaction(msg.id, emoji)}
+                                                                className="h-6 w-6 rounded-full hover:bg-muted/50 flex items-center justify-center text-sm transition-all hover:scale-125 active:scale-90"
+                                                            >
+                                                                {emoji}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Failed message indicator */}
                                             {isFailed && (
@@ -784,7 +1052,8 @@ export function ChatWidget() {
                             </div>
                         )}
                         
-                        {previewUrl && (
+                        {/* File preview - Image */}
+                        {previewUrl && selectedFile && (
                             <div className="relative w-20 h-20 mb-1 ml-1 rounded-2xl border-2 border-primary/20 bg-muted overflow-hidden group shadow-md animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
                                 <img src={previewUrl} alt="Preview" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                                 <button 
@@ -792,6 +1061,21 @@ export function ChatWidget() {
                                     className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
                                 >
                                     <X className="h-6 w-6 text-foreground" />
+                                </button>
+                            </div>
+                        )}
+                        {/* File preview - Document */}
+                        {selectedFile && !previewUrl && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-border/20 rounded-xl mb-1 ml-1 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                    <FileText className="h-4 w-4 text-primary" />
+                                </div>
+                                <span className="text-xs font-medium truncate flex-1">{selectedFile.name}</span>
+                                <button 
+                                    onClick={() => { setSelectedFile(null); setPreviewUrl(null); }}
+                                    className="h-5 w-5 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center shrink-0 transition-colors"
+                                >
+                                    <X className="h-3 w-3 text-muted-foreground" />
                                 </button>
                             </div>
                         )}
@@ -815,12 +1099,41 @@ export function ChatWidget() {
                             </div>
                         )}
 
+                        {/* Voice Recording UI */}
+                        {isRecording ? (
+                            <div className="flex items-center gap-3 w-full">
+                                <div className="flex items-center gap-2 flex-1 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-2.5">
+                                    <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                                    <span className="text-sm font-medium text-red-500">
+                                        {Math.floor(recordingTime / 60).toString().padStart(2, '0')}:{(recordingTime % 60).toString().padStart(2, '0')}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground ml-1">Grabando...</span>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={cancelRecording}
+                                    className="h-10 w-10 rounded-2xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all active:scale-90"
+                                >
+                                    <X className="h-5 w-5" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="icon"
+                                    onClick={stopRecording}
+                                    className="h-11 w-11 rounded-2xl bg-red-500 hover:bg-red-600 text-white shadow-md transition-all active:scale-90"
+                                >
+                                    <Square className="h-4 w-4 fill-current" />
+                                </Button>
+                            </div>
+                        ) : (
                         <form onSubmit={handleSend} className="flex w-full items-center gap-1.5">
                             <input 
                                 type="file" 
                                 ref={fileInputRef} 
                                 className="hidden" 
-                                accept="image/*" 
+                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" 
                                 onChange={handleFileSelect} 
                             />
                             <Button
@@ -856,15 +1169,27 @@ export function ChatWidget() {
                                 onFocus={() => setShowEmoji(false)}
                                 className="flex-1 h-11 rounded-2xl border-border/50 bg-background/60 focus-visible:ring-primary/30 focus-visible:ring-offset-0 px-4 placeholder:text-muted-foreground/60 transition-all shadow-sm"
                             />
-                            <Button
-                                type="submit"
-                                size="icon"
-                                disabled={(!inputValue.trim() && !selectedFile) || isSending}
-                                className="h-11 w-11 rounded-2xl shadow-md shrink-0 transition-all active:scale-90 bg-zinc-900 dark:bg-zinc-800 text-zinc-50 hover:bg-zinc-800 dark:hover:bg-zinc-700 disabled:grayscale disabled:opacity-50"
-                            >
-                                {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                            </Button>
+                            {inputValue.trim() || selectedFile ? (
+                                <Button
+                                    type="submit"
+                                    size="icon"
+                                    disabled={(!inputValue.trim() && !selectedFile) || isSending}
+                                    className="h-11 w-11 rounded-2xl shadow-md shrink-0 transition-all active:scale-90 bg-zinc-900 dark:bg-zinc-800 text-zinc-50 hover:bg-zinc-800 dark:hover:bg-zinc-700 disabled:grayscale disabled:opacity-50"
+                                >
+                                    {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    size="icon"
+                                    onClick={startRecording}
+                                    className="h-11 w-11 rounded-2xl shadow-md shrink-0 transition-all active:scale-90 bg-zinc-900 dark:bg-zinc-800 text-zinc-50 hover:bg-zinc-800 dark:hover:bg-zinc-700"
+                                >
+                                    <Mic className="h-5 w-5" />
+                                </Button>
+                            )}
                         </form>
+                        )}
                         </>
                         )}
                     </CardFooter>
