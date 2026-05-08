@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { ChatContextType } from '@/lib/chat/chat-types';
+import { ChatContextType, ChatMessage } from '@/lib/chat/chat-types';
 import { useChatMessages } from '@/lib/chat/use-chat-messages';
 import { useChatNotifications } from '@/lib/chat/use-chat-notifications';
 import { useChatPresence } from '@/lib/chat/use-chat-presence';
@@ -17,6 +17,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+    const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
     const { playNewMessage } = useSoundEngine();
     const { error: toastError } = useToast();
 
@@ -140,7 +141,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const sendMessage = async (content: string, mediaUrl?: string, messageType: 'text' | 'image' = 'text') => {
         if (!currentUser) return;
         try {
-            await sendMsgFn(content, currentUser, mediaUrl, messageType);
+            const replyData = replyTo ? {
+                id: replyTo.id,
+                content: replyTo.content,
+                user_email: replyTo.user_email,
+                message_type: replyTo.message_type,
+            } : undefined;
+            await sendMsgFn(content, currentUser, mediaUrl, messageType, replyTo?.id, replyData);
+            setReplyTo(null); // Clear reply after sending
         } catch {
             toastError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.');
         }
@@ -169,6 +177,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isConvLoading,
         startDirectConversation,
         refreshConversations,
+        replyTo,
+        setReplyTo,
     };
 
     return (

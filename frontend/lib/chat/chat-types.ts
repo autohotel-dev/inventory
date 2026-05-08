@@ -11,6 +11,13 @@ export interface ChatMessage {
     message_type: 'text' | 'image';
     is_edited: boolean;
     deleted_at: string | null;
+    reply_to_id?: string | null;
+    reply_to?: {
+        id: string;
+        content: string;
+        user_email: string;
+        message_type: 'text' | 'image';
+    } | null;
 }
 
 export interface Conversation {
@@ -49,4 +56,6 @@ export interface ChatContextType {
     isConvLoading: boolean;
     startDirectConversation: (otherUserId: string) => Promise<string | null>;
     refreshConversations: () => Promise<void>;
+    replyTo: ChatMessage | null;
+    setReplyTo: (msg: ChatMessage | null) => void;
 }

@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { 
     MessageCircle, X, Send, User, ShieldAlert, Loader2, 
-    Paperclip, MoreVertical, Pencil, Trash2, ChevronDown, ChevronLeft, AlertCircle, RotateCcw, Smile
+    Paperclip, Pencil, Trash2, ChevronDown, ChevronLeft, AlertCircle, RotateCcw, Smile,
+    Reply, ArrowDown
 } from 'lucide-react';
 import type { EnrichedConversation } from '@/lib/chat/use-conversations';
 import { useToast } from '@/hooks/use-toast';
@@ -75,11 +76,14 @@ export function ChatWidget() {
         convList,
         isConvLoading,
         startDirectConversation,
+        replyTo,
+        setReplyTo,
     } = useChat();
     const { error: toastError } = useToast();
     const [inputValue, setInputValue] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
     const scrollAreaViewportRef = useRef<HTMLDivElement | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const [isSending, setIsSending] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -89,6 +93,8 @@ export function ChatWidget() {
     const [editValue, setEditValue] = useState("");
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [showEmoji, setShowEmoji] = useState(false);
+    const [showScrollBottom, setShowScrollBottom] = useState(false);
+    const firstUnreadIdRef = useRef<string | null>(null);
 
     // Track previous height for scroll preservation
     const prevScrollHeightRef = useRef(0);
@@ -99,7 +105,7 @@ export function ChatWidget() {
     useEffect(() => {
         if (isOpen && activeConversationId) {
             isFirstLoadRef.current = true;
-            // Use rAF to ensure DOM is painted before scrolling
+            firstUnreadIdRef.current = null;
             const raf = requestAnimationFrame(() => {
                 const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement;
                 if (viewport) {
@@ -111,6 +117,39 @@ export function ChatWidget() {
         }
     }, [isOpen, activeConversationId]);
 
+    // Track scroll position for "scroll to bottom" button
+    useEffect(() => {
+        const viewport = scrollAreaViewportRef.current;
+        if (!viewport || !activeConversationId) return;
+
+        const handleScroll = () => {
+            const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+            setShowScrollBottom(distanceFromBottom > 200);
+        };
+
+        viewport.addEventListener('scroll', handleScroll, { passive: true });
+        return () => viewport.removeEventListener('scroll', handleScroll);
+    }, [activeConversationId, messages.length]);
+
+    // Detect first unread message on initial load
+    useEffect(() => {
+        if (isFirstLoadRef.current && messages.length > 0 && currentUser) {
+            const firstUnread = messages.find(m => !m.is_read && m.user_id !== currentUser.id);
+            if (firstUnread) {
+                firstUnreadIdRef.current = firstUnread.id;
+            }
+        }
+    }, [messages, currentUser]);
+
+    const scrollToBottom = () => {
+        if (scrollAreaViewportRef.current) {
+            scrollAreaViewportRef.current.scrollTo({
+                top: scrollAreaViewportRef.current.scrollHeight,
+                behavior: 'smooth',
+            });
+        }
+    };
+
     // Handle loading more messages (manual button click)
     const handleLoadMore = () => {
         if (!hasMore || isLoading) return;
@@ -119,6 +158,12 @@ export function ChatWidget() {
             isLoadingMoreRef.current = true;
         }
         loadMore();
+    };
+
+    // Handle reply action
+    const handleReply = (msg: any) => {
+        setReplyTo(msg);
+        inputRef.current?.focus();
     };
 
     // Handle Scroll Position after messages change
@@ -446,7 +491,7 @@ export function ChatWidget() {
                                 </div>
                             </ScrollArea>
                         ) : (
-                            <ScrollArea className="h-full px-4 py-4" type="always">
+                            <ScrollArea className="h-full px-4 py-4 relative" type="always">
                             <div className="flex flex-col gap-4 min-h-full justify-end pb-2">
                                 {/* Load More Button */}
                                 {hasMore && (
@@ -483,9 +528,20 @@ export function ChatWidget() {
                                     const nextMsgIsSequence = index < messages.length - 1 && messages[index + 1].user_id === msg.user_id;
                                     const prevTime = index > 0 ? messages[index - 1].created_at : null;
                                     const showTimestamp = shouldShowTimestamp(prevTime, msg.created_at);
+                                    const isFirstUnread = msg.id === firstUnreadIdRef.current;
 
                                     return (
                                         <div key={msg.id}>
+                                            {/* New Messages Separator */}
+                                            {isFirstUnread && (
+                                                <div className="flex items-center gap-3 my-4">
+                                                    <div className="flex-1 h-px bg-blue-500/30" />
+                                                    <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-widest px-2 shrink-0">
+                                                        Mensajes nuevos
+                                                    </span>
+                                                    <div className="flex-1 h-px bg-blue-500/30" />
+                                                </div>
+                                            )}
                                             {/* Timestamp separator */}
                                             {showTimestamp && (
                                                 <div className="flex items-center justify-center my-3">
@@ -508,6 +564,17 @@ export function ChatWidget() {
                                                 </span>
                                             )}
 
+                                            {/* Reply button on hover (for other's messages) */}
+                                            {!isMe && !msg.deleted_at && !isFailed && (
+                                                <button
+                                                    onClick={() => handleReply(msg)}
+                                                    className="absolute -right-8 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-muted/60 hover:bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-90 z-10"
+                                                    title="Responder"
+                                                >
+                                                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                                                </button>
+                                            )}
+
                                             <div
                                                 className={cn(
                                                     "py-2.5 rounded-[1.25rem] text-sm shadow-sm break-words relative leading-relaxed transition-all duration-200 min-w-[60px]",
@@ -522,7 +589,7 @@ export function ChatWidget() {
                                                     !msg.deleted_at && isSequence ? (isMe ? "rounded-tr-md" : "rounded-tl-md") : "",
                                                 )}
                                             >
-                                                {/* Action Menu */}
+                                                {/* Action Menu (own messages) */}
                                                 {isMe && !msg.deleted_at && (
                                                     <div className="absolute top-1.5 right-1.5 z-10">
                                                         <DropdownMenu>
@@ -535,7 +602,11 @@ export function ChatWidget() {
                                                                     <ChevronDown className="h-4 w-4" />
                                                                 </Button>
                                                             </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end" className="w-32 bg-popover/90 backdrop-blur-md border-white/10 rounded-xl">
+                                                            <DropdownMenuContent align="end" className="w-36 bg-popover/90 backdrop-blur-md border-white/10 rounded-xl">
+                                                                <DropdownMenuItem onClick={() => handleReply(msg)} className="cursor-pointer gap-2">
+                                                                    <Reply className="h-4 w-4" />
+                                                                    <span>Responder</span>
+                                                                </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => handleEditStart(msg)} className="cursor-pointer gap-2">
                                                                     <Pencil className="h-4 w-4" />
                                                                     <span>Editar</span>
@@ -549,6 +620,23 @@ export function ChatWidget() {
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
+                                                    </div>
+                                                )}
+
+                                                {/* Reply Quote Block */}
+                                                {msg.reply_to && !msg.deleted_at && (
+                                                    <div className={cn(
+                                                        "mb-2 px-3 py-1.5 rounded-lg border-l-2 text-[11px] leading-snug",
+                                                        isMe 
+                                                            ? "bg-white/10 border-white/30 text-zinc-300" 
+                                                            : "bg-muted/30 border-primary/40 text-muted-foreground"
+                                                    )}>
+                                                        <span className="font-semibold block mb-0.5">
+                                                            {msg.reply_to.user_email?.split('@')[0]}
+                                                        </span>
+                                                        <span className="line-clamp-2 opacity-80">
+                                                            {msg.reply_to.message_type === 'image' ? '📷 Imagen' : msg.reply_to.content}
+                                                        </span>
                                                     </div>
                                                 )}
 
@@ -639,6 +727,17 @@ export function ChatWidget() {
                                     );
                                 })}
                                 </div>
+
+                                {/* Scroll to Bottom Button */}
+                                {showScrollBottom && (
+                                    <button
+                                        onClick={scrollToBottom}
+                                        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/90 dark:bg-zinc-700/90 text-zinc-50 text-xs font-medium shadow-lg backdrop-blur-sm hover:bg-zinc-800 transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 active:scale-95"
+                                    >
+                                        <ArrowDown className="h-3.5 w-3.5" />
+                                        Ir al final
+                                    </button>
+                                )}
                             </ScrollArea>
                         )}
                     </CardContent>
@@ -653,6 +752,25 @@ export function ChatWidget() {
                             </div>
                         ) : (
                         <>
+                        {/* Reply Preview Bar */}
+                        {replyTo && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 border border-border/20 rounded-xl animate-in slide-in-from-bottom-2 duration-200">
+                                <div className="flex-1 min-w-0 border-l-2 border-primary pl-2.5">
+                                    <span className="text-[10px] font-semibold text-primary block">
+                                        Respondiendo a {replyTo.user_email.split('@')[0]}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground truncate block">
+                                        {replyTo.message_type === 'image' ? '📷 Imagen' : replyTo.content}
+                                    </span>
+                                </div>
+                                <button 
+                                    onClick={() => setReplyTo(null)}
+                                    className="h-5 w-5 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center shrink-0 transition-colors"
+                                >
+                                    <X className="h-3 w-3 text-muted-foreground" />
+                                </button>
+                            </div>
+                        )}
                         {typingUsers.length > 0 && (
                             <div className="text-[10px] text-muted-foreground/80 px-2 flex items-center gap-2">
                                 <div className="flex gap-0.5">
@@ -727,6 +845,7 @@ export function ChatWidget() {
                                 <Smile className="h-5 w-5" />
                             </Button>
                             <Input
+                                ref={inputRef}
                                 placeholder="Escribe un mensaje..."
                                 value={inputValue}
                                 onChange={(e) => {

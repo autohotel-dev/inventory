@@ -23,7 +23,7 @@ export function useChatMessages(conversationId: string | null) {
         try {
             let query = supabase
                 .from('messages')
-                .select('*')
+                .select('*, reply_to:reply_to_id(id, content, user_email, message_type)')
                 .eq('conversation_id', conversationId)
                 .order('created_at', { ascending: false })
                 .limit(PAGE_SIZE);
@@ -90,7 +90,7 @@ export function useChatMessages(conversationId: string | null) {
         return publicUrl;
     };
 
-    const sendMessage = async (content: string, user: any, mediaUrl?: string, messageType: 'text' | 'image' = 'text') => {
+    const sendMessage = async (content: string, user: any, mediaUrl?: string, messageType: 'text' | 'image' = 'text', replyToId?: string | null, replyToData?: ChatMessage['reply_to']) => {
         if (!conversationId) return;
 
         // Optimistic Update
@@ -107,24 +107,28 @@ export function useChatMessages(conversationId: string | null) {
             media_url: mediaUrl,
             message_type: messageType,
             is_edited: false,
-            deleted_at: null
+            deleted_at: null,
+            reply_to_id: replyToId || null,
+            reply_to: replyToData || null,
         };
 
         setMessages(prev => [...prev, optimisticMessage]);
 
+        const insertPayload: any = {
+            conversation_id: conversationId,
+            content,
+            media_url: mediaUrl,
+            message_type: messageType,
+        };
+        if (replyToId) insertPayload.reply_to_id = replyToId;
+
         const { data, error } = await supabase
             .from('messages')
-            .insert([{
-                conversation_id: conversationId,
-                content,
-                media_url: mediaUrl,
-                message_type: messageType
-            }])
-            .select()
+            .insert([insertPayload])
+            .select('*, reply_to:reply_to_id(id, content, user_email, message_type)')
             .single();
 
         if (error) {
-            // Mark the optimistic message as failed (for retry UI)
             setMessages(prev => prev.map(m => 
                 m.id === tempId 
                     ? { ...m, id: `failed-${tempId}` } 
