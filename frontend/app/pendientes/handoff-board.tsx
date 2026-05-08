@@ -122,7 +122,10 @@ export function HandoffBoard() {
     // Load filter reference data
     const loadFilters = async () => {
       const { data: emps } = await supabase.from("employees").select("first_name, last_name").order("first_name");
-      if (emps) setEmployees(emps.map(e => ({ name: `${e.first_name} ${e.last_name}`.trim() })));
+      if (emps) {
+        const uniqueNames = Array.from(new Set(emps.map(e => `${e.first_name} ${e.last_name}`.trim())));
+        setEmployees(uniqueNames.map(name => ({ name })));
+      }
       const { data: shiftDefs } = await supabase.from("shift_definitions").select("id, name").order("name");
       if (shiftDefs) setShifts(shiftDefs);
     };
