@@ -171,17 +171,16 @@ export function ConnectedCancelStayModal({
       if (orderError) throw orderError;
 
       // ═══════════════════════════════════════════════════════════
-      // PASO 7: Borrar historial de habitación
-      // Anti-bloqueo: falla parcial no detiene el flujo
+      // PASO 7: Borrar historial de habitación (Deshabilitado - tabla eliminada)
       // ═══════════════════════════════════════════════════════════
-      try {
-        await supabase
-          .from("room_status_history")
-          .delete()
-          .eq("sales_order_id", activeStay.sales_order_id);
-      } catch (historyErr) {
-        console.error("History cleanup failed (non-blocking):", historyErr);
-      }
+      // try {
+      //   await supabase
+      //     .from("room_status_history")
+      //     .delete()
+      //     .eq("sales_order_id", activeStay.sales_order_id);
+      // } catch (historyErr) {
+      //   console.error("History cleanup failed (non-blocking):", historyErr);
+      // }
 
       // ═══════════════════════════════════════════════════════════
       // PASO 8: Concatenar notas (preservar previas)
