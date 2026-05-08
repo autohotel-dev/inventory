@@ -726,15 +726,24 @@ export function ChatWidget() {
                 <Button
                     onClick={() => setIsOpen(true)}
                     size="icon"
-                    className="h-14 w-14 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] bg-zinc-900 dark:bg-zinc-800 text-zinc-50 hover:bg-zinc-800 dark:hover:bg-zinc-700 transition-all duration-300 hover:scale-110 active:scale-95 pointer-events-auto relative group overflow-visible"
+                    className={cn(
+                        "h-14 w-14 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] bg-zinc-900 dark:bg-zinc-800 text-zinc-50 hover:bg-zinc-800 dark:hover:bg-zinc-700 transition-all duration-300 hover:scale-110 active:scale-95 pointer-events-auto relative group overflow-visible",
+                        unreadCount > 0 && "ring-2 ring-red-500/60 ring-offset-2 ring-offset-background shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+                    )}
                     aria-label="Abrir chat de soporte"
                 >
                     <div className="absolute inset-0 rounded-full bg-white/10 animate-ping opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    {unreadCount > 0 && (
+                        <div className="absolute inset-[-4px] rounded-full border-2 border-red-500/40 animate-ping" />
+                    )}
                     <MessageCircle className="h-7 w-7 relative z-10" />
 
                     {unreadCount > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white border-[3px] border-background animate-bounce shadow-sm z-20">
-                            {unreadCount > 9 ? '9+' : unreadCount}
+                        <span className="absolute -top-2 -right-2 flex items-center justify-center z-20">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                            <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white border-[3px] border-background shadow-lg">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
                         </span>
                     )}
                 </Button>

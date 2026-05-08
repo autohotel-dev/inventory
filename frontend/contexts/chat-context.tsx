@@ -80,6 +80,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, [isOpen, messages, currentUser, supabase]);
 
+    // Flash browser tab title when there are unread messages
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const originalTitle = 'AHLM';
+
+        if (unreadCount > 0 && !isOpen) {
+            let showNotif = true;
+            const interval = setInterval(() => {
+                document.title = showNotif 
+                    ? `💬 (${unreadCount}) Nuevo mensaje` 
+                    : originalTitle;
+                showNotif = !showNotif;
+            }, 1500);
+
+            return () => {
+                clearInterval(interval);
+                document.title = originalTitle;
+            };
+        } else {
+            document.title = originalTitle;
+        }
+    }, [unreadCount, isOpen]);
+
     const retryMessage = async (failedId: string) => {
         if (!currentUser) return;
         try {
