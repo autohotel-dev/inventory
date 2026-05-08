@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Priority = "baja" | "media" | "alta" | "urgente";
 type Status = "pendiente" | "en_progreso" | "resuelto" | "reabierto";
@@ -303,25 +304,37 @@ export function HandoffBoard() {
             </button>
           ))}
           <span className="w-px h-6 bg-white/[0.06] mx-1" />
-          <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
-            className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white/70 focus:outline-none">
-            <option value="all">Todas las prioridades</option>
-            <option value="urgente">🔴 Urgente</option>
-            <option value="alta">🟠 Alta</option>
-            <option value="media">🟡 Media</option>
-            <option value="baja">⚪ Baja</option>
-          </select>
-          <select value={filterEmployee} onChange={e => setFilterEmployee(e.target.value)}
-            className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white/70 focus:outline-none min-w-[160px]">
-            <option value="all">👤 Todos los empleados</option>
-            {employees.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
-          </select>
-          <select value={filterShift} onChange={e => setFilterShift(e.target.value)}
-            className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white/70 focus:outline-none min-w-[140px]">
-            <option value="all">🕐 Todos los turnos</option>
-            {shifts.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            <option value="none">⚠️ Sin turno asignado</option>
-          </select>
+          <Select value={filterPriority} onValueChange={setFilterPriority}>
+            <SelectTrigger className="h-8 px-3 rounded-xl bg-[#141420]/80 border border-white/[0.08] text-xs text-white/70 focus:ring-1 focus:ring-amber-500/30 hover:border-white/[0.15] transition-all shadow-sm w-[160px]">
+              <SelectValue placeholder="Prioridad" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#141420]/95 backdrop-blur-xl border-white/[0.08] text-white rounded-xl shadow-2xl shadow-black">
+              <SelectItem value="all" className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">Todas las prioridades</SelectItem>
+              <SelectItem value="urgente" className="text-xs focus:bg-red-500/20 focus:text-red-400 cursor-pointer rounded-lg">🔴 Urgente</SelectItem>
+              <SelectItem value="alta" className="text-xs focus:bg-orange-500/20 focus:text-orange-400 cursor-pointer rounded-lg">🟠 Alta</SelectItem>
+              <SelectItem value="media" className="text-xs focus:bg-amber-500/20 focus:text-amber-400 cursor-pointer rounded-lg">🟡 Media</SelectItem>
+              <SelectItem value="baja" className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">⚪ Baja</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+            <SelectTrigger className="h-8 px-3 rounded-xl bg-[#141420]/80 border border-white/[0.08] text-xs text-white/70 focus:ring-1 focus:ring-amber-500/30 hover:border-white/[0.15] transition-all shadow-sm w-[180px]">
+              <SelectValue placeholder="Empleado" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#141420]/95 backdrop-blur-xl border-white/[0.08] text-white max-h-[300px] rounded-xl shadow-2xl shadow-black">
+              <SelectItem value="all" className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">👤 Todos los empleados</SelectItem>
+              {employees.map(e => <SelectItem key={e.name} value={e.name} className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">{e.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterShift} onValueChange={setFilterShift}>
+            <SelectTrigger className="h-8 px-3 rounded-xl bg-[#141420]/80 border border-white/[0.08] text-xs text-white/70 focus:ring-1 focus:ring-amber-500/30 hover:border-white/[0.15] transition-all shadow-sm w-[170px]">
+              <SelectValue placeholder="Turno" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#141420]/95 backdrop-blur-xl border-white/[0.08] text-white rounded-xl shadow-2xl shadow-black">
+              <SelectItem value="all" className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">🕐 Todos los turnos</SelectItem>
+              {shifts.map(s => <SelectItem key={s.id} value={s.name} className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">{s.name}</SelectItem>)}
+              <SelectItem value="none" className="text-xs focus:bg-red-500/20 focus:text-red-400 cursor-pointer rounded-lg">⚠️ Sin turno</SelectItem>
+            </SelectContent>
+          </Select>
           <input placeholder="🔍 Buscar..." value={search} onChange={e => setSearch(e.target.value)}
             className="flex-1 min-w-[150px] h-8 px-3 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
         </div>
@@ -440,14 +453,19 @@ export function HandoffBoard() {
                           </button>
                         )}
                         {note.status !== "resuelto" && (
-                          <select value={note.priority}
-                            onChange={(e) => { e.stopPropagation(); handleChangePriority(note, e.target.value as Priority); }}
-                            className="h-8 px-3 rounded-xl bg-[#141420] border border-white/[0.08] text-[11px] font-medium text-white/70 focus:outline-none focus:ring-1 focus:ring-amber-500/30 hover:border-white/[0.15] cursor-pointer transition-all shadow-sm">
-                            <option value="baja">⚪ Baja</option>
-                            <option value="media">🟡 Media</option>
-                            <option value="alta">🟠 Alta</option>
-                            <option value="urgente">🔴 Urgente</option>
-                          </select>
+                          <div onClick={e => e.stopPropagation()}>
+                            <Select value={note.priority} onValueChange={(val) => { handleChangePriority(note, val as Priority); }}>
+                              <SelectTrigger className="h-8 px-3 rounded-xl bg-[#141420]/80 border border-white/[0.08] text-[11px] font-medium text-white/70 focus:ring-1 focus:ring-amber-500/30 hover:border-white/[0.15] transition-all shadow-sm w-[115px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#141420]/95 backdrop-blur-xl border-white/[0.08] text-white rounded-xl shadow-2xl shadow-black">
+                                <SelectItem value="baja" className="text-xs focus:bg-white/[0.06] focus:text-white cursor-pointer rounded-lg">⚪ Baja</SelectItem>
+                                <SelectItem value="media" className="text-xs focus:bg-amber-500/20 focus:text-amber-400 cursor-pointer rounded-lg">🟡 Media</SelectItem>
+                                <SelectItem value="alta" className="text-xs focus:bg-orange-500/20 focus:text-orange-400 cursor-pointer rounded-lg">🟠 Alta</SelectItem>
+                                <SelectItem value="urgente" className="text-xs focus:bg-red-500/20 focus:text-red-400 cursor-pointer rounded-lg">🔴 Urgente</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         )}
                       </div>
 
