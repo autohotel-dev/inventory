@@ -158,6 +158,41 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 }
             }
 
+            // 5. Marcar items EXTRA_PERSON existentes como pagados
+            // (recepción los creó en la Entrada Rápida y el total del cochero ya los incluye)
+            const { data: existingExtras } = await supabase
+                .from('sales_order_items')
+                .select('id')
+                .eq('sales_order_id', activeStay.sales_order_id)
+                .eq('concept_type', 'EXTRA_PERSON')
+                .eq('is_paid', false);
+
+            if (existingExtras && existingExtras.length > 0) {
+                const existingIds = existingExtras.map((e: { id: string }) => e.id);
+                await supabase
+                    .from('sales_order_items')
+                    .update({
+                        is_paid: true,
+                        delivery_status: 'DELIVERED',
+                        delivery_completed_at: new Date().toISOString(),
+                        delivery_accepted_by: valetId,
+                    })
+                    .in('id', existingIds);
+
+                // Marcar pagos PENDIENTE de PERSONA_EXTRA como cobrados
+                await supabase
+                    .from('payments')
+                    .update({
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    })
+                    .eq('sales_order_id', activeStay.sales_order_id)
+                    .eq('concept', 'PERSONA_EXTRA')
+                    .eq('status', 'PENDIENTE');
+            }
+
             toast.success('✅ Entrada registrada', {
                 description: `Hab. ${room.number}: Entrega dinero/vouchers en recepción.`,
                 duration: 5000

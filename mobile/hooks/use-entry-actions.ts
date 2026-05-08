@@ -175,70 +175,103 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 }
             }
 
-            // --- 5. REQ-02: Generar conceptos EXTRA_PERSON si hay más de 2 personas ---
-            const extraCount = Math.max(0, personCount - 2);
-            if (extraCount > 0 && extraPersonPrice && extraPersonPrice > 0) {
-                console.log(`📦 Generando ${extraCount} conceptos EXTRA_PERSON a $${extraPersonPrice} c/u`);
+            // --- 5. REQ-02: Manejar conceptos EXTRA_PERSON ---
+            // Primero revisar si recepción ya creó items EXTRA_PERSON (vía Entrada Rápida)
+            const { data: existingExtras } = await supabase
+                .from('sales_order_items')
+                .select('id')
+                .eq('sales_order_id', salesOrderId)
+                .eq('concept_type', 'EXTRA_PERSON')
+                .eq('is_paid', false);
 
-                // Obtener product_id de servicio (el mismo que usa ROOM_BASE)
-                const { data: existingItem } = await supabase
+            if (existingExtras && existingExtras.length > 0) {
+                // Recepción ya creó los items — marcarlos como pagados y entregados
+                // (el cochero ya cobró el total que los incluye)
+                console.log(`✅ Marcando ${existingExtras.length} EXTRA_PERSON existentes como pagados`);
+                const existingIds = existingExtras.map(e => e.id);
+                await supabase
                     .from('sales_order_items')
-                    .select('product_id')
+                    .update({
+                        is_paid: true,
+                        delivery_status: 'DELIVERED',
+                        delivery_completed_at: new Date().toISOString(),
+                        delivery_accepted_by: valetId,
+                    })
+                    .in('id', existingIds);
+
+                // También marcar pagos PENDIENTE de PERSONA_EXTRA como cobrados
+                await supabase
+                    .from('payments')
+                    .update({
+                        status: 'COBRADO_POR_VALET',
+                        collected_by: valetId,
+                        collected_at: new Date().toISOString(),
+                        shift_session_id: session?.id || null,
+                    })
                     .eq('sales_order_id', salesOrderId)
-                    .eq('concept_type', 'ROOM_BASE')
-                    .limit(1)
-                    .maybeSingle();
+                    .eq('concept', 'PERSONA_EXTRA')
+                    .eq('status', 'PENDIENTE');
+            } else {
+                // No hay extras de recepción — generar si el cochero registra más personas
+                const baseCapacity = 2; // Fallback; la Entrada Rápida ya maneja base_capacity
+                const extraCount = Math.max(0, personCount - baseCapacity);
+                if (extraCount > 0 && extraPersonPrice && extraPersonPrice > 0) {
+                    console.log(`📦 Generando ${extraCount} conceptos EXTRA_PERSON a $${extraPersonPrice} c/u`);
 
-                const serviceProductId = existingItem?.product_id;
-                if (!serviceProductId) {
-                    console.warn('No se encontró product_id de ROOM_BASE, omitiendo items de persona extra');
-                } else {
-                    for (let i = 0; i < extraCount; i++) {
-                        // Crear sales_order_item
-                        const { error: itemErr } = await supabase.from('sales_order_items').insert({
-                            sales_order_id: salesOrderId,
-                            product_id: serviceProductId,
-                            qty: 1,
-                            unit_price: extraPersonPrice,
-                            concept_type: 'EXTRA_PERSON',
-                            is_paid: false,
-                            delivery_status: 'DELIVERED', // Ya está en la habitación
-                        });
-                        if (itemErr) {
-                            console.error(`Error creating EXTRA_PERSON item ${i + 1}:`, itemErr);
+                    // Obtener product_id de servicio
+                    const { data: existingItem } = await supabase
+                        .from('sales_order_items')
+                        .select('product_id')
+                        .eq('sales_order_id', salesOrderId)
+                        .eq('concept_type', 'ROOM_BASE')
+                        .limit(1)
+                        .maybeSingle();
+
+                    const serviceProductId = existingItem?.product_id;
+                    if (!serviceProductId) {
+                        console.warn('No se encontró product_id de ROOM_BASE, omitiendo items de persona extra');
+                    } else {
+                        for (let i = 0; i < extraCount; i++) {
+                            const { error: itemErr } = await supabase.from('sales_order_items').insert({
+                                sales_order_id: salesOrderId,
+                                product_id: serviceProductId,
+                                qty: 1,
+                                unit_price: extraPersonPrice,
+                                concept_type: 'EXTRA_PERSON',
+                                is_paid: false,
+                                delivery_status: 'DELIVERED',
+                            });
+                            if (itemErr) console.error(`Error creating EXTRA_PERSON item ${i + 1}:`, itemErr);
+
+                            const { error: payErr } = await supabase.from('payments').insert({
+                                sales_order_id: salesOrderId,
+                                amount: extraPersonPrice,
+                                payment_method: 'PENDIENTE',
+                                concept: 'PERSONA_EXTRA',
+                                status: 'PENDIENTE',
+                                payment_type: 'COMPLETO',
+                                shift_session_id: session?.id || null,
+                            });
+                            if (payErr) console.error(`Error creating PERSONA_EXTRA payment ${i + 1}:`, payErr);
                         }
 
-                        // Crear pago PENDIENTE por persona extra
-                        const { error: payErr } = await supabase.from('payments').insert({
-                            sales_order_id: salesOrderId,
-                            amount: extraPersonPrice,
-                            payment_method: 'PENDIENTE',
-                            concept: 'PERSONA_EXTRA',
-                            status: 'PENDIENTE',
-                            payment_type: 'COMPLETO',
-                            shift_session_id: session?.id || null,
-                        });
-                        if (payErr) {
-                            console.error(`Error creating PERSONA_EXTRA payment ${i + 1}:`, payErr);
+                        // Actualizar totales de la sales_order
+                        const extraTotal = extraCount * extraPersonPrice;
+                        const { data: currentOrder } = await supabase
+                            .from('sales_orders')
+                            .select('total, remaining_amount')
+                            .eq('id', salesOrderId)
+                            .single();
+
+                        if (currentOrder) {
+                            await supabase.from('sales_orders').update({
+                                total: (currentOrder.total || 0) + extraTotal,
+                                remaining_amount: (currentOrder.remaining_amount || 0) + extraTotal,
+                            }).eq('id', salesOrderId);
                         }
+
+                        console.log(`✅ ${extraCount} conceptos EXTRA_PERSON creados exitosamente`);
                     }
-
-                    // Actualizar totales de la sales_order
-                    const extraTotal = extraCount * extraPersonPrice;
-                    const { data: currentOrder } = await supabase
-                        .from('sales_orders')
-                        .select('total, remaining_amount')
-                        .eq('id', salesOrderId)
-                        .single();
-
-                    if (currentOrder) {
-                        await supabase.from('sales_orders').update({
-                            total: (currentOrder.total || 0) + extraTotal,
-                            remaining_amount: (currentOrder.remaining_amount || 0) + extraTotal,
-                        }).eq('id', salesOrderId);
-                    }
-
-                    console.log(`✅ ${extraCount} conceptos EXTRA_PERSON creados exitosamente`);
                 }
             }
 

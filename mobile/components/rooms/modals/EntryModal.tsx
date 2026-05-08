@@ -45,7 +45,8 @@ export const EntryModal = memo(({
 }: EntryModalProps) => {
     const basePrice = room?.room_types?.base_price ?? 0;
     const extraPrice = room?.room_types?.extra_person_price ?? 0;
-    const extraCount = Math.max(0, personCount - 2);
+    const baseCapacity = room?.room_types?.base_capacity ?? 2;
+    const extraCount = Math.max(0, personCount - baseCapacity);
     const amount = basePrice + (extraCount * extraPrice);
 
     const [showScanner, setShowScanner] = React.useState(false);

@@ -227,8 +227,9 @@ export default function RoomsScreen() {
         // Inicializar un pago con el monto calculado
         const basePrice = room.room_types?.base_price ?? 0;
         const extraPrice = room.room_types?.extra_person_price ?? 0;
+        const baseCapacity = room.room_types?.base_capacity ?? 2;
         const currentCount = stay.current_people || 2;
-        const extraCount = Math.max(0, currentCount - 2);
+        const extraCount = Math.max(0, currentCount - baseCapacity);
         const amount = basePrice + (extraCount * extraPrice);
 
         setPayments([{
@@ -248,7 +249,8 @@ export default function RoomsScreen() {
         if (!showEntryModal || !selectedRoom) return;
         const basePrice = selectedRoom.room_types?.base_price ?? 0;
         const extraPrice = selectedRoom.room_types?.extra_person_price ?? 0;
-        const extraCount = Math.max(0, personCount - 2);
+        const baseCapacity = selectedRoom.room_types?.base_capacity ?? 2;
+        const extraCount = Math.max(0, personCount - baseCapacity);
         const newAmount = basePrice + (extraCount * extraPrice);
         
         setPayments(prev => {
