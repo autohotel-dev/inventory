@@ -144,15 +144,15 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
 
       if (error) throw error;
       
-      // Enviar notificación push al cochero asignado
+      // Enviar notificación push al cochero asignado (no bloquea la operación)
       if (assetType === 'TV_REMOTE') {
-        await createAdminNotificationForEmployee(
+        createAdminNotificationForEmployee(
           supabase,
           selectedCochero,
           '📺 Encender TV',
           `Ve a la Habitación ${room.number} y enciende la televisión para el cliente.`,
           { type: 'TV_TASK', roomNumber: room.number, roomId: room.id }
-        );
+        ).catch(() => { /* push notification is best-effort */ });
         toast.success("Cochero asignado para encender TV.");
       } else {
         toast.success("Control asignado al cochero correctamente.");
