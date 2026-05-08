@@ -86,6 +86,7 @@ export function ConnectedManagePeopleModal({
       currentPeople={currentPeople}
       totalPeople={totalPeople}
       maxPeople={maxPeople}
+      baseCapacity={room.room_types?.base_capacity ?? 2}
       hasActiveTolerance={hasActiveTolerance}
       toleranceMinutesLeft={toleranceMinutesLeft}
       extraPersonPrice={extraPersonPrice}

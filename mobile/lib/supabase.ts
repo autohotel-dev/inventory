@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// Force Metro cache bust 2
 import 'react-native-url-polyfill/auto';
 import { telemetry } from './telemetry';
 

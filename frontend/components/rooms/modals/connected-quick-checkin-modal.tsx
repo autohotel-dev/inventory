@@ -85,7 +85,8 @@ export function ConnectedQuickCheckinModal({
 
       const basePrice = roomType.base_price ?? 0;
       const extraPersonPrice = roomType.extra_person_price ?? 0;
-      const extraPeopleCount = Math.max(0, data.initialPeople - 2);
+      const baseCapacity = roomType.base_capacity ?? 2; // Personas incluidas en precio base
+      const extraPeopleCount = Math.max(0, data.initialPeople - baseCapacity);
       const extraPeopleCost = extraPeopleCount * extraPersonPrice;
       const totalPrice =
         (basePrice + extraPeopleCost) * (roomType.is_hotel ? durationNights : 1);
@@ -275,15 +276,17 @@ export function ConnectedQuickCheckinModal({
         console.error('Error printing entry ticket (non-blocking):', printErr);
       }
 
-      // Imprimir ticket QR del portal de huéspedes (silencioso via print-server)
-      try {
-        const portalURL = getGuestPortalURL(selectedRoom.number, guestToken);
-        await printQRTicket({
-          roomNumber: selectedRoom.number,
-          url: portalURL,
-        });
-      } catch (qrErr) {
-        console.error('Error printing QR portal ticket (non-blocking):', qrErr);
+      // Imprimir ticket QR del portal de huéspedes (solo si está habilitado en configuración)
+      if (systemConfig.printQROnCheckin) {
+        try {
+          const portalURL = getGuestPortalURL(selectedRoom.number, guestToken);
+          await printQRTicket({
+            roomNumber: selectedRoom.number,
+            url: portalURL,
+          });
+        } catch (qrErr) {
+          console.error('Error printing QR portal ticket (non-blocking):', qrErr);
+        }
       }
 
       onClose();

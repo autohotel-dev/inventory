@@ -33,6 +33,7 @@ export interface POSConfig {
     maxShiftsValet: number;
     maxShiftsAdmin: number;
     autoChargeExtraHours: boolean;
+    printQROnCheckin: boolean;    // Imprimir QR del portal al registrar entrada
 
     // Printer network configuration
     thermalPrinterIP: string;
@@ -58,6 +59,7 @@ const DEFAULT_CONFIG: POSConfig = {
     maxShiftsValet: 4,
     maxShiftsAdmin: 2,
     autoChargeExtraHours: true,
+    printQROnCheckin: false,
     thermalPrinterIP: '192.168.0.106',
     thermalPrinterPort: 9100,
     hpPrinterIP: '192.168.0.108',

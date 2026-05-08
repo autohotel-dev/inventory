@@ -59,6 +59,7 @@ export interface RoomType {
   extra_person_price?: number;
   extra_hour_price?: number;
   max_people?: number;
+  base_capacity?: number; // Personas incluidas en el precio base (default: 2)
 }
 
 export interface RoomStay {

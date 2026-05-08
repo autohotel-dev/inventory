@@ -62,7 +62,15 @@ function buildTicketBreakdowns(accrualItems: any[]) {
   const extraBreakdown: Record<string, { count: number; total: number }> = {};
   const consumptionBreakdown: Record<string, { count: number; total: number }> = {};
 
-  (accrualItems || []).forEach((item: any) => {
+  // Filter out items belonging to cancelled stays
+  const activeItems = (accrualItems || []).filter((item: any) => {
+    const order = item.sales_orders;
+    const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+    const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
+    return !stay || stay.status !== 'CANCELADA';
+  });
+
+  activeItems.forEach((item: any) => {
     const qty = item.qty || 1;
     const amount = (item.unit_price || 0) * qty;
     const conceptType = item.concept_type || "PRODUCT";
@@ -206,10 +214,18 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
       // Accrual
       const { data: accrualItemsData } = await supabase
-        .from("sales_order_items").select("*, products(name, sku), sales_orders(id, room_stays(rooms(number, room_types(name))))")
+        .from("sales_order_items").select("*, products(name, sku), sales_orders(id, room_stays(rooms(number, room_types(name)), status))")
         .eq("shift_session_id", session.id);
       const accrual_items = accrualItemsData || [];
-      const total_accrual_sales = accrual_items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+      // Exclude items from cancelled stays when calculating totals
+      const total_accrual_sales = accrual_items
+        .filter((item: any) => {
+          const order = item.sales_orders;
+          const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+          const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
+          return !stay || stay.status !== 'CANCELADA';
+        })
+        .reduce((sum: number, item: any) => sum + (item.total || 0), 0);
 
       setSummary({
         total_cash, total_card_bbva, total_card_getnet, total_sales,
@@ -444,24 +460,26 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim()
           : "—";
 
+        const isCancelled = stay.status === 'CANCELADA';
+
         return {
           no: idx + 1,
           time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
           vehicle_plate: stay.vehicle_plate || '',
           room_number: stay.rooms?.number || '',
           checkout_valet_name: valetName,
-          room_price: roomPrice,
-          extra,
-          consumption,
-          total: roomPrice + extra + consumption,
-          payment_method: paymentMethod,
+          room_price: isCancelled ? -roomPrice : roomPrice,
+          extra: isCancelled ? -extra : extra,
+          consumption: isCancelled ? -consumption : consumption,
+          total: isCancelled ? -(roomPrice + extra + consumption) : (roomPrice + extra + consumption),
+          payment_method: isCancelled ? 'CANCELADO' : paymentMethod,
           stay_status: stay.status,
         };
       });
 
-      // 4. Build payment breakdown
+      // 4. Build payment breakdown (exclude cancelled stays)
       const paymentBreakdown: Record<string, number> = {};
-      filteredStays.forEach((stay: any) => {
+      filteredStays.filter((stay: any) => stay.status !== 'CANCELADA').forEach((stay: any) => {
         const order = stay.sales_orders;
         const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
         rawOrderData.forEach((o: any) => {
@@ -506,16 +524,25 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
 
       const tableRows = entries.map((e: any) => {
-        return `<tr>
+        const isCancelled = e.stay_status === 'CANCELADA';
+        const rowStyle = isCancelled ? 'color:#dc2626;text-decoration:line-through;' : '';
+        const cancelTag = isCancelled ? ' <span style="color:#dc2626;font-size:7px;font-weight:700;text-decoration:none;display:inline-block;">(CANCELADO)</span>' : '';
+        const activeTag = !isCancelled && e.stay_status === 'ACTIVA' ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : '';
+        const formatAmt = (val: number) => {
+          if (val === 0) return '—';
+          if (val < 0) return `<span style="color:#dc2626;text-decoration:none;display:inline-block;">-$${Math.abs(val).toFixed(2)}</span>`;
+          return `$${val.toFixed(2)}`;
+        };
+        return `<tr style="${rowStyle}">
             <td style="text-align:center;font-weight:600;">${e.no}</td>
             <td style="text-align:center;">${e.time}</td>
             <td style="text-align:center;text-transform:uppercase;">${e.vehicle_plate || '—'}</td>
-            <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === 'CANCELADA' ? ' <span style="color:#dc2626;font-size:7px;">(C)</span>' : e.stay_status === 'ACTIVA' ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : ''}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? '$' + Number(e.extra).toFixed(2) : '—'}</td>
-            <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? '$' + Number(e.consumption).toFixed(2) : '—'}</td>
-            <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
-            <td style="text-align:center;">${e.payment_method}</td>
+            <td style="text-align:center;font-weight:600;text-decoration:none;">${e.room_number}${cancelTag}${activeTag}</td>
+            <td style="text-align:right;font-family:monospace;">${formatAmt(e.room_price)}</td>
+            <td style="text-align:right;font-family:monospace;">${e.extra !== 0 ? formatAmt(e.extra) : '—'}</td>
+            <td style="text-align:right;font-family:monospace;">${e.consumption !== 0 ? formatAmt(e.consumption) : '—'}</td>
+            <td style="text-align:right;font-weight:700;font-family:monospace;">${formatAmt(e.total)}</td>
+            <td style="text-align:center;${isCancelled ? 'text-decoration:none;color:#dc2626;font-weight:700;' : ''}">${e.payment_method}</td>
         </tr>`;
       }).join('');
 

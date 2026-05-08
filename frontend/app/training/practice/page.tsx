@@ -404,6 +404,7 @@ export default function PracticePage() {
                             currentPeople={selectedRoom.room_stays?.[0]?.current_people || 1}
                             totalPeople={selectedRoom.room_stays?.[0]?.total_people || 1}
                             maxPeople={selectedRoom.room_types.max_people || 4}
+                            baseCapacity={selectedRoom.room_types.base_capacity ?? 2}
                             hasActiveTolerance={(selectedRoom.room_stays?.[0] as any)?.hasActiveTolerance || false}
                             toleranceMinutesLeft={(selectedRoom.room_stays?.[0] as any)?.toleranceMinutesLeft}
                             extraPersonPrice={selectedRoom.room_types.extra_person_price || 0}

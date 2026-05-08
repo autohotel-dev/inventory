@@ -89,7 +89,8 @@ export function createPeopleActions(ctx: RoomActionContext) {
         // Persona NUEVA
         const previousTotalPeople = activeStay.total_people ?? current;
         const newTotalPeople = previousTotalPeople + 1;
-        const shouldChargeExtra = newCurrentPeople > 2 || previousTotalPeople >= 2;
+        const baseCapacity = room.room_types!.base_capacity ?? 2;
+        const shouldChargeExtra = newCurrentPeople > baseCapacity || previousTotalPeople >= baseCapacity;
 
         await supabase.from("room_stays").update({
           current_people: newCurrentPeople,

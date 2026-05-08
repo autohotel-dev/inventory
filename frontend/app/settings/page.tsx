@@ -270,6 +270,7 @@ export default function SettingsPage() {
                     maxShiftsValet: systemConfig.maxShiftsValet,
                     maxShiftsAdmin: systemConfig.maxShiftsAdmin,
                     autoChargeExtraHours: systemConfig.autoChargeExtraHours,
+                    printQROnCheckin: systemConfig.printQROnCheckin,
                     thermalPrinterIP: systemConfig.thermalPrinterIP,
                     thermalPrinterPort: systemConfig.thermalPrinterPort,
                     hpPrinterIP: systemConfig.hpPrinterIP,
@@ -302,6 +303,7 @@ export default function SettingsPage() {
                 maxShiftsValet: localConfig.maxShiftsValet,
                 maxShiftsAdmin: localConfig.maxShiftsAdmin,
                 autoChargeExtraHours: localConfig.autoChargeExtraHours,
+                printQROnCheckin: localConfig.printQROnCheckin,
                 thermalPrinterIP: localConfig.thermalPrinterIP,
                 thermalPrinterPort: localConfig.thermalPrinterPort,
                 hpPrinterIP: localConfig.hpPrinterIP,
@@ -530,7 +532,7 @@ export default function SettingsPage() {
                                                 Este límite previene que se acumulen demasiados cobros pendientes.
                                             </InfoCallout>
                                         </div>
-                                        <div className="pl-1">
+                                        <div className="pl-1 space-y-0 divide-y divide-white/[0.04]">
                                             <SettingRow
                                                 title="Autocobro de hora extra"
                                                 description="Si está activo, el sistema cobrará automáticamente una hora extra cuando termine el tiempo de la habitación."
@@ -539,6 +541,17 @@ export default function SettingsPage() {
                                                 <Switch
                                                     checked={localConfig.autoChargeExtraHours ?? true}
                                                     onCheckedChange={(c) => updateLocalConfig('autoChargeExtraHours', c)}
+                                                    disabled={!canEditShared}
+                                                />
+                                            </SettingRow>
+                                            <SettingRow
+                                                title="Imprimir QR al ingreso"
+                                                description="Si está activo, se imprimirá automáticamente un ticket con el código QR del portal de huéspedes al registrar una entrada."
+                                                disabled={!canEditShared}
+                                            >
+                                                <Switch
+                                                    checked={localConfig.printQROnCheckin ?? false}
+                                                    onCheckedChange={(c) => updateLocalConfig('printQROnCheckin' as any, c)}
                                                     disabled={!canEditShared}
                                                 />
                                             </SettingRow>

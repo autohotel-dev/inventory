@@ -12,6 +12,7 @@ interface ManagePeopleModalProps {
   currentPeople: number;
   totalPeople: number;
   maxPeople: number;
+  baseCapacity: number;
   hasActiveTolerance: boolean;
   toleranceMinutesLeft?: number;
   extraPersonPrice: number;
@@ -29,6 +30,7 @@ export function ManagePeopleModal({
   currentPeople,
   totalPeople,
   maxPeople,
+  baseCapacity,
   hasActiveTolerance,
   toleranceMinutesLeft,
   extraPersonPrice,
@@ -55,7 +57,7 @@ export function ManagePeopleModal({
   if (!isOpen) return null;
 
   // Calcular si se cobrará extra al agregar persona
-  const willChargeExtra = currentPeople >= 2 || totalPeople >= 2;
+  const willChargeExtra = currentPeople >= baseCapacity || totalPeople >= baseCapacity;
 
   // Calcular si la tolerancia expiró
   const isToleranceExpired = hasActiveTolerance && (toleranceMinutesLeft ?? 0) <= 0;
@@ -157,7 +159,7 @@ export function ManagePeopleModal({
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Sin cargo adicional (primeras 2 personas incluidas)
+                      Sin cargo adicional (primeras {baseCapacity} personas incluidas)
                     </p>
                   )}
                 </div>

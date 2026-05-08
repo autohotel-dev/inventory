@@ -113,8 +113,9 @@ export function ConnectedStartStayModal({
       const basePrice = roomType.base_price ?? 0;
       const extraPersonPrice = roomType.extra_person_price ?? 0;
 
-      // Calcular costo extra por personas adicionales (más de 2)
-      const extraPeopleCount = Math.max(0, initialPeople - 2);
+      // Calcular costo extra por personas adicionales
+      const baseCapacity = roomType.base_capacity ?? 2; // Personas incluidas en precio base
+      const extraPeopleCount = Math.max(0, initialPeople - baseCapacity);
       const extraPeopleCost = extraPeopleCount * extraPersonPrice;
       const totalPrice =
         (basePrice + extraPeopleCost) * (roomType.is_hotel ? durationNights : 1);
