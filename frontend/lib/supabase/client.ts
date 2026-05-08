@@ -68,20 +68,22 @@ const telemetryFetch = async (input: RequestInfo | URL, init?: RequestInit): Pro
       endpoint = parsedUrl.pathname + parsedUrl.search;
     } catch (e) {}
 
-    // Only log if it's a mutation (POST, PATCH, DELETE) or if you want ALL GETs too.
-    // The user requested ALL interaction, so we will log all REST operations.
-    // However, to keep it clean, we might just log mutations. Let's log all for now.
-    telemetry.track({
-      module: getModuleNameFromUrl(urlStr),
-      page: typeof window !== 'undefined' ? window.location.pathname : 'Server',
-      action_type: 'API_REQUEST',
-      action_name: `${init?.method || 'GET'} ${endpoint.split('?')[0].split('/').pop()}`,
-      duration_ms,
-      payload,
-      endpoint,
-      is_success: isSuccess,
-      error_details: errorDetails,
-    });
+  // Only log user-initiated mutations (POST, PATCH, DELETE) — skip GETs, HEADs
+    const method = init?.method?.toUpperCase() || 'GET';
+    const isAutomatedEndpoint = urlStr.includes('process_extra_hours') || urlStr.includes('log_audit');
+    if (method !== 'GET' && method !== 'HEAD' && !isAutomatedEndpoint) {
+      telemetry.track({
+        module: getModuleNameFromUrl(urlStr),
+        page: typeof window !== 'undefined' ? window.location.pathname : 'Server',
+        action_type: 'API_REQUEST',
+        action_name: `${method} ${endpoint.split('?')[0].split('/').pop()}`,
+        duration_ms,
+        payload,
+        endpoint,
+        is_success: isSuccess,
+        error_details: errorDetails,
+      });
+    }
   }
 };
 

@@ -32,24 +32,19 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   // Track global UI clicks
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
-      // Find the closest interactive element
+      // Find the closest element with an explicit tracking id or submit action
       let target = e.target as HTMLElement | null;
       let interactiveElement = null;
 
       while (target && target !== document.body) {
         const tagName = target.tagName.toLowerCase();
-        const role = target.getAttribute('role');
         const type = target.getAttribute('type');
         
-        // Define what is "interactive"
+        // ONLY track elements explicitly marked for tracking, or form submit actions
         if (
-          tagName === 'button' ||
-          tagName === 'a' ||
-          role === 'button' ||
-          role === 'menuitem' ||
-          role === 'tab' ||
-          (tagName === 'input' && (type === 'submit' || type === 'button' || type === 'radio' || type === 'checkbox')) ||
-          target.hasAttribute('data-track-id')
+          target.hasAttribute('data-track-id') ||
+          (tagName === 'input' && type === 'submit') ||
+          (tagName === 'button' && type === 'submit')
         ) {
           interactiveElement = target;
           break;
@@ -58,25 +53,18 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (interactiveElement) {
-        // Extract relevant info
         const dataTrackId = interactiveElement.getAttribute('data-track-id');
         const textContent = interactiveElement.innerText?.trim().substring(0, 50) 
                           || interactiveElement.getAttribute('aria-label') 
-                          || interactiveElement.getAttribute('title') 
-                          || interactiveElement.tagName;
+                          || 'Action';
         
-        const actionName = dataTrackId || textContent || 'Unknown Action';
+        const actionName = dataTrackId || textContent;
         
         telemetry.track({
           page: window.location.pathname,
           module: getModuleNameFromPath(window.location.pathname),
           action_type: 'UI_CLICK',
           action_name: actionName,
-          payload: {
-            tag: interactiveElement.tagName.toLowerCase(),
-            id: interactiveElement.id || undefined,
-            classes: interactiveElement.className || undefined,
-          }
         });
       }
     };
