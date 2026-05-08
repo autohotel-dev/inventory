@@ -30,11 +30,12 @@ export function useRoomRealtime(
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     // Debounced fetch: coalesces multiple realtime events into 1 refetch
+    // 600ms is enough to group checkout (touches 4+ tables) into a single refetch
     const debouncedFetch = () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
         if (isSubscribed) fetchRoomsRef.current(true);
-      }, 300);
+      }, 600);
     };
 
     const setupRealtimeChannel = async () => {
@@ -54,57 +55,37 @@ export function useRoomRealtime(
 
         channel = supabase
           .channel("rooms-board-realtime")
+          // Core tables that directly affect the room dashboard visuals
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "rooms" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
+            () => { if (isSubscribed) debouncedFetch(); }
           )
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "room_assets" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
+            () => { if (isSubscribed) debouncedFetch(); }
           )
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "room_stays" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
+            () => { if (isSubscribed) debouncedFetch(); }
           )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "payments" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
-          )
+          // sales_orders for remaining_amount changes
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "sales_orders" },
-            () => {
-              if (!isSubscribed) return;
-              debouncedFetch();
-            }
+            () => { if (isSubscribed) debouncedFetch(); }
           )
+          // sales_order_items only for new CONSUMPTION items (sound alert)
           .on(
             "postgres_changes",
-            { event: "*", schema: "public", table: "sales_order_items" },
+            { event: "INSERT", schema: "public", table: "sales_order_items" },
             (payload: any) => {
               if (!isSubscribed) return;
-
-              // Alerta sonora para nuevos pedidos de consumo
-              if (payload.eventType === "INSERT" && payload.new?.concept_type === "CONSUMPTION") {
+              if (payload.new?.concept_type === "CONSUMPTION") {
                 playAlertRef.current();
               }
-
               debouncedFetch();
             }
           )

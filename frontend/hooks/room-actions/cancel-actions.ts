@@ -78,7 +78,7 @@ export function createCancelActions(ctx: RoomActionContext) {
         { type: 'CHARGE_CANCELLED', roomNumber: room.number, stayId: activeStay.id }
       );
 
-      await onRefresh();
+      onRefresh().catch(() => {});
       return true;
     });
   };
@@ -144,7 +144,7 @@ export function createCancelActions(ctx: RoomActionContext) {
         { type: 'CHARGE_CANCELLED', roomNumber: room.number, stayId: activeStay.id }
       );
 
-      await onRefresh();
+      onRefresh().catch(() => {});
       return true;
     });
   };
