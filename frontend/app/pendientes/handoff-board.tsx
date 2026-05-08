@@ -55,7 +55,13 @@ export function HandoffBoard() {
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>("open");
   const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [filterEmployee, setFilterEmployee] = useState<string>("all");
+  const [filterShift, setFilterShift] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  // Reference data for filters
+  const [employees, setEmployees] = useState<{ name: string }[]>([]);
+  const [shifts, setShifts] = useState<{ id: string; name: string }[]>([]);
 
   // Modals
   const [showCreate, setShowCreate] = useState(false);
@@ -78,12 +84,14 @@ export function HandoffBoard() {
     if (filterStatus === "open") q = q.in("status", ["pendiente", "en_progreso", "reabierto"]);
     else if (filterStatus !== "all") q = q.eq("status", filterStatus);
     if (filterPriority !== "all") q = q.eq("priority", filterPriority);
+    if (filterEmployee !== "all") q = q.eq("created_by_name", filterEmployee);
+    if (filterShift !== "all") q = q.eq("created_shift_name", filterShift);
     if (search) q = q.or(`title.ilike.%${search}%,description.ilike.%${search}%,room_number.ilike.%${search}%`);
 
     const { data } = await q;
     setNotes(data || []);
     setLoading(false);
-  }, [supabase, filterStatus, filterPriority, search]);
+  }, [supabase, filterStatus, filterPriority, filterEmployee, filterShift, search]);
 
   useEffect(() => {
     const init = async () => {
@@ -109,6 +117,14 @@ export function HandoffBoard() {
       }
     };
     init();
+    // Load filter reference data
+    const loadFilters = async () => {
+      const { data: emps } = await supabase.from("employees").select("first_name, last_name").order("first_name");
+      if (emps) setEmployees(emps.map(e => ({ name: `${e.first_name} ${e.last_name}`.trim() })));
+      const { data: shiftDefs } = await supabase.from("shift_definitions").select("id, name").order("name");
+      if (shiftDefs) setShifts(shiftDefs);
+    };
+    loadFilters();
   }, [supabase]);
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
@@ -294,6 +310,16 @@ export function HandoffBoard() {
             <option value="media">🟡 Media</option>
             <option value="baja">⚪ Baja</option>
           </select>
+          <select value={filterEmployee} onChange={e => setFilterEmployee(e.target.value)}
+            className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white/70 focus:outline-none min-w-[160px]">
+            <option value="all">👤 Todos los empleados</option>
+            {employees.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+          </select>
+          <select value={filterShift} onChange={e => setFilterShift(e.target.value)}
+            className="h-8 px-2.5 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white/70 focus:outline-none min-w-[140px]">
+            <option value="all">🕐 Todos los turnos</option>
+            {shifts.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </select>
           <input placeholder="🔍 Buscar..." value={search} onChange={e => setSearch(e.target.value)}
             className="flex-1 min-w-[150px] h-8 px-3 rounded-lg bg-[#141420] border border-white/[0.08] text-xs text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
         </div>
@@ -331,9 +357,12 @@ export function HandoffBoard() {
                       <p className="text-sm font-semibold text-white/85 leading-snug">{note.title}</p>
                       {note.description && <p className="text-xs text-white/35 mt-0.5 line-clamp-1">{note.description}</p>}
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 space-y-0.5">
                       <p className="text-[10px] text-white/20 tabular-nums">{relTime(note.created_at)}</p>
-                      <p className="text-[10px] text-white/15">{note.created_by_name}</p>
+                      <p className="text-[10px] text-white/30">👤 {note.created_by_name}</p>
+                      {note.created_shift_name && <p className="text-[9px] text-amber-400/50">🕐 {note.created_shift_name}</p>}
+                      {note.taken_by_name && <p className="text-[9px] text-blue-400/50">📋 {note.taken_by_name}</p>}
+                      {note.resolved_by_name && <p className="text-[9px] text-emerald-400/50">✅ {note.resolved_by_name}</p>}
                     </div>
                   </button>
 
