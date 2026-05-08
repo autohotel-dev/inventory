@@ -79,7 +79,6 @@ export function ChatWidget() {
     const { error: toastError } = useToast();
     const [inputValue, setInputValue] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
-    const topRef = useRef<HTMLDivElement>(null);
     const scrollAreaViewportRef = useRef<HTMLDivElement | null>(null);
 
     const [isSending, setIsSending] = useState(false);
@@ -94,61 +93,53 @@ export function ChatWidget() {
     // Track previous height for scroll preservation
     const prevScrollHeightRef = useRef(0);
     const isFirstLoadRef = useRef(true);
+    const isLoadingMoreRef = useRef(false);
 
-    // Find the viewport element for scroll manipulation
+    // Find the viewport element and scroll to bottom instantly on open
     useEffect(() => {
-        if (isOpen) {
-            // Need a slight delay or retry to ensure DOM is ready
-            const timer = setTimeout(() => {
+        if (isOpen && activeConversationId) {
+            isFirstLoadRef.current = true;
+            // Use rAF to ensure DOM is painted before scrolling
+            const raf = requestAnimationFrame(() => {
                 const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement;
                 if (viewport) {
                     scrollAreaViewportRef.current = viewport;
-                    // Initial scroll to bottom on open
                     viewport.scrollTop = viewport.scrollHeight;
                 }
-            }, 100);
-            return () => clearTimeout(timer);
+            });
+            return () => cancelAnimationFrame(raf);
         }
-    }, [isOpen]);
+    }, [isOpen, activeConversationId]);
 
-    // Intersection Observer for infinite scroll
-    useEffect(() => {
-        const observer = new IntersectionObserver(([entry]) => {
-            if (entry.isIntersecting && hasMore && !isLoading) {
-                // Capture current scroll height before loading more
-                if (scrollAreaViewportRef.current) {
-                    prevScrollHeightRef.current = scrollAreaViewportRef.current.scrollHeight;
-                }
-                loadMore();
-            }
-        }, { rootMargin: '20px' });
+    // Handle loading more messages (manual button click)
+    const handleLoadMore = () => {
+        if (!hasMore || isLoading) return;
+        if (scrollAreaViewportRef.current) {
+            prevScrollHeightRef.current = scrollAreaViewportRef.current.scrollHeight;
+            isLoadingMoreRef.current = true;
+        }
+        loadMore();
+    };
 
-        if (topRef.current) observer.observe(topRef.current);
-        return () => observer.disconnect();
-    }, [hasMore, isLoading, loadMore]);
-
-    // Handle Scroll Position and Auto-scroll
+    // Handle Scroll Position after messages change
     useLayoutEffect(() => {
         if (!scrollAreaViewportRef.current) return;
 
         const viewport = scrollAreaViewportRef.current;
         const currentScrollHeight = viewport.scrollHeight;
 
-        if (isFirstLoadRef.current) {
-            // First load: scroll to bottom
+        if (isFirstLoadRef.current && messages.length > 0) {
+            // First load: scroll to bottom instantly
             viewport.scrollTop = currentScrollHeight;
             isFirstLoadRef.current = false;
-        } else if (prevScrollHeightRef.current > 0 && currentScrollHeight > prevScrollHeightRef.current) {
-            // Loaded more messages (at top): restore scroll position
-            // Verify if we were essentially at the top (loading triggered)
-            // If the diff is positive, it means content added.
-            // We want to scroll DOWN by the amount added to keep the user looking at the same point.
+        } else if (isLoadingMoreRef.current && prevScrollHeightRef.current > 0) {
+            // Loaded older messages: preserve scroll position
             const diff = currentScrollHeight - prevScrollHeightRef.current;
-            viewport.scrollTop = diff; // Jump to where the previous top was
+            viewport.scrollTop = diff;
             prevScrollHeightRef.current = 0;
-        } else {
-            // Standard new message (at bottom) logic
-            // Only scroll to bottom if we were already near bottom OR it's my message
+            isLoadingMoreRef.current = false;
+        } else if (!isLoadingMoreRef.current) {
+            // New message arrived at bottom
             const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
             const lastMessage = messages[messages.length - 1];
             const isMe = lastMessage?.user_id === currentUser?.id;
@@ -457,10 +448,21 @@ export function ChatWidget() {
                         ) : (
                             <ScrollArea className="h-full px-4 py-4" type="always">
                             <div className="flex flex-col gap-4 min-h-full justify-end pb-2">
-                                {/* Loading More Spinner */}
+                                {/* Load More Button */}
                                 {hasMore && (
-                                    <div ref={topRef} className="flex justify-center py-2">
-                                        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                    <div className="flex justify-center py-3">
+                                        <button
+                                            onClick={handleLoadMore}
+                                            disabled={isLoading}
+                                            className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-muted-foreground/80 bg-muted/30 hover:bg-muted/50 rounded-full transition-all disabled:opacity-50"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+                                            )}
+                                            {isLoading ? 'Cargando...' : 'Cargar anteriores'}
+                                        </button>
                                     </div>
                                 )}
 

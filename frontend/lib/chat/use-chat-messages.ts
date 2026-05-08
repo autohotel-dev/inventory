@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ChatMessage } from './chat-types';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function useChatMessages(conversationId: string | null) {
