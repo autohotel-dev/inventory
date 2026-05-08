@@ -307,6 +307,10 @@ export default function InboxScreen() {
 
                     const previewText = lastMsg?.message_type === 'image' 
                         ? '📷 Imagen adjunta' 
+                        : lastMsg?.message_type === 'audio'
+                        ? '🎤 Nota de voz'
+                        : lastMsg?.message_type === 'file'
+                        ? '📎 Documento'
                         : (rawContent || 'Toca para abrir la conversación');
                     
                     const timeText = lastMsg ? formatMessageTime(lastMsg.created_at) : '';
