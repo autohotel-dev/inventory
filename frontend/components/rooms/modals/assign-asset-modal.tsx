@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Users, Tv, Key, Wind } from "lucide-react";
+import { Users, Tv, Key, Wind, User, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 import { createAdminNotificationForEmployee } from "@/lib/services/valet-notification-service";
 
@@ -29,19 +29,21 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
   const [selectedCochero, setSelectedCochero] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCocheros, setLoadingCocheros] = useState(true);
+  const [currentAssignedId, setCurrentAssignedId] = useState<string | null>(null);
+  const [showChangeMode, setShowChangeMode] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && room) {
       fetchActiveCocheros();
+      fetchCurrentAssignment();
+      setShowChangeMode(false);
     }
-  }, [isOpen]);
+  }, [isOpen, room]);
 
   const fetchActiveCocheros = async () => {
     setLoadingCocheros(true);
     const supabase = createClient();
     try {
-      // In a real system, you might only want to fetch active shift sessions.
-      // For now, let's fetch employees with role 'cochero'
       const { data, error } = await supabase
         .from('employees')
         .select('id, first_name, last_name, role')
@@ -58,6 +60,25 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
     }
   };
 
+  const fetchCurrentAssignment = async () => {
+    if (!room) return;
+    const supabase = createClient();
+    try {
+      const { data } = await supabase
+        .from('room_assets')
+        .select('assigned_employee_id, status')
+        .eq('room_id', room.id)
+        .eq('asset_type', assetType)
+        .maybeSingle();
+
+      const assignedId = data?.assigned_employee_id || null;
+      setCurrentAssignedId(assignedId);
+      setSelectedCochero(assignedId);
+    } catch {
+      // Non-critical, just proceed without assignment info
+    }
+  };
+
   const fetchAssetStatus = async () => {
     if (!room) return;
     const supabase = createClient();
@@ -70,6 +91,14 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
       
     return data?.status;
   };
+
+  // Find the currently assigned cochero's full data
+  const assignedCochero = useMemo(() => {
+    if (!currentAssignedId) return null;
+    return cocheros.find(c => c.id === currentAssignedId) || null;
+  }, [currentAssignedId, cocheros]);
+
+  const hasAssigned = !!assignedCochero;
 
   const handleReturnToReception = async () => {
     if (!room) return;
@@ -195,46 +224,86 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
             {getAssetIcon()}
           </div>
           <DialogTitle className="text-2xl font-black text-center italic tracking-tight">
-            Asignar {getAssetName()}
+            {hasAssigned && !showChangeMode ? getAssetName() : `Asignar ${getAssetName()}`}
           </DialogTitle>
           <DialogDescription className="text-center text-zinc-400">
-            {assetType === 'TV_REMOTE' ? 'Selecciona al cochero que irá a encender la TV en la' : 'Habitación'} {room.number}
+            {hasAssigned && !showChangeMode
+              ? `Habitación ${room.number} — cochero ya asignado`
+              : `${assetType === 'TV_REMOTE' ? 'Selecciona al cochero que irá a encender la TV en la' : 'Habitación'} ${room.number}`
+            }
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
-          <p className="text-sm text-zinc-400 font-bold mb-3 uppercase tracking-widest text-center">Selecciona al Cochero en turno:</p>
-          
           {loadingCocheros ? (
             <div className="flex justify-center p-4">
               <div className="animate-spin h-6 w-6 border-2 border-primary rounded-full border-t-transparent"></div>
             </div>
-          ) : cocheros.length === 0 ? (
-            <div className="text-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
-              No hay cocheros activos.
+          ) : hasAssigned && !showChangeMode ? (
+            /* ──── Vista de cochero asignado ──── */
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 shadow-[0_0_15px_rgba(52,211,153,0.1)]">
+                <div className="flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 shadow-lg">
+                  <User className="h-7 w-7 text-emerald-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-black text-lg text-white tracking-tight">
+                    {assignedCochero!.first_name} {assignedCochero!.last_name}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                    <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest">Cochero Asignado</p>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full gap-2 border-dashed border-white/20 text-zinc-300 hover:bg-white/5 hover:text-white"
+                onClick={() => setShowChangeMode(true)}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Cambiar Cochero
+              </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-              {cocheros.map((cochero) => (
-                <button
-                  key={cochero.id}
-                  onClick={() => setSelectedCochero(cochero.id)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-300 ${
-                    selectedCochero === cochero.id 
-                      ? 'bg-primary/20 border-primary text-white shadow-lg shadow-primary/10' 
-                      : 'bg-zinc-900 border-white/5 text-zinc-400 hover:bg-white/5'
-                  }`}
-                >
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${selectedCochero === cochero.id ? 'bg-primary text-black' : 'bg-zinc-800'}`}>
-                    <Users className="h-5 w-5" />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-bold">{cochero.first_name} {cochero.last_name}</div>
-                    <div className="text-xs uppercase tracking-widest opacity-70">Cochero</div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            /* ──── Vista de selección ──── */
+            <>
+              {showChangeMode && assignedCochero && (
+                <div className="flex items-center gap-2 text-xs text-zinc-400 bg-zinc-900 px-3 py-2 rounded-lg mb-3 border border-white/5">
+                  <RefreshCw className="h-3 w-3 shrink-0" />
+                  Cambiando desde: <span className="font-bold text-white">{assignedCochero.first_name} {assignedCochero.last_name}</span>
+                </div>
+              )}
+              <p className="text-sm text-zinc-400 font-bold mb-3 uppercase tracking-widest text-center">Selecciona al Cochero en turno:</p>
+              
+              {cocheros.length === 0 ? (
+                <div className="text-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
+                  No hay cocheros activos.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                  {cocheros.map((cochero) => (
+                    <button
+                      key={cochero.id}
+                      onClick={() => setSelectedCochero(cochero.id)}
+                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-300 ${
+                        selectedCochero === cochero.id 
+                          ? 'bg-primary/20 border-primary text-white shadow-lg shadow-primary/10' 
+                          : 'bg-zinc-900 border-white/5 text-zinc-400 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${selectedCochero === cochero.id ? 'bg-primary text-black' : 'bg-zinc-800'}`}>
+                        <Users className="h-5 w-5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold">{cochero.first_name} {cochero.last_name}</div>
+                        <div className="text-xs uppercase tracking-widest opacity-70">Cochero</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -256,13 +325,16 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
               En Recepción
             </Button>
           )}
-          <Button 
-            onClick={handleAssign} 
-            disabled={!selectedCochero || loading}
-            className="flex-2 bg-primary text-black hover:bg-primary/90 font-black tracking-widest uppercase"
-          >
-            {loading ? "..." : "Asignar"}
-          </Button>
+          {/* Only show Asignar button when in selection mode */}
+          {(!hasAssigned || showChangeMode) && (
+            <Button 
+              onClick={handleAssign} 
+              disabled={!selectedCochero || loading}
+              className="flex-2 bg-primary text-black hover:bg-primary/90 font-black tracking-widest uppercase"
+            >
+              {loading ? "..." : "Asignar"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
