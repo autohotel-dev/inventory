@@ -951,6 +951,65 @@ export default function SettingsPage() {
                                     </CardContent>
                                 </SectionCard>
 
+                                {/* ── Force Reload All Clients ── */}
+                                <SectionCard gradient="from-blue-500/10 to-cyan-500/10">
+                                    <CardHeader className="pb-4 sm:pb-5 space-y-1.5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/15">
+                                                <Globe className="h-5 w-5 text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-sm sm:text-base font-bold tracking-tight">Recargar Todos los Clientes</CardTitle>
+                                                <CardDescription className="text-muted-foreground/60">Fuerza una recarga en todos los navegadores conectados al sistema</CardDescription>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-semibold text-foreground/80">Broadcast de Actualización</p>
+                                                <p className="text-xs text-muted-foreground/60">
+                                                    Envía una señal a todos los dispositivos conectados para que recarguen la página automáticamente en 5 segundos.
+                                                </p>
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="gap-2 border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 shrink-0"
+                                                onClick={async () => {
+                                                    try {
+                                                        const sb = createClient();
+                                                        const channel = sb.channel('system:deploy');
+                                                        await channel.subscribe();
+                                                        await channel.send({
+                                                            type: 'broadcast',
+                                                            event: 'force_reload',
+                                                            payload: {
+                                                                message: 'Actualización del sistema por administrador',
+                                                                delay: 5,
+                                                            }
+                                                        });
+                                                        sb.removeChannel(channel);
+                                                        toast.success('Señal enviada', {
+                                                            description: 'Todos los clientes se recargarán en 5 segundos.',
+                                                            duration: 6000
+                                                        });
+                                                    } catch (e) {
+                                                        console.error('Error broadcasting reload:', e);
+                                                        toast.error('Error al enviar señal de recarga');
+                                                    }
+                                                }}
+                                            >
+                                                <Wifi className="h-4 w-4" />
+                                                Recargar Todos
+                                            </Button>
+                                        </div>
+                                        <InfoCallout color="blue">
+                                            <strong>Útil después de un deploy:</strong> Cuando actualices el sistema, usa este botón para que todos los usuarios obtengan la versión más reciente sin necesidad de recargar manualmente.
+                                        </InfoCallout>
+                                    </CardContent>
+                                </SectionCard>
+
                                 <AuditLogsViewer />
                             </div>
                         )}

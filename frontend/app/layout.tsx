@@ -14,6 +14,7 @@ import { AuthListener } from "@/components/auth/auth-listener";
 import { PrintCenterProvider } from "@/contexts/print-center-context";
 import { PrintCenterModal } from "@/components/print-center/print-center-modal";
 import { TelemetryProvider } from "@/components/providers/telemetry-provider";
+import { AutoReloadListener } from "@/components/providers/auto-reload-listener";
 
 // Detectar URL base con fallbacks para diferentes entornos
 const getBaseUrl = () => {
@@ -132,6 +133,7 @@ export default function RootLayout({
                     <PWAStatus />
                     <DataDebug />
                     <PrintCenterModal />
+                    <AutoReloadListener />
                   </TelemetryProvider>
                 </ChatProvider>
               </PrintCenterProvider>
