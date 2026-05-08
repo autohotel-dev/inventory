@@ -129,7 +129,7 @@ export default function LoanMappingPage() {
     return products.filter(p => p.name.toLowerCase().includes(s) || (p.sku && p.sku.toLowerCase().includes(s)));
   }, [products, search]);
 
-  if (loading) return <div className="p-8 text-white/50 animate-pulse">Cargando sistema de loza...</div>;
+  if (loading) return <div className="p-8 text-white/50 animate-pulse">Cargando catálogo de artículos...</div>;
 
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
@@ -139,10 +139,10 @@ export default function LoanMappingPage() {
           <div>
             <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
               <Utensils className="w-5 h-5 text-amber-500" />
-              Vinculación de Loza y Préstamos
+              Artículos en Préstamo
             </h1>
             <p className="text-sm text-white/50 mt-1">
-              Asigna platos, vasos o hieleras a los productos. Se asignarán automáticamente a la habitación cuando se vendan.
+              Asigna artículos físicos (controles, loza, amenidades) a los productos para controlar su préstamo.
             </p>
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function LoanMappingPage() {
             {!selectedProduct ? (
               <div className="h-full min-h-[300px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
                 <Utensils className="w-10 h-10 text-white/20 mb-3" />
-                <p className="text-white/40 text-sm">Selecciona un producto a la izquierda para configurar su loza.</p>
+                <p className="text-white/40 text-sm">Selecciona un producto a la izquierda para configurar sus artículos.</p>
               </div>
             ) : (
               <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6 shadow-xl">
@@ -254,7 +254,7 @@ export default function LoanMappingPage() {
                 
                 <div className="space-y-2">
                   {links.filter(l => l.product_id === selectedProduct).length === 0 ? (
-                    <p className="text-sm text-white/30 italic py-4">Este producto no tiene artículos vinculados. No se asignará loza automáticamente.</p>
+                    <p className="text-sm text-white/30 italic py-4">Este producto no tiene artículos vinculados. No se asignarán artículos físicos automáticamente.</p>
                   ) : (
                     links.filter(l => l.product_id === selectedProduct).map(link => (
                       <div key={link.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors">
