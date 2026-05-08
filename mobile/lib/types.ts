@@ -8,6 +8,7 @@ export interface RoomType {
     base_price: number;
     extra_person_price: number;
     extra_hour_price: number;
+    base_capacity?: number;
 }
 
 export interface SalesOrderItem {
