@@ -121,7 +121,8 @@ export default function RoomsScreen() {
                         sales_orders(
                             *,
                             sales_order_items(*)
-                        )
+                        ),
+                        stay_loaned_items(*, loan_item:loan_item_catalog(*))
                     )
                 `)
                 .eq("room_stays.status", "ACTIVA")
@@ -178,6 +179,7 @@ export default function RoomsScreen() {
         handleRegisterExtraHour,
         handleRegisterExtraPerson,
         handleVerifyAssetPresence,
+        handleUpdateLoanedItemStatus,
         loading: checkoutLoading
     } = useCheckoutActions(fetchRooms);
 
@@ -878,6 +880,8 @@ export default function RoomsScreen() {
                 setPayments={setCheckoutPayments}
                 checklist={checkoutChecklist}
                 setChecklist={setCheckoutChecklist}
+                handleUpdateLoanedItemStatus={handleUpdateLoanedItemStatus}
+                employeeId={employeeId || undefined}
             />
 
             <VerifyExtraModal

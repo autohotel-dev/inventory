@@ -123,7 +123,7 @@ export function HandoffBoard() {
     const loadFilters = async () => {
       const { data: emps } = await supabase.from("employees").select("first_name, last_name").order("first_name");
       if (emps) {
-        const uniqueNames = Array.from(new Set<string>(emps.map(e => `${e.first_name} ${e.last_name}`.trim())));
+        const uniqueNames = Array.from(new Set<string>(emps.map((e: { first_name: string; last_name: string }) => `${e.first_name} ${e.last_name}`.trim())));
         setEmployees(uniqueNames.map((name: string) => ({ name })));
       }
       const { data: shiftDefs } = await supabase.from("shift_definitions").select("id, name").order("name");

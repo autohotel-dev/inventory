@@ -420,6 +420,86 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         }
     }, [showFeedback]);
 
+    const handleUpdateLoanedItemStatus = useCallback(async (
+        itemId: string,
+        newStatus: 'RECUPERADO' | 'PERDIDO',
+        stayId: string,
+        salesOrderId: string,
+        employeeId: string,
+        damageAmount: number,
+        itemName: string,
+        roomNumber: string
+    ) => {
+        setLoading(true);
+        try {
+            // Update the loaned item status
+            const { error: updateError } = await supabase
+                .from('stay_loaned_items')
+                .update({ status: newStatus })
+                .eq('id', itemId);
+
+            if (updateError) throw updateError;
+
+            // If missing and damageAmount > 0, create a damage charge
+            if (newStatus === 'PERDIDO' && damageAmount > 0) {
+                const { error: chargeError } = await supabase
+                    .from('sales_order_items')
+                    .insert({
+                        sales_order_id: salesOrderId,
+                        concept_type: 'DAMAGE_CHARGE',
+                        description: `DAÑO: Faltante de ${itemName}`,
+                        unit_price: damageAmount,
+                        qty: 1,
+                        total: damageAmount,
+                        is_paid: false
+                    });
+                
+                if (chargeError) throw chargeError;
+
+                // Notify reception
+                const { data: receptionSessions } = await supabase
+                    .from('shift_sessions')
+                    .select('employees!inner(auth_user_id, role)')
+                    .eq('status', 'active')
+                    .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+
+                if (receptionSessions && receptionSessions.length > 0) {
+                    const uniqueUserIds = new Set<string>();
+                    receptionSessions.forEach((session: any) => {
+                        if (session.employees?.auth_user_id) uniqueUserIds.add(session.employees.auth_user_id);
+                    });
+
+                    if (uniqueUserIds.size > 0) {
+                        const notifications = Array.from(uniqueUserIds).map(userId => ({
+                            user_id: userId,
+                            type: 'system_alert',
+                            title: '⚠️ Artículo Faltante',
+                            message: `Falta ${itemName} en Hab. ${roomNumber}. Cargo por daño generado automáticamente.`,
+                            data: { type: 'ASSET_MISSING', stayId },
+                            is_read: false,
+                        }));
+                        await supabase.from('notifications').insert(notifications);
+                    }
+                }
+            }
+
+            showFeedback(
+                newStatus === 'RECUPERADO' ? 'Recuperado' : 'Faltante Reportado', 
+                newStatus === 'RECUPERADO' ? `${itemName} marcado como recuperado.` : `Cargo por ${itemName} generado.`, 
+                newStatus === 'RECUPERADO' ? 'success' : 'warning'
+            );
+            
+            await onRefresh();
+            return true;
+        } catch (error: any) {
+            console.error('Error updating loaned item:', error);
+            showFeedback('Error', 'No se pudo actualizar el estado del artículo.', 'error');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, [onRefresh, showFeedback]);
+
     return {
         loading,
         handleConfirmCheckout,
@@ -427,6 +507,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         handleReportDamage,
         handleRegisterExtraHour,
         handleRegisterExtraPerson,
-        handleVerifyAssetPresence
+        handleVerifyAssetPresence,
+        handleUpdateLoanedItemStatus
     };
 }

@@ -47,6 +47,17 @@ export interface CheckoutModalProps {
         tvRemote: boolean;
     };
     setChecklist: (v: any) => void;
+    handleUpdateLoanedItemStatus?: (
+        itemId: string,
+        newStatus: 'RECUPERADO' | 'PERDIDO',
+        stayId: string,
+        salesOrderId: string,
+        employeeId: string,
+        damageAmount: number,
+        itemName: string,
+        roomNumber: string
+    ) => Promise<boolean>;
+    employeeId?: string;
 }
 
 export const CheckoutModal = memo(({
@@ -58,7 +69,8 @@ export const CheckoutModal = memo(({
     showExtraPersonForm, setShowExtraPersonForm, extraPersonAmount, setExtraPersonAmount,
     extraPersonPayments, setExtraPersonPayments, handleExtraPersonSubmit,
     payments, setPayments,
-    checklist, setChecklist
+    checklist, setChecklist,
+    handleUpdateLoanedItemStatus, employeeId
 }: CheckoutModalProps) => {
     const toggleChecklist = (field: keyof typeof checklist) => {
         setChecklist((prev: any) => ({ ...prev, [field]: !prev[field] }));
@@ -205,6 +217,78 @@ export const CheckoutModal = memo(({
                                             {checklist.tvRemote && <X color="white" size={14} />}
                                         </View>
                                     </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* Loaned Items Section */}
+                            {!showExtraHourForm && !showExtraPersonForm && !showDamageForm && room?.stay?.stay_loaned_items?.length > 0 && (
+                                <View className="mb-6 p-5 rounded-2xl border-2 border-zinc-100 bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800">
+                                    <Text className="text-[10px] font-black uppercase tracking-widest mb-4 text-zinc-400 dark:text-zinc-500">Loza y Artículos Prestados</Text>
+                                    
+                                    {room.stay.stay_loaned_items.map((loan: any, index: number) => {
+                                        const isMissing = loan.status === 'PERDIDO';
+                                        const isReturned = loan.status === 'RECUPERADO';
+                                        
+                                        return (
+                                            <View 
+                                                key={loan.id}
+                                                className={`flex-row items-center justify-between py-3 ${index < room.stay.stay_loaned_items.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
+                                            >
+                                                <View className="flex-1">
+                                                    <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'} ${isReturned ? 'opacity-50 line-through' : ''}`}>
+                                                        {loan.loan_item?.icon || '🍽️'} {loan.loan_item?.name || 'Artículo Prestado'} x{loan.quantity}
+                                                    </Text>
+                                                    {isMissing && (
+                                                        <Text className="text-[10px] font-black tracking-widest uppercase text-red-500 mt-1">Cargo Generado</Text>
+                                                    )}
+                                                </View>
+                                                <View className="flex-row gap-2">
+                                                    {!isReturned && !isMissing && (
+                                                        <>
+                                                            <TouchableOpacity
+                                                                onPress={() => {
+                                                                    if (handleUpdateLoanedItemStatus && employeeId) {
+                                                                        handleUpdateLoanedItemStatus(
+                                                                            loan.id,
+                                                                            'RECUPERADO',
+                                                                            room.stay.id,
+                                                                            room.stay.sales_order_id,
+                                                                            employeeId,
+                                                                            0,
+                                                                            loan.loan_item?.name || 'Artículo',
+                                                                            room.number.toString()
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30"
+                                                            >
+                                                                <Text className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Recuperado</Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity
+                                                                onPress={() => {
+                                                                    if (handleUpdateLoanedItemStatus && employeeId) {
+                                                                        handleUpdateLoanedItemStatus(
+                                                                            loan.id,
+                                                                            'PERDIDO',
+                                                                            room.stay.id,
+                                                                            room.stay.sales_order_id,
+                                                                            employeeId,
+                                                                            Number(loan.loan_item?.damage_price || 0) * Number(loan.quantity || 1),
+                                                                            loan.loan_item?.name || 'Artículo',
+                                                                            room.number.toString()
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30"
+                                                            >
+                                                                <Text className="text-[10px] font-black text-red-500 uppercase tracking-widest">Faltante</Text>
+                                                            </TouchableOpacity>
+                                                        </>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
                                 </View>
                             )}
 

@@ -31,7 +31,8 @@ import {
   Maximize,
   Minimize,
   LogOut,
-  LucideIcon
+  LucideIcon,
+  Utensils
 } from "lucide-react";
 
 // Constants
@@ -85,6 +86,7 @@ const adminLinks: readonly NavItem[] = [
   
   { section: "Inventario", adminOnly: true },
   { href: "/products", label: "Productos", icon: Package, permissionId: "products", adminOnly: true },
+  { href: "/products/loan-mapping", label: "Vincular Loza", icon: Utensils, permissionId: "products", adminOnly: true },
   { href: "/categories", label: "Categorías", icon: ArrowRightLeft, permissionId: "categories", adminOnly: true },
   { href: "/warehouses", label: "Almacenes", icon: Building, permissionId: "warehouses", adminOnly: true },
   { href: "/suppliers", label: "Proveedores", icon: Truck, permissionId: "suppliers", adminOnly: true },

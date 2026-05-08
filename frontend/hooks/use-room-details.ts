@@ -61,6 +61,20 @@ export interface RoomAsset {
   assigned_employee_id: string | null;
 }
 
+export interface StayLoanedItem {
+  id: string;
+  room_stay_id: string;
+  loan_item_id: string;
+  quantity: number;
+  status: string;
+  notes: string | null;
+  loan_item: {
+    name: string;
+    icon: string;
+    damage_price: number;
+  };
+}
+
 export interface AssetAuditLog {
   log_id: string;
   created_at: string;
@@ -91,6 +105,7 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
   const [items, setItems] = useState<SalesOrderItem[]>([]);
   const [salesOrder, setSalesOrder] = useState<SalesOrder | null>(null);
   const [tvRemoteAsset, setTvRemoteAsset] = useState<RoomAsset | null>(null);
+  const [loanedItems, setLoanedItems] = useState<StayLoanedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"payments" | "items">("payments");
 
@@ -127,10 +142,21 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
         .maybeSingle();
 
       setTvRemoteAsset(data);
+
+      if (activeStay?.id) {
+        const { data: loanedData } = await supabase
+          .from('stay_loaned_items')
+          .select('id, room_stay_id, loan_item_id, quantity, status, notes, loan_item:loan_item_catalog(name, icon, damage_price)')
+          .eq('room_stay_id', activeStay.id);
+        
+        setLoanedItems(loanedData || []);
+      } else {
+        setLoanedItems([]);
+      }
     } catch (err) {
-      console.error("Error fetching asset:", err);
+      console.error("Error fetching assets:", err);
     }
-  }, [room]);
+  }, [room, activeStay?.id]);
 
   const fetchAssetAuditTrail = useCallback(async () => {
     if (!room) return;
@@ -327,7 +353,7 @@ export function useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCan
 
   return {
     // Data
-    payments, items, salesOrder, tvRemoteAsset, loading, activeTab,
+    payments, items, salesOrder, tvRemoteAsset, loanedItems, loading, activeTab,
     // Cancel state
     cancellingItemId, cancelReason, cancellingLoading,
     bulkSelectMode, selectedForCancel, bulkCancelReason, bulkCancelLoading,
