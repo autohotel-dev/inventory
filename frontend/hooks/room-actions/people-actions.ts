@@ -1,12 +1,8 @@
-/**
- * People-related room actions: add, remove, tolerance.
- */
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { logger } from "@/lib/utils/logger";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { getOrCreateServiceProduct, createServiceItem } from "@/lib/services/product-service";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { logFinancialAction } from "@/lib/audit-logger";
 import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
@@ -16,6 +12,7 @@ import {
   getToleranceRemainingMinutes,
   getReceptionShiftId,
   createPendingCharge,
+  generatePaymentReference,
   withAction,
   RoomActionContext,
 } from "./room-action-helpers";
@@ -92,22 +89,27 @@ export function createPeopleActions(ctx: RoomActionContext) {
         const baseCapacity = room.room_types!.base_capacity ?? 2;
         const shouldChargeExtra = newCurrentPeople > baseCapacity || previousTotalPeople >= baseCapacity;
 
-        await supabase.from("room_stays").update({
-          current_people: newCurrentPeople,
-          total_people: newTotalPeople,
-        }).eq("id", activeStay.id);
-
         if (shouldChargeExtra) {
           const extraPrice = room.room_types!.extra_person_price ?? 0;
           if (extraPrice > 0) {
-            const productResult = await getOrCreateServiceProduct();
-            if (!productResult.success) { toast.error("Error al registrar el cargo"); return; }
-
             const currentShiftId = await getReceptionShiftId(supabase);
-            const itemResult = await createServiceItem(activeStay.sales_order_id, extraPrice, "EXTRA_PERSON", 1, false, "", currentShiftId);
-            if (!itemResult.success) { toast.error("Error al registrar el cargo"); return; }
 
-            const chargeResult = await createPendingCharge(supabase, activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX", currentShiftId);
+            // RPC atómico: crea item + cargo + actualiza totales + actualiza personas
+            const { data: rpc, error: rpcError } = await supabase.rpc("process_extra_charge", {
+              p_stay_id: activeStay.id,
+              p_charge_type: "EXTRA_PERSON",
+              p_amount: extraPrice,
+              p_quantity: 1,
+              p_hours_to_extend: 0,
+              p_shift_session_id: currentShiftId,
+              p_payment_reference: generatePaymentReference("PEX"),
+              p_new_current_people: newCurrentPeople,
+              p_new_total_people: newTotalPeople,
+            });
+
+            if (rpcError || !rpc?.success) {
+              throw new Error(rpcError?.message || rpc?.error || "Error al registrar persona extra");
+            }
 
             toast.success("Persona extra registrada", {
               description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople}). +${formatCurrency(extraPrice)} (pendiente)`,
@@ -124,13 +126,19 @@ export function createPeopleActions(ctx: RoomActionContext) {
             });
 
             await notifyActiveValets(supabase, '👤 Persona Extra Registrada',
-              `Habitación ${room.number}: Se registró persona extra. Saldo pendiente: ${formatCurrency(chargeResult.newRemaining || extraPrice)}.`,
-              { type: 'NEW_EXTRA', consumptionId: itemResult.data, roomNumber: room.number, stayId: activeStay.id }
+              `Habitación ${room.number}: Se registró persona extra. Cargo pendiente: ${formatCurrency(extraPrice)}.`,
+              { type: 'NEW_EXTRA', consumptionId: rpc.item_id, roomNumber: room.number, stayId: activeStay.id }
             );
           } else {
             toast.warning("No se configuró precio de persona extra");
           }
         } else {
+          // Sin cargo — solo actualizar personas
+          await supabase.from("room_stays").update({
+            current_people: newCurrentPeople,
+            total_people: newTotalPeople,
+          }).eq("id", activeStay.id);
+
           toast.success("Persona agregada", {
             description: `Hab. ${room.number}: ${newCurrentPeople} personas (histórico: ${newTotalPeople})`,
           });

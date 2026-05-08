@@ -91,157 +91,40 @@ export function ConnectedQuickCheckinModal({
       const totalPrice =
         (basePrice + extraPeopleCost) * (roomType.is_hotel ? durationNights : 1);
 
-      // Obtener almacén de recepción
-      const { data: defaultWarehouse, error: warehouseError } = await supabase
-        .from("warehouses")
-        .select("id, code, is_active")
-        .eq("code", "ALM002-R")
-        .eq("is_active", true)
-        .single();
-
-      if (warehouseError || !defaultWarehouse) {
-        toast.error("No se encontró el almacén de recepción");
-        return;
-      }
-
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Obtener turno actual y employee_id de Recepción
       const currentShiftId = await getReceptionShiftId(supabase);
       const currentEmployeeId = await getReceptionEmployeeId(supabase);
+      const guestToken = crypto.randomUUID();
+      const paymentRef = generatePaymentReference("QCK");
 
-      // Crear orden de venta con pago PENDIENTE
-      const { data: salesOrder, error: orderError } = await supabase
-        .from("sales_orders")
-        .insert({
-          customer_id: null,
-          warehouse_id: defaultWarehouse.id,
-          currency: "MXN",
-          notes: `⚡ ENTRADA RÁPIDA - Hab. ${selectedRoom.number} ${
-            roomType.name
-          }${extraPeopleCount > 0 ? ` (+${extraPeopleCount} extra)` : ""} - PAGO PENDIENTE`,
-          subtotal: totalPrice,
-          tax: 0,
-          total: totalPrice,
-          status: "OPEN",
-          remaining_amount: totalPrice, // Todo pendiente
-          paid_amount: 0,
-          created_by: user?.id ?? null,
-          shift_session_id: currentShiftId,
-        })
-        .select("id")
-        .single();
-
-      if (orderError) {
-        console.error("Error creating sales order:", orderError);
-        toast.error("Error al iniciar la estancia");
-        return;
-      }
-
-      // Buscar o crear producto de servicio
-      let serviceProductId: string | null = null;
-      const { data: serviceProducts } = await supabase
-        .from("products")
-        .select("id")
-        .eq("sku", "SVC-ROOM")
-        .limit(1);
-
-      if (serviceProducts && serviceProducts.length > 0) {
-        serviceProductId = serviceProducts[0].id;
-      }
-
-      // Insertar items de la orden (todos sin pagar)
-      if (serviceProductId) {
-        const orderItems = [];
-
-        // Item de habitación base
-        orderItems.push({
-          sales_order_id: salesOrder.id,
-          product_id: serviceProductId,
-          qty: roomType.is_hotel ? durationNights : 1,
-          unit_price: basePrice,
-          concept_type: "ROOM_BASE",
-          is_paid: false,
-          paid_at: null,
-          payment_method: null,
-        });
-
-        // Items de personas extra (un solo item con qty = cantidad de extras)
-        if (extraPeopleCount > 0 && extraPersonPrice > 0) {
-          const qtyMultiplier = roomType.is_hotel ? durationNights : 1;
-          orderItems.push({
-            sales_order_id: salesOrder.id,
-            product_id: serviceProductId,
-            qty: extraPeopleCount * qtyMultiplier,
-            unit_price: extraPersonPrice,
-            concept_type: "EXTRA_PERSON",
-            is_paid: false,
-            paid_at: null,
-            payment_method: null,
-          });
-        }
-
-        const { error: itemsError } = await supabase.from("sales_order_items").insert(orderItems);
-        if (itemsError) {
-           console.error("Error inserting order items:", itemsError);
-           // Podríamos hacer rollback aquí, pero la orden de venta quedaría en OPEN con importe 0
-        }
-      }
-
-      // Crear pago pendiente (para que aparezca en el cobro granular)
-      const { error: paymentError } = await supabase.from("payments").insert({
-        sales_order_id: salesOrder.id,
-        amount: totalPrice,
-        payment_method: "PENDIENTE",
-        reference: generatePaymentReference("QCK"),
-        concept: "ESTANCIA",
-        status: "PENDIENTE",
-        payment_type: "COMPLETO",
-        created_by: user?.id ?? null,
-        shift_session_id: currentShiftId,
-        employee_id: currentEmployeeId,
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("process_quick_checkin", {
+        p_room_id: selectedRoom.id,
+        p_room_number: selectedRoom.number,
+        p_room_type_name: roomType.name,
+        p_entry_time: entryTime.toISOString(),
+        p_expected_checkout: expectedCheckout.toISOString(),
+        p_initial_people: data.initialPeople,
+        p_duration_nights: durationNights,
+        p_base_price: basePrice,
+        p_extra_person_price: extraPersonPrice,
+        p_extra_people_count: extraPeopleCount,
+        p_total_price: totalPrice,
+        p_is_hotel: roomType.is_hotel || false,
+        p_user_id: user?.id || null,
+        p_shift_session_id: currentShiftId,
+        p_employee_id: currentEmployeeId,
+        p_guest_token: guestToken,
+        p_payment_reference: paymentRef,
       });
 
-      if (paymentError) {
-         console.error("Error inserting payment:", paymentError);
-      }
-
-      // Generar token de acceso al portal de huéspedes
-      const guestToken = crypto.randomUUID();
-
-      // Registrar la estancia con la hora REAL de entrada
-      const { data: stayData, error: stayError } = await supabase
-        .from("room_stays")
-        .insert({
-          room_id: selectedRoom.id,
-          sales_order_id: salesOrder.id,
-          check_in_at: entryTime.toISOString(), // Hora real de entrada
-          expected_check_out_at: expectedCheckout.toISOString(),
-          current_people: data.initialPeople,
-          total_people: data.initialPeople,
-          vehicle_plate: null,
-          vehicle_brand: null,
-          vehicle_model: null,
-          valet_employee_id: null,
-          shift_session_id: currentShiftId,
-          guest_access_token: guestToken,
-        })
-        .select()
-        .single();
-
-      if (stayError || !stayData) {
-        console.error("Error creating room stay:", stayError);
+      if (rpcError || !rpcResult?.success) {
+        console.error("RPC Error:", rpcError || rpcResult?.error);
         toast.error("Error al registrar la estancia");
         return;
       }
-
-      // Actualizar estado de la habitación a OCUPADA
-      await supabase
-        .from("rooms")
-        .update({ status: "OCUPADA" })
-        .eq("id", selectedRoom.id);
 
       const timeDiff = Math.round(
         (new Date().getTime() - entryTime.getTime()) / 60000
