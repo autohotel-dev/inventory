@@ -52,7 +52,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'No target employees', sentCount: 0 });
         }
 
-        const employeeIds = employees.map(e => e.id);
+        const employeeIds = employees.map((e: any) => e.id);
         const { data: subs } = await adminSupabase
             .from('push_subscriptions')
             .select('*')
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         });
 
         // 1. Web Push Delivery
-        const webPushResults = await Promise.allSettled(subs.map(sub => {
+        const webPushResults = await Promise.allSettled(subs.map((sub: any) => {
             const pushSub = {
                 endpoint: sub.subscription.endpoint,
                 keys: {
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
             return webpush.sendNotification(pushSub, notificationPayload);
         }));
 
-        const webSuccessCount = webPushResults.filter(r => r.status === 'fulfilled').length;
+        const webSuccessCount = webPushResults.filter((r: any) => r.status === 'fulfilled').length;
 
         // 2. Expo Push Delivery (Mobile App)
         // DESACTIVADO: La responsabilidad de enviar notificaciones móviles ahora recae en 

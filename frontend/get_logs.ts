@@ -13,7 +13,7 @@ async function run() {
   if (error) {
     console.error(error);
   } else {
-    data.forEach(log => console.log(log.action, log.event_type, log.employee_name));
+    data.forEach((log: any) => console.log(log.action, log.event_type, log.employee_name));
   }
 }
 run();

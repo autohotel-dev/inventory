@@ -12,7 +12,7 @@ async function run() {
     .limit(50);
   
   if (error) { console.error(error); return; }
-  logs.forEach(l => {
+  logs.forEach((l: any) => {
     if (l.action === 'CHECK_IN' || l.action === 'INSERT') {
       console.log(l.action, l.employee_name, l.metadata);
     }

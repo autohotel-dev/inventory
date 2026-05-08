@@ -98,7 +98,7 @@ export async function POST(req: Request) {
                 .eq('is_active', true)
                 .not('auth_user_id', 'is', null);
 
-            targetAuthUserIds = (emps || []).map(e => e.auth_user_id).filter(Boolean) as string[];
+            targetAuthUserIds = (emps || []).map((e: any) => e.auth_user_id).filter(Boolean) as string[];
         } else if (payload.targetType === 'all') {
             const { data: emps } = await adminSupabase
                 .from('employees')
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
                 .eq('is_active', true)
                 .not('auth_user_id', 'is', null);
 
-            targetAuthUserIds = (emps || []).map(e => e.auth_user_id).filter(Boolean) as string[];
+            targetAuthUserIds = (emps || []).map((e: any) => e.auth_user_id).filter(Boolean) as string[];
         }
 
         // Deduplicate

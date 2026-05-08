@@ -60,7 +60,7 @@ export async function POST(req: Request) {
         });
 
         // Send parallel notifications
-        const sendPromises = subscriptions.map(async (sub) => {
+        const sendPromises = subscriptions.map(async (sub: any) => {
             try {
                 await webpush.sendNotification({
                     endpoint: sub.endpoint,
