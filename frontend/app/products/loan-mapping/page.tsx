@@ -48,7 +48,7 @@ export default function LoanMappingPage() {
         const { data: pData, error: pErr } = await supabase
           .from("products")
           .select("id, name, sku, category:categories(name)")
-          .eq("status", "ACTIVE")
+          .eq("is_active", true)
           .order("name");
         if (pErr) throw pErr;
         
