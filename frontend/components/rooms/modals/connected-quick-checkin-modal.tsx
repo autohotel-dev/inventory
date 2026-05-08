@@ -168,21 +168,19 @@ export function ConnectedQuickCheckinModal({
           payment_method: null,
         });
 
-        // Items de personas extra
+        // Items de personas extra (un solo item con qty = cantidad de extras)
         if (extraPeopleCount > 0 && extraPersonPrice > 0) {
-          const qtyPerPerson = roomType.is_hotel ? durationNights : 1;
-          for (let i = 0; i < extraPeopleCount; i++) {
-            orderItems.push({
-              sales_order_id: salesOrder.id,
-              product_id: serviceProductId,
-              qty: qtyPerPerson,
-              unit_price: extraPersonPrice,
-              concept_type: "EXTRA_PERSON",
-              is_paid: false,
-              paid_at: null,
-              payment_method: null,
-            });
-          }
+          const qtyMultiplier = roomType.is_hotel ? durationNights : 1;
+          orderItems.push({
+            sales_order_id: salesOrder.id,
+            product_id: serviceProductId,
+            qty: extraPeopleCount * qtyMultiplier,
+            unit_price: extraPersonPrice,
+            concept_type: "EXTRA_PERSON",
+            is_paid: false,
+            paid_at: null,
+            payment_method: null,
+          });
         }
 
         const { error: itemsError } = await supabase.from("sales_order_items").insert(orderItems);
