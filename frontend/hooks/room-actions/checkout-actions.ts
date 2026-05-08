@@ -128,13 +128,21 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       const remainingTotal = rpcData?.new_remaining ?? Math.max(0, checkoutInfo.remainingAmount - totalPaid);
       const paymentMethod = rpcData?.payment_method || "EFECTIVO";
 
+      // ⚡ Optimistic UI: room → SUCIA immediately
+      ctx.optimisticRoomUpdate(room.id, {
+        status: "SUCIA",
+        room_stays: (room.room_stays || []).map((s: any) =>
+          s.status === "ACTIVA" ? { ...s, status: "FINALIZADA" } : s
+        ),
+      });
+
       toast.success("Check-out completado exitosamente", {
         description: remainingTotal > 0
           ? `Saldo restante: $${remainingTotal.toFixed(2)}`
           : `Hab. ${room.number} → SUCIA`
       });
 
-      // ─── Audit Log ─────────────────────────────────────────────
+      // ─── Audit + Flow (fire-and-forget) ─────────────────────────
       logFinancialAction("CHECKOUT", {
         roomNumber: room.number,
         amount: totalPaid,
@@ -144,7 +152,6 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         extra: { remaining: remainingTotal, checkout_valet_id: checkoutValetId },
       });
 
-      // ─── Flow Event ─────────────────────────────────────────────
       const stayForFlow = getActiveStay(room);
       if (stayForFlow) {
         findActiveFlow(stayForFlow.id).then(flowId => {
@@ -159,7 +166,7 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         });
       }
 
-      await onRefresh();
+      onRefresh().catch(() => {});
       return true;
     });
   };
