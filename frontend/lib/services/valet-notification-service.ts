@@ -108,8 +108,8 @@ export async function createAdminNotificationForEmployee(
                     }),
                 });
                 logger.info(`Push notification enviada a ${employeeId} via Expo`);
-            } catch (pushError) {
-                logger.error("Error enviando push notification via Expo", pushError);
+            } catch {
+                // Push notification delivery is best-effort; failures are not critical
             }
         }
     } catch (error) {
