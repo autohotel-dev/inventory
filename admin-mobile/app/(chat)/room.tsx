@@ -7,7 +7,9 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
+import { decode } from 'base64-arraybuffer';
 import Animated, { FadeInDown, Layout, SlideInDown, SlideOutDown, FadeIn } from 'react-native-reanimated';
 
 const PAGE_SIZE = 15;
@@ -246,12 +248,12 @@ export default function RoomScreen() {
                 const ext = uri.substring(uri.lastIndexOf('.') + 1) || 'jpg';
                 const fileName = `chat/${Date.now()}.${ext}`;
                 
-                const response = await fetch(uri);
-                const blob = await response.blob();
+                const base64Img = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+                const arrayBufferImg = decode(base64Img);
                 
                 const { error: uploadError } = await supabase.storage
                     .from('chat-media')
-                    .upload(fileName, blob, { contentType: `image/${ext}` });
+                    .upload(fileName, arrayBufferImg, { contentType: `image/${ext}`, upsert: true });
                     
                 if (uploadError) throw uploadError;
                 
@@ -293,12 +295,12 @@ export default function RoomScreen() {
             const ext = asset.name.split('.').pop() || 'pdf';
             const fileName = `chat/${Date.now()}.${ext}`;
 
-            const response = await fetch(asset.uri);
-            const blob = await response.blob();
+            const base64Doc = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+            const arrayBufferDoc = decode(base64Doc);
 
             const { error: uploadError } = await supabase.storage
                 .from('chat-media')
-                .upload(fileName, blob, { contentType: asset.mimeType || 'application/octet-stream' });
+                .upload(fileName, arrayBufferDoc, { contentType: asset.mimeType || 'application/octet-stream', upsert: true });
 
             if (uploadError) throw uploadError;
 
@@ -355,12 +357,12 @@ export default function RoomScreen() {
 
             setUploadingImage(true);
             const fileName = `chat/voice-${Date.now()}.m4a`;
-            const response = await fetch(uri);
-            const blob = await response.blob();
+            const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            const arrayBuffer = decode(base64);
 
             const { error: uploadError } = await supabase.storage
                 .from('chat-media')
-                .upload(fileName, blob, { contentType: 'audio/mp4' });
+                .upload(fileName, arrayBuffer, { contentType: 'audio/mp4', upsert: true });
 
             if (uploadError) throw uploadError;
 
