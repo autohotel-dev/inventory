@@ -178,40 +178,28 @@ export function createCheckoutActions(ctx: RoomActionContext) {
     await withAction(ctx, "Ocurrió un error al actualizar la habitación", async () => {
       const supabase = createClient();
 
-      const updateData: any = { status: newStatus };
-      if (notes !== undefined) updateData.notes = notes;
-      else if (newStatus === "LIBRE") updateData.notes = null;
+      // Single atomic RPC — handles stay finalization, status update, and audit
+      const { data: rpcData, error: rpcError } = await supabase.rpc('update_room_status', {
+        p_room_id: room.id,
+        p_new_status: newStatus,
+        p_notes: notes ?? null,
+        p_clear_notes: newStatus === "LIBRE",
+      });
 
-      // Primero finalizar la estancia (si aplica) para evitar estados huérfanos
-      if (newStatus === "LIBRE") {
-        const { error: stayError } = await supabase
-          .from("room_stays")
-          .update({ status: "FINALIZADA", actual_check_out_at: new Date().toISOString() })
-          .eq("room_id", room.id)
-          .eq("status", "ACTIVA");
-
-        if (stayError) {
-          console.error("Error finalizing stay on room free:", stayError);
-          toast.error("No se pudo finalizar la estancia activa");
-          return;
-        }
-        logger.info("Stay finalized automatically on room free", { roomNumber: room.number });
+      if (rpcError) {
+        toast.error("No se pudo actualizar el estado de la habitación");
+        logger.error("RPC update_room_status failed", rpcError);
+        return;
       }
 
-      // Después actualizar el estado de la habitación
-      const { error } = await supabase.from("rooms").update(updateData).eq("id", room.id);
-      if (error) { toast.error("No se pudo actualizar el estado de la habitación"); return; }
+      if (rpcData && !rpcData.success) {
+        toast.error(rpcData.error || "Error al cambiar estado");
+        return;
+      }
 
       toast.success(successMessage);
 
-      // ─── Audit Log ─────────────────────────────────────────────
-      logFinancialAction("UPDATE", {
-        roomNumber: room.number,
-        description: `Estado de Hab. ${room.number} cambiado a ${newStatus}`,
-        extra: { new_status: newStatus, notes },
-      });
-
-      // ─── Flow Event ─────────────────────────────────────────────
+      // Flow Event (fire-and-forget — no blocking)
       const stayForStatus = getActiveStay(room);
       if (stayForStatus) {
         findActiveFlow(stayForStatus.id).then(flowId => {

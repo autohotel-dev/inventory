@@ -114,7 +114,9 @@ export async function withAction<T>(
   ctx.setActionLoading(true);
   try {
     const result = await fn();
-    await ctx.onRefresh();
+    // Fire-and-forget refresh: don't block UI waiting for full refetch.
+    // Realtime subscriptions will also trigger a refresh as safety net.
+    ctx.onRefresh().catch(() => {});
     return result;
   } catch (error) {
     logger.error(errorMessage, error);

@@ -185,21 +185,21 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 .eq('is_paid', false);
 
             if (existingExtras && existingExtras.length > 0) {
-                // Recepción ya creó los items — marcarlos como pagados y entregados
-                // (el cochero ya cobró el total que los incluye)
-                console.log(`✅ Marcando ${existingExtras.length} EXTRA_PERSON existentes como pagados`);
+                // Recepción ya creó los items — solo marcar como entregados (delivery),
+                // NO como pagados. Recepción corroborará el pago y marcará is_paid.
+                console.log(`✅ Marcando ${existingExtras.length} EXTRA_PERSON como entregados (no pagados)`);
                 const existingIds = existingExtras.map(e => e.id);
                 await supabase
                     .from('sales_order_items')
                     .update({
-                        is_paid: true,
                         delivery_status: 'DELIVERED',
                         delivery_completed_at: new Date().toISOString(),
                         delivery_accepted_by: valetId,
                     })
                     .in('id', existingIds);
 
-                // También marcar pagos PENDIENTE de PERSONA_EXTRA como cobrados
+                // Marcar pagos PENDIENTE de PERSONA_EXTRA como cobrados por valet
+                // (recepción los confirmará después)
                 await supabase
                     .from('payments')
                     .update({
@@ -255,7 +255,8 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                             if (payErr) console.error(`Error creating PERSONA_EXTRA payment ${i + 1}:`, payErr);
                         }
 
-                        // Actualizar totales de la sales_order
+                        // Actualizar totales de la sales_order (solo subtotal y remaining,
+                        // NOT paid_amount — eso lo hace recepción al confirmar)
                         const extraTotal = extraCount * extraPersonPrice;
                         const { data: currentOrder } = await supabase
                             .from('sales_orders')
