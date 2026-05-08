@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
-import { updateAllUnpaidItems } from "@/lib/services/product-service";
+
 import { logFinancialAction } from "@/lib/audit-logger";
 import { findActiveFlow, logFlowEvent, completeFlow } from "@/lib/flow-logger";
 import {
@@ -16,12 +16,7 @@ import {
   withBoolAction,
   RoomActionContext,
 } from "./room-action-helpers";
-import {
-  validateStayForCheckout,
-  validateNoBlockingDeliveries,
-  unsubscribeGuestNotifications,
-  buildCheckoutPayments,
-} from "./checkout-pipeline";
+import { unsubscribeGuestNotifications } from "./checkout-pipeline";
 
 export function createCheckoutActions(ctx: RoomActionContext) {
   const { checkAuthorization, onRefresh } = ctx;
@@ -97,37 +92,25 @@ export function createCheckoutActions(ctx: RoomActionContext) {
       const supabase = createClient();
       const totalPaid = payments?.reduce((sum, p) => sum + p.amount, 0) || amount;
 
-      // Step 1: Validate stay state
-      const validation = await validateStayForCheckout(supabase, checkoutInfo);
-      if (!validation.ok) return false;
+      // Privacy cleanup (fire-and-forget — external API, not DB)
+      unsubscribeGuestNotifications(room.number);
 
-      // Step 2: Validate no blocking deliveries
-      const deliveriesOk = await validateNoBlockingDeliveries(supabase, checkoutInfo.salesOrderId);
-      if (!deliveriesOk) return false;
+      // Build payment data for RPC
+      const paymentData = (payments || []).filter(p => p.amount > 0).map(p => ({
+        amount: p.amount,
+        method: p.method,
+        terminal: p.terminal || null,
+        cardLast4: p.cardLast4 || null,
+        cardType: p.cardType || null,
+        reference: p.reference || null,
+      }));
 
-      // Step 3: Privacy cleanup
-      await unsubscribeGuestNotifications(room.number);
-
-      // Step 4: Mark unpaid service items (batch — 1 operation instead of 4)
-      const paymentMethod = payments && payments.length > 0
-        ? (payments.length > 1 ? "MULTIPAGO" : payments[0].method)
-        : "EFECTIVO";
-
-      await updateAllUnpaidItems(
-        checkoutInfo.salesOrderId,
-        ["EXTRA_PERSON", "EXTRA_HOUR", "ROOM_BASE", "TOLERANCE_EXPIRED"],
-        paymentMethod
-      );
-
-      // Step 5: Build and reconcile payments
-      const newPayments = await buildCheckoutPayments(supabase, checkoutInfo, payments, totalPaid);
-
-      // Step 6: Atomic RPC
-      const { data: rpcData, error: rpcError } = await supabase.rpc('process_checkout_transaction', {
-        p_stay_id: validation.stayId,
+      // Single atomic RPC
+      const { data: rpcData, error: rpcError } = await supabase.rpc('process_full_checkout', {
         p_sales_order_id: checkoutInfo.salesOrderId,
-        p_payment_data: newPayments,
-        p_checkout_valet_id: checkoutValetId || null
+        p_checkout_valet_id: checkoutValetId || null,
+        p_payments: paymentData,
+        p_total_paid: totalPaid,
       });
 
       if (rpcError) {
@@ -136,13 +119,15 @@ export function createCheckoutActions(ctx: RoomActionContext) {
         return false;
       }
 
-      if (rpcData && (rpcData as any).success === false) {
-        toast.error("Error en checkout", { description: (rpcData as any).error });
+      if (rpcData && !rpcData.success) {
+        toast.error("Error en checkout", { description: rpcData.error });
         return false;
       }
 
       // Success
-      const remainingTotal = Math.max(0, checkoutInfo.remainingAmount - totalPaid);
+      const remainingTotal = rpcData?.new_remaining ?? Math.max(0, checkoutInfo.remainingAmount - totalPaid);
+      const paymentMethod = rpcData?.payment_method || "EFECTIVO";
+
       toast.success("Check-out completado exitosamente", {
         description: remainingTotal > 0
           ? `Saldo restante: $${remainingTotal.toFixed(2)}`
