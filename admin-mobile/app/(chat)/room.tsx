@@ -248,7 +248,7 @@ export default function RoomScreen() {
                 const ext = uri.substring(uri.lastIndexOf('.') + 1) || 'jpg';
                 const fileName = `chat/${Date.now()}.${ext}`;
                 
-                const base64Img = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+                const base64Img = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
                 const arrayBufferImg = decode(base64Img);
                 
                 const { error: uploadError } = await supabase.storage
@@ -295,7 +295,7 @@ export default function RoomScreen() {
             const ext = asset.name.split('.').pop() || 'pdf';
             const fileName = `chat/${Date.now()}.${ext}`;
 
-            const base64Doc = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+            const base64Doc = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
             const arrayBufferDoc = decode(base64Doc);
 
             const { error: uploadError } = await supabase.storage
@@ -357,7 +357,7 @@ export default function RoomScreen() {
 
             setUploadingImage(true);
             const fileName = `chat/voice-${Date.now()}.m4a`;
-            const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
             const arrayBuffer = decode(base64);
 
             const { error: uploadError } = await supabase.storage
