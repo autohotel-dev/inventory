@@ -40,6 +40,12 @@ interface AuditOptions {
  * Log an audit event via the log_audit RPC function in Supabase.
  * Fire-and-forget: errors are only logged to console, never thrown.
  */
+function getDefaultSeverity(action: AuditAction): "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL" {
+  if (action === "PURGE_SYSTEM") return "CRITICAL";
+  if (["LOGIN_FAILED", "CANCEL_ITEM", "CANCEL_CHARGE", "DAMAGE_CHARGE"].includes(action)) return "WARNING";
+  return "INFO";
+}
+
 export async function logAudit(action: AuditAction, options: AuditOptions = {}) {
   try {
     const supabase = createClient();
@@ -77,7 +83,7 @@ export async function logAudit(action: AuditAction, options: AuditOptions = {}) 
       p_old_data: options.oldData ?? null,
       p_new_data: options.newData ?? null,
       p_metadata: options.metadata ?? {},
-      p_severity: options.severity ?? "INFO",
+      p_severity: options.severity ?? getDefaultSeverity(action),
     });
 
     if (error) {

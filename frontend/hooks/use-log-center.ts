@@ -38,6 +38,24 @@ export interface LogFilters {
   roomNumber: string;
   dateFrom: string;
   dateTo: string;
+  actionType: string;
+  timePreset: string;
+}
+
+export interface ActionStat {
+  action: string;
+  count: number;
+}
+
+export interface EmployeeStat {
+  name: string;
+  id: string;
+  count: number;
+}
+
+export interface HourStat {
+  hour: number;
+  count: number;
 }
 
 export interface LogStats {
@@ -46,11 +64,19 @@ export interface LogStats {
   payments: number;
   auth: number;
   alerts: number;
-  byEmployee: { name: string; count: number }[];
+  byEmployee: EmployeeStat[];
+  byAction: ActionStat[];
+  byHour: HourStat[];
 }
 
 /** Map of UUID → human-readable name (employee name or session label) */
 export type NameMap = Map<string, string>;
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function getDefaultDateFrom(): string {
+  return new Date().toISOString().split("T")[0];
+}
 
 const DEFAULT_FILTERS: LogFilters = {
   category: "all",
@@ -58,8 +84,10 @@ const DEFAULT_FILTERS: LogFilters = {
   search: "",
   employeeId: "",
   roomNumber: "",
-  dateFrom: new Date().toISOString().split("T")[0],
+  dateFrom: getDefaultDateFrom(),
   dateTo: "",
+  actionType: "",
+  timePreset: "today",
 };
 
 const CATEGORY_EVENT_TYPES: Record<LogCategory, string[]> = {
@@ -71,11 +99,36 @@ const CATEGORY_EVENT_TYPES: Record<LogCategory, string[]> = {
   alerts: [],
 };
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// ─── Time Presets ────────────────────────────────────────────────────
+
+function getTimePresetDates(preset: string): { from: string; to: string } {
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+
+  switch (preset) {
+    case "today":
+      return { from: today, to: "" };
+    case "yesterday": {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      return { from: y.toISOString().split("T")[0], to: y.toISOString().split("T")[0] };
+    }
+    case "week": {
+      const w = new Date(now);
+      w.setDate(w.getDate() - 7);
+      return { from: w.toISOString().split("T")[0], to: "" };
+    }
+    case "month": {
+      const m = new Date(now);
+      m.setDate(m.getDate() - 30);
+      return { from: m.toISOString().split("T")[0], to: "" };
+    }
+    default:
+      return { from: today, to: "" };
+  }
+}
 
 // ─── UUID Resolver ───────────────────────────────────────────────────
-// Scans metadata for UUID values, batch-queries employees and shift_sessions,
-// and returns a UUID→Name lookup map.
 
 async function resolveUuids(logs: LogEntry[], existingMap: NameMap): Promise<NameMap> {
   const uuids = new Set<string>();
@@ -95,7 +148,6 @@ async function resolveUuids(logs: LogEntry[], existingMap: NameMap): Promise<Nam
   const uuidArray = Array.from(uuids);
   const newMap = new Map(existingMap);
 
-  // Batch query employees by id
   const { data: employees } = await supabase
     .from("employees")
     .select("id, first_name, last_name")
@@ -107,7 +159,6 @@ async function resolveUuids(logs: LogEntry[], existingMap: NameMap): Promise<Nam
     }
   }
 
-  // For remaining unresolved UUIDs, try shift_sessions → employee name
   const unresolvedIds = uuidArray.filter(id => !newMap.has(id));
   if (unresolvedIds.length > 0) {
     const { data: sessions } = await supabase
@@ -128,11 +179,40 @@ async function resolveUuids(logs: LogEntry[], existingMap: NameMap): Promise<Nam
   return newMap;
 }
 
+// ─── CSV Export ──────────────────────────────────────────────────────
+
+export function exportLogsToCSV(logs: LogEntry[]) {
+  const headers = ["Fecha", "Hora", "Acción", "Empleado", "Habitación", "Monto", "Método Pago", "Severidad", "Descripción"];
+  const rows = logs.map(log => [
+    new Date(log.created_at).toLocaleDateString("es-MX"),
+    new Date(log.created_at).toLocaleTimeString("es-MX"),
+    log.action,
+    log.employee_name || "",
+    log.room_number || "",
+    log.amount?.toString() || "",
+    log.payment_method || "",
+    log.severity,
+    (log.description || "").replace(/,/g, ";"),
+  ]);
+
+  const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `auditoria_luxor_${new Date().toISOString().split("T")[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useLogCenter() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [stats, setStats] = useState<LogStats>({ total: 0, reception: 0, payments: 0, auth: 0, alerts: 0, byEmployee: [] });
+  const [stats, setStats] = useState<LogStats>({
+    total: 0, reception: 0, payments: 0, auth: 0, alerts: 0,
+    byEmployee: [], byAction: [], byHour: [],
+  });
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -160,9 +240,14 @@ export function useLogCenter() {
       if (types.length > 0) query = query.in("event_type", types);
     }
 
-    // Severity filter
+    // Severity
     if (filters.severity !== "all") {
       query = query.eq("severity", filters.severity);
+    }
+
+    // Action type
+    if (filters.actionType) {
+      query = query.eq("action", filters.actionType);
     }
 
     // Search
@@ -199,7 +284,7 @@ export function useLogCenter() {
     }
     setLoading(false);
 
-    // Resolve UUIDs in metadata to human names (fire-and-forget)
+    // Resolve UUIDs (fire-and-forget)
     resolveUuids(newLogs, nameMapRef.current).then(resolved => {
       if (resolved.size > nameMapRef.current.size) {
         nameMapRef.current = resolved;
@@ -210,41 +295,24 @@ export function useLogCenter() {
 
   const fetchStats = useCallback(async () => {
     const supabase = createClient();
-    const todayStart = filters.dateFrom || new Date().toISOString().split("T")[0];
+    const dateFrom = filters.dateFrom || getDefaultDateFrom();
 
-    const [
-      { count: total },
-      { count: reception },
-      { count: payments },
-      { count: auth },
-      { count: alerts },
-      { data: empData },
-    ] = await Promise.all([
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).eq("event_type", "RECEPTION_ACTION").gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).in("event_type", ["PAYMENT_CREATED", "PAYMENT_PROCESSED", "DATA_CHANGE"]).gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).eq("event_type", "AUTH_EVENT").gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }).in("severity", ["WARNING", "ERROR", "CRITICAL"]).gte("created_at", `${todayStart}T00:00:00`),
-      supabase.from("audit_logs").select("employee_name").not("employee_name", "is", null).gte("created_at", `${todayStart}T00:00:00`),
-    ]);
-
-    const empMap = new Map<string, number>();
-    (empData || []).forEach((e: any) => {
-      if (e.employee_name) empMap.set(e.employee_name, (empMap.get(e.employee_name) || 0) + 1);
+    const { data } = await supabase.rpc("get_audit_stats", {
+      p_date_from: `${dateFrom}T00:00:00+00:00`,
     });
-    const byEmployee = Array.from(empMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
 
-    setStats({
-      total: total || 0,
-      reception: reception || 0,
-      payments: payments || 0,
-      auth: auth || 0,
-      alerts: alerts || 0,
-      byEmployee,
-    });
+    if (data) {
+      setStats({
+        total: data.total || 0,
+        reception: data.reception || 0,
+        payments: data.payments || 0,
+        auth: data.auth || 0,
+        alerts: data.alerts || 0,
+        byEmployee: (data.by_employee || []).map((e: any) => ({ name: e.name, id: e.id, count: e.count })),
+        byAction: (data.by_action || []).map((a: any) => ({ action: a.action, count: a.count })),
+        byHour: (data.by_hour || []).map((h: any) => ({ hour: h.hour, count: h.count })),
+      });
+    }
   }, [filters.dateFrom]);
 
   useEffect(() => {
@@ -259,12 +327,29 @@ export function useLogCenter() {
   };
 
   const updateFilter = (key: keyof LogFilters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    if (key === "timePreset") {
+      const { from, to } = getTimePresetDates(value);
+      setFilters(prev => ({ ...prev, timePreset: value, dateFrom: from, dateTo: to }));
+    } else {
+      setFilters(prev => ({ ...prev, [key]: value, timePreset: key === "dateFrom" || key === "dateTo" ? "custom" : prev.timePreset }));
+    }
   };
 
   const resetFilters = () => setFilters(DEFAULT_FILTERS);
 
-  return { logs, stats, filters, loading, hasMore, nameMap, updateFilter, resetFilters, loadMore, refetch: () => { fetchLogs(true); fetchStats(); } };
+  const activeFilterCount = [
+    filters.search,
+    filters.employeeId,
+    filters.roomNumber,
+    filters.actionType,
+    filters.severity !== "all" ? filters.severity : "",
+    filters.category !== "all" ? filters.category : "",
+  ].filter(Boolean).length;
+
+  return {
+    logs, stats, filters, loading, hasMore, nameMap, activeFilterCount,
+    updateFilter, resetFilters, loadMore,
+    refetch: () => { fetchLogs(true); fetchStats(); },
+    exportCSV: () => exportLogsToCSV(logs),
+  };
 }
-
-
