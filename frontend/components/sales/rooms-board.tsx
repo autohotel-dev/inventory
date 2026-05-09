@@ -29,7 +29,7 @@ import { formatDateTime } from "@/components/rooms/modals/connected-start-stay-m
 
 import { useRoomRealtime } from "@/hooks/rooms/use-room-realtime";
 import { useCheckoutReminders } from "@/hooks/rooms/use-checkout-reminders";
-import { useRoomTransitions } from "@/hooks/rooms/use-room-transitions";
+// useRoomTransitions removed — extra hours are now handled by pg_cron server-side (every 2 min)
 import { useValetPaymentMonitor } from "@/hooks/valet/use-valet-payment-monitor";
 import { useRoomModals } from "@/hooks/rooms/use-room-modals";
 import { usePrintCenter } from "@/contexts/print-center-context";
@@ -103,7 +103,7 @@ function RoomsBoardInternal() {
 
   // Lógicas Extraídas (Hooks)
   useRoomRealtime(fetchRooms, playAlert);
-  useRoomTransitions(rooms, fetchRooms);
+  // Extra hours: handled by pg_cron job `auto-extra-hours` (every 2 min, server-side)
   const { reminderAlert, dismissReminder } = useCheckoutReminders(rooms, playAlert);
   const { hasPendingValetPayment } = useValetPaymentMonitor(modals.selectedRoom, modals.isOpen("actions"));
 
