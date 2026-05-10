@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { fetchSingleOperation, LiveOperationFlow } from "@/hooks/use-live-operations";
-import { ProcessCard } from "@/components/live-operations/process-card";
+import { ForensicDashboard } from "@/components/live-operations/forensic-dashboard";
 import { ChevronLeft, FileSearch, Activity } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ export default function DetailedStayPage(props: { params: Promise<{ id: string }
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-8 max-w-6xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-[1600px] mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/operacion-en-vivo">
@@ -64,13 +64,13 @@ export default function DetailedStayPage(props: { params: Promise<{ id: string }
               </div>
               Expediente de Auditoría
             </h1>
-            <p className="text-muted-foreground text-sm mt-1 ml-14">Vista detallada y expansiva de la operación</p>
+            <p className="text-muted-foreground text-sm mt-1 ml-14">Vista de Inteligencia Forense</p>
           </div>
         </div>
       </div>
 
       <div className="shadow-2xl shadow-primary/5 rounded-2xl overflow-hidden ring-1 ring-border/50 bg-card/50 backdrop-blur-sm">
-        {flow && <ProcessCard flow={flow} viewMode="forensic" />}
+        {flow && <ForensicDashboard flow={flow} />}
       </div>
     </div>
   );
