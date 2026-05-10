@@ -46,6 +46,7 @@ export const VALET_CONCEPTS = [
   'EARLY_CHECKIN',
   'ROOM_CHANGE_ADJUSTMENT',
   'RENEWAL',
+  'PROMO_4H',
   'ENTRADA',
   'DAÑO',
   'PERSONA_EXTRA'
@@ -72,6 +73,7 @@ export const CONCEPT_LABELS: Record<string, string> = {
   'ENTRADA': 'Cobro de Entrada',
   'ROOM_CHANGE_ADJUSTMENT': 'Ajuste de Cambio de Habitación',
   'RENEWAL': 'Renovación de Estancia',
+  'RENOVACION': 'Renovación de Estancia',
   
   // Extra Services
   'EXTRA_HOUR': 'Hora Extra',
@@ -135,11 +137,13 @@ export const VALET_TO_SYSTEM_MAP: Record<string, string[]> = {
   'TOLERANCIA_EXPIRADA': ['TOLERANCE_EXPIRED'],
   'TOLERANCE_EXPIRED': ['TOLERANCE_EXPIRED'],
   'DAMAGE_CHARGE': ['DAMAGE_CHARGE'],
+  'CARGO_DANO': ['DAMAGE_CHARGE'],
   'DAÑO': ['DAMAGE_CHARGE'],
   'VALET_DAMAGE': ['DAMAGE_CHARGE'],
   'CONSUMO': ['CONSUMPTION', 'PRODUCT'],
   'CONSUMPTION': ['CONSUMPTION', 'PRODUCT'],
   'RENEWAL': ['RENEWAL', 'STAY', 'EXTRA_HOUR'],
+  'RENOVACION': ['RENEWAL'],
   'PRODUCT': ['PRODUCT'],
   'EARLY_CHECKIN': ['EARLY_CHECKIN'],
   'LATE_CHECKOUT': ['LATE_CHECKOUT'],

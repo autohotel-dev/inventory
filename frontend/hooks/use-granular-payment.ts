@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { usePaymentItems } from "./payment/use-payment-items";
 import { useValetInteraction } from "./payment/use-valet-interaction";
 import { usePaymentProcessing } from "./payment/use-payment-processing";
-import { OrderItem } from "@/components/sales/payment/payment-constants";
+import { OrderItem, VALET_CONCEPTS } from "@/components/sales/payment/payment-constants";
 
 interface UseGranularPaymentProps {
   salesOrderId: string;
@@ -81,10 +81,9 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
   }, [isOpen, fetchValetData]);
 
   // Relax logic: If we have selected any priority valet concept, bypass valet corroboration wait
-  const valetPriorityConcepts = ['ROOM_BASE', 'EXTRA_HOUR', 'EXTRA_PERSON', 'DAMAGE_CHARGE', 'ROOM_CHANGE_ADJUSTMENT'];
   const selectedContainsValetConcept = Array.from(selectedItems).some(id => {
     const item = items.find(i => i.id === id);
-    return valetPriorityConcepts.includes(item?.concept_type || '');
+    return VALET_CONCEPTS.includes(item?.concept_type || '');
   });
 
   const hasPendingCorroboration = !selectedContainsValetConcept && (
