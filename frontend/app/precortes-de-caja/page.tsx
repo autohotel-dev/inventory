@@ -10,12 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IncomeReport } from "@/components/reports/income-report";
-import { ShiftMigrationTool } from "@/components/reports/shift-migration-tool";
 import { createClient } from "@/lib/supabase/client";
 import { Filter, Settings2, ArrowDownCircle, CheckCircle2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
-function IncomeReportContent() {
+function PrecortesContent() {
     const searchParams = useSearchParams();
     const [reportType, setReportType] = useState<"shift" | "dateRange">("dateRange");
     const [startDate, setStartDate] = useState<Date | undefined>();
@@ -25,159 +24,60 @@ function IncomeReportContent() {
     const [roomFilter, setRoomFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
 
-    // Remove unused showFilters state since CollapsibleSection handles visibility
     const [shifts, setShifts] = useState<any[]>([]);
     const [rooms, setRooms] = useState<string[]>([]);
 
 
-    const fetchShifts = useCallback(async () => {
+    const fetchFiltersData = useCallback(async () => {
         const supabase = createClient();
+        const { data, error } = await supabase.rpc('get_precorte_filters');
 
-        // 1. Primero obtener TODOS los turnos para debugging
-        const { data: allSessions, error: allSessionsError } = await supabase
-            .from("shift_sessions")
-            .select("id, clock_in_at, employee_id, status")
-            .order("clock_in_at", { ascending: false })
-            .limit(10);
-
-        console.log("🔍 All recent sessions (for debugging):", { allSessions, allSessionsError });
-
-        // 2. Obtener turnos activos (puede haber varios: recepcionista, cochero, etc.)
-        const { data: activeSessions, error: sessionError } = await supabase
-            .from("shift_sessions")
-            .select(`
-                id, 
-                clock_in_at, 
-                employee_id, 
-                status,
-                employees (
-                    id,
-                    first_name,
-                    last_name,
-                    role
-                )
-            `)
-            .in("status", ["active", "open"])
-            .order("clock_in_at", { ascending: false });
-
-        console.log("🔍 Open sessions query result:", { activeSessions, sessionError });
-
-        // Filtrar y priorizar sesión de recepción
-        let activeSession = null;
-        if (activeSessions && activeSessions.length > 0) {
-            // Buscar primero un recepcionista, admin o manager
-            activeSession = activeSessions.find((s: any) =>
-                ['receptionist', 'admin', 'manager'].includes(s.employees?.role)
-            );
-
-            // Si no hay ninguno de esos, usar el primero que haya (fallback)
-            if (!activeSession) {
-                activeSession = activeSessions[0];
-            }
+        if (error || !data) {
+            console.error("Error fetching filters:", error);
+            return;
         }
 
-        if (sessionError) {
-            console.error("Error fetching active session:", sessionError);
+        // Parse rooms
+        if (data.rooms) {
+            setRooms(data.rooms);
         }
 
-        // Si hay turno activo, usar la info del empleado que ya trajimos (o buscarla si faltara)
-        let employeeName = "Usuario Actual";
-        let employeeRole = null;
-
-        if (activeSession) {
-            const emp = activeSession.employees as any;
-            if (emp) {
-                employeeName = `${emp.first_name} ${emp.last_name}`;
-                employeeRole = emp.role;
-            }
-        }
-
-        // 2. Obtener cierres históricos con información de empleado
-        const { data: closedShifts, error } = await supabase
-            .from("shift_closings")
-            .select(`
-                *,
-                employees!shift_closings_employee_id_fkey (
-                    first_name,
-                    last_name,
-                    role
-                )
-            `)
-            .order("created_at", { ascending: false })
-            .limit(50);
-
-        if (error) {
-            console.error("Error fetching closed shifts:", error);
-            // Mostrar una alerta si es necesario, o solo loguear
-        }
-
-        // Combinar: Turno actual (si existe) + Históricos
-        let allShifts: any[] = [];
-
+        // Parse shifts
+        const allShifts: any[] = [];
+        const activeSession = data.activeSession;
+        
         if (activeSession) {
             allShifts.push({
                 id: activeSession.id,
-                is_current: true, // Flag para identificar turno actual
-                employee_name: employeeName,
-                role: employeeRole,
+                is_current: true,
+                employee_name: activeSession.employee_name || "Usuario Actual",
+                role: activeSession.role,
                 created_at: activeSession.clock_in_at,
                 type: 'active'
             });
         }
 
-        if (closedShifts) {
-            allShifts = [...allShifts, ...closedShifts.map((s: any) => {
-                // Extraer nombre del empleado de la relación
-                const emp = s.employees as any;
-                const empName = emp ? `${emp.first_name} ${emp.last_name}` : null;
-                return {
+        if (data.closedShifts) {
+            data.closedShifts.forEach((s: any) => {
+                allShifts.push({
                     ...s,
-                    employee_name: empName || s.employee_name,
                     type: 'closed'
-                };
-            })];
+                });
+            });
         }
 
-        // Mejor aproximación: Filtrar por los roles permitidos si tenemos la data
-        const allowedRoles = ['receptionist'];
+        setShifts(allShifts);
 
-        const filteredShifts = allShifts.filter(s => {
-            // SIEMPRE mostrar el turno actual (active) para que el usuario pueda seleccionarlo
-            if (s.is_current) return true;
-
-            // Si viene de closedShifts, tiene employees.role
-            const empRole = s.employees?.role || s.role; // Helper si lo trajimos
-            if (empRole) {
-                return allowedRoles.includes(empRole);
-            }
-            return false; // Si no hay info de rol o no coincide, lo ocultamos para asegurar que solo se vean recepcionistas
-        });
-
-        console.log("📊 Filtered shifts:", filteredShifts);
-
-        setShifts(filteredShifts);
-
-        // Auto-seleccionar el turno actual si no hay selección y estamos en modo turno
+        // Auto-select current shift
         if (reportType === 'shift' && !selectedShift && activeSession) {
             setSelectedShift(activeSession.id);
         }
     }, [reportType, selectedShift]);
 
-    const fetchRooms = useCallback(async () => {
-        const supabase = createClient();
-        const { data } = await supabase
-            .from("rooms")
-            .select("number")
-            .order("number");
-
-        if (data) setRooms(data.map((r: any) => r.number));
-    }, []);
-
     useEffect(() => {
-        fetchShifts();
-        fetchRooms();
+        fetchFiltersData();
 
-        // Auto-seleccionar turno si viene en la URL
+        // Auto-select shift from URL params
         const shiftId = searchParams.get('shiftId');
         const autoPrint = searchParams.get('autoPrint');
 
@@ -185,19 +85,16 @@ function IncomeReportContent() {
             setReportType("shift");
             setSelectedShift(shiftId);
 
-            // Auto-imprimir si viene el parámetro
             if (autoPrint === 'true') {
-                setTimeout(() => {
-                    window.print();
-                }, 1500); // Dar tiempo para que cargue el reporte
+                setTimeout(() => { window.print(); }, 1500);
             }
         }
-    }, [searchParams, fetchShifts, fetchRooms]);
+    }, [searchParams, fetchFiltersData]);
 
     return (
         <div className="container mx-auto px-2 sm:px-4 md:py-6 py-4 space-y-4 sm:space-y-6">
             <div>
-                <h1 className="text-xl sm:text-3xl font-bold">Corte de Caja</h1>
+                <h1 className="text-xl sm:text-3xl font-bold">Pre-Cortes de Caja</h1>
                 <p className="text-muted-foreground">
                     Reporte de ingresos por turno
                 </p>
@@ -460,10 +357,6 @@ function IncomeReportContent() {
                 </div>
             </CollapsibleSection>
 
-            {/* Herramienta de reasignación de pagos por turno (Oculta por solicitud)
-             <ShiftMigrationTool />
-            */}
-
             {/* Componente de reporte */}
             <IncomeReport
                 reportType={reportType}
@@ -475,16 +368,14 @@ function IncomeReportContent() {
                 statusFilter={statusFilter}
             />
 
-            {/* Estilos de impresión para ocultar UI */}
-
         </div>
     );
 }
 
-export default function IncomeReportPage() {
+export default function PrecortesDeCajaPage() {
     return (
         <Suspense fallback={<div className="container mx-auto py-6">Cargando...</div>}>
-            <IncomeReportContent />
+            <PrecortesContent />
         </Suspense>
     );
 }

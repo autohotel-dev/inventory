@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Room } from "@/components/sales/room-types";
 
@@ -8,6 +9,20 @@ interface RoomMetricsBannerProps {
 }
 
 export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
+  const counts = useMemo(() => {
+    const init = { libre: 0, ocupada: 0, sucia: 0, bloqueada: 0, limpiando: 0 };
+    rooms.forEach((r) => {
+      switch (r.status) {
+        case "LIBRE": init.libre++; break;
+        case "OCUPADA": init.ocupada++; break;
+        case "SUCIA": init.sucia++; break;
+        case "BLOQUEADA": init.bloqueada++; break;
+        case "LIMPIANDO": init.limpiando++; break;
+      }
+    });
+    return init;
+  }, [rooms]);
+
   return (
     <div className="space-y-4">
       {/* Mini-dashboard de contadores por estado */}
@@ -16,7 +31,7 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
           <CardContent className="py-2 sm:py-3 px-1 sm:px-4 flex flex-col gap-0.5 sm:gap-1 items-center justify-center text-center">
             <span className="text-[9px] sm:text-xs font-medium text-emerald-500 uppercase tracking-wider truncate w-full">Libres</span>
             <span className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {rooms.filter((r) => r.status === "LIBRE").length}
+              {counts.libre}
             </span>
           </CardContent>
         </Card>
@@ -24,7 +39,7 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
           <CardContent className="py-2 sm:py-3 px-1 sm:px-4 flex flex-col gap-0.5 sm:gap-1 items-center justify-center text-center">
             <span className="text-[9px] sm:text-xs font-medium text-red-500 uppercase tracking-wider truncate w-full">Ocupadas</span>
             <span className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">
-              {rooms.filter((r) => r.status === "OCUPADA").length}
+              {counts.ocupada}
             </span>
           </CardContent>
         </Card>
@@ -32,7 +47,7 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
           <CardContent className="py-2 sm:py-3 px-1 sm:px-4 flex flex-col gap-0.5 sm:gap-1 items-center justify-center text-center">
             <span className="text-[9px] sm:text-xs font-medium text-purple-500 uppercase tracking-wider truncate w-full">Sucias</span>
             <span className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {rooms.filter((r) => r.status === "SUCIA").length}
+              {counts.sucia}
             </span>
           </CardContent>
         </Card>
@@ -40,7 +55,7 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
           <CardContent className="py-2 sm:py-3 px-1 sm:px-4 flex flex-col gap-0.5 sm:gap-1 items-center justify-center text-center">
             <span className="text-[9px] sm:text-xs font-medium text-amber-500 uppercase tracking-wider truncate w-full">Bloqueadas</span>
             <span className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {rooms.filter((r) => r.status === "BLOQUEADA").length}
+              {counts.bloqueada}
             </span>
           </CardContent>
         </Card>
@@ -48,7 +63,7 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
           <CardContent className="py-2 sm:py-3 px-1 sm:px-4 flex flex-col gap-0.5 sm:gap-1 items-center justify-center text-center">
             <span className="text-[9px] sm:text-xs font-medium text-cyan-500 uppercase tracking-wider truncate w-full">Limpiando</span>
             <span className="text-xl sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">
-              {rooms.filter((r) => r.status === "LIMPIANDO").length}
+              {counts.limpiando}
             </span>
           </CardContent>
         </Card>

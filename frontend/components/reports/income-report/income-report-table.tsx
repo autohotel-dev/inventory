@@ -12,6 +12,10 @@ interface IncomeReportTableProps {
     reportNumber: string;
     reportType: "shift" | "dateRange";
     shiftInfo: any;
+    page?: number;
+    pageSize?: number;
+    totalCount?: number;
+    onPageChange?: (page: number) => void;
 }
 
 export function IncomeReportTable({
@@ -19,7 +23,11 @@ export function IncomeReportTable({
     totals,
     reportNumber,
     reportType,
-    shiftInfo
+    shiftInfo,
+    page = 1,
+    pageSize = 50,
+    totalCount = 0,
+    onPageChange
 }: IncomeReportTableProps) {
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
 
@@ -210,6 +218,35 @@ export function IncomeReportTable({
                         </tbody>
                     </table>
                 </div>
+                
+                {onPageChange && totalCount > pageSize && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t print:hidden">
+                        <div className="text-sm text-muted-foreground">
+                            Mostrando <span className="font-medium">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> a <span className="font-medium">{Math.min(page * pageSize, totalCount)}</span> de <span className="font-medium">{totalCount}</span> registros
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onPageChange(page - 1)}
+                                disabled={page <= 1}
+                            >
+                                Anterior
+                            </Button>
+                            <div className="text-sm font-medium px-2">
+                                Página {page} de {Math.ceil(totalCount / pageSize)}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onPageChange(page + 1)}
+                                disabled={page >= Math.ceil(totalCount / pageSize)}
+                            >
+                                Siguiente
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

@@ -231,7 +231,7 @@ export function getAllMenuResources(): MenuResource[] {
         { id: 'kardex', label: 'Kardex', href: '/kardex', group: 'stock' },
 
         // 💵 FINANZAS Y REPORTES
-        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/reports/income', group: 'finanzas' },
+        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/precortes-de-caja', group: 'finanzas' },
         { id: 'employees.closings', label: 'Cortes de Caja (Cierre)', href: '/employees/closings', group: 'finanzas' },
         { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint', group: 'finanzas' },
 

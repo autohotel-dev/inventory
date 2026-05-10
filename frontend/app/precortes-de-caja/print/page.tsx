@@ -60,7 +60,7 @@ function PrintPageContent() {
     );
 }
 
-export default function IncomeReportPrintPage() {
+export default function PrecortesPrintPage() {
     return (
         <Suspense fallback={<div>Cargando reporte para impresión...</div>}>
             <PrintPageContent />

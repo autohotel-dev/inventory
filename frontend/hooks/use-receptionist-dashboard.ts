@@ -280,56 +280,31 @@ export function useReceptionistDashboard() {
     const supabase = createClient();
 
     try {
-      let startDate: string;
-      if (activeSession) { startDate = activeSession.clock_in_at; }
-      else { const today = new Date(); today.setHours(0, 0, 0, 0); startDate = today.toISOString(); }
-
-      let salesQuery = supabase.from("sales_orders").select("id, total, status").gte("created_at", startDate);
-      if (!posConfig.includeGlobalSalesInShift) salesQuery = salesQuery.eq("created_by", userId);
-
-      let paymentsQuery = supabase.from("payments").select("amount, payment_method, terminal_code").gte("created_at", startDate).eq("status", "PAGADO");
-      if (!posConfig.includeGlobalSalesInShift) paymentsQuery = paymentsQuery.eq("created_by", userId);
-
-      let itemsQuery = supabase.from("sales_order_items").select("concept_type, total, is_paid");
-      if (activeSession) itemsQuery = itemsQuery.eq("shift_session_id", activeSession.id);
-      else itemsQuery = itemsQuery.gte("created_at", startDate);
-
-      // Run all 4 queries in parallel (they are independent)
-      const [salesRes, paymentsRes, openRoomsRes, shiftItemsRes] = await Promise.all([
-        salesQuery,
-        paymentsQuery,
-        supabase.from("rooms").select("id", { count: "exact", head: true }).eq("status", "OCUPADA"),
-        itemsQuery,
-      ]);
-
-      const sales = salesRes.data;
-      const payments = paymentsRes.data;
-      const openRooms = openRoomsRes.count;
-      const shiftItems = shiftItemsRes.data;
-
-      const totalSales = sales?.length || 0;
-      const totalAmount = shiftItems?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
-
-      let cashAmount = 0, cardBBVA = 0, cardGetnet = 0;
-      payments?.forEach((p: any) => {
-        if (p.payment_method === "EFECTIVO") cashAmount += p.amount || 0;
-        else if (p.payment_method === "TARJETA") {
-          if (p.terminal_code === "GETNET") cardGetnet += p.amount || 0;
-          else cardBBVA += p.amount || 0;
-        } else if (p.payment_method === "TARJETA_BBVA") cardBBVA += p.amount || 0;
-        else if (p.payment_method === "TARJETA_GETNET") cardGetnet += p.amount || 0;
+      // ─── Single RPC call replaces 4 queries + JS aggregation ────────
+      const { data: rpcResult, error } = await supabase.rpc('get_shift_dashboard_summary', {
+        p_user_id: userId,
+        p_session_id: activeSession?.id || null,
+        p_include_global: posConfig.includeGlobalSalesInShift || false,
       });
 
-      const completedCheckouts = sales?.filter((s: any) => s.status === "COMPLETED" || s.status === "ENDED").length || 0;
-      const conceptBreakdown = { ROOM_BASE: 0, EXTRA_HOUR: 0, EXTRA_PERSON: 0, CONSUMPTION: 0, PRODUCT: 0 };
-      shiftItems?.forEach((item: any) => {
-        if (item.is_paid) {
-          const type = item.concept_type || "PRODUCT";
-          if (type in conceptBreakdown) conceptBreakdown[type as keyof typeof conceptBreakdown] += item.total || 0;
-        }
-      });
+      if (error) throw error;
 
-      setSummary({ totalSales, totalAmount, cashAmount, cardBBVA, cardGetnet, openRooms: openRooms || 0, completedCheckouts, conceptBreakdown });
+      setSummary({
+        totalSales: Number(rpcResult.totalSales) || 0,
+        totalAmount: Number(rpcResult.totalAmount) || 0,
+        cashAmount: Number(rpcResult.cashAmount) || 0,
+        cardBBVA: Number(rpcResult.cardBBVA) || 0,
+        cardGetnet: Number(rpcResult.cardGetnet) || 0,
+        openRooms: Number(rpcResult.openRooms) || 0,
+        completedCheckouts: Number(rpcResult.completedCheckouts) || 0,
+        conceptBreakdown: {
+          ROOM_BASE: Number(rpcResult.conceptBreakdown?.ROOM_BASE) || 0,
+          EXTRA_HOUR: Number(rpcResult.conceptBreakdown?.EXTRA_HOUR) || 0,
+          EXTRA_PERSON: Number(rpcResult.conceptBreakdown?.EXTRA_PERSON) || 0,
+          CONSUMPTION: Number(rpcResult.conceptBreakdown?.CONSUMPTION) || 0,
+          PRODUCT: Number(rpcResult.conceptBreakdown?.PRODUCT) || 0,
+        },
+      });
     } catch (error) {
       console.error("Error fetching shift summary:", error);
     } finally {

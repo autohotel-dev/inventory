@@ -76,6 +76,7 @@ export interface RoomCardProps {
   onCancelStay?: () => void;
   tvRemoteStatus?: string; // e.g. PENDIENTE_ENCENDIDO, TV_ENCENDIDA, EN_HABITACION, EXTRAVIADO
   onAssignRemote?: () => void;
+  isLowPowerMode?: boolean;
 }
 
 import { memo } from "react";
@@ -102,6 +103,7 @@ export function RoomCardComponent({
   onCancelStay,
   tvRemoteStatus,
   onAssignRemote,
+  isLowPowerMode,
 }: RoomCardProps) {
   /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
@@ -110,20 +112,21 @@ export function RoomCardComponent({
   // Clases dinámicas para alerta de puerta abierta
   const containerClasses = showDoorAlert
     ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-transform duration-300"
-    : `${bgClass || "bg-white/5 dark:bg-black/40"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "border-white/20 dark:border-white/10 hover:border-white/40 dark:hover:border-white/20"}`;
+    : `${bgClass || "bg-white/5 dark:bg-black/40"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "border-white/20 dark:hover:border-white/20"}`;
 
   return (
     <div
       id="tour-room-card"
       data-room-status={status}
       data-room-number={number}
-      className={`relative rounded-xl p-3 text-sm flex flex-col min-h-[90px] h-auto cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:hover:shadow-[0_8px_30px_rgba(255,255,255,0.04)] backdrop-blur-xl border transition-all duration-300 ease-out hover:-translate-y-1 ${containerClasses} group/card`}
+      className={`relative rounded-xl p-3 text-sm flex flex-col min-h-[90px] h-auto cursor-pointer shadow-lg dark:hover:shadow-[0_8px_30px_rgba(255,255,255,0.04)] ${isLowPowerMode ? "" : "hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-xl hover:-translate-y-1 transition-all duration-300 ease-out hover:border-white/40"} border ${containerClasses} group/card`}
     >
       {/* Glassmorphism subtle glow overlay */}
-      <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none" />
-        
-        {/* Animated Bubbles for LIMPIANDO status */}
+      {!isLowPowerMode && (
+        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none" />
+          
+          {/* Animated Bubbles for LIMPIANDO status */}
         {status === "LIMPIANDO" && (
           <div className="absolute inset-0 overflow-hidden rounded-xl opacity-60">
             <div className="absolute bottom-1 left-[10%] w-2 h-2 rounded-full bg-cyan-300 animate-bubble" style={{ animationDelay: '0.2s', animationDuration: '3s' }} />
@@ -224,6 +227,8 @@ export function RoomCardComponent({
           </div>
         )}
       </div>
+      )}
+      
       {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
       {hasPendingPayment && !showDoorAlert && (
         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse z-50" title="Pago pendiente">
@@ -510,6 +515,7 @@ function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
   if (oldProps.notes !== newProps.notes) return false;
   if (oldProps.roomTypeName !== newProps.roomTypeName) return false;
   if (oldProps.tvRemoteStatus !== newProps.tvRemoteStatus) return false;
+  if (oldProps.isLowPowerMode !== newProps.isLowPowerMode) return false;
 
   // Shallow Compare for objects
   const oldSensor = oldProps.sensorStatus;

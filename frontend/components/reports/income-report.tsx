@@ -12,17 +12,19 @@ import { IncomeReportProps } from "./income-report/types";
 export function IncomeReport(props: IncomeReportProps) {
     const { reportType, startDate, endDate } = props;
     const [showStats, setShowStats] = useState(true);
+    const [page, setPage] = useState(1);
+    const pageSize = 50;
 
     const {
         entries,
+        totals,
+        totalCount,
         loading,
         reportNumber,
         shiftInfo,
         currentShift,
-        calculateTotals
-    } = useIncomeReport(props);
-
-    const totals = calculateTotals();
+        fetchAllForPrint
+    } = useIncomeReport({ ...props, page, pageSize });
 
     const getReceptionistName = () => {
         if (shiftInfo?.employee_name) return shiftInfo.employee_name;
@@ -45,10 +47,11 @@ export function IncomeReport(props: IncomeReportProps) {
         return "General";
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
+        const fullData = await fetchAllForPrint();
         handleCsvExport({
-            entries,
-            totals,
+            entries: fullData.entries,
+            totals: fullData.totals,
             receptionistName: getReceptionistName(),
             periodLabel: getPeriodLabel(),
             reportType,
@@ -58,10 +61,11 @@ export function IncomeReport(props: IncomeReportProps) {
         });
     };
 
-    const onPrintBrowser = () => {
+    const onPrintBrowser = async () => {
+        const fullData = await fetchAllForPrint();
         handlePrintHtml({
-            entries,
-            totals,
+            entries: fullData.entries,
+            totals: fullData.totals,
             receptionistName: getReceptionistName(),
             periodLabel: getPeriodLabel(),
             reportType,
@@ -71,10 +75,12 @@ export function IncomeReport(props: IncomeReportProps) {
         });
     };
 
-    const onPrintHp = () => {
+    const onPrintHp = async () => {
+        const fullData = await fetchAllForPrint();
+        // Assuming handleHpPrint might be imported in the future or updated, but keeping it same signature
         handlePrintHtml({
-            entries,
-            totals,
+            entries: fullData.entries,
+            totals: fullData.totals,
             receptionistName: getReceptionistName(),
             periodLabel: getPeriodLabel(),
             reportType,
@@ -116,6 +122,10 @@ export function IncomeReport(props: IncomeReportProps) {
                 reportNumber={reportNumber}
                 reportType={reportType}
                 shiftInfo={shiftInfo}
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
             />
         </div>
     );

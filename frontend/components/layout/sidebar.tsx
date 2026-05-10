@@ -103,7 +103,7 @@ const adminLinks: readonly NavItem[] = [
   { href: "/kardex", label: "Kardex", icon: Activity, permissionId: "kardex", adminOnly: true },
   
   { section: "Finanzas y Reportes", allowedForReceptionist: true, allowedForNonAdmin: true },
-  { href: "/reports/income", label: "Pre-Cortes de Caja", icon: FileText, permissionId: "reports.income", allowedForReceptionist: true },
+  { href: "/precortes-de-caja", label: "Pre-Cortes de Caja", icon: FileText, permissionId: "reports.income", allowedForReceptionist: true },
   { href: "/employees/closings", label: "Cortes de Caja (Cierre)", icon: Briefcase, permissionId: "employees.closings", allowedForReceptionist: true },
   { href: "/reprint", label: "Reimprimir Tickets", icon: FileText, permissionId: "reprint", allowedForNonAdmin: true, allowedForReceptionist: true },
   

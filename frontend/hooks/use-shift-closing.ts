@@ -127,111 +127,31 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   const loadPaymentSummary = async () => {
     setLoading(true);
     try {
-      const periodEnd = session.clock_out_at || new Date().toISOString();
-      const employeeUuid = (session as any).employee_id || (session as any).employees?.id || (session as any).employeeId || "null";
+      const employeeUuid = (session as any).employee_id || (session as any).employees?.id || (session as any).employeeId;
 
-      let { data: initialPayments, error } = await supabase
-        .from("payments")
-        .select("*, payment_terminals(code, name), sales_orders(id, total, status), collected_by")
-        .or(`shift_session_id.eq.${session.id},shift_session_id.eq.${employeeUuid},and(collected_by.eq.${employeeUuid},created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd}),and(shift_session_id.is.null,created_at.gte.${session.clock_in_at},created_at.lte.${periodEnd})`)
-        .order("created_at", { ascending: false });
+      // ─── Single RPC call replaces 6 queries + JS enrichment ────────
+      const { data: rpcResult, error } = await supabase.rpc('get_shift_closing_summary', {
+        p_session_id: session.id,
+        p_employee_id: employeeUuid,
+      });
+
       if (error) throw error;
-
-      let payments = initialPayments || [];
-      let salesOrders: any[] = [];
-      const shiftSalesOrderIds = [...new Set(payments.filter((p: any) => p.sales_order_id).map((p: any) => p.sales_order_id))];
-
-      if (shiftSalesOrderIds.length > 0) {
-        const { data: ordersData } = await supabase
-          .from("sales_orders")
-          .select("id, created_at, total, paid_amount, remaining_amount, status, currency, room_stays(id, rooms(number, room_types(name))), sales_order_items(id, qty, unit_price, total, concept_type, is_paid, paid_at, payment_method, products(name, sku))")
-          .in("id", shiftSalesOrderIds).order("created_at", { ascending: false });
-        salesOrders = ordersData || [];
-      }
-
-      let total_cash = 0, total_card_bbva = 0, total_card_getnet = 0;
-      const unassigned_card_payments: EnrichedPayment[] = [];
-      const unhandled_payment_methods: Array<{payment: EnrichedPayment, method: string}> = [];
-
-      (payments || []).forEach((payment: any) => {
-        if (payment.status === "PENDIENTE" || payment.payment_method === "PENDIENTE" || payment.payment_method === "MIXTO") return;
-        if (payment.amount < 0) return;
-
-        if (payment.payment_method === "EFECTIVO") total_cash += payment.amount;
-        else if (payment.payment_method === "TARJETA_BBVA") total_card_bbva += payment.amount;
-        else if (payment.payment_method === "TARJETA_GETNET") total_card_getnet += payment.amount;
-        else if (payment.payment_method === "TARJETA") {
-          const terminalCode = payment.terminal_code || payment.payment_terminals?.code;
-          if (terminalCode === "BBVA") total_card_bbva += payment.amount;
-          else if (terminalCode === "GETNET") total_card_getnet += payment.amount;
-          else {
-            if (payment.collected_by) total_card_bbva += payment.amount;
-            else { unassigned_card_payments.push(payment as EnrichedPayment); total_card_bbva += payment.amount; }
-          }
-        } else {
-          unhandled_payment_methods.push({ payment: payment as EnrichedPayment, method: payment.payment_method });
-        }
-      });
-
-      // Enrich payments with items
-      const salesOrderIds = (payments || []).filter((p: any) => p.sales_order_id).map((p: any) => p.sales_order_id);
-      let allItems: any[] = [];
-      if (salesOrderIds.length > 0) {
-        const { data } = await supabase
-          .from("sales_order_items")
-          .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, sales_order_id, products(name, sku)")
-          .in("sales_order_id", salesOrderIds).eq("is_paid", true).not("paid_at", "is", null);
-        allItems = data || [];
-      }
-
-      const itemsBySalesOrder = allItems.reduce((acc: any, item: any) => {
-        if (!acc[item.sales_order_id]) acc[item.sales_order_id] = [];
-        acc[item.sales_order_id].push(item);
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      const enrichedPayments = (payments || []).map((payment: any) => {
-        if (!payment.sales_order_id) return { ...payment, itemsDescription: null, itemsCount: 0, itemsRaw: null };
-        const items = itemsBySalesOrder[payment.sales_order_id] || [];
-        const paymentTime = new Date(payment.created_at).getTime();
-        const relatedItems = items.filter((item: any) => {
-          if (!item.paid_at) return false;
-          return Math.abs(paymentTime - new Date(item.paid_at).getTime()) / 1000 / 60 <= 5;
-        });
-        if (relatedItems.length === 0) return { ...payment, itemsDescription: null, itemsCount: 0, itemsRaw: null };
-        const itemsRawData = relatedItems.map((item: any) => {
-          const product = Array.isArray(item.products) ? item.products[0] : item.products;
-          return { name: product?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"] || "Item", qty: item.qty, unitPrice: item.unit_price, total: item.qty * item.unit_price };
-        });
-        return { ...payment, itemsDescription: itemsRawData.map((i: any) => i.qty > 1 ? `${i.qty}x ${i.name}` : i.name).join(", "), itemsCount: relatedItems.length, itemsRaw: itemsRawData };
-      });
-
-      // Expenses
-      const { data: expenses } = await supabase.from("shift_expenses").select("*")
-        .eq("shift_session_id", session.id).neq("status", "rejected").order("created_at", { ascending: false });
-      const totalExpenses = expenses?.reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
-      const total_sales = total_cash + total_card_bbva + total_card_getnet;
-
-      // Accrual
-      const { data: accrualItemsData } = await supabase
-        .from("sales_order_items").select("*, products(name, sku), sales_orders(id, room_stays(rooms(number, room_types(name)), status))")
-        .eq("shift_session_id", session.id);
-      const accrual_items = accrualItemsData || [];
-      // Exclude items from cancelled stays when calculating totals
-      const total_accrual_sales = accrual_items
-        .filter((item: any) => {
-          const order = item.sales_orders;
-          const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
-          const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
-          return !stay || stay.status !== 'CANCELADA';
-        })
-        .reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+      if (rpcResult?.error) throw new Error(rpcResult.error);
 
       setSummary({
-        total_cash, total_card_bbva, total_card_getnet, total_sales,
-        total_transactions: enrichedPayments.length, payments: enrichedPayments,
-        salesOrders: salesOrders || [], expenses: expenses || [], total_expenses: totalExpenses,
-        total_accrual_sales, accrual_items, unassigned_card_payments, unhandled_payment_methods
+        total_cash: Number(rpcResult.total_cash) || 0,
+        total_card_bbva: Number(rpcResult.total_card_bbva) || 0,
+        total_card_getnet: Number(rpcResult.total_card_getnet) || 0,
+        total_sales: Number(rpcResult.total_sales) || 0,
+        total_transactions: Number(rpcResult.total_transactions) || 0,
+        payments: rpcResult.payments || [],
+        salesOrders: rpcResult.salesOrders || [],
+        expenses: rpcResult.expenses || [],
+        total_expenses: Number(rpcResult.total_expenses) || 0,
+        total_accrual_sales: Number(rpcResult.total_accrual_sales) || 0,
+        accrual_items: rpcResult.accrual_items || [],
+        unassigned_card_payments: rpcResult.unassigned_card_payments || [],
+        unhandled_payment_methods: rpcResult.unhandled_payment_methods || [],
       });
     } catch (err) {
       console.error("Error loading payment summary:", err);

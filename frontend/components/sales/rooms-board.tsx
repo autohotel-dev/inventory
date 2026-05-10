@@ -33,6 +33,8 @@ import { useCheckoutReminders } from "@/hooks/rooms/use-checkout-reminders";
 import { useValetPaymentMonitor } from "@/hooks/valet/use-valet-payment-monitor";
 import { useRoomModals } from "@/hooks/rooms/use-room-modals";
 import { usePrintCenter } from "@/contexts/print-center-context";
+import { useLowPowerMode } from "@/hooks/use-low-power-mode";
+import { Zap, ZapOff } from "lucide-react";
 
 // Dynamic imports para modales (reducción de bundle)
 const ConnectedStartStayModal = dynamic(() => import("@/components/rooms/modals/connected-start-stay-modal").then(m => ({ default: m.ConnectedStartStayModal })), { ssr: false });
@@ -86,6 +88,7 @@ function RoomsBoardInternal() {
   const modals = useRoomModals();
   const { openPrintCenter } = usePrintCenter();
   const { isValet, employeeId } = useUserRole();
+  const { isLowPowerMode, toggleLowPowerMode } = useLowPowerMode();
 
   // Notificaciones de sonido
   const { playError, playAlert } = useSoundNotifications(
@@ -479,6 +482,28 @@ function RoomsBoardInternal() {
           <AdminBoardControls />
 
           <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleLowPowerMode}
+            className={cn(
+              "h-10 px-3 order-2 sm:order-1 transition-colors border",
+              isLowPowerMode 
+                ? "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border-amber-500/30" 
+                : "text-muted-foreground hover:text-foreground border-border"
+            )}
+            title={isLowPowerMode ? "Modo Rendimiento Activo (Animaciones desactivadas)" : "Activar Modo Rendimiento (Desactiva animaciones)"}
+          >
+            {isLowPowerMode ? (
+              <ZapOff className="h-4 w-4 sm:mr-2" />
+            ) : (
+              <Zap className="h-4 w-4 sm:mr-2" />
+            )}
+            <span className="hidden sm:inline">
+              {isLowPowerMode ? 'Modo Rápido' : 'Rendimiento'}
+            </span>
+          </Button>
+
+          <Button
             variant="ghost"
             size="sm"
             onClick={async () => {
@@ -581,6 +606,7 @@ function RoomsBoardInternal() {
                 return stay?.vehicle_plate?.toUpperCase().includes(plateSearch);
               }).map(r => r.id)
             ) : undefined}
+            isLowPowerMode={isLowPowerMode}
             getRemainingTimeLabel={getRemainingTimeLabel}
             renderStatusBadge={renderStatusBadge}
             openActionsDock={modals.openActionsDock}

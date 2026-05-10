@@ -10,306 +10,73 @@ export function useIncomeReport({
     paymentMethodFilter,
     roomFilter,
     statusFilter = "all",
+    page = 1,
+    pageSize = 50,
 }: IncomeReportProps) {
     const [entries, setEntries] = useState<IncomeEntry[]>([]);
+    const [totals, setTotals] = useState<IncomeTotals>({ roomPrice: 0, extra: 0, consumption: 0, total: 0 });
+    const [totalCount, setTotalCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [reportNumber, setReportNumber] = useState("0001");
     const [shiftInfo, setShiftInfo] = useState<any>(null);
     const [currentShift, setCurrentShift] = useState<any>(null);
-
-    const fetchCurrentShift = useCallback(async () => {
-        const supabase = createClient();
-        const { data: sessions } = await supabase
-            .from("shift_sessions")
-            .select(`
-                id,
-                status,
-                employees!shift_sessions_employee_id_fkey(
-                    first_name,
-                    last_name
-                )
-            `)
-            .eq("status", "active");
-
-        const session = sessions && sessions.length > 0 ? sessions[0] : null;
-
-        if (session) {
-            const emp = (session.employees as any);
-            setCurrentShift({
-                employee_name: emp ? `${emp.first_name} ${emp.last_name}` : "Desconocido"
-            });
-        }
-    }, []);
 
     const fetchIncomeData = useCallback(async () => {
         setLoading(true);
         const supabase = createClient();
 
         try {
-            let query = supabase
-                .from("room_stays")
-                .select(`
-                    id,
-                    check_in_at,
-                    vehicle_plate,
-                    room_id,
-                    sales_order_id,
-                    status,
-                    checkout_valet_employee_id,
-                    checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(
-                        first_name,
-                        last_name
-                    ),
-                    rooms!inner (
-                        number
-                    ),
-                    sales_orders!inner (
-                        id,
-                        subtotal,
-                        total,
-                        paid_amount,
-                        status,
-                        payments (
-                            id,
-                            payment_method,
-                            card_type,
-                            card_last_4,
-                            terminal_code,
-                            amount,
-                            concept,
-                            status,
-                            reference,
-                            collected_by,
-                            collected_at,
-                            shift_session_id
-                        ),
-                        sales_order_items (
-                            concept_type,
-                            unit_price,
-                            qty,
-                            shift_session_id
-                        )
-                    )
-                `)
-                .order("check_in_at", { ascending: true });
-
-            // Track the real shift_session_id for filtering items/payments later
-            let actualSessionId: string | undefined;
-
-            if (reportType === "shift" && shiftId) {
-                const { data: closingData, error: closingError } = await supabase
-                    .from("shift_closings")
-                    .select(`
-                        id,
-                        period_start,
-                        period_end,
-                        shift_session_id,
-                        employees!shift_closings_employee_id_fkey(first_name, last_name)
-                    `)
-                    .eq("id", shiftId)
-                    .maybeSingle();
-
-                let shift: any = null;
-
-                if (closingData) {
-                    const employee = (closingData.employees as any);
-                    shift = {
-                        shift_start: closingData.period_start,
-                        shift_end: closingData.period_end,
-                        employee_name: employee ? `${employee.first_name} ${employee.last_name}` : undefined
-                    };
-                }
-
-                if (!shift) {
-                    const { data: session } = await supabase
-                        .from("shift_sessions")
-                        .select(`
-                            id,
-                            clock_in_at,
-                            employees!shift_sessions_employee_id_fkey(
-                                first_name,
-                                last_name
-                            )
-                        `)
-                        .eq("id", shiftId)
-                        .single();
-
-                    if (session) {
-                        const employee = (session.employees as any);
-                        const employeeName = employee
-                            ? `${employee.first_name} ${employee.last_name}`
-                            : undefined;
-
-                        shift = {
-                            shift_start: session.clock_in_at,
-                            shift_end: null,
-                            employee_name: employeeName
-                        };
-                    }
-                }
-
-                // Determine the actual shift_session_id to use for querying items/payments.
-                // shiftId may be a shift_closings.id (for historical shifts) or a shift_sessions.id (for active shifts).
-                // sales_order_items and payments reference shift_sessions.id, so we need the correct one.
-                actualSessionId = closingData?.shift_session_id || shiftId;
-
-                if (shift) {
-                    setShiftInfo(shift);
-                    // Buscar todos los items y pagos usando el shift_session_id real
-                    const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
-                        supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", actualSessionId),
-                        supabase.from("payments").select("sales_order_id").eq("shift_session_id", actualSessionId),
-                    ]);
-
-                    const ids = new Set<string>();
-                    (shiftItems || []).forEach((i: any) => i.sales_order_id && ids.add(i.sales_order_id));
-                    (shiftPayments || []).forEach((p: any) => p.sales_order_id && ids.add(p.sales_order_id));
-                    
-                    const salesOrderIds = Array.from(ids);
-                    if (salesOrderIds.length > 0) {
-                        query = query.in("sales_order_id", salesOrderIds);
-                    } else {
-                        // Si no hay ventas ni pagos en este turno, forzamos un resultado vacío
-                        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
-                    }
-                }
-            } else if (reportType === "dateRange") {
-                if (startDate) {
-                    query = query.gte("check_in_at", startDate.toISOString());
-                }
-                if (endDate) {
-                    const endOfDay = new Date(endDate);
-                    endOfDay.setHours(23, 59, 59, 999);
-                    query = query.lte("check_in_at", endOfDay.toISOString());
-                }
-            }
-
-            if (statusFilter && statusFilter !== "all") {
-                query = query.eq("status", statusFilter);
-            } else {
-                query = query.in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"]);
-            }
-
-            const { data, error } = await query;
-
-            if (error) {
-                console.error("Error fetching income data:", error);
-                return;
-            }
-
-            const filteredData = (data || []).filter((stay: any) => {
-                const roomNum = stay.rooms?.number;
-                return roomNum !== '13' && roomNum !== '113' && roomNum !== 'Habitación 13' && roomNum !== 'Habitación 113';
+            // ─── Single RPC call replaces 3-5 queries + JS processing ────────
+            const { data: rpcResult, error } = await supabase.rpc('get_income_report', {
+                p_report_type: reportType,
+                p_shift_id: shiftId || null,
+                p_start_date: startDate?.toISOString() || null,
+                p_end_date: endDate?.toISOString() || null,
+                p_payment_method_filter: paymentMethodFilter || 'all',
+                p_room_filter: roomFilter || 'all',
+                p_status_filter: statusFilter || 'all',
+                p_page: page,
+                p_page_size: pageSize
             });
 
-            let processedEntries: IncomeEntry[] = filteredData.map((stay: any, index: number) => {
-                const order = stay.sales_orders;
-                let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
+            if (error) throw error;
 
-                const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
-                let allObservedPayments: any[] = [];
-                
-                rawOrderData.forEach((o: any) => {
-                    if (o?.payments) {
-                        const pList = Array.isArray(o.payments) ? o.payments : [o.payments];
-                        allObservedPayments.push(...pList);
-                    }
-                });
-
-                // Filtramos SOLO lo cobrado/añadido en ese turno usando el session ID real
-                if (reportType === "shift" && actualSessionId) {
-                    items = items.filter((item: any) => item.shift_session_id === actualSessionId);
-                    allObservedPayments = allObservedPayments.filter((payment: any) => payment.shift_session_id === actualSessionId);
-                }
-
-                const idUniquePaymentsMap = new Map();
-                allObservedPayments.forEach((p: any) => {
-                    if (p.id) idUniquePaymentsMap.set(p.id, p);
-                });
-
-                const filteredList = Array.from(idUniquePaymentsMap.values()).filter(
-                    (p: any) => 
-                        p.status !== 'PENDIENTE' && 
-                        p.concept?.toUpperCase() !== 'CHECKOUT' &&
-                        p.payment_method !== 'PENDIENTE'
-                );
-
-                const contentUniqueMap = new Map();
-                filteredList.forEach((p: any) => {
-                    const key = `${p.amount}-${p.payment_method}-${p.card_last_4 || 'none'}`;
-                    if (!contentUniqueMap.has(key) || p.concept) {
-                        contentUniqueMap.set(key, p);
-                    }
-                });
-
-                const payments = Array.from(contentUniqueMap.values());
-                
-                let roomPrice = 0;
-                let extra = 0;
-                let consumption = 0;
-
-                roomPrice = items
-                    .filter((item: any) => item.concept_type === "ROOM_BASE")
-                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
-
-                extra = items
-                    .filter((item: any) =>
-                        ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(item.concept_type)
-                    )
-                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
-
-                consumption = items
-                    .filter((item: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(item.concept_type))
-                    .reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0);
-
-                let paymentMethodLabel = "";
-                if (payments.length === 0) {
-                    paymentMethodLabel = "PENDIENTE";
-                } else if (payments.length > 1) {
-                    const uniqueMethods = new Set(payments.map((p: any) => p.payment_method));
-                    paymentMethodLabel = uniqueMethods.size > 1 ? "MIXTO" : payments[0].payment_method;
-                } else {
-                    paymentMethodLabel = payments[0].payment_method;
-                }
-
-                const cardPayment = payments.find((p: any) => p.payment_method === "TARJETA");
-
-                return {
-                    no: index + 1,
-                    time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString("es-MX", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false
-                    }) : "",
-                    vehicle_plate: stay.vehicle_plate || "",
-                    room_number: stay.rooms?.number || "",
-                    room_price: roomPrice,
-                    extra: extra,
-                    consumption: consumption,
-                    total: roomPrice + extra + consumption,
-                    payment_method: paymentMethodLabel,
-                    card_type: cardPayment?.card_type,
-                    card_last_4: cardPayment?.card_last_4,
-                    terminal_code: cardPayment?.terminal_code,
-                    stay_status: stay.status,
-                    checkout_valet_name: stay.checkout_valet ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim() : "—",
-                    payments: payments.map((p: any) => ({
-                        payment_method: p.payment_method,
-                        amount: p.amount || 0,
-                        card_type: p.card_type,
-                        card_last_4: p.card_last_4,
-                        terminal_code: p.terminal_code
-                    })),
-                };
-            });
-
-            if (paymentMethodFilter && paymentMethodFilter !== "all") {
-                processedEntries = processedEntries.filter(e => e.payment_method === paymentMethodFilter);
+            if (rpcResult?.shiftInfo) {
+                setShiftInfo(rpcResult.shiftInfo);
+            }
+            if (rpcResult?.currentShift) {
+                setCurrentShift(rpcResult.currentShift);
+            }
+            if (rpcResult?.totals) {
+                setTotals(rpcResult.totals);
+            }
+            if (rpcResult?.totalCount !== undefined) {
+                setTotalCount(rpcResult.totalCount);
             }
 
-            if (roomFilter && roomFilter !== "all") {
-                processedEntries = processedEntries.filter(e => e.room_number === roomFilter);
-            }
+            const processedEntries: IncomeEntry[] = (rpcResult?.entries || []).map((e: any) => ({
+                no: Number(e.no),
+                time: e.time || '',
+                vehicle_plate: e.vehicle_plate || '',
+                room_number: e.room_number || '',
+                room_price: Number(e.room_price) || 0,
+                extra: Number(e.extra) || 0,
+                consumption: Number(e.consumption) || 0,
+                total: Number(e.total) || 0,
+                payment_method: e.payment_method || 'PENDIENTE',
+                card_type: e.card_type,
+                card_last_4: e.card_last_4,
+                terminal_code: e.terminal_code,
+                stay_status: e.stay_status,
+                checkout_valet_name: e.checkout_valet_name || '—',
+                payments: (e.payments || []).map((p: any) => ({
+                    payment_method: p.payment_method,
+                    amount: Number(p.amount) || 0,
+                    card_type: p.card_type,
+                    card_last_4: p.card_last_4,
+                    terminal_code: p.terminal_code,
+                })),
+            }));
 
             setEntries(processedEntries);
         } catch (error) {
@@ -317,34 +84,66 @@ export function useIncomeReport({
         } finally {
             setLoading(false);
         }
-    }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
-
-    useEffect(() => {
-        fetchCurrentShift();
-    }, [fetchCurrentShift]);
+    }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter, page, pageSize]);
 
     useEffect(() => {
         fetchIncomeData();
     }, [fetchIncomeData]);
 
-    const calculateTotals = useCallback((): IncomeTotals => {
-        return entries.reduce(
-            (acc, entry) => ({
-                roomPrice: acc.roomPrice + entry.room_price,
-                extra: acc.extra + entry.extra,
-                consumption: acc.consumption + entry.consumption,
-                total: acc.total + entry.total,
-            }),
-            { roomPrice: 0, extra: 0, consumption: 0, total: 0 }
-        );
-    }, [entries]);
+    const fetchAllForPrint = useCallback(async () => {
+        const supabase = createClient();
+        const { data: rpcResult, error } = await supabase.rpc('get_income_report', {
+            p_report_type: reportType,
+            p_shift_id: shiftId || null,
+            p_start_date: startDate?.toISOString() || null,
+            p_end_date: endDate?.toISOString() || null,
+            p_payment_method_filter: paymentMethodFilter || 'all',
+            p_room_filter: roomFilter || 'all',
+            p_status_filter: statusFilter || 'all',
+            p_page: 1,
+            p_page_size: null // Return all rows
+        });
+        
+        if (error) {
+            console.error("Error fetching all entries:", error);
+            return { entries: [], totals: { roomPrice: 0, extra: 0, consumption: 0, total: 0 } };
+        }
+
+        const processedEntries: IncomeEntry[] = (rpcResult?.entries || []).map((e: any) => ({
+            no: Number(e.no),
+            time: e.time || '',
+            vehicle_plate: e.vehicle_plate || '',
+            room_number: e.room_number || '',
+            room_price: Number(e.room_price) || 0,
+            extra: Number(e.extra) || 0,
+            consumption: Number(e.consumption) || 0,
+            total: Number(e.total) || 0,
+            payment_method: e.payment_method || 'PENDIENTE',
+            card_type: e.card_type,
+            card_last_4: e.card_last_4,
+            terminal_code: e.terminal_code,
+            stay_status: e.stay_status,
+            checkout_valet_name: e.checkout_valet_name || '—',
+            payments: (e.payments || []).map((p: any) => ({
+                payment_method: p.payment_method,
+                amount: Number(p.amount) || 0,
+                card_type: p.card_type,
+                card_last_4: p.card_last_4,
+                terminal_code: p.terminal_code,
+            })),
+        }));
+
+        return { entries: processedEntries, totals: rpcResult?.totals || { roomPrice: 0, extra: 0, consumption: 0, total: 0 } };
+    }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
 
     return {
         entries,
+        totals,
+        totalCount,
         loading,
         reportNumber,
         shiftInfo,
         currentShift,
-        calculateTotals
+        fetchAllForPrint
     };
 }

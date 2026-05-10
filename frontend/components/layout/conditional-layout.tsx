@@ -54,7 +54,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   }, []);
 
 
-  const noSidebarRoutes = ['/auth', '/reports/income/print', '/guest-portal'];
+  const noSidebarRoutes = ['/auth', '/precortes-de-caja/print', '/guest-portal'];
   const isNoSidebarRoute = noSidebarRoutes.some(route => pathname.startsWith(route));
   const isLandingPage = pathname === '/';
 

@@ -32,6 +32,8 @@ export interface IncomeReportProps {
     paymentMethodFilter?: string;
     roomFilter?: string;
     statusFilter?: string;
+    page?: number;
+    pageSize?: number;
 }
 
 export interface IncomeTotals {
