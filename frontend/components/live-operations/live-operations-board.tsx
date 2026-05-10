@@ -1,8 +1,11 @@
 "use client";
 
-import { RefreshCw, Activity, Search } from "lucide-react";
+export type ViewMode = 'forensic' | 'compact' | 'alerts' | 'grid';
+
+import { RefreshCw, Activity, Search, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { useLiveOperations, fetchRecentReceptionShifts, LiveOperationFilters } from "@/hooks/use-live-operations";
 import { ProcessCard } from "@/components/live-operations/process-card";
 import { useState, useEffect } from "react";
@@ -20,6 +23,7 @@ export function LiveOperationsBoard() {
   const { flows, loading, refreshing, filters, setFilters, fetchFlows, refreshFlows } = useLiveOperations();
   const [searchTerm, setSearchTerm] = useState("");
   const [recentShifts, setRecentShifts] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('compact');
 
   useEffect(() => {
     // Fetch shifts for dropdown
@@ -106,6 +110,23 @@ export function LiveOperationsBoard() {
               />
             </div>
           </div>
+          <div className="hidden sm:block">
+            <Select value={viewMode} onValueChange={(val) => setViewMode(val as ViewMode)}>
+              <SelectTrigger className="w-full sm:w-[170px] bg-background/50 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <LayoutGrid className="h-4 w-4" />
+                  <SelectValue placeholder="Vista" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="compact">⚡ Vista Operativa</SelectItem>
+                <SelectItem value="forensic">🔍 Vista Forense</SelectItem>
+                <SelectItem value="alerts">🚨 Solo Alertas</SelectItem>
+                <SelectItem value="grid">🔲 Vista Cuadrícula</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
           <Button
             variant="outline"
             onClick={() => refreshFlows()}
@@ -118,7 +139,7 @@ export function LiveOperationsBoard() {
         </div>
       </div>
 
-      <div className="space-y-4 pb-12">
+      <div className={cn("pb-12", viewMode === 'grid' ? "grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4" : "space-y-4")}>
         {filteredFlows.length === 0 ? (
           <div className="text-center py-24 bg-card/30 border border-border/50 rounded-2xl border-dashed">
             <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -127,7 +148,7 @@ export function LiveOperationsBoard() {
           </div>
         ) : (
           filteredFlows.map(flow => (
-            <ProcessCard key={flow.id} flow={flow} />
+            <ProcessCard key={flow.id} flow={flow} viewMode={viewMode} />
           ))
         )}
       </div>

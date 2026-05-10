@@ -3,15 +3,19 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronDown, ChevronUp, Clock, Activity, Car, CreditCard, DoorOpen, PlusCircle, CheckCircle, Gift, UserPlus, ShoppingBag, ShieldCheck, Timer, XCircle, ChevronRight, Check } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Activity, Car, CreditCard, DoorOpen, PlusCircle, CheckCircle, Gift, UserPlus, ShoppingBag, ShieldCheck, Timer, XCircle, ChevronRight, Check, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveOperationFlow, LiveOperationEvent } from "@/hooks/use-live-operations";
 import { cn } from "@/lib/utils";
 
+import type { ViewMode } from "./live-operations-board";
+
 interface ProcessCardProps {
   flow: LiveOperationFlow;
+  viewMode?: ViewMode;
 }
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
@@ -68,7 +72,7 @@ const ACTION_LABELS: Record<string, string> = {
   CANCEL_ITEM: "Orden/Cargo Cancelado",
 };
 
-export function ProcessCard({ flow }: ProcessCardProps) {
+export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
   const [expanded, setExpanded] = useState(flow.status === 'ACTIVA');
   const [expandedServices, setExpandedServices] = useState<Record<string, boolean>>({});
 
@@ -111,6 +115,13 @@ export function ProcessCard({ flow }: ProcessCardProps) {
     return "bg-muted text-muted-foreground";
   };
 
+  const formatEmployeeName = (name?: string) => {
+    if (!name) return "";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[1]}`; // Ejemplo: "Alfredo Juarez Sanchez" -> "Alfredo Juarez"
+  };
+
   // Encontrar el iniciador (Recepción).
   const sortedEvents = [...flow.events].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   let initiatorName = sortedEvents.find(e => e.action === 'CHECK_IN')?.employeeName;
@@ -141,8 +152,26 @@ export function ProcessCard({ flow }: ProcessCardProps) {
         return; // Skip adding to main timeline
       }
     }
+    
+    // In 'alerts' mode, we only want to push the event if it's an alert or anomaly
+    if (viewMode === 'alerts') {
+      const isAnomaly = 
+        event.action === 'MARKED_MISSING' || 
+        event.metadata?.cancelledAt || 
+        (event.action === 'SERVICE_ORDER' && event.metadata?.completedAt && event.metadata?.createdAt && (new Date(event.metadata.completedAt).getTime() - new Date(event.metadata.createdAt).getTime()) / 60000 > 20);
+      
+      if (!isAnomaly) return; // Skip normal events in alerts mode
+    }
+
     mainEvents.push(event);
   });
+
+  const totalConfirmed = flow.events
+    .filter(e => e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' && e.amount)
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const hasCheckoutReq = flow.events.some(e => e.action === 'VALET_CHECKOUT_REQUESTED');
+  const hasVehicleReq = flow.events.some(e => e.action === 'VEHICLE_REQUESTED');
 
   const getPaymentMethodColor = (method?: string) => {
     if (method === 'EFECTIVO') return "text-emerald-500";
@@ -154,6 +183,25 @@ export function ProcessCard({ flow }: ProcessCardProps) {
   const renderPaymentDetails = (event: LiveOperationEvent, isNested: boolean = false) => {
     const p = event.metadata;
     if (!p) return null;
+
+    if (viewMode === 'compact' || viewMode === 'grid') {
+      return (
+        <div className="mt-1 flex items-center justify-between text-xs p-2 rounded-md bg-muted/20 border border-border/40">
+          <div className="flex items-center gap-2">
+            <span className={cn("font-medium", getPaymentMethodColor(p.payment_method))}>
+              {p.payment_method}
+            </span>
+            {p.payment_method === 'TARJETA' && (
+              <span className="text-muted-foreground hidden sm:inline">
+                • {p.card_type} • {p.card_last_4 && `****${p.card_last_4}`}
+              </span>
+            )}
+          </div>
+          <span className="font-mono text-muted-foreground">{p.reference || 'N/A'}</span>
+        </div>
+      );
+    }
+
     return (
       <div className="mt-1">
         <p className="text-xs text-foreground/90 mb-2">
@@ -200,7 +248,7 @@ export function ProcessCard({ flow }: ProcessCardProps) {
     )}>
       {/* HEADER */}
       <div 
-        className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-muted/30 transition-colors"
+        className={cn("px-5 py-4 flex flex-col justify-between gap-4 cursor-pointer hover:bg-muted/30 transition-colors", viewMode === 'grid' ? "" : "sm:flex-row sm:items-center")}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-4">
@@ -226,10 +274,37 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                 {format(new Date(flow.checkInAt), "dd MMM, HH:mm", { locale: es })}
               </span>
             </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] sm:text-xs">
+              <span className="flex items-center gap-1 text-emerald-500/80 font-medium">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Ingreso
+              </span>
+              <span className="text-muted-foreground/30">•</span>
+              <span className={cn("flex items-center gap-1 font-medium transition-colors", hasVehicleReq ? "text-blue-500/80" : "text-muted-foreground/40")}>
+                <div className={cn("h-1.5 w-1.5 rounded-full", hasVehicleReq ? "bg-blue-500" : "bg-muted-foreground/30")} /> Solicitud Coche
+              </span>
+              <span className="text-muted-foreground/30">•</span>
+              <span className={cn("flex items-center gap-1 font-medium transition-colors", hasCheckoutReq ? "text-amber-500/80" : "text-muted-foreground/40")}>
+                <div className={cn("h-1.5 w-1.5 rounded-full", hasCheckoutReq ? "bg-amber-500" : "bg-muted-foreground/30")} /> Checkout
+              </span>
+              {flow.status === 'FINALIZADA' && (
+                <>
+                  <span className="text-muted-foreground/30">•</span>
+                  <span className="flex items-center gap-1 text-slate-400 font-medium">
+                    <div className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Salida
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-sm">
+        <div className={cn("flex items-center gap-4 text-sm", viewMode === 'grid' ? "justify-between w-full border-t border-border/30 pt-3 mt-1" : "mt-3 sm:mt-0")}>
+          {totalConfirmed > 0 && (
+            <div className="flex flex-col items-end mr-2">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</span>
+              <span className="font-mono font-bold text-emerald-500">${totalConfirmed.toFixed(2)}</span>
+            </div>
+          )}
           {flow.vehiclePlate && (
             <Badge variant="secondary" className="bg-muted/50 gap-1.5 py-1">
               <Car className="h-3.5 w-3.5 text-muted-foreground" />
@@ -237,16 +312,23 @@ export function ProcessCard({ flow }: ProcessCardProps) {
             </Badge>
           )}
           
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-            {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Link href={`/operacion-en-vivo/${flow.id}`} target="_blank">
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary">
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
+              {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* TIMELINE BODY */}
       {expanded && (
-        <CardContent className="px-6 pb-6 pt-2 border-t border-border/50 bg-muted/5">
-          <div className="relative pl-6 space-y-6 before:absolute before:inset-0 before:ml-[1.4rem] before:w-px before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:bg-gradient-to-b before:from-transparent before:via-border/50 before:to-transparent mt-6">
+        <CardContent className="px-5 pb-5 pt-2 border-t border-border/50 bg-muted/5">
+          <div className={cn("relative pl-6 space-y-6 before:absolute before:inset-0 before:ml-[1.4rem] before:w-px before:-translate-x-px before:bg-gradient-to-b before:from-transparent before:via-border/50 before:to-transparent mt-6", viewMode === 'grid' ? "" : "md:before:mx-auto md:before:translate-x-0")}>
             
             {/* Inicio estático */}
             <div className="relative flex items-center gap-4">
@@ -257,8 +339,8 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                     {formatTime(flow.checkInAt)}
                   </span>
                   {initiatorName && (
-                    <Badge variant="outline" className="text-[10px] h-5 bg-background font-normal border-amber-500/30 text-amber-600">
-                      {initiatorName}
+                    <Badge variant="outline" className="text-[10px] h-5 bg-background font-normal border-amber-500/30 text-amber-600 max-w-[120px] truncate block" title={initiatorName}>
+                      {formatEmployeeName(initiatorName)}
                     </Badge>
                   )}
                 </div>
@@ -299,7 +381,7 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                       <div className={cn("absolute left-[-1.9rem] mt-0.5 flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-background transition-transform group-hover:scale-110", getRoleRingColor(event.employeeRole))}>
                         {getEventIcon(event.action)}
                       </div>
-                      <div className="flex-1 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm hover:border-primary/30 transition-colors">
+                      <div className={cn("flex-1 bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm transition-colors", m.cancelledAt ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" : "hover:border-primary/30")}>
                         
                         <div 
                           className="p-3 flex items-center justify-between cursor-pointer hover:bg-muted/30"
@@ -311,12 +393,12 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                                 {formatTime(event.createdAt)}
                               </span>
                               {event.employeeName && (
-                                <Badge variant="outline" className={cn("text-[10px] h-5 font-normal", getRoleColor(event.employeeRole))}>
-                                  {event.employeeName}
+                                <Badge variant="outline" className={cn("text-[10px] h-5 font-normal max-w-[110px] truncate block", getRoleColor(event.employeeRole))} title={event.employeeName}>
+                                  {formatEmployeeName(event.employeeName)}
                                 </Badge>
                               )}
-                              <Badge variant="secondary" className="font-mono text-[10px] h-5">
-                                Folio: {m.folio}
+                              <Badge variant="secondary" className="font-mono text-[10px] h-5 whitespace-nowrap shrink-0">
+                                #{m.folio}
                               </Badge>
                             </div>
                             <span className="text-sm font-medium text-primary/90 flex items-center gap-2">
@@ -325,6 +407,11 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                           </div>
                           
                           <div className="flex items-center gap-3">
+                            {m.completedAt && m.createdAt && (new Date(m.completedAt).getTime() - new Date(m.createdAt).getTime()) / 60000 > 20 && (
+                              <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] h-5 hover:bg-red-500/20">
+                                <Timer className="w-3 h-3 mr-1" /> Demora (+20m)
+                              </Badge>
+                            )}
                             <span className="text-sm font-mono font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">
                               ${m.total}
                             </span>
@@ -419,8 +506,8 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                                         <div className="flex items-center gap-2 mb-1">
                                           <span className="text-xs font-mono text-muted-foreground">{formatTime(pmtEvent.createdAt)}</span>
                                           {pmtEvent.employeeName && (
-                                            <Badge variant="outline" className={cn("text-[9px] h-4 px-1.5 font-normal", getRoleColor(pmtEvent.employeeRole))}>
-                                              {pmtEvent.employeeName}
+                                            <Badge variant="outline" className={cn("text-[9px] h-4 px-1.5 font-normal max-w-[100px] truncate block", getRoleColor(pmtEvent.employeeRole))} title={pmtEvent.employeeName}>
+                                              {formatEmployeeName(pmtEvent.employeeName)}
                                             </Badge>
                                           )}
                                         </div>
@@ -454,8 +541,8 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                             {formatTime(event.createdAt)}
                           </span>
                           {event.employeeName && (
-                            <Badge variant="outline" className={cn("text-[10px] h-5 font-normal", getRoleColor(event.employeeRole))}>
-                              {event.employeeName}
+                            <Badge variant="outline" className={cn("text-[10px] h-5 font-normal max-w-[110px] truncate block", getRoleColor(event.employeeRole))} title={event.employeeName}>
+                              {formatEmployeeName(event.employeeName)}
                             </Badge>
                           )}
                         </div>
@@ -464,7 +551,7 @@ export function ProcessCard({ flow }: ProcessCardProps) {
                         </span>
                       </div>
                       
-                      {!isPayment && (
+                      {viewMode === 'forensic' && !isPayment && (
                         <p className="text-sm text-foreground/90">
                           {event.description || (
                             event.action === 'VERIFIED_IN_ROOM' 

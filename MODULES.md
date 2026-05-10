@@ -1,67 +1,77 @@
 # Auto Hotel Luxor: Arquitectura de Módulos y Guía de Escalabilidad
 
-Este documento describe la estructura del proyecto y proporciona "recetas" (How-Tos) exactas para que cualquier desarrollador humano o agente de IA pueda agregar nuevas funcionalidades de forma **súper rápida y sencilla**, manteniendo la consistencia del código.
+Este documento describe de forma exhaustiva la estructura real del monorepo tras analizar la totalidad de los directorios y subproyectos actuales. Contiene el mapa de todos los servicios y "recetas" (How-Tos) exactas para escalar el sistema respetando la arquitectura y auditoría.
 
 ---
 
-## 🏗️ Mapa de Módulos (Dónde vive cada cosa)
+## 🏗️ Mapa Exhaustivo de Módulos (Directorio Raíz)
 
-El proyecto es un monorepo lógico dividido en varias sub-aplicaciones y servicios:
+El proyecto es un ecosistema distribuido compuesto por las siguientes capas físicas:
 
-### 1. `frontend/` (Next.js App Router)
-Aplicación web principal usada por Recepción, Administradores y Puntos de Venta.
-- **`app/`**: Rutas de la aplicación (Ej: `/dashboard`, `/inventario`, `/pos`).
-- **`app/actions/`**: Server Actions. Aquí **debe ir toda la lógica de mutación de base de datos** (Insert/Update/Delete). No hacemos peticiones directas desde los componentes cliente a menos que sea estrictamente necesario.
-- **`components/`**: Componentes visuales.
-  - `ui/`: Componentes genéricos de diseño (Shadcn/UI, Radix).
-  - `[dominio]/`: Componentes agrupados por contexto de negocio (ej. `rooms/modals/`, `inventory/tables/`).
-- **`lib/`**: Lógica compartida, clientes de Supabase (`lib/supabase/`), servicios externos (`lib/services/`).
+### 1. `frontend/` (Next.js App Router & Microservicios)
+Aplicación web principal (Hub) de alto rendimiento para Recepción y Administración.
+- **`app/`**: Rutas de Next.js (ej. `/auditoria`, `/operacion-en-vivo`, `/kardex`, `/precortes-de-caja`). Son *Server Components* para optimizar la carga.
+- **`app/actions/`**: **Server Actions.** Único punto de mutación desde la web; encapsulan llamadas a los RPCs de Supabase.
+- **`components/`**: Componentes visuales (ui, rooms, live-operations). Aquí residen las interfaces modulares complejas.
+- **`lib/`**: Motor lógico y de telemetría forense (`audit-logger.ts`, `flow-logger.ts`).
+- **`print-server/`**: Servidor Express NodeJS anidado que traduce peticiones HTTP del frontend a comandos ESC/POS (`node-thermal-printer`) para tickets impresos localmente.
+- **`scripts/`**: Directorio crítico que contiene scripts de mantenimiento de base de datos (`setup-database.sql`, `clean-all-tables.sql`) y **daemons de polling IoT para sensores Tuya** (`tuya-poll.js`, `tuya-poll-local.py`).
 
-### 2. `mobile/` (Expo + React Native)
-Aplicación móvil utilizada por el personal operativo (Cocheros, Camaristas).
-- **`app/`**: Rutas de Expo Router.
-- **`app/(tabs)/`**: Pantallas principales de la barra de navegación inferior (ej. `assets.tsx` para control de TVs, `camarista/` para limpieza).
-- **`components/`**: Componentes de UI móviles estilizados con NativeWind.
+### 2. Ecosistema Móvil (Expo / React Native)
+Existen dos aplicaciones móviles diferenciadas:
+- **`mobile/`**: App operativa para personal de campo (Valets, Cocheros, Camaristas). Usada para reportar limpiezas, vincular activos de las habitaciones e interactuar directamente con Supabase RPCs.
+- **`admin-mobile/`**: Módulo de Chat Interno (`autohotel-luxor-manager`). A pesar del nombre de la carpeta, es una **Aplicación de mensajería en tiempo real** usada internamente por todo el personal. Se integra transversalmente con la app operativa (`mobile/`) y la web (`frontend/`), soportando canales globales ("Chat Global / Recepción") y Mensajes Directos (DMs) gestionados con `Supabase Presence`.
 
-### 3. `supabase/` (Backend & Base de Datos)
-- **`migrations/`**: Definición de la base de datos PostgreSQL. Todo cambio estructural **DEBE** hacerse creando un archivo de migración aquí.
-- **`functions/`**: Edge Functions en Deno para lógica de servidor que no pertenece al Frontend (ej. webhooks externos).
+### 3. `supabase/` (PostgreSQL & Lógica de Negocio)
+- **`migrations/`**: Definición absoluta del esquema y **núcleo de la lógica transaccional**. Aquí residen las complejas RPCs (ej. `20260423_cancel_reception_item.sql`, `20260505_global_telemetry.sql`) que se encargan del control atómico de datos, eliminando la necesidad de APIs intermedias.
 
-### 4. `print-server/`
-Servidor local en Express.
-- **`index.js`**: Endpoints locales que el Frontend llama para mandar a imprimir tickets térmicos ESC/POS o reportes HP.
+### 4. `manual/` (Documentación / Landing - Qwik App)
+- Proyecto satélite desarrollado con el framework **Qwik** y Vite (`qwik.env.d.ts`). Destinado a fungir como el manual interactivo o documentación estructurada externa.
 
----
-
-## 🚀 Guías de Escalabilidad (How-Tos)
-
-Aquí están los pasos exactos para agregar funciones sin romper la arquitectura:
-
-### Receta 1: Cómo agregar una NUEVA TABLA a la Base de Datos
-Si necesitas almacenar una nueva entidad (ej. `mantenimiento_preventivo`):
-1. **Crear Migración:** Crea un archivo `.sql` en `supabase/migrations/` (ej. `20260501_create_mantenimiento.sql`).
-2. **Definir Esquema y RLS:** Dentro del archivo, crea la tabla, añade `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` y crea las políticas (policies) para que los usuarios autenticados puedan leer/escribir.
-3. **Aplicar Migración:** Si estás en local, ejecuta `supabase migration up`.
-4. **Actualizar Frontend:** El agente de IA debe revisar los tipos de TypeScript si la tabla se usa en el frontend.
-
-### Receta 2: Cómo crear una NUEVA PANTALLA en el Frontend (Web)
-Si el administrador necesita una nueva vista (ej. `/reportes/mantenimiento`):
-1. **Crear Ruta:** Crea una carpeta `frontend/app/reportes/mantenimiento/` y dentro un archivo `page.tsx` (Server Component por defecto).
-2. **Obtener Datos:** En `page.tsx`, usa `@supabase/ssr` (el cliente de servidor) para hacer `SELECT` de los datos que necesitas mostrar.
-3. **Crear UI:** Crea los componentes necesarios en `frontend/components/mantenimiento/` y úsalos en la página.
-4. **Añadir Mutaciones:** Si hay formularios o botones que modifican datos, crea una Server Action en `frontend/app/actions/mantenimiento-actions.ts` y llámala desde un componente de cliente (`"use client"`).
-
-### Receta 3: Cómo agregar un NUEVO BOTÓN que afecta la BD en la App Móvil
-Si el cochero necesita un botón de "Reportar Falla" en la app móvil:
-1. **Crear Componente/Botón:** En `mobile/app/(tabs)/[archivo].tsx`, añade la UI usando NativeWind (`className="bg-primary p-4 rounded"`).
-2. **Crear Estado de Carga:** Envuelve la lógica en un `try/catch` y usa el componente global `<ProcessingOverlay />` (o un estado `isLoading`) para evitar que el usuario presione el botón dos veces por accidente (prevención de race-conditions).
-3. **Llamar a Supabase:** Usa el cliente instanciado en el móvil (`import { supabase } from '@/lib/supabase'`) para hacer el `INSERT` o llamar a un RPC si la lógica es compleja.
-
-### Receta 4: Cómo agregar un NUEVO REPORTE IMPRESO
-1. **Modificar el Print Server:** En `print-server/index.js`, añade un nuevo endpoint Express (ej. `app.post('/print/mantenimiento')`). Escribe la lógica usando los comandos de `node-thermal-printer`.
-2. **Llamar desde Frontend:** Crea un servicio en `frontend/lib/services/print-service.ts` que haga un `fetch('http://localhost:8080/print/mantenimiento', { body: data })`.
-3. **Vincular a UI:** Añade un botón de "Imprimir" en el Frontend que llame a ese servicio.
+### 5. `backend/` (Legado / Deprecado)
+- Carpeta con configuración Serverless/FastAPI (`main.py`, `mangum`). **Este servicio está obsoleto** y ya no se usa, ya que la lógica fue delegada a los RPCs de PostgreSQL y Server Actions de Next.js.
 
 ---
 
-*Nota para Agentes de IA: Siempre prioricen el uso del patrón "Server Actions" en Next.js por encima de API Routes, y verifiquen que todas las consultas de Supabase tengan políticas RLS antes de asumirlas seguras.*
+## 🚀 Guías de Escalabilidad (Recetas / How-Tos)
+
+### Receta 1: Crear una NUEVA TABLA y Lógica de Negocio (RPC)
+1. **Crear Migración:** Genera un archivo `.sql` en `supabase/migrations/`.
+2. **Definir Esquema:** Escribe `CREATE TABLE` y `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;`.
+3. **Crear el RPC:** Encapsula la lógica compleja en una función PL/pgSQL (`CREATE OR REPLACE FUNCTION`) en la misma migración.
+4. **Aplicar Migración y Tipos:** Aplica los cambios en la BD y regenera los tipos TypeScript en `frontend/types/`.
+
+### Receta 2: Crear una NUEVA PANTALLA WEB
+1. **Crear Ruta Server-Side:** Crea la vista en `frontend/app/[dominio]/page.tsx`.
+2. **Obtener Datos:** Usa `@supabase/ssr` en el componente servidor.
+3. **Mutar Datos:** Crea una Server Action en `frontend/app/actions/`. En ella invoca el RPC de Supabase y **llama obligatoriamente al AuditLogger** para la trazabilidad.
+
+### Receta 3: Añadir Funcionalidad Móvil (Valet o Admin)
+1. **App Correcta:** Identifica si el cambio va en `mobile/` o en `admin-mobile/`.
+2. **Prevención de UI:** Envuelve acciones en `<ProcessingOverlay />` para evitar toques múltiples.
+3. **Llamar RPCs:** Llama a Supabase directamente con `.rpc()`.
+
+### Receta 4: Registro Obligatorio en la AUDITORÍA FORENSE
+Cualquier acción destructiva, cambio de estado (ej. cancelar reservas) o cobro debe rastrearse:
+```typescript
+await AuditLogger.logEvent({
+  action: 'CANCEL_RESERVATION',
+  employeeId: session.user.id,
+  severity: 'CRITICAL',
+  oldData: previo,
+  newData: actual
+});
+```
+
+### Receta 5: Manejo de Sensores IoT
+Si requieres actualizar la lectura de las puertas o el sensor de movimiento:
+1. Revisa los scripts en `frontend/scripts/tuya-poll.js` o `tuya-poll-local.py`.
+2. Actualiza la lógica de webhook en las funciones correspondientes para mapear los nuevos IDs de los dispositivos de Tuya.
+
+---
+
+> [!IMPORTANT]
+> **Nota para Agentes de IA:** 
+> - **Analicen todo el ecosistema:** Si un cambio involucra permisos, revisar si impacta a `mobile/`, `admin-mobile/` y `frontend/`.
+> - **Ignorar `backend/`:** Está deprecado.
+> - **Scripts SQL Externos:** Cuidado con los scripts en `frontend/scripts/`; aunque son útiles para setups base, todo cambio en producción debe ir en `supabase/migrations/`.

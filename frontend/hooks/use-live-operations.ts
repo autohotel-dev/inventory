@@ -113,3 +113,18 @@ export async function fetchRecentReceptionShifts() {
   }
   return data || [];
 }
+
+export async function fetchSingleOperation(stayId: string): Promise<LiveOperationFlow | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_live_operations', {
+    p_stay_id: stayId,
+    p_limit: 1
+  });
+
+  if (error) {
+    console.error("Error fetching single operation:", error);
+    return null;
+  }
+
+  return data && data.length > 0 ? data[0] : null;
+}
