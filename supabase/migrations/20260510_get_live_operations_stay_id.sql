@@ -188,13 +188,13 @@ BEGIN
                 'action', 'SERVICE_ORDER', 
                 'severity', 'INFO', 
                 'createdAt', soi.created_at,
-                'description', 'Servicio solicitado: ' || CASE WHEN soi.concept_type = 'ROOM_BASE' THEN 'Renta de Habitación (' || rt.name || ')' ELSE COALESCE(soi.concept_type, 'ARTÍCULO') END,
+                'description', 'Servicio solicitado: ' || CASE WHEN soi.concept_type = 'ROOM_BASE' THEN 'Renta de Habitación (' || rt.name || ')' ELSE COALESCE(pr.name, soi.concept_type, 'ARTÍCULO') END,
                 'amount', soi.total,
                 'employeeName', (SELECT first_name || ' ' || last_name FROM employees e JOIN shift_sessions ss ON ss.employee_id = e.id WHERE ss.id = soi.shift_session_id),
                 'employeeRole', (SELECT role FROM employees e JOIN shift_sessions ss ON ss.employee_id = e.id WHERE ss.id = soi.shift_session_id),
                 'metadata', jsonb_build_object(
                   'folio', UPPER(SUBSTRING(soi.id::text, 1, 6)),
-                  'concept', CASE WHEN soi.concept_type = 'ROOM_BASE' THEN 'ROOM_BASE (' || rt.name || ')' ELSE soi.concept_type END,
+                  'concept', CASE WHEN soi.concept_type = 'ROOM_BASE' THEN 'Habitación (' || rt.name || ')' ELSE COALESCE(pr.name, soi.concept_type) END,
                   'qty', soi.qty,
                   'total', soi.total,
                   'status', soi.delivery_status,
@@ -218,6 +218,7 @@ BEGIN
               soi.created_at
             FROM sales_order_items soi
             JOIN sales_orders so ON so.id = soi.sales_order_id
+            LEFT JOIN products pr ON pr.id = soi.product_id
             WHERE so.id = rs.sales_order_id
             
           ) sub_events

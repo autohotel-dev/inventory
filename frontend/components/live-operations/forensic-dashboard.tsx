@@ -56,6 +56,7 @@ const ACTION_LABELS: Record<string, string> = {
   DELIVERY_ACCEPTED: "Cochero Asignado a Pedido",
   DELIVERY_COMPLETED: "Entrega de Pedido Completada",
   SERVICE_ORDER: "Orden de Servicio / Consumo",
+  GROUPED_SERVICE_ORDER: "Orden de Servicio / Consumo",
   TOLERANCE: "Tolerancia de Tiempo Iniciada",
   CANCEL_ITEM: "Orden/Cargo Cancelado",
 };
@@ -117,23 +118,11 @@ export function ForensicDashboard({ flow }: ForensicDashboardProps) {
   const anomaliesCount = flow.events.filter(e => e.action === 'MARKED_MISSING' || e.metadata?.cancelledAt).length;
 
   // --- Data Synthesis ---
-  const { mainEvents, itemPayments } = useMemo(() => {
-    const main: LiveOperationEvent[] = [];
-    const payments: Record<string, LiveOperationEvent[]> = {};
+  const { mainEvents } = useMemo(() => {
+    const rawEvents: LiveOperationEvent[] = [];
+    const groupedOrders: Record<string, LiveOperationEvent[]> = {};
 
     flow.events.forEach(event => {
-      // Group service payments
-      if (event.action === 'PAYMENT_COLLECTED_BY_VALET' || event.action === 'PAYMENT_CONFIRMED_BY_RECEPTION') {
-        const ref = event.metadata?.reference;
-        if (ref && typeof ref === 'string' && ref.startsWith('VALET_ITEM:')) {
-          const itemId = ref.replace('VALET_ITEM:', '');
-          const srvId = 'v-srv-' + itemId;
-          if (!payments[srvId]) payments[srvId] = [];
-          payments[srvId].push(event);
-          return;
-        }
-      }
-
       // Filtering Logic
       if (activeTab === 'PAYMENTS') {
         if (!event.action.includes('PAYMENT')) return;
@@ -147,10 +136,35 @@ export function ForensicDashboard({ flow }: ForensicDashboardProps) {
         if (!isAnomaly) return;
       }
 
-      main.push(event);
+      if (event.action === 'SERVICE_ORDER') {
+        // Agrupar por minuto (YYYY-MM-DDTHH:mm) para unificar items ordenados al mismo tiempo
+        const timeKey = event.createdAt.substring(0, 16);
+        if (!groupedOrders[timeKey]) groupedOrders[timeKey] = [];
+        groupedOrders[timeKey].push(event);
+      } else {
+        rawEvents.push(event);
+      }
     });
 
-    return { mainEvents: main, itemPayments: payments };
+    const synthesized: LiveOperationEvent[] = [...rawEvents];
+
+    Object.keys(groupedOrders).forEach(timeKey => {
+       const items = groupedOrders[timeKey];
+       synthesized.push({
+         id: 'group-' + timeKey,
+         action: 'GROUPED_SERVICE_ORDER',
+         severity: 'INFO',
+         createdAt: items[0].createdAt,
+         description: `Orden de Servicio / Consumo`,
+         metadata: { items },
+         employeeName: items[0].employeeName,
+         employeeRole: items[0].employeeRole
+       });
+    });
+
+    synthesized.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return { mainEvents: synthesized };
   }, [flow.events, activeTab]);
 
   return (
@@ -368,6 +382,70 @@ export function ForensicDashboard({ flow }: ForensicDashboardProps) {
                              </div>
                              <span className="font-bold text-emerald-500">${event.amount?.toFixed(2)}</span>
                            </div>
+                        )}
+
+                        {event.action === 'GROUPED_SERVICE_ORDER' && event.metadata?.items && (
+                          <div className="mt-4 text-sm bg-muted/20 rounded-xl border border-border/50 overflow-hidden shadow-inner">
+                            <div className="p-3 bg-muted/40 font-medium border-b border-border/50 flex justify-between items-center">
+                              <span className="flex items-center gap-2"><ShoppingBag className="h-4 w-4" /> Artículos de la Orden</span>
+                              <span className="text-emerald-500 font-bold font-mono text-base">
+                                ${event.metadata.items.reduce((sum: number, it: any) => sum + (it.amount || 0), 0).toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="p-3 space-y-2.5">
+                              {event.metadata.items.map((it: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center text-sm">
+                                  <span className="flex items-center gap-3">
+                                    <Badge variant="secondary" className="font-mono text-[10px] h-5">#{it.metadata?.folio}</Badge>
+                                    <span><span className="text-muted-foreground mr-1">{it.metadata?.qty}x</span>{it.metadata?.concept}</span>
+                                  </span>
+                                  <span className="font-mono font-medium">${it.amount?.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Nested Timeline */}
+                            <div className="p-4 bg-background/50 border-t border-border/50 space-y-5">
+                               <div className="flex items-start gap-3">
+                                 <div className="mt-1 w-2 h-2 rounded-full bg-amber-500 shrink-0 ring-2 ring-amber-500/20" />
+                                 <div className="flex flex-col text-xs leading-tight">
+                                   <span className="font-mono text-muted-foreground mb-0.5">{formatTime(event.metadata.items[0].createdAt)}</span>
+                                   <span>Pedido registrado por <span className="font-medium text-amber-600">{event.metadata.items[0].employeeName}</span></span>
+                                 </div>
+                               </div>
+                               
+                               {event.metadata.items[0].metadata?.acceptedAt && (
+                               <div className="flex items-start gap-3">
+                                 <div className="mt-1 w-2 h-2 rounded-full bg-cyan-500 shrink-0 ring-2 ring-cyan-500/20" />
+                                 <div className="flex flex-col text-xs leading-tight">
+                                   <span className="font-mono text-muted-foreground mb-0.5">{formatTime(event.metadata.items[0].metadata.acceptedAt)}</span>
+                                   <span>Entrega asignada a <span className="font-medium text-cyan-600">{event.metadata.items[0].metadata.acceptedBy}</span></span>
+                                 </div>
+                               </div>
+                               )}
+                               
+                               {event.metadata.items[0].metadata?.completedAt && (
+                               <div className="flex items-start gap-3">
+                                 <div className="mt-1 w-2 h-2 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-500/20" />
+                                 <div className="flex flex-col text-xs leading-tight">
+                                   <span className="font-mono text-muted-foreground mb-0.5">{formatTime(event.metadata.items[0].metadata.completedAt)}</span>
+                                   <span className="flex items-center gap-1 font-medium text-emerald-600"><CheckCircle className="h-3.5 w-3.5" /> Entrega completada</span>
+                                 </div>
+                               </div>
+                               )}
+                               
+                               {event.metadata.items[0].metadata?.paymentReceivedAt && (
+                               <div className="flex items-start gap-3">
+                                 <div className="mt-1 w-2 h-2 rounded-full bg-blue-500 shrink-0 ring-2 ring-blue-500/20" />
+                                 <div className="flex flex-col text-xs leading-tight">
+                                   <span className="font-mono text-muted-foreground mb-0.5">{formatTime(event.metadata.items[0].metadata.paymentReceivedAt)}</span>
+                                   <span className="flex items-center gap-1 font-medium text-blue-600"><CreditCard className="h-3.5 w-3.5" /> Pago de servicio registrado</span>
+                                   <span className="text-muted-foreground mt-1">Recibido por <span className="text-foreground/80 font-medium">{event.metadata.items[0].metadata.paymentReceivedBy}</span></span>
+                                 </div>
+                               </div>
+                               )}
+                            </div>
+                          </div>
                         )}
                         
                       </div>
