@@ -6,7 +6,7 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
-import { getMenuPermissions, type UserRole } from "@/lib/permissions";
+import { getMenuPermissions, getAllMenuResources, getMenuGroups, type UserRole } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -73,62 +73,63 @@ function useMenuPermissions(role: UserRole | null): { allowedMenuIds: Set<string
 }
 
 // Links para administradores/managers - ORGANIZADOS POR MÓDULOS
-const adminLinks: readonly NavItem[] = [
-  { section: "Operaciones", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/dashboard", label: "Dashboard", icon: Home, permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/sales/pos", label: "Habitaciones (POS)", icon: Building, permissionId: "sales.pos", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/operacion-en-vivo", label: "Operación en Vivo", icon: Activity, permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
-  { href: "/pendientes", label: "Pendientes", icon: ClipboardList, permissionId: "dashboard", allowedForNonAdmin: true, allowedForReceptionist: true },
-  
-  { section: "Gestión Hotelera", adminOnly: true },
-  { href: "/room-types", label: "Tipos de Habitación", icon: Settings, permissionId: "room-types", adminOnly: true },
-  { href: "/sensors", label: "Sensores (Tuya)", icon: Activity, permissionId: "sensors", adminOnly: true },
-  
-  { section: "Inventario", adminOnly: true },
-  { href: "/products", label: "Productos", icon: Package, permissionId: "products", adminOnly: true },
-  { href: "/products/loan-mapping", label: "Artículos en Préstamo", icon: Utensils, permissionId: "products", adminOnly: true },
-  { href: "/categories", label: "Categorías", icon: ArrowRightLeft, permissionId: "categories", adminOnly: true },
-  { href: "/warehouses", label: "Almacenes", icon: Building, permissionId: "warehouses", adminOnly: true },
-  { href: "/suppliers", label: "Proveedores", icon: Truck, permissionId: "suppliers", adminOnly: true },
-  { href: "/customers", label: "Clientes", icon: Users, permissionId: "customers", adminOnly: true },
-  
-  { section: "Compras y Ventas", adminOnly: true },
-  { href: "/purchases-sales", label: "Dashboard Movimientos", icon: BarChart3, permissionId: "purchases-sales", adminOnly: true },
-  { href: "/purchases", label: "Compras", icon: ShoppingCart, permissionId: "purchases", adminOnly: true },
-  { href: "/sales", label: "Ventas", icon: ShoppingCart, permissionId: "sales", adminOnly: true },
-  
-  { section: "Control de Stock", adminOnly: true },
-  { href: "/movements", label: "Movimientos", icon: Activity, permissionId: "movements", adminOnly: true },
-  { href: "/stock", label: "Stock", icon: Package, permissionId: "stock", adminOnly: true },
-  { href: "/kardex", label: "Kardex", icon: Activity, permissionId: "kardex", adminOnly: true },
-  
-  { section: "Finanzas y Reportes", allowedForReceptionist: true, allowedForNonAdmin: true },
-  { href: "/precortes-de-caja", label: "Pre-Cortes de Caja", icon: FileText, permissionId: "reports.income", allowedForReceptionist: true },
-  { href: "/employees/closings", label: "Cortes de Caja (Cierre)", icon: Briefcase, permissionId: "employees.closings", allowedForReceptionist: true },
-  { href: "/reprint", label: "Reimprimir Tickets", icon: FileText, permissionId: "reprint", allowedForNonAdmin: true, allowedForReceptionist: true },
-  
-  { section: "Analítica y Auditoría", adminOnly: true },
-  { href: "/analytics", label: "Analytics", icon: BarChart3, permissionId: "analytics", adminOnly: true },
-  { href: "/analytics/performance", label: "Rendimiento y Tiempos", icon: Activity, permissionId: "analytics.performance", adminOnly: true },
-  { href: "/export", label: "Exportar", icon: Download, permissionId: "export", adminOnly: true },
-  { href: "/auditoria", label: "Auditoría", icon: Activity, permissionId: "auditoria", adminOnly: true },
-  { href: "/auditoria/controles", label: "Auditoría Controles TV", icon: Activity, permissionId: "auditoria", adminOnly: true },
-  { href: "/logs", label: "Registro de Actividad", icon: FileText, permissionId: "auditoria", adminOnly: true },
-  { href: "/auditoria/telemetria", label: "Telemetría y Rendimiento", icon: Activity, permissionId: "auditoria", adminOnly: true },
-  
-  { section: "Recursos Humanos", adminOnly: true, allowedForReceptionist: true },
-  { href: "/employees", label: "Empleados", icon: Users, permissionId: "employees", adminOnly: true },
-  { href: "/employees/schedules", label: "Horarios", icon: Activity, permissionId: "employees.schedules", adminOnly: true },
-  { href: "/training", label: "Capacitación", icon: GraduationCap, permissionId: "training", allowedForReceptionist: true },
-  
-  { section: "Sistema", adminOnly: true },
-  { href: "/settings", label: "Configuración", icon: Settings, permissionId: "settings", adminOnly: true },
-  { href: "/settings/roles", label: "Gestión de Roles", icon: Users, permissionId: "settings.roles", adminOnly: true },
-  { href: "/settings/permissions", label: "Permisos de Roles", icon: Settings, permissionId: "settings.permissions", adminOnly: true },
-  { href: "/settings/media", label: "Biblioteca de Medios", icon: ImageIcon, permissionId: "settings.media", adminOnly: true },
-  { href: "/notifications-admin", label: "Notificaciones", icon: Bell, permissionId: "notifications-admin", adminOnly: true },
-  { href: "/staff-notifications", label: "Comunicados Staff", icon: Bell, permissionId: "staff-notifications", adminOnly: true },
-] as const;
+// Icon lookup — maps iconName strings from the permissions registry to Lucide components
+const ICON_MAP: Record<string, LucideIcon> = {
+  Home, Building, Activity, ClipboardList, Settings, Package,
+  ArrowRightLeft, Truck, Users, BarChart3, ShoppingCart, Briefcase,
+  FileText, Download, GraduationCap, Bell, Image: ImageIcon, Utensils,
+};
+
+/**
+ * Build sidebar nav items DYNAMICALLY from the permissions registry.
+ * This is the key to zero dual-maintenance: add a module in permissions.ts
+ * and the sidebar picks it up automatically.
+ */
+function buildSidebarNavItems(): readonly NavItem[] {
+  const allItems = getAllMenuResources();
+  const groups = getMenuGroups();
+  const result: NavItem[] = [];
+  let lastGroup = "";
+
+  // Sort items by group order
+  const sortedItems = [...allItems].sort((a, b) => {
+    const gA = groups[a.group]?.order ?? 99;
+    const gB = groups[b.group]?.order ?? 99;
+    return gA - gB;
+  });
+
+  for (const item of sortedItems) {
+    // Insert section header when group changes
+    if (item.group !== lastGroup) {
+      const groupMeta = groups[item.group];
+      if (groupMeta) {
+        result.push({
+          section: groupMeta.label,
+          adminOnly: groupMeta.adminOnly,
+          allowedForNonAdmin: groupMeta.allowedForNonAdmin,
+          allowedForReceptionist: groupMeta.allowedForReceptionist,
+        });
+      }
+      lastGroup = item.group;
+    }
+
+    const icon = ICON_MAP[item.iconName] || Activity;
+    result.push({
+      href: item.href,
+      label: item.label,
+      icon,
+      permissionId: item.id,
+      adminOnly: item.adminOnly,
+      allowedForNonAdmin: item.allowedForNonAdmin,
+      allowedForReceptionist: item.allowedForReceptionist,
+    });
+  }
+
+  return result;
+}
+
+// Build once at module level — no runtime cost per render
+const adminLinks: readonly NavItem[] = buildSidebarNavItems();
 
 const MobileHeader = React.memo(({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) => (
   <div className="md:hidden sticky top-0 z-30 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">

@@ -175,94 +175,132 @@ export async function bulkUpdatePermissions(
     return true;
 }
 
-/**
- * Group metadata for the permissions UI
- */
-export const MENU_GROUPS: Record<string, { icon: string; label: string; description: string; order: number }> = {
-    'operaciones': { icon: '🏠', label: 'Operaciones Principales', description: 'Páginas principales de operación', order: 1 },
-    'hotelera': { icon: '🏨', label: 'Gestión Hotelera', description: 'Tipos de habitación y sensores', order: 2 },
-    'inventario': { icon: '📦', label: 'Inventario', description: 'Gestión de productos y almacenes', order: 3 },
-    'compras-ventas': { icon: '💰', label: 'Compras y Ventas', description: 'Gestión de ventas y compras', order: 4 },
-    'stock': { icon: '📊', label: 'Movimientos y Stock', description: 'Control de inventario y movimientos', order: 5 },
-    'finanzas': { icon: '💵', label: 'Finanzas y Reportes', description: 'Cortes de caja y reimpresión', order: 6 },
-    'analytics': { icon: '📈', label: 'Analytics y Auditoría', description: 'Reportes, análisis y auditoría', order: 7 },
-    'personal': { icon: '👥', label: 'Personal', description: 'Gestión de empleados y capacitación', order: 8 },
-    'sistema': { icon: '⚙️', label: 'Configuración y Sistema', description: 'Configuración, roles y notificaciones', order: 9 },
-};
-
 export interface MenuResource {
     id: string;
     label: string;
     href: string;
     group: string;
+    /** Human-readable section label (set on the FIRST item of a group) */
+    groupLabel?: string;
+    /** Emoji icon for the section (set on the FIRST item of a group) */
+    groupIcon?: string;
+    /** Sort order for the section (set on the FIRST item of a group) */
+    groupOrder?: number;
+    /** Description shown in permissions UI (set on the FIRST item of a group) */
+    groupDescription?: string;
+    /** Lucide icon name for the sidebar */
+    iconName: string;
+    /** Only visible for admin/manager/supervisor by default */
+    adminOnly?: boolean;
+    /** Visible for all non-admin roles */
+    allowedForNonAdmin?: boolean;
+    /** Visible specifically for receptionist role */
+    allowedForReceptionist?: boolean;
 }
 
 /**
- * Get all available menu resources (for configuration UI).
- * Single source of truth — add new modules here and they appear
- * automatically in both the sidebar permissions and the config UI.
+ * ┌──────────────────────────────────────────────────────────────────┐
+ * │  🔑 SINGLE SOURCE OF TRUTH                                      │
+ * │  Add new modules ONLY here — the sidebar AND permissions page   │
+ * │  both read from this list. No dual-maintenance needed.          │
+ * └──────────────────────────────────────────────────────────────────┘
  */
 export function getAllMenuResources(): MenuResource[] {
     return [
         // 🏠 OPERACIONES PRINCIPALES
-        { id: 'dashboard', label: 'Dashboard', href: '/dashboard', group: 'operaciones' },
-        { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos', group: 'operaciones' },
-        { id: 'operacion', label: 'Operación en Tiempo Real', href: '/operacion', group: 'operaciones' },
+        { id: 'dashboard', label: 'Dashboard', href: '/dashboard', group: 'operaciones', groupLabel: 'Operaciones', groupIcon: '🏠', groupOrder: 1, groupDescription: 'Páginas principales de operación', iconName: 'Home', allowedForNonAdmin: true, allowedForReceptionist: true },
+        { id: 'sales.pos', label: 'Habitaciones (POS)', href: '/sales/pos', group: 'operaciones', iconName: 'Building', allowedForNonAdmin: true, allowedForReceptionist: true },
+        { id: 'operacion-en-vivo', label: 'Operación en Vivo', href: '/operacion-en-vivo', group: 'operaciones', iconName: 'Activity', allowedForNonAdmin: true, allowedForReceptionist: true },
+        { id: 'pendientes', label: 'Pendientes', href: '/pendientes', group: 'operaciones', iconName: 'ClipboardList', allowedForNonAdmin: true, allowedForReceptionist: true },
 
         // 🏨 GESTIÓN HOTELERA
-        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types', group: 'hotelera' },
-        { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors', group: 'hotelera' },
+        { id: 'room-types', label: 'Tipos de Habitación', href: '/room-types', group: 'hotelera', groupLabel: 'Gestión Hotelera', groupIcon: '🏨', groupOrder: 2, groupDescription: 'Tipos de habitación y sensores', iconName: 'Settings', adminOnly: true },
+        { id: 'sensors', label: 'Sensores (Tuya)', href: '/sensors', group: 'hotelera', iconName: 'Activity', adminOnly: true },
 
         // 📦 INVENTARIO
-        { id: 'products', label: 'Productos', href: '/products', group: 'inventario' },
-        { id: 'categories', label: 'Categorías', href: '/categories', group: 'inventario' },
-        { id: 'warehouses', label: 'Almacenes', href: '/warehouses', group: 'inventario' },
-        { id: 'suppliers', label: 'Proveedores', href: '/suppliers', group: 'inventario' },
-        { id: 'customers', label: 'Clientes', href: '/customers', group: 'inventario' },
+        { id: 'products', label: 'Productos', href: '/products', group: 'inventario', groupLabel: 'Inventario', groupIcon: '📦', groupOrder: 3, groupDescription: 'Gestión de productos y almacenes', iconName: 'Package', adminOnly: true },
+        { id: 'products.loan-mapping', label: 'Artículos en Préstamo', href: '/products/loan-mapping', group: 'inventario', iconName: 'Utensils', adminOnly: true },
+        { id: 'categories', label: 'Categorías', href: '/categories', group: 'inventario', iconName: 'ArrowRightLeft', adminOnly: true },
+        { id: 'warehouses', label: 'Almacenes', href: '/warehouses', group: 'inventario', iconName: 'Building', adminOnly: true },
+        { id: 'suppliers', label: 'Proveedores', href: '/suppliers', group: 'inventario', iconName: 'Truck', adminOnly: true },
+        { id: 'customers', label: 'Clientes', href: '/customers', group: 'inventario', iconName: 'Users', adminOnly: true },
 
         // 💰 COMPRAS Y VENTAS
-        { id: 'purchases-sales', label: 'Dashboard Compras/Ventas', href: '/purchases-sales', group: 'compras-ventas' },
-        { id: 'purchases', label: 'Compras', href: '/purchases', group: 'compras-ventas' },
-        { id: 'sales', label: 'Ventas', href: '/sales', group: 'compras-ventas' },
+        { id: 'purchases-sales', label: 'Dashboard Movimientos', href: '/purchases-sales', group: 'compras-ventas', groupLabel: 'Compras y Ventas', groupIcon: '💰', groupOrder: 4, groupDescription: 'Gestión de ventas y compras', iconName: 'BarChart3', adminOnly: true },
+        { id: 'purchases', label: 'Compras', href: '/purchases', group: 'compras-ventas', iconName: 'ShoppingCart', adminOnly: true },
+        { id: 'sales', label: 'Ventas', href: '/sales', group: 'compras-ventas', iconName: 'ShoppingCart', adminOnly: true },
 
         // 📊 MOVIMIENTOS Y STOCK
-        { id: 'movements', label: 'Movimientos', href: '/movements', group: 'stock' },
-        { id: 'stock', label: 'Stock', href: '/stock', group: 'stock' },
-        { id: 'kardex', label: 'Kardex', href: '/kardex', group: 'stock' },
+        { id: 'movements', label: 'Movimientos', href: '/movements', group: 'stock', groupLabel: 'Control de Stock', groupIcon: '📊', groupOrder: 5, groupDescription: 'Control de inventario y movimientos', iconName: 'Activity', adminOnly: true },
+        { id: 'stock', label: 'Stock', href: '/stock', group: 'stock', iconName: 'Package', adminOnly: true },
+        { id: 'kardex', label: 'Kardex', href: '/kardex', group: 'stock', iconName: 'Activity', adminOnly: true },
 
         // 💵 FINANZAS Y REPORTES
-        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/precortes-de-caja', group: 'finanzas' },
-        { id: 'employees.closings', label: 'Cortes de Caja (Cierre)', href: '/employees/closings', group: 'finanzas' },
-        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint', group: 'finanzas' },
+        { id: 'reports.income', label: 'Pre-Cortes de Caja', href: '/precortes-de-caja', group: 'finanzas', groupLabel: 'Finanzas y Reportes', groupIcon: '💵', groupOrder: 6, groupDescription: 'Cortes de caja y reimpresión', iconName: 'FileText', allowedForReceptionist: true },
+        { id: 'employees.closings', label: 'Cortes de Caja (Cierre)', href: '/employees/closings', group: 'finanzas', iconName: 'Briefcase', allowedForReceptionist: true },
+        { id: 'reprint', label: 'Reimprimir Tickets', href: '/reprint', group: 'finanzas', iconName: 'FileText', allowedForNonAdmin: true, allowedForReceptionist: true },
 
         // 📈 ANALYTICS Y AUDITORÍA
-        { id: 'analytics', label: 'Analytics', href: '/analytics', group: 'analytics' },
-        { id: 'analytics.performance', label: 'Rendimiento y Tiempos', href: '/analytics/performance', group: 'analytics' },
-        { id: 'export', label: 'Exportar', href: '/export', group: 'analytics' },
-        { id: 'auditoria', label: 'Auditoría', href: '/auditoria', group: 'analytics' },
+        { id: 'analytics', label: 'Analytics', href: '/analytics', group: 'analytics', groupLabel: 'Analítica y Auditoría', groupIcon: '📈', groupOrder: 7, groupDescription: 'Reportes, análisis y auditoría', iconName: 'BarChart3', adminOnly: true },
+        { id: 'analytics.performance', label: 'Rendimiento y Tiempos', href: '/analytics/performance', group: 'analytics', iconName: 'Activity', adminOnly: true },
+        { id: 'export', label: 'Exportar', href: '/export', group: 'analytics', iconName: 'Download', adminOnly: true },
+        { id: 'auditoria', label: 'Auditoría', href: '/auditoria', group: 'analytics', iconName: 'Activity', adminOnly: true },
+        { id: 'auditoria.controles', label: 'Auditoría Controles TV', href: '/auditoria/controles', group: 'analytics', iconName: 'Activity', adminOnly: true },
+        { id: 'logs', label: 'Registro de Actividad', href: '/logs', group: 'analytics', iconName: 'FileText', adminOnly: true },
+        { id: 'auditoria.telemetria', label: 'Telemetría y Rendimiento', href: '/auditoria/telemetria', group: 'analytics', iconName: 'Activity', adminOnly: true },
 
         // 👥 PERSONAL
-        { id: 'employees', label: 'Empleados', href: '/employees', group: 'personal' },
-        { id: 'employees.schedules', label: 'Horarios', href: '/employees/schedules', group: 'personal' },
-        { id: 'training', label: 'Capacitación', href: '/training', group: 'personal' },
+        { id: 'employees', label: 'Empleados', href: '/employees', group: 'personal', groupLabel: 'Recursos Humanos', groupIcon: '👥', groupOrder: 8, groupDescription: 'Gestión de empleados y capacitación', iconName: 'Users', adminOnly: true },
+        { id: 'employees.schedules', label: 'Horarios', href: '/employees/schedules', group: 'personal', iconName: 'Activity', adminOnly: true },
+        { id: 'training', label: 'Capacitación', href: '/training', group: 'personal', iconName: 'GraduationCap', allowedForReceptionist: true },
 
         // ⚙️ CONFIGURACIÓN Y SISTEMA
-        { id: 'settings', label: 'Configuración', href: '/settings', group: 'sistema' },
-        { id: 'settings.roles', label: 'Gestión de Roles', href: '/settings/roles', group: 'sistema' },
-        { id: 'settings.permissions', label: 'Permisos de Roles', href: '/settings/permissions', group: 'sistema' },
-        { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media', group: 'sistema' },
-        { id: 'notifications-admin', label: 'Notificaciones', href: '/notifications-admin', group: 'sistema' },
-        { id: 'staff-notifications', label: 'Comunicados Staff', href: '/staff-notifications', group: 'sistema' },
+        { id: 'settings', label: 'Configuración', href: '/settings', group: 'sistema', groupLabel: 'Sistema', groupIcon: '⚙️', groupOrder: 9, groupDescription: 'Configuración, roles y notificaciones', iconName: 'Settings', adminOnly: true },
+        { id: 'settings.roles', label: 'Gestión de Roles', href: '/settings/roles', group: 'sistema', iconName: 'Users', adminOnly: true },
+        { id: 'settings.permissions', label: 'Permisos de Roles', href: '/settings/permissions', group: 'sistema', iconName: 'Settings', adminOnly: true },
+        { id: 'settings.media', label: 'Biblioteca de Medios', href: '/settings/media', group: 'sistema', iconName: 'Image', adminOnly: true },
+        { id: 'notifications-admin', label: 'Notificaciones', href: '/notifications-admin', group: 'sistema', iconName: 'Bell', adminOnly: true },
+        { id: 'staff-notifications', label: 'Comunicados Staff', href: '/staff-notifications', group: 'sistema', iconName: 'Bell', adminOnly: true },
     ];
 }
 
 /**
+ * Derive group metadata dynamically from the items themselves.
+ * The FIRST item in each group that has groupLabel/groupIcon defines the section.
+ * No separate dictionary to maintain.
+ */
+export function getMenuGroups() {
+    const items = getAllMenuResources();
+    const groups: Record<string, { icon: string; label: string; description: string; order: number; adminOnly?: boolean; allowedForNonAdmin?: boolean; allowedForReceptionist?: boolean }> = {};
+
+    for (const item of items) {
+        if (!groups[item.group]) {
+            const groupItems = items.filter(i => i.group === item.group);
+            groups[item.group] = {
+                icon: item.groupIcon || '📁',
+                label: item.groupLabel || item.group.charAt(0).toUpperCase() + item.group.slice(1).replace(/-/g, ' '),
+                description: item.groupDescription || '',
+                order: item.groupOrder ?? 99,
+                adminOnly: groupItems.every(i => i.adminOnly) || undefined,
+                allowedForNonAdmin: groupItems.some(i => i.allowedForNonAdmin) || undefined,
+                allowedForReceptionist: groupItems.some(i => i.allowedForReceptionist) || undefined,
+            };
+        }
+    }
+    return groups;
+}
+
+/** Auto-derived from items — backward compatible export */
+export const MENU_GROUPS = getMenuGroups();
+
+/**
  * Get menu resources grouped by category (for permissions UI).
- * Automatically groups based on the `group` field — no manual grouping needed.
+ * Fully auto-derived — no manual grouping needed.
  */
 export function getGroupedMenuResources(filterFn?: (item: MenuResource) => boolean) {
     const items = getAllMenuResources();
     const filtered = filterFn ? items.filter(filterFn) : items;
+    const groups = getMenuGroups();
 
     const groupMap = new Map<string, MenuResource[]>();
     filtered.forEach(item => {
@@ -273,7 +311,7 @@ export function getGroupedMenuResources(filterFn?: (item: MenuResource) => boole
     return Array.from(groupMap.entries())
         .map(([groupId, groupItems]) => ({
             id: groupId,
-            ...(MENU_GROUPS[groupId] || { icon: '📁', label: groupId, description: '', order: 99 }),
+            ...(groups[groupId] || { icon: '📁', label: groupId, description: '', order: 99 }),
             items: groupItems,
         }))
         .sort((a, b) => a.order - b.order);
