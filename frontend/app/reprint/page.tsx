@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useReprintCenter, type TicketType } from "@/hooks/use-reprint-center";
+import { useEffect, useMemo, useState } from "react";
+import { useReprintCenter, type TicketType, type ReprintableTicket } from "@/hooks/use-reprint-center";
+import { TicketPreviewModal } from "@/components/print-center/ticket-preview-modal";
+import { createClient } from "@/lib/supabase/client";
 
 export default function ReprintPage() {
   const {
@@ -26,6 +28,169 @@ export default function ReprintPage() {
     formatCurrency,
     typeLabels,
   } = useReprintCenter();
+
+  // Preview modal state
+  const [previewTicket, setPreviewTicket] = useState<ReprintableTicket | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const openPreview = async (ticket: ReprintableTicket) => {
+    // For closing tickets, load full transaction details + breakdowns from DB
+    if (ticket.type === "closing" && ticket.rawData.closingId) {
+      setPreviewTicket(ticket);
+      setPreviewOpen(true);
+      setPreviewLoading(true);
+
+      try {
+        const supabase = createClient();
+
+        // 1. Load transaction details with concept & room info
+        const { data: details } = await supabase
+          .from("shift_closing_details")
+          .select("*, payments(id, amount, payment_method, reference, concept, terminal_code, created_at, sales_order_id, payment_terminals(code, name), sales_orders(id, room_stays(rooms(number))))")
+          .eq("shift_closing_id", ticket.rawData.closingId)
+          .order("created_at", { ascending: true });
+
+        const transactions = (details || []).map((detail: any) => {
+          const payment = detail.payments;
+          if (!payment) return null;
+
+          // Extract room number from payment -> sales_orders -> room_stays -> rooms
+          const order = Array.isArray(payment.sales_orders) ? payment.sales_orders[0] : payment.sales_orders;
+          const roomStay = order?.room_stays?.[0] || (Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays);
+          const room = roomStay?.rooms;
+          const roomNumber = Array.isArray(room) ? room[0]?.number : room?.number;
+
+          // Map concept labels
+          const CONCEPT_DISPLAY: Record<string, string> = {
+            ESTANCIA: "Estancia",
+            CONSUMPTION: "Consumo",
+            EXTRA_PERSON: "Pers. Extra",
+            EXTRA_HOUR: "Hora Extra",
+            RENEWAL: "Renovación",
+            CHECKOUT: "Salida",
+            ROOM_BASE: "Habitación",
+            PROMO_4H: "Promo 4H",
+          };
+
+          const rawConcept = payment.concept || "";
+          const conceptLabel = CONCEPT_DISPLAY[rawConcept] || rawConcept || undefined;
+
+          return {
+            time: new Date(payment.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+            amount: payment.amount,
+            paymentMethod: detail.payment_method || payment.payment_method || "N/A",
+            terminalCode: detail.terminal_code || payment.payment_terminals?.code || payment.terminal_code,
+            reference: payment.reference || undefined,
+            concept: conceptLabel,
+            roomNumber: roomNumber || undefined,
+          };
+        }).filter(Boolean);
+
+        // 2. Load shift expenses
+        const shiftSessionId = ticket.rawData.shiftSessionId;
+        let expenses: any[] = [];
+        let totalExpenses = 0;
+
+        if (shiftSessionId) {
+          const { data: expenseData } = await supabase
+            .from("shift_expenses")
+            .select("*")
+            .eq("shift_session_id", shiftSessionId)
+            .neq("status", "rejected")
+            .order("created_at", { ascending: true });
+
+          expenses = (expenseData || []).map((exp: any) => ({
+            time: new Date(exp.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+            type: exp.expense_type,
+            description: exp.description,
+            amount: Number(exp.amount),
+            recipient: exp.recipient,
+          }));
+          totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+        }
+
+        // 3. Load accrual items to build breakdowns (room types, extras, consumptions)
+        let roomBreakdown: Record<string, { count: number; total: number }> = {};
+        let extraBreakdown: Record<string, { count: number; total: number }> = {};
+        let consumptionBreakdown: Record<string, { count: number; total: number }> = {};
+
+        if (shiftSessionId) {
+          const { data: accrualItems } = await supabase
+            .from("sales_order_items")
+            .select("id, qty, unit_price, concept_type, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
+            .eq("shift_session_id", shiftSessionId);
+
+          const CONCEPT_LABELS: Record<string, string> = {
+            ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
+            CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
+          };
+
+          // Filter out cancelled stays
+          const activeItems = (accrualItems || []).filter((item: any) => {
+            const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+            const roomStay = Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays;
+            return !roomStay || roomStay.status !== "CANCELADA";
+          });
+
+          activeItems.forEach((item: any) => {
+            const qty = item.qty || 1;
+            const amount = (item.unit_price || 0) * qty;
+            const conceptType = item.concept_type || "PRODUCT";
+
+            if (conceptType === "ROOM_BASE") {
+              const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+              const roomStay = Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays;
+              const room = roomStay?.rooms;
+              const roomType = Array.isArray(room?.room_types) ? room.room_types[0] : room?.room_types;
+              const typeName = roomType?.name || "Sin tipo";
+
+              if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
+              roomBreakdown[typeName].count += qty;
+              roomBreakdown[typeName].total += amount;
+            } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(conceptType)) {
+              const label = CONCEPT_LABELS[conceptType] || conceptType;
+              if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
+              extraBreakdown[label].count += qty;
+              extraBreakdown[label].total += amount;
+            } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
+              const product = Array.isArray(item.products) ? item.products[0] : item.products;
+              const productName = product?.name || "Producto";
+              if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
+              consumptionBreakdown[productName].count += qty;
+              consumptionBreakdown[productName].total += amount;
+            }
+          });
+        }
+
+        // Update the preview ticket with all loaded data
+        setPreviewTicket({
+          ...ticket,
+          rawData: {
+            ...ticket.rawData,
+            transactions,
+            roomBreakdown,
+            extraBreakdown,
+            consumptionBreakdown,
+            expenses,
+            totalExpenses,
+          },
+        });
+      } catch (err) {
+        console.error("[Preview] Error loading closing details:", err);
+      } finally {
+        setPreviewLoading(false);
+      }
+    } else {
+      setPreviewTicket(ticket);
+      setPreviewOpen(true);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setTimeout(() => setPreviewTicket(null), 200);
+  };
 
   // Auto-fetch on mount and filter changes
   useEffect(() => {
@@ -356,8 +521,21 @@ export default function ReprintPage() {
                     {formatCurrency(ticket.amount)}
                   </div>
 
-                  {/* Reprint Actions */}
+                  {/* Preview + Reprint Actions */}
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Preview Button — always visible */}
+                    <button
+                      onClick={() => openPreview(ticket)}
+                      title="Vista previa del ticket"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 bg-white/[0.06] hover:bg-violet-500/20 hover:text-violet-400 text-muted-foreground"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span className="hidden sm:inline">Ver</span>
+                    </button>
+
                     {ticket.type === "closing" ? (
                       <>
                         {/* Thermal ticket button */}
@@ -446,6 +624,17 @@ export default function ReprintPage() {
           </div>
         )}
       </div>
+
+      {/* Ticket Preview Modal */}
+      <TicketPreviewModal
+        ticket={previewTicket}
+        open={previewOpen}
+        onClose={closePreview}
+        onReprint={reprintTicket}
+        onReprintHP={reprintHPOnly}
+        isPrinting={isPrinting}
+        loadingDetails={previewLoading}
+      />
     </div>
   );
 }
