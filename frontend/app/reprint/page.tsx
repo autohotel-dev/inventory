@@ -150,9 +150,15 @@ export default function ReprintPage() {
               roomBreakdown[typeName].total += amount;
             } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(conceptType)) {
               const label = CONCEPT_LABELS[conceptType] || conceptType;
-              if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
-              extraBreakdown[label].count += qty;
-              extraBreakdown[label].total += amount;
+              // Extract room number for extras
+              const orderEx = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+              const roomStayEx = Array.isArray(orderEx?.room_stays) ? orderEx.room_stays[0] : orderEx?.room_stays;
+              const roomEx = roomStayEx?.rooms;
+              const roomNumEx = Array.isArray(roomEx) ? roomEx[0]?.number : roomEx?.number;
+              const extraLabel = roomNumEx ? `${label} · Hab ${roomNumEx}` : label;
+              if (!extraBreakdown[extraLabel]) extraBreakdown[extraLabel] = { count: 0, total: 0 };
+              extraBreakdown[extraLabel].count += qty;
+              extraBreakdown[extraLabel].total += amount;
             } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
               const product = Array.isArray(item.products) ? item.products[0] : item.products;
               const productName = product?.name || "Producto";
