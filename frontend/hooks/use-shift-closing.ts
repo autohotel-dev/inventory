@@ -356,21 +356,34 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
           .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
 
+        // Build detailed payment method string with card info for administration
+        const buildCardLabel = (p: any) => {
+          let label = 'TARJETA';
+          if (p.terminal_code) label += ` ${p.terminal_code}`;
+          if (p.card_type) {
+            const ct = p.card_type.toUpperCase();
+            label += ct === 'CREDITO' ? ' CRÉD' : ct === 'DEBITO' ? ' DÉB' : ` ${ct}`;
+          }
+          if (p.card_last_4) label += ` ****${p.card_last_4}`;
+          return label;
+        };
+
         let paymentMethod = "PENDIENTE";
         if (allPayments.length === 1) {
           const p = allPayments[0];
           paymentMethod = p.payment_method === "TARJETA"
-            ? `TARJETA ${p.terminal_code || ""}`.trim()
+            ? buildCardLabel(p)
             : p.payment_method;
         } else if (allPayments.length > 1) {
           const uniqueMethods = new Set(allPayments.map((p: any) => p.payment_method));
           if (uniqueMethods.size > 1) {
-            paymentMethod = "MIXTO";
+            // Mixed: show each payment detail
+            paymentMethod = allPayments.map((p: any) =>
+              p.payment_method === "TARJETA" ? buildCardLabel(p) : p.payment_method
+            ).join(' / ');
           } else if (allPayments[0].payment_method === "TARJETA") {
-            const terminals = new Set(allPayments.map((p: any) => p.terminal_code).filter(Boolean));
-            paymentMethod = terminals.size === 1
-              ? `TARJETA ${[...terminals][0]}`
-              : `TARJETA ${[...terminals].join('/')}`;
+            // All card — show each card's detail
+            paymentMethod = allPayments.map((p: any) => buildCardLabel(p)).join(' / ');
           } else {
             paymentMethod = allPayments[0].payment_method;
           }
@@ -410,9 +423,17 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
             p.status !== 'PENDIENTE' &&
             p.payment_method !== 'PENDIENTE'
           ).forEach((p: any) => {
-            const key = p.payment_method === "TARJETA"
-              ? `TARJETA ${p.terminal_code || ""} ${p.card_type || ""}`.trim()
-              : p.payment_method;
+            let key: string;
+            if (p.payment_method === "TARJETA") {
+              key = 'TARJETA';
+              if (p.terminal_code) key += ` ${p.terminal_code}`;
+              if (p.card_type) {
+                const ct = p.card_type.toUpperCase();
+                key += ct === 'CREDITO' ? ' CRÉD' : ct === 'DEBITO' ? ' DÉB' : ` ${ct}`;
+              }
+            } else {
+              key = p.payment_method;
+            }
             paymentBreakdown[key] = (paymentBreakdown[key] || 0) + Number(p.amount);
           });
         });
