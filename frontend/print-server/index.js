@@ -394,10 +394,23 @@ function buildClosingTicket(data) {
         const bbvaTx = data.transactions.filter(tx => tx.paymentMethod === 'TARJETA_BBVA' || (tx.paymentMethod === 'TARJETA' && tx.terminalCode === 'BBVA'));
         const getnetTx = data.transactions.filter(tx => tx.paymentMethod === 'TARJETA_GETNET' || (tx.paymentMethod === 'TARJETA' && tx.terminalCode === 'GETNET'));
 
+        // Helper to format transaction line with concept + room
+        const fmtTxLine = (tx, i) => {
+            let line = `${i + 1}. ${tx.time}  ${formatMoney(tx.amount)}`;
+            if (tx.concept && tx.roomNumber) {
+                line += ` (${tx.concept} Hab ${tx.roomNumber})`;
+            } else if (tx.concept) {
+                line += ` (${tx.concept})`;
+            } else if (tx.roomNumber) {
+                line += ` (Hab ${tx.roomNumber})`;
+            }
+            return line;
+        };
+
         if (cashTx.length > 0) {
             t += CMD.BOLD_ON + `EFECTIVO (${cashTx.length})` + CMD.NEW_LINE + CMD.BOLD_OFF;
             cashTx.forEach((tx, i) => {
-                t += `${i + 1}. ${tx.time}  ${formatMoney(tx.amount)}` + CMD.NEW_LINE;
+                t += fmtTxLine(tx, i) + CMD.NEW_LINE;
                 if (tx.items && tx.items.length > 0) {
                     tx.items.forEach(item => {
                         t += `   ${item.qty}x ${item.name}` + CMD.NEW_LINE;
@@ -410,7 +423,7 @@ function buildClosingTicket(data) {
         if (bbvaTx.length > 0) {
             t += CMD.BOLD_ON + `BBVA (${bbvaTx.length})` + CMD.NEW_LINE + CMD.BOLD_OFF;
             bbvaTx.forEach((tx, i) => {
-                t += `${i + 1}. ${tx.time}  ${formatMoney(tx.amount)}` + CMD.NEW_LINE;
+                t += fmtTxLine(tx, i) + CMD.NEW_LINE;
             });
             t += CMD.NEW_LINE;
         }
@@ -418,12 +431,35 @@ function buildClosingTicket(data) {
         if (getnetTx.length > 0) {
             t += CMD.BOLD_ON + `GETNET (${getnetTx.length})` + CMD.NEW_LINE + CMD.BOLD_OFF;
             getnetTx.forEach((tx, i) => {
-                t += `${i + 1}. ${tx.time}  ${formatMoney(tx.amount)}` + CMD.NEW_LINE;
+                t += fmtTxLine(tx, i) + CMD.NEW_LINE;
             });
             t += CMD.NEW_LINE;
         }
 
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    }
+
+    // Gastos del turno (si hay)
+    if (data.expenses && data.expenses.length > 0) {
+        const EXPENSE_LABELS = {
+            UBER: 'Uber/Transporte', MAINTENANCE: 'Mantenimiento', REPAIR: 'Reparacion',
+            SUPPLIES: 'Insumos', PETTY_CASH: 'Caja Chica', OTHER: 'Otro Gasto',
+        };
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'GASTOS DEL TURNO' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        let totalGastos = 0;
+        data.expenses.forEach((exp, i) => {
+            const label = EXPENSE_LABELS[exp.type] || exp.type || 'Gasto';
+            const desc = exp.description.length > 24 ? exp.description.substring(0, 23) + '.' : exp.description;
+            t += `${i + 1}. ${exp.time}  -${formatMoney(exp.amount)}` + CMD.NEW_LINE;
+            t += `   ${label}: ${desc}` + CMD.NEW_LINE;
+            totalGastos += exp.amount;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine('TOTAL GASTOS:', `-${formatMoney(totalGastos)}`) + CMD.NEW_LINE;
+        t += formatLine('EFECTIVO NETO:', formatMoney((data.totalCash || 0) - totalGastos)) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     }
 
     if (data.notes && data.notes.trim()) {

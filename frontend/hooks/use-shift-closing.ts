@@ -238,6 +238,28 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   const handlePrintClosing = async () => {
     if (!summary) return;
     try {
+      const CONCEPT_DISPLAY: Record<string, string> = {
+        ESTANCIA: "Estancia", CONSUMPTION: "Consumo", EXTRA_PERSON: "Pers. Extra",
+        EXTRA_HOUR: "Hora Extra", RENEWAL: "Renovación", CHECKOUT: "Salida",
+        ROOM_BASE: "Habitación", PROMO_4H: "Promo 4H",
+      };
+
+      // Load expenses for the shift
+      const { data: expenseData } = await supabase
+        .from('shift_expenses')
+        .select('*')
+        .eq('shift_session_id', session.id)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: true });
+
+      const expenses = (expenseData || []).map((exp: any) => ({
+        time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        type: exp.expense_type,
+        description: exp.description,
+        amount: Number(exp.amount),
+        recipient: exp.recipient,
+      }));
+
       const printData = {
         employeeName: `${session.employees?.first_name} ${session.employees?.last_name}`,
         shiftName: session.shift_definitions?.name || 'Turno',
@@ -247,6 +269,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         totalCardGetnet: summary.total_card_getnet, totalSales: summary.total_sales,
         totalTransactions: summary.total_transactions, countedCash: summary.total_cash,
         cashDifference: 0, notes: notes.trim() || undefined,
+        expenses,
         transactions: await Promise.all(summary.payments.map(async (payment: any) => {
           let items: any[] = [];
           if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {
@@ -264,12 +287,30 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
               return { name: product?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"] || "Item", qty: item.qty, unitPrice: item.unit_price, total: item.qty * item.unit_price };
             });
           }
+
+          // Get room number from sales_order -> room_stays
+          let roomNumber: string | undefined;
+          if (payment.sales_order_id) {
+            const { data: stayData } = await supabase
+              .from("room_stays")
+              .select("rooms(number)")
+              .eq("sales_order_id", payment.sales_order_id)
+              .limit(1)
+              .maybeSingle();
+            const rooms = stayData?.rooms;
+            roomNumber = Array.isArray(rooms) ? rooms[0]?.number : rooms?.number;
+          }
+
+          const rawConcept = payment.concept || "";
+          const conceptLabel = CONCEPT_DISPLAY[rawConcept] || payment.itemsDescription || rawConcept || undefined;
+
           return {
             time: new Date(payment.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
             amount: payment.amount, paymentMethod: payment.payment_method || 'N/A',
             terminalCode: payment.payment_terminals?.code || payment.terminal_code,
             reference: payment.reference || undefined,
-            concept: payment.itemsDescription || payment.concept || undefined,
+            concept: conceptLabel,
+            roomNumber,
             items: items.length > 0 ? items : undefined
           };
         })),
@@ -464,6 +505,29 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       })();
       const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
 
+      // 6b. Fetch shift expenses
+      const { data: expenseData } = await supabase
+        .from('shift_expenses')
+        .select('*')
+        .eq('shift_session_id', session.id)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: true });
+
+      const EXPENSE_LABELS: Record<string, string> = {
+        UBER: '🚗 Uber / Transporte', MAINTENANCE: '🔧 Mantenimiento', REPAIR: '🛠️ Reparación',
+        SUPPLIES: '📦 Insumos', PETTY_CASH: '💵 Caja Chica', OTHER: '📝 Otro Gasto',
+      };
+
+      const expenses = (expenseData || []).map((exp: any) => ({
+        time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        type: exp.expense_type,
+        typeLabel: EXPENSE_LABELS[exp.expense_type] || exp.expense_type,
+        description: exp.description,
+        amount: Number(exp.amount),
+        recipient: exp.recipient,
+      }));
+      const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
+
       const tableRows = entries.map((e: any) => {
         const isCancelled = e.stay_status === 'CANCELADA';
         const rowStyle = isCancelled ? 'color:#dc2626;text-decoration:line-through;' : '';
@@ -491,7 +555,11 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;">${method}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;">$${Number(amount).toFixed(2)}</td></tr>`
       ).join('');
 
-      const printHtml = `<!DOCTYPE html>\n<html lang="es">\n<head>\n<meta charset="UTF-8">\n<title>Corte de Caja</title>\n<style>\n    @page { size: landscape; margin: 5mm; }\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; background: #fff; line-height: 1.2; }\n    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 4px; }\n    .header h1 { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }\n    .header .meta { font-size: 7px; color: #333; text-align: right; line-height: 1.4; }\n    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }\n    th { background: #222; color: #fff; padding: 2px 3px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border: 1px solid #222; white-space: nowrap; }\n    td { padding: 1px 3px; border: 1px solid #bbb; font-size: 8px; white-space: nowrap; }\n    tbody tr:nth-child(odd) { background: #f5f5f5; }\n    .totals-row td { background: #e5e5e5; font-weight: 700; border-top: 2px solid #111; font-size: 9px; }\n    .footer { display: flex; gap: 10px; margin-top: 6px; }\n    .footer-box { flex: 1; border: 1px solid #999; padding: 4px 6px; }\n    .footer-box h4 { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }\n    .footer-box td { font-size: 8px; padding: 1px 4px; border: none; border-bottom: 1px solid #eee; }\n    .signature { margin-top: 20px; display: flex; justify-content: space-around; }\n    .sig-line { text-align: center; width: 180px; }\n    .sig-line .line { border-top: 1px solid #111; margin-bottom: 2px; }\n    .sig-line span { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #666; }\n</style>\n</head>\n<body onload="setTimeout(()=>window.print(),300)">\n<div class="header">\n    <h1>Luxor Auto Hotel &mdash; Corte de Caja</h1>\n    <div class="meta"><b>${employeeName}</b> &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; ${entries.length} registros &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString('es-MX')}</div>\n</div>\n<table>\n    <thead><tr><th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Total</th><th>Forma de Pago</th></tr></thead>\n    <tbody>\n        ${tableRows}\n        <tr class="totals-row"><td colspan="4" style="text-align:right;letter-spacing:1px;">TOTAL</td><td style="text-align:right;font-family:monospace;">$${Number(totals.roomPrice).toFixed(2)}</td><td style="text-align:right;font-family:monospace;">$${Number(totals.extra).toFixed(2)}</td><td style="text-align:right;font-family:monospace;">$${Number(totals.consumption).toFixed(2)}</td><td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(totals.total).toFixed(2)}</td><td></td></tr>\n    </tbody>\n</table>\n<div class="footer">\n    <div class="footer-box"><h4>Desglose por M&eacute;todo de Pago</h4><table style="margin:0;"><tbody>${breakdownRows}</tbody></table></div>\n    <div class="footer-box"><h4>Resumen</h4><table style="margin:0;"><tbody>\n        <tr><td>Habitaciones</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>\n        <tr><td>Extras</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.extra).toFixed(2)}</td></tr>\n        <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>\n        <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>\n    </tbody></table></div>\n</div>\n<div class="signature"><div class="sig-line"><div class="line"></div><span>Recepcionista</span></div><div class="sig-line"><div class="line"></div><span>Supervisor / Gerente</span></div></div>\n</body>\n</html>`;
+      const expenseRows = expenses.length > 0 ? expenses.map((exp: any) =>
+        `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${exp.time} — ${exp.typeLabel}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${exp.description}${exp.recipient ? ' (' + exp.recipient + ')' : ''}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;color:#dc2626;">-$${exp.amount.toFixed(2)}</td></tr>`
+      ).join('') + `<tr><td colspan="2" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL GASTOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : '';
+
+      const printHtml = `<!DOCTYPE html>\n<html lang="es">\n<head>\n<meta charset="UTF-8">\n<title>Corte de Caja</title>\n<style>\n    @page { size: landscape; margin: 5mm; }\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; background: #fff; line-height: 1.2; }\n    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 4px; }\n    .header h1 { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }\n    .header .meta { font-size: 7px; color: #333; text-align: right; line-height: 1.4; }\n    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }\n    th { background: #222; color: #fff; padding: 2px 3px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border: 1px solid #222; white-space: nowrap; }\n    td { padding: 1px 3px; border: 1px solid #bbb; font-size: 8px; white-space: nowrap; }\n    tbody tr:nth-child(odd) { background: #f5f5f5; }\n    .totals-row td { background: #e5e5e5; font-weight: 700; border-top: 2px solid #111; font-size: 9px; }\n    .footer { display: flex; gap: 10px; margin-top: 6px; }\n    .footer-box { flex: 1; border: 1px solid #999; padding: 4px 6px; }\n    .footer-box h4 { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }\n    .footer-box td { font-size: 8px; padding: 1px 4px; border: none; border-bottom: 1px solid #eee; }\n    .signature { margin-top: 20px; display: flex; justify-content: space-around; }\n    .sig-line { text-align: center; width: 180px; }\n    .sig-line .line { border-top: 1px solid #111; margin-bottom: 2px; }\n    .sig-line span { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #666; }\n</style>\n</head>\n<body onload="setTimeout(()=>window.print(),300)">\n<div class="header">\n    <h1>Luxor Auto Hotel &mdash; Corte de Caja</h1>\n    <div class="meta"><b>${employeeName}</b> &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; ${entries.length} registros &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString('es-MX')}</div>\n</div>\n<table>\n    <thead><tr><th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Total</th><th>Forma de Pago</th></tr></thead>\n    <tbody>\n        ${tableRows}\n        <tr class="totals-row"><td colspan="4" style="text-align:right;letter-spacing:1px;">TOTAL</td><td style="text-align:right;font-family:monospace;">$${Number(totals.roomPrice).toFixed(2)}</td><td style="text-align:right;font-family:monospace;">$${Number(totals.extra).toFixed(2)}</td><td style="text-align:right;font-family:monospace;">$${Number(totals.consumption).toFixed(2)}</td><td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(totals.total).toFixed(2)}</td><td></td></tr>\n    </tbody>\n</table>\n<div class="footer">\n    <div class="footer-box"><h4>Desglose por M&eacute;todo de Pago</h4><table style="margin:0;"><tbody>${breakdownRows}</tbody></table></div>\n    <div class="footer-box"><h4>Resumen</h4><table style="margin:0;"><tbody>\n        <tr><td>Habitaciones</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>\n        <tr><td>Extras</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.extra).toFixed(2)}</td></tr>\n        <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>\n        <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL VENTAS</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>\n        ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr><tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(Number(totals.total) - totalExpenses).toFixed(2)}</td></tr>` : ''}\n    </tbody></table></div>\n</div>\n${expenses.length > 0 ? `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Gastos del Turno</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Descripci&oacute;n</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ''}\n<div class="signature"><div class="sig-line"><div class="line"></div><span>Recepcionista</span></div><div class="sig-line"><div class="line"></div><span>Supervisor / Gerente</span></div></div>\n</body>\n</html>`;
 
 
 
