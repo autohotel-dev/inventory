@@ -69,7 +69,7 @@ export function useShiftClosingHistory() {
     const offset = (currentPage - 1) * pageSize;
     let query = supabase.from("shift_closings")
       .select("*, employees!shift_closings_employee_id_fkey(*), shift_definitions(*)")
-      .order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
+      .order("period_start", { ascending: false }).range(offset, offset + pageSize - 1);
     if (!userIsAdmin && employeeId) query = query.eq("employee_id", employeeId);
 
     const { data, error } = await query;

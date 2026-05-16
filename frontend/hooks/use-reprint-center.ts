@@ -143,8 +143,13 @@ async function printHPIncomeReport(
       total: roomPrice + extra + consumption,
       payment_method: paymentMethod,
       stay_status: stay.status,
+      isOwnRoom: roomPrice > 0,
     };
   });
+
+  // Split entries: rooms checked-in THIS shift vs services for rooms from OTHER shifts
+  const ownEntries = entries.filter((e: any) => e.isOwnRoom).map((e: any, i: number) => ({ ...e, no: i + 1 }));
+  const otherEntries = entries.filter((e: any) => !e.isOwnRoom).map((e: any, i: number) => ({ ...e, no: i + 1 }));
 
   // 4. Build payment breakdown
   const paymentBreakdown: Record<string, number> = {};
@@ -175,13 +180,14 @@ async function printHPIncomeReport(
     });
   });
 
-  // 5. Calculate totals
-  const totals = entries.reduce((acc: { roomPrice: number; extra: number; consumption: number; total: number }, e: typeof entries[0]) => ({
-    roomPrice: acc.roomPrice + e.room_price,
-    extra: acc.extra + e.extra,
-    consumption: acc.consumption + e.consumption,
-    total: acc.total + e.total,
+  // 5. Calculate totals (all, own, other)
+  const calcTotals = (list: any[]) => list.reduce((acc: any, e: any) => ({
+    roomPrice: acc.roomPrice + e.room_price, extra: acc.extra + e.extra,
+    consumption: acc.consumption + e.consumption, total: acc.total + e.total,
   }), { roomPrice: 0, extra: 0, consumption: 0, total: 0 });
+  const totals = calcTotals(entries);
+  const ownTotals = calcTotals(ownEntries);
+  const otherTotals = calcTotals(otherEntries);
 
   // 6. Format period
   const fmtDate = (d: string) => {
@@ -218,9 +224,8 @@ async function printHPIncomeReport(
   }));
   const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
-  // 7. Build HTML table rows
-  const tableRows = entries.map((e: typeof entries[0]) => {
-    return `<tr>
+  // 7. Build HTML table rows helper
+  const buildRow = (e: any) => `<tr>
         <td style="text-align:center;font-weight:600;">${e.no}</td>
         <td style="text-align:center;">${e.time}</td>
         <td style="text-align:center;text-transform:uppercase;">${e.vehicle_plate || '—'}</td>
@@ -231,7 +236,8 @@ async function printHPIncomeReport(
         <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
         <td style="text-align:center;">${e.payment_method}</td>
     </tr>`;
-  }).join('');
+  const ownRows = ownEntries.map(buildRow).join('');
+  const otherRows = otherEntries.map(buildRow).join('');
 
   const breakdownRows = Object.entries(paymentBreakdown).map(([method, amount]) =>
     `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;">${method}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;">$${Number(amount).toFixed(2)}</td></tr>`
@@ -276,32 +282,50 @@ async function printHPIncomeReport(
         <b>${employeeName}</b> &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; ${entries.length} registros &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString('es-MX')}
     </div>
 </div>
+<h2 style="font-size:10px;margin:6px 0 2px;padding:2px 4px;background:#1a5276;color:#fff;text-transform:uppercase;letter-spacing:1px;">&#x1F3E8; Habitaciones del Turno (${ownEntries.length})</h2>
 <table>
     <thead>
         <tr>
-            <th>#</th>
-            <th>Hora</th>
-            <th>Placas</th>
-            <th>Hab</th>
-            <th>Precio</th>
-            <th>Extra</th>
-            <th>Consumo</th>
-            <th>Total</th>
-            <th>Forma de Pago</th>
+            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Total</th><th>Forma de Pago</th>
         </tr>
     </thead>
     <tbody>
-        ${tableRows}
+        ${ownRows || '<tr><td colspan="9" style="text-align:center;color:#999;padding:4px;">Sin habitaciones en este turno</td></tr>'}
         <tr class="totals-row">
-            <td colspan="4" style="text-align:right;letter-spacing:1px;">TOTAL</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(totals.roomPrice).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(totals.extra).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(totals.consumption).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(totals.total).toFixed(2)}</td>
+            <td colspan="4" style="text-align:right;letter-spacing:1px;">SUBTOTAL</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.roomPrice).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.extra).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.consumption).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(ownTotals.total).toFixed(2)}</td>
             <td></td>
         </tr>
     </tbody>
 </table>
+${otherEntries.length > 0 ? `
+<h2 style="font-size:10px;margin:6px 0 2px;padding:2px 4px;background:#7d3c98;color:#fff;text-transform:uppercase;letter-spacing:1px;">&#x1F504; Servicios de Otros Turnos (${otherEntries.length}) &mdash; Renovaciones, Extras, Consumos</h2>
+<table>
+    <thead>
+        <tr>
+            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Total</th><th>Forma de Pago</th>
+        </tr>
+    </thead>
+    <tbody>
+        ${otherRows}
+        <tr class="totals-row">
+            <td colspan="4" style="text-align:right;letter-spacing:1px;">SUBTOTAL</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.roomPrice).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.extra).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.consumption).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(otherTotals.total).toFixed(2)}</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+` : ''}
+<div style="margin-top:4px;padding:3px 6px;background:#222;color:#fff;font-size:9px;font-weight:700;display:flex;justify-content:space-between;">
+    <span>TOTAL GENERAL (${entries.length} registros)</span>
+    <span style="font-family:monospace;font-size:11px;">$${Number(totals.total).toFixed(2)}</span>
+</div>
 <div class="footer">
     <div class="footer-box">
         <h4>Desglose por M&eacute;todo de Pago</h4>
