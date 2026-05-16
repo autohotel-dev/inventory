@@ -104,7 +104,10 @@ export function useReceptionistDashboard() {
 
     const now = new Date();
     const ct = now.toTimeString().slice(0, 8);
-    for (const shift of shifts) {
+    // Filtrar comodin para que no sobreescriba los turnos principales
+    const mainShifts = shifts.filter(s => s.code !== 'COMODIN');
+    
+    for (const shift of mainShifts) {
       if (shift.crosses_midnight) {
         if (ct >= shift.start_time || ct < shift.end_time) { setCurrentShift(shift); return; }
       } else {

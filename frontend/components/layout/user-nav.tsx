@@ -90,7 +90,7 @@ export function UserNav() {
                             .from("shift_sessions")
                             .update({
                                 clock_out_at: new Date().toISOString(),
-                                status: "pending_closing"
+                                status: "closed"
                             })
                             .eq("id", session.id);
 

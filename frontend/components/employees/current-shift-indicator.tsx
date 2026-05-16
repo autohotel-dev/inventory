@@ -22,6 +22,7 @@ import {
   Sunset,
   Moon,
   Clock,
+  LifeBuoy,
   User,
   LogIn,
   LogOut,
@@ -39,6 +40,7 @@ const SHIFT_ICONS: Record<string, React.ReactNode> = {
   MORNING: <Sun className="h-5 w-5" />,
   AFTERNOON: <Sunset className="h-5 w-5" />,
   NIGHT: <Moon className="h-5 w-5" />,
+  COMODIN: <LifeBuoy className="h-5 w-5" />,
 };
 
 interface CurrentShiftIndicatorProps {

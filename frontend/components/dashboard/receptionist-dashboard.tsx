@@ -11,7 +11,7 @@ import {
 import {
   DollarSign, ShoppingBag, Clock, CreditCard, Banknote, TrendingUp,
   User, RefreshCw, Building2, LogOut, AlertCircle, LogIn, Sun, Sunset,
-  Moon, KeyRound, Loader2, CheckCircle2, Receipt, Wallet, Edit3, Plus, Minus, Users
+  Moon, KeyRound, Loader2, CheckCircle2, Receipt, Wallet, Edit3, Plus, Minus, Users, LifeBuoy
 } from "lucide-react";
 import Link from "next/link";
 import { useReceptionistDashboard, formatCurrency, formatTime, formatDate } from "@/hooks/use-receptionist-dashboard";
@@ -37,12 +37,14 @@ const SHIFT_ICONS: Record<string, React.ReactNode> = {
   MORNING: <Sun className="h-8 w-8" />,
   AFTERNOON: <Sunset className="h-8 w-8" />,
   NIGHT: <Moon className="h-8 w-8" />,
+  COMODIN: <LifeBuoy className="h-8 w-8" />,
 };
 
 const SHIFT_COLORS: Record<string, string> = {
   MORNING: "from-amber-500 to-orange-500",
   AFTERNOON: "from-blue-500 to-indigo-500",
   NIGHT: "from-purple-500 to-violet-600",
+  COMODIN: "from-emerald-500 to-teal-500",
 };
 
 export function ReceptionistDashboard() {

@@ -29,7 +29,7 @@ export default function CamaristaLayout() {
                             .from("shift_sessions")
                             .update({
                                 clock_out_at: new Date().toISOString(),
-                                status: "pending_closing",
+                                status: "closed",
                             })
                             .eq("employee_id", employeeId)
                             .in("status", ["active", "open"])

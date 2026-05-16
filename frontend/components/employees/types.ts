@@ -19,7 +19,7 @@ export interface Employee {
 export interface ShiftDefinition {
   id: string;
   name: string;
-  code: 'MORNING' | 'AFTERNOON' | 'NIGHT';
+  code: 'MORNING' | 'AFTERNOON' | 'NIGHT' | 'COMODIN';
   start_time: string;
   end_time: string;
   crosses_midnight: boolean;
@@ -138,12 +138,14 @@ export const SHIFT_COLORS: Record<string, string> = {
   MORNING: 'bg-amber-500',
   AFTERNOON: 'bg-blue-500',
   NIGHT: 'bg-purple-500',
+  COMODIN: 'bg-emerald-500',
 };
 
 export const SHIFT_LABELS: Record<string, string> = {
   MORNING: 'Mañana',
   AFTERNOON: 'Tarde',
   NIGHT: 'Noche',
+  COMODIN: 'Comodín',
 };
 
 // Denominaciones de billetes mexicanos para el conteo de caja

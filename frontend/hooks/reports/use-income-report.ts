@@ -69,6 +69,8 @@ export function useIncomeReport({
                 terminal_code: e.terminal_code,
                 stay_status: e.stay_status,
                 checkout_valet_name: e.checkout_valet_name || '—',
+                receptionist_name: e.receptionist_name || '—',
+                shift_name: e.shift_name || '—',
                 payments: (e.payments || []).map((p: any) => ({
                     payment_method: p.payment_method,
                     amount: Number(p.amount) || 0,
@@ -124,6 +126,8 @@ export function useIncomeReport({
             terminal_code: e.terminal_code,
             stay_status: e.stay_status,
             checkout_valet_name: e.checkout_valet_name || '—',
+            receptionist_name: e.receptionist_name || '—',
+            shift_name: e.shift_name || '—',
             payments: (e.payments || []).map((p: any) => ({
                 payment_method: p.payment_method,
                 amount: Number(p.amount) || 0,

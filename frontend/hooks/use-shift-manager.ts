@@ -1,8 +1,22 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { Employee, ShiftDefinition, ShiftSession, EMPLOYEE_ROLES } from "@/components/employees/types";
+
+export type ShiftStatus = 'normal' | 'expired' | 'auto_closed';
+
+/** Calculate the correct shift end time for a session */
+function calculateShiftEnd(clockIn: Date, shiftDef: ShiftDefinition): Date {
+  const endTimeParts = shiftDef.end_time.split(':').map(Number);
+  const endDate = new Date(clockIn);
+  endDate.setHours(endTimeParts[0], endTimeParts[1], endTimeParts[2] || 0, 0);
+  // If end time is before or equal to clock_in time, it's next day
+  if (endDate <= clockIn) {
+    endDate.setDate(endDate.getDate() + 1);
+  }
+  return endDate;
+}
 
 export function useShiftManager(onShiftChange?: (session: ShiftSession | null) => void) {
   const supabase = createClient();
@@ -24,6 +38,9 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
   const [showClockOutOptions, setShowClockOutOptions] = useState(false);
   const [showClosingModal, setShowClosingModal] = useState(false);
   const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
+  const [shiftStatus, setShiftStatus] = useState<ShiftStatus>('normal');
+  const [minutesPastEnd, setMinutesPastEnd] = useState(0);
+  const autoCloseTriggeredRef = useRef(false);
 
   const getRoleLimit = (role: string): number | undefined => {
     switch (role) {
@@ -70,7 +87,9 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
       let current: ShiftDefinition | null = null;
       let next: ShiftDefinition | null = null;
 
-      for (const shift of allShifts) {
+      const mainShifts = allShifts.filter((s: any) => s.code !== 'COMODIN');
+
+      for (const shift of mainShifts) {
         const start = shift.start_time;
         const end = shift.end_time;
 
@@ -86,14 +105,76 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
       }
 
       if (current) {
-        const currentIndex = allShifts.findIndex((s: any) => s.id === current!.id);
-        next = allShifts[(currentIndex + 1) % allShifts.length];
+        const currentIndex = mainShifts.findIndex((s: any) => s.id === current!.id);
+        next = mainShifts[(currentIndex + 1) % mainShifts.length];
       }
 
       setCurrentShift(current);
       setNextShift(next);
 
       const session = sessionRes.data?.[0] || null;
+
+      // ─── Auto-close check for receptionist sessions past shift end ──────
+      if (session && session.shift_definitions && session.employees?.role === 'receptionist') {
+        const clockIn = new Date(session.clock_in_at);
+        const shiftEnd = calculateShiftEnd(clockIn, session.shift_definitions as ShiftDefinition);
+        const now = new Date();
+
+        if (now > shiftEnd) {
+          const diffMs = now.getTime() - shiftEnd.getTime();
+          const diffMin = Math.floor(diffMs / (1000 * 60));
+          setMinutesPastEnd(diffMin);
+
+          // Auto-close: set clock_out_at to the shift end time
+          if (!autoCloseTriggeredRef.current) {
+            autoCloseTriggeredRef.current = true;
+            console.log(`[SHIFT] Auto-closing session ${session.id} — shift ended ${diffMin} min ago`);
+
+            const { error: closeError } = await supabase
+              .from('shift_sessions')
+              .update({
+                clock_out_at: shiftEnd.toISOString(),
+                status: 'pending_closing',
+                auto_closed: true,
+                notes: (session.notes ? session.notes + '\n' : '') +
+                  `⚠️ Auto-cerrado: turno ${session.shift_definitions?.name || ''} terminó a las ${shiftEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`,
+              })
+              .eq('id', session.id);
+
+            if (!closeError) {
+              setShiftStatus('auto_closed');
+              const updatedSession = {
+                ...session,
+                clock_out_at: shiftEnd.toISOString(),
+                status: 'pending_closing' as const,
+                auto_closed: true,
+              };
+              setSessionToClose(updatedSession);
+              setShowClosingModal(true);
+              success('Turno finalizado', `Tu turno ${session.shift_definitions?.name || ''} terminó. Se abrió el corte de caja.`);
+              // Don't set active session since it's now closed
+              setActiveSession(null);
+              setActiveSessionsList(allActiveSessions.filter(s => s.id !== session.id));
+              onShiftChange?.(null);
+              return; // Skip the normal session setting
+            } else {
+              console.error('[SHIFT] Error auto-closing session:', closeError);
+              setShiftStatus('expired');
+            }
+          } else {
+            setShiftStatus('expired');
+          }
+        } else {
+          setShiftStatus('normal');
+          setMinutesPastEnd(0);
+          autoCloseTriggeredRef.current = false;
+        }
+      } else {
+        setShiftStatus('normal');
+        setMinutesPastEnd(0);
+        autoCloseTriggeredRef.current = false;
+      }
+
       setActiveSession(session);
       setActiveSessionsList(allActiveSessions);
       onShiftChange?.(session);
@@ -131,6 +212,16 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
     setActionLoading(true);
     try {
+      // Safety net: auto-close any expired sessions before allowing new clock-in
+      try {
+        const { data: autoCloseResult } = await supabase.rpc('auto_close_expired_sessions');
+        if (autoCloseResult?.closed > 0) {
+          console.log(`[SHIFT] Auto-closed ${autoCloseResult.closed} expired sessions before clock-in`);
+        }
+      } catch (e) {
+        console.warn('[SHIFT] auto_close_expired_sessions failed (non-blocking):', e);
+      }
+
       const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
       if (!selectedEmployee) {
         showError("Error", "No se encontró el empleado seleccionado");
@@ -304,6 +395,8 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
     showClockOutOptions, setShowClockOutOptions,
     showClosingModal, setShowClosingModal,
     sessionToClose, setSessionToClose, setActiveSession,
+    // Auto-close state
+    shiftStatus, minutesPastEnd,
     
     handleClockIn, handleClockOutClick, handleClockOutWithClosing,
     handleClockOutDeferred, handleClosingComplete
