@@ -105,7 +105,7 @@ export function useReceptionistDashboard() {
     const now = new Date();
     const ct = now.toTimeString().slice(0, 8);
     // Filtrar comodin para que no sobreescriba los turnos principales
-    const mainShifts = shifts.filter(s => s.code !== 'COMODIN');
+    const mainShifts = shifts.filter((s: { code: string; crosses_midnight: boolean; start_time: string; end_time: string }) => s.code !== 'COMODIN');
     
     for (const shift of mainShifts) {
       if (shift.crosses_midnight) {
