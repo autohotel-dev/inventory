@@ -111,7 +111,7 @@ export function ConnectedChangeRoomModal({
             sales_order_id: activeStay.sales_order_id,
             product_id: svcProductId,
             qty: 1,
-            unit_price: absAmount,
+            unit_price: isRefund ? -absAmount : absAmount,
             concept_type: "ROOM_CHANGE_ADJUSTMENT",
             delivery_notes: isRefund
               ? `Devolución por cambio: Hab ${room.number} → ${newRoom.number}`
@@ -134,24 +134,23 @@ export function ConnectedChangeRoomModal({
 
           const roomChangeItemId = insertedItem?.id;
 
-          // Actualizar totales de la orden solo si es un upgrade (cobro)
-          if (!isRefund) {
-            const { data: currentOrder } = await supabase
-              .from("sales_orders")
-              .select("subtotal, total, remaining_amount")
-              .eq("id", activeStay.sales_order_id)
-              .single();
+          // Actualizar totales de la orden reflejando el cobro o la devolución
+          const { data: currentOrder } = await supabase
+            .from("sales_orders")
+            .select("subtotal, total, remaining_amount")
+            .eq("id", activeStay.sales_order_id)
+            .single();
 
-            if (currentOrder) {
-              await supabase
-                .from("sales_orders")
-                .update({
-                  subtotal: (currentOrder.subtotal || 0) + absAmount,
-                  total: (currentOrder.total || 0) + absAmount,
-                  remaining_amount: (currentOrder.remaining_amount || 0) + absAmount
-                })
-                .eq("id", activeStay.sales_order_id);
-            }
+          if (currentOrder) {
+            const amountToApply = isRefund ? -absAmount : absAmount;
+            await supabase
+              .from("sales_orders")
+              .update({
+                subtotal: (currentOrder.subtotal || 0) + amountToApply,
+                total: (currentOrder.total || 0) + amountToApply,
+                remaining_amount: (currentOrder.remaining_amount || 0) + amountToApply
+              })
+              .eq("id", activeStay.sales_order_id);
           }
 
           // Notificar al valet si hay diferencia
