@@ -206,7 +206,7 @@ export function useShiftClosingHistory() {
   // ─── Print/Export (via print-server API, silencioso) ───────────────
 
   const CONCEPT_LABELS: Record<string, string> = {
-    ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
+    ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra", ROOM_CHANGE_ADJUSTMENT: "Cambio Hab.",
     CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
   };
 

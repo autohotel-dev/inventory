@@ -52,7 +52,7 @@ export const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
 
 const CONCEPT_LABELS: Record<string, string> = {
-  ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
+  ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra", ROOM_CHANGE_ADJUSTMENT: "Cambio Hab.",
   CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
 };
 
@@ -86,7 +86,7 @@ function buildTicketBreakdowns(accrualItems: any[]) {
       if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
       roomBreakdown[typeName].count += qty;
       roomBreakdown[typeName].total += amount;
-    } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(conceptType)) {
+    } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(conceptType)) {
       const label = CONCEPT_LABELS[conceptType] || conceptType;
       if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
       extraBreakdown[label].count += qty;
@@ -392,7 +392,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
         const roomPrice = items.filter((i: any) => i.concept_type === "ROOM_BASE")
           .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
-        const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(i.concept_type))
+        const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(i.concept_type))
           .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
         const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
           .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
