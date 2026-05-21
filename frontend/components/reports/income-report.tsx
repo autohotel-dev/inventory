@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useIncomeReport } from "@/hooks/reports/use-income-report";
 import { handlePrintHtml, handleCsvExport } from "./income-report/export-utils";
@@ -14,6 +14,19 @@ export function IncomeReport(props: IncomeReportProps) {
     const [showStats, setShowStats] = useState(true);
     const [page, setPage] = useState(1);
     const pageSize = 50;
+
+    // Reset pagination to page 1 whenever filters change to avoid empty pages
+    useEffect(() => {
+        setPage(1);
+    }, [
+        reportType,
+        props.shiftId,
+        startDate,
+        endDate,
+        props.paymentMethodFilter,
+        props.roomFilter,
+        props.statusFilter
+    ]);
 
     const {
         entries,
