@@ -91,7 +91,7 @@ async function printHPIncomeReport(
 
     const roomPrice = items.filter((i: any) => i.concept_type === "ROOM_BASE")
       .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
-    const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(i.concept_type))
+    const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(i.concept_type))
       .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
     const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
       .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
@@ -728,6 +728,7 @@ export function useReprintCenter() {
             ESTANCIA: "Estancia", CONSUMPTION: "Consumo", EXTRA_PERSON: "Pers. Extra",
             EXTRA_HOUR: "Hora Extra", RENEWAL: "Renovación", CHECKOUT: "Salida",
             ROOM_BASE: "Habitación", PROMO_4H: "Promo 4H",
+            ROOM_CHANGE_ADJUSTMENT: "Cambio de Hab.",
           };
 
           const transactions = (details || []).map((detail: any) => {
@@ -769,6 +770,7 @@ export function useReprintCenter() {
               EXTRA_HOUR: "Hora Extra",
               RENEWAL: "Renovación",
               PROMO_4H: "Promo 4H",
+              ROOM_CHANGE_ADJUSTMENT: "Cambio de Habitación",
             };
 
             // Filter out items belonging to cancelled stays or items that are cancelled
@@ -796,7 +798,7 @@ export function useReprintCenter() {
                 if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
                 roomBreakdown[typeName].count += qty;
                 roomBreakdown[typeName].total += amount;
-              } else if (conceptType === "EXTRA_PERSON" || conceptType === "EXTRA_HOUR" || conceptType === "RENEWAL" || conceptType === "PROMO_4H") {
+              } else if (conceptType === "EXTRA_PERSON" || conceptType === "EXTRA_HOUR" || conceptType === "RENEWAL" || conceptType === "PROMO_4H" || conceptType === "ROOM_CHANGE_ADJUSTMENT") {
                 const label = CONCEPT_LABELS[conceptType] || conceptType;
                 if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
                 extraBreakdown[label].count += qty;

@@ -71,6 +71,7 @@ export default function ReprintPage() {
             CHECKOUT: "Salida",
             ROOM_BASE: "Habitación",
             PROMO_4H: "Promo 4H",
+            ROOM_CHANGE_ADJUSTMENT: "Cambio de Hab.",
           };
 
           const rawConcept = payment.concept || "";
@@ -125,6 +126,7 @@ export default function ReprintPage() {
           const CONCEPT_LABELS: Record<string, string> = {
             ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
             CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
+            ROOM_CHANGE_ADJUSTMENT: "Cambio de Habitación",
           };
 
           // Filter out cancelled stays and items
@@ -150,7 +152,7 @@ export default function ReprintPage() {
               if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
               roomBreakdown[typeName].count += qty;
               roomBreakdown[typeName].total += amount;
-            } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(conceptType)) {
+            } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(conceptType)) {
               const label = CONCEPT_LABELS[conceptType] || conceptType;
               // Extract room number for extras
               const orderEx = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
