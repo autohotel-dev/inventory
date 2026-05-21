@@ -403,6 +403,13 @@ function ClosingPreview({
             totalLabel="TOTAL CONSUMOS"
           />
 
+          {/* ═══ DAÑOS COBRADOS ═══ */}
+          <BreakdownSection
+            title="DAÑOS COBRADOS"
+            items={data.damageBreakdown}
+            totalLabel="TOTAL DAÑOS"
+          />
+
           {/* ═══ DETALLE (transactions grouped by type) ═══ */}
           {transactions.length > 0 && (
             <>

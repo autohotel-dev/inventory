@@ -114,11 +114,12 @@ export default function ReprintPage() {
         let roomBreakdown: Record<string, { count: number; total: number }> = {};
         let extraBreakdown: Record<string, { count: number; total: number }> = {};
         let consumptionBreakdown: Record<string, { count: number; total: number }> = {};
+        let damageBreakdown: Record<string, { count: number; total: number }> = {};
 
         if (shiftSessionId) {
           const { data: accrualItems } = await supabase
             .from("sales_order_items")
-            .select("id, qty, unit_price, concept_type, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
+            .select("id, qty, unit_price, concept_type, courtesy_reason, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
             .eq("shift_session_id", shiftSessionId);
 
           const CONCEPT_LABELS: Record<string, string> = {
@@ -165,6 +166,11 @@ export default function ReprintPage() {
               if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
               consumptionBreakdown[productName].count += qty;
               consumptionBreakdown[productName].total += amount;
+            } else if (conceptType === "DAMAGE_CHARGE") {
+              const description = item.courtesy_reason || "Cargo por Daño";
+              if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
+              damageBreakdown[description].count += qty;
+              damageBreakdown[description].total += amount;
             }
           });
         }
@@ -178,6 +184,7 @@ export default function ReprintPage() {
             roomBreakdown,
             extraBreakdown,
             consumptionBreakdown,
+            damageBreakdown,
             expenses,
             totalExpenses,
           },

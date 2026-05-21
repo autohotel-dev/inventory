@@ -385,6 +385,25 @@ function buildClosingTicket(data) {
         t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     }
 
+    // ═══ DESGLOSE DE DAÑOS ═══
+    if (data.damageBreakdown && Object.keys(data.damageBreakdown).length > 0) {
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'DAÑOS COBRADOS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        let totalDamagesCount = 0, totalDamageAmount = 0;
+        Object.entries(data.damageBreakdown).forEach(([desc, info]) => {
+            const { count, total } = info;
+            totalDamagesCount += count;
+            totalDamageAmount += total;
+            const name = desc.length > 28 ? desc.substring(0, 27) + '.' : desc;
+            const line = `  ${String(count).padStart(2)}  ${name}`;
+            t += formatLine(line, formatMoney(total)) + CMD.NEW_LINE;
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine(`  ${String(totalDamagesCount).padStart(2)}  TOTAL DAÑOS`, formatMoney(totalDamageAmount)) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    }
+
     // Detalle de transacciones (si hay)
     if (data.transactions && data.transactions.length > 0) {
         t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'DETALLE' + CMD.NEW_LINE + CMD.BOLD_OFF;

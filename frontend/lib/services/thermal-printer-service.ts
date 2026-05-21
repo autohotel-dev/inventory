@@ -45,6 +45,18 @@ export interface ClosingTicketData {
             total: number;
         }>;
     }>;
+    roomBreakdown?: Record<string, { count: number; total: number }>;
+    extraBreakdown?: Record<string, { count: number; total: number }>;
+    consumptionBreakdown?: Record<string, { count: number; total: number }>;
+    damageBreakdown?: Record<string, { count: number; total: number }>;
+    expenses?: Array<{
+        time: string;
+        type: string;
+        description: string;
+        amount: number;
+        recipient?: string;
+    }>;
+    totalExpenses?: number;
 }
 
 export interface PrinterConfig {
@@ -431,6 +443,107 @@ export class ThermalPrinterService {
             printer.println(`Transacciones: ${data.totalTransactions}`);
             printer.drawLine();
 
+            // ===== BREAKDOWNS =====
+            const formatLine = (left: string, right: string) => {
+                const width = this.config.width || 48;
+                const spaces = width - left.length - right.length;
+                return left + ' '.repeat(Math.max(spaces, 1)) + right;
+            };
+
+            // ═══ DESGLOSE POR TIPO DE HABITACIÓN ═══
+            if (data.roomBreakdown && Object.keys(data.roomBreakdown).length > 0) {
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("HABITACIONES POR TIPO");
+                printer.bold(false);
+                printer.alignLeft();
+                printer.drawLine();
+                let totalRooms = 0, totalRoomAmount = 0;
+                Object.entries(data.roomBreakdown).forEach(([typeName, info]) => {
+                    const { count, total } = info;
+                    totalRooms += count;
+                    totalRoomAmount += total;
+                    const label = `  ${String(count).padStart(2)}  ${typeName}`;
+                    printer.println(formatLine(label, `$${total.toFixed(2)}`));
+                });
+                printer.drawLine();
+                printer.bold(true);
+                printer.println(formatLine(`  ${String(totalRooms).padStart(2)}  TOTAL HAB.`, `$${totalRoomAmount.toFixed(2)}`));
+                printer.bold(false);
+                printer.drawLine();
+            }
+
+            // ═══ EXTRAS ═══
+            if (data.extraBreakdown && Object.keys(data.extraBreakdown).length > 0) {
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("EXTRAS");
+                printer.bold(false);
+                printer.alignLeft();
+                printer.drawLine();
+                let totalExtras = 0, totalExtraAmount = 0;
+                Object.entries(data.extraBreakdown).forEach(([label, info]) => {
+                    const { count, total } = info;
+                    totalExtras += count;
+                    totalExtraAmount += total;
+                    const line = `  ${String(count).padStart(2)}  ${label}`;
+                    printer.println(formatLine(line, `$${total.toFixed(2)}`));
+                });
+                printer.drawLine();
+                printer.bold(true);
+                printer.println(formatLine(`  ${String(totalExtras).padStart(2)}  TOTAL EXTRAS`, `$${totalExtraAmount.toFixed(2)}`));
+                printer.bold(false);
+                printer.drawLine();
+            }
+
+            // ═══ CONSUMOS ═══
+            if (data.consumptionBreakdown && Object.keys(data.consumptionBreakdown).length > 0) {
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("CONSUMOS");
+                printer.bold(false);
+                printer.alignLeft();
+                printer.drawLine();
+                let totalConsumptions = 0, totalConsumptionAmount = 0;
+                Object.entries(data.consumptionBreakdown).forEach(([productName, info]) => {
+                    const { count, total } = info;
+                    totalConsumptions += count;
+                    totalConsumptionAmount += total;
+                    const name = productName.length > 28 ? productName.substring(0, 27) + '.' : productName;
+                    const line = `  ${String(count).padStart(2)}  ${name}`;
+                    printer.println(formatLine(line, `$${total.toFixed(2)}`));
+                });
+                printer.drawLine();
+                printer.bold(true);
+                printer.println(formatLine(`  ${String(totalConsumptions).padStart(2)}  TOTAL CONSUMOS`, `$${totalConsumptionAmount.toFixed(2)}`));
+                printer.bold(false);
+                printer.drawLine();
+            }
+
+            // ═══ DAÑOS COBRADOS ═══
+            if (data.damageBreakdown && Object.keys(data.damageBreakdown).length > 0) {
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("DAÑOS COBRADOS");
+                printer.bold(false);
+                printer.alignLeft();
+                printer.drawLine();
+                let totalDamagesCount = 0, totalDamageAmount = 0;
+                Object.entries(data.damageBreakdown).forEach(([desc, info]) => {
+                    const { count, total } = info;
+                    totalDamagesCount += count;
+                    totalDamageAmount += total;
+                    const name = desc.length > 28 ? desc.substring(0, 27) + '.' : desc;
+                    const line = `  ${String(count).padStart(2)}  ${name}`;
+                    printer.println(formatLine(line, `$${total.toFixed(2)}`));
+                });
+                printer.drawLine();
+                printer.bold(true);
+                printer.println(formatLine(`  ${String(totalDamagesCount).padStart(2)}  TOTAL DAÑOS`, `$${totalDamageAmount.toFixed(2)}`));
+                printer.bold(false);
+                printer.drawLine();
+            }
+
             // ===== TRANSACCIONES DETALLADAS =====
             if (data.transactions && data.transactions.length > 0) {
                 printer.newLine();
@@ -520,6 +633,35 @@ export class ThermalPrinterService {
                     printer.newLine();
                 }
 
+                printer.drawLine();
+            }
+
+            // ===== GASTOS DEL TURNO =====
+            if (data.expenses && data.expenses.length > 0) {
+                const EXPENSE_LABELS: Record<string, string> = {
+                    UBER: 'Uber/Transporte', MAINTENANCE: 'Mantenimiento', REPAIR: 'Reparacion',
+                    SUPPLIES: 'Insumos', PETTY_CASH: 'Caja Chica', OTHER: 'Otro Gasto',
+                };
+                printer.newLine();
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("GASTOS DEL TURNO");
+                printer.bold(false);
+                printer.alignLeft();
+                printer.drawLine();
+                let totalGastos = 0;
+                data.expenses.forEach((exp, i) => {
+                    const label = EXPENSE_LABELS[exp.type] || exp.type || 'Gasto';
+                    const desc = exp.description.length > 24 ? exp.description.substring(0, 23) + '.' : exp.description;
+                    printer.println(`${i + 1}. ${exp.time}  -$${exp.amount.toFixed(2)}`);
+                    printer.println(`   ${label}: ${desc}`);
+                    totalGastos += exp.amount;
+                });
+                printer.drawLine();
+                printer.bold(true);
+                printer.println(formatLine('TOTAL GASTOS:', `-$${totalGastos.toFixed(2)}`));
+                printer.println(formatLine('EFECTIVO NETO:', `$${((data.totalCash || 0) - totalGastos).toFixed(2)}`));
+                printer.bold(false);
                 printer.drawLine();
             }
 

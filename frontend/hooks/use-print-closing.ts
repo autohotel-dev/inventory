@@ -33,6 +33,18 @@ interface ClosingTicketData {
             total: number;
         }>;
     }>;
+    roomBreakdown?: Record<string, { count: number; total: number }>;
+    extraBreakdown?: Record<string, { count: number; total: number }>;
+    consumptionBreakdown?: Record<string, { count: number; total: number }>;
+    damageBreakdown?: Record<string, { count: number; total: number }>;
+    expenses?: Array<{
+        time: string;
+        type: string;
+        description: string;
+        amount: number;
+        recipient?: string;
+    }>;
+    totalExpenses?: number;
 }
 
 interface UsePrintClosingReturn {

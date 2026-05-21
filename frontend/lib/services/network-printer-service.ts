@@ -88,6 +88,18 @@ export interface ClosingTicketData {
             total: number;
         }>;
     }>;
+    roomBreakdown?: Record<string, { count: number; total: number }>;
+    extraBreakdown?: Record<string, { count: number; total: number }>;
+    consumptionBreakdown?: Record<string, { count: number; total: number }>;
+    damageBreakdown?: Record<string, { count: number; total: number }>;
+    expenses?: Array<{
+        time: string;
+        type: string;
+        description: string;
+        amount: number;
+        recipient?: string;
+    }>;
+    totalExpenses?: number;
 }
 
 /**
@@ -419,6 +431,80 @@ function buildClosingTicket(data: ClosingTicketData): string {
     ticket += `Transacciones: ${data.totalTransactions}` + COMMANDS.NEW_LINE;
     ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
 
+    // ═══ DESGLOSE POR TIPO DE HABITACIÓN ═══
+    if (data.roomBreakdown && Object.keys(data.roomBreakdown).length > 0) {
+        ticket += COMMANDS.ALIGN_CENTER + COMMANDS.BOLD_ON + 'HABITACIONES POR TIPO' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.ALIGN_LEFT;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        let totalRooms = 0, totalRoomAmount = 0;
+        Object.entries(data.roomBreakdown).forEach(([typeName, info]) => {
+            const { count, total } = info;
+            totalRooms += count;
+            totalRoomAmount += total;
+            const label = `  ${String(count).padStart(2)}  ${typeName}`;
+            ticket += formatLine(label, formatMoney(total)) + COMMANDS.NEW_LINE;
+        });
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.BOLD_ON + formatLine(`  ${String(totalRooms).padStart(2)}  TOTAL HAB.`, formatMoney(totalRoomAmount)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+    }
+
+    // ═══ EXTRAS ═══
+    if (data.extraBreakdown && Object.keys(data.extraBreakdown).length > 0) {
+        ticket += COMMANDS.ALIGN_CENTER + COMMANDS.BOLD_ON + 'EXTRAS' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.ALIGN_LEFT;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        let totalExtras = 0, totalExtraAmount = 0;
+        Object.entries(data.extraBreakdown).forEach(([label, info]) => {
+            const { count, total } = info;
+            totalExtras += count;
+            totalExtraAmount += total;
+            const line = `  ${String(count).padStart(2)}  ${label}`;
+            ticket += formatLine(line, formatMoney(total)) + COMMANDS.NEW_LINE;
+        });
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.BOLD_ON + formatLine(`  ${String(totalExtras).padStart(2)}  TOTAL EXTRAS`, formatMoney(totalExtraAmount)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+    }
+
+    // ═══ CONSUMOS ═══
+    if (data.consumptionBreakdown && Object.keys(data.consumptionBreakdown).length > 0) {
+        ticket += COMMANDS.ALIGN_CENTER + COMMANDS.BOLD_ON + 'CONSUMOS' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.ALIGN_LEFT;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        let totalConsumptions = 0, totalConsumptionAmount = 0;
+        Object.entries(data.consumptionBreakdown).forEach(([productName, info]) => {
+            const { count, total } = info;
+            totalConsumptions += count;
+            totalConsumptionAmount += total;
+            const name = productName.length > 28 ? productName.substring(0, 27) + '.' : productName;
+            const line = `  ${String(count).padStart(2)}  ${name}`;
+            ticket += formatLine(line, formatMoney(total)) + COMMANDS.NEW_LINE;
+        });
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.BOLD_ON + formatLine(`  ${String(totalConsumptions).padStart(2)}  TOTAL CONSUMOS`, formatMoney(totalConsumptionAmount)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+    }
+
+    // ═══ DAÑOS COBRADOS ═══
+    if (data.damageBreakdown && Object.keys(data.damageBreakdown).length > 0) {
+        ticket += COMMANDS.ALIGN_CENTER + COMMANDS.BOLD_ON + 'DAÑOS COBRADOS' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.ALIGN_LEFT;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        let totalDamagesCount = 0, totalDamageAmount = 0;
+        Object.entries(data.damageBreakdown).forEach(([desc, info]) => {
+            const { count, total } = info;
+            totalDamagesCount += count;
+            totalDamageAmount += total;
+            const name = desc.length > 28 ? desc.substring(0, 27) + '.' : desc;
+            const line = `  ${String(count).padStart(2)}  ${name}`;
+            ticket += formatLine(line, formatMoney(total)) + COMMANDS.NEW_LINE;
+        });
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.BOLD_ON + formatLine(`  ${String(totalDamagesCount).padStart(2)}  TOTAL DAÑOS`, formatMoney(totalDamageAmount)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+    }
+
     // Detalle de transacciones
     if (data.transactions && data.transactions.length > 0) {
         ticket += COMMANDS.NEW_LINE;
@@ -507,6 +593,29 @@ function buildClosingTicket(data: ClosingTicketData): string {
         }
 
         ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+    }
+
+    // Gastos del turno (si hay)
+    if (data.expenses && data.expenses.length > 0) {
+        const EXPENSE_LABELS: Record<string, string> = {
+            UBER: 'Uber/Transporte', MAINTENANCE: 'Mantenimiento', REPAIR: 'Reparacion',
+            SUPPLIES: 'Insumos', PETTY_CASH: 'Caja Chica', OTHER: 'Otro Gasto',
+        };
+        ticket += COMMANDS.ALIGN_CENTER + COMMANDS.BOLD_ON + 'GASTOS DEL TURNO' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.ALIGN_LEFT;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        let totalGastos = 0;
+        data.expenses.forEach((exp, i) => {
+            const label = EXPENSE_LABELS[exp.type] || exp.type || 'Gasto';
+            const desc = exp.description.length > 24 ? exp.description.substring(0, 23) + '.' : exp.description;
+            ticket += `${i + 1}. ${exp.time}  -${formatMoney(exp.amount)}` + COMMANDS.NEW_LINE;
+            ticket += `   ${label}: ${desc}` + COMMANDS.NEW_LINE;
+            totalGastos += exp.amount;
+        });
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.BOLD_ON + formatLine('TOTAL GASTOS:', `-${formatMoney(totalGastos)}`) + COMMANDS.NEW_LINE;
+        ticket += formatLine('EFECTIVO NETO:', formatMoney((data.totalCash || 0) - totalGastos)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
     }
 
     // Notas

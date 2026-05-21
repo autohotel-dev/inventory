@@ -59,7 +59,7 @@ async function printHPIncomeReport(
       rooms!inner(number),
       sales_orders!inner(
         id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
-        sales_order_items(concept_type, unit_price, qty, shift_session_id)
+        sales_order_items(concept_type, unit_price, qty, courtesy_reason, shift_session_id)
       )
     `)
     .in("sales_order_id", salesOrderIds)
@@ -94,6 +94,8 @@ async function printHPIncomeReport(
     const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H"].includes(i.concept_type))
       .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
     const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
+      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
+    const damage = items.filter((i: any) => i.concept_type === "DAMAGE_CHARGE")
       .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
 
     // Build detailed payment method string with card info for administration
@@ -140,7 +142,8 @@ async function printHPIncomeReport(
       room_price: roomPrice,
       extra,
       consumption,
-      total: roomPrice + extra + consumption,
+      damage,
+      total: roomPrice + extra + consumption + damage,
       payment_method: paymentMethod,
       stay_status: stay.status,
       isOwnRoom: roomPrice > 0,
@@ -182,9 +185,12 @@ async function printHPIncomeReport(
 
   // 5. Calculate totals (all, own, other)
   const calcTotals = (list: any[]) => list.reduce((acc: any, e: any) => ({
-    roomPrice: acc.roomPrice + e.room_price, extra: acc.extra + e.extra,
-    consumption: acc.consumption + e.consumption, total: acc.total + e.total,
-  }), { roomPrice: 0, extra: 0, consumption: 0, total: 0 });
+    roomPrice: acc.roomPrice + e.room_price,
+    extra: acc.extra + e.extra,
+    consumption: acc.consumption + e.consumption,
+    damage: acc.damage + e.damage,
+    total: acc.total + e.total,
+  }), { roomPrice: 0, extra: 0, consumption: 0, damage: 0, total: 0 });
   const totals = calcTotals(entries);
   const ownTotals = calcTotals(ownEntries);
   const otherTotals = calcTotals(otherEntries);
@@ -233,6 +239,7 @@ async function printHPIncomeReport(
         <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
         <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? '$' + Number(e.extra).toFixed(2) : '—'}</td>
         <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? '$' + Number(e.consumption).toFixed(2) : '—'}</td>
+        <td style="text-align:right;font-family:monospace;">${e.damage > 0 ? '$' + Number(e.damage).toFixed(2) : '—'}</td>
         <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
         <td style="text-align:center;">${e.payment_method}</td>
     </tr>`;
@@ -286,16 +293,17 @@ async function printHPIncomeReport(
 <table>
     <thead>
         <tr>
-            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Total</th><th>Forma de Pago</th>
+            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Daños</th><th>Total</th><th>Forma de Pago</th>
         </tr>
     </thead>
     <tbody>
-        ${ownRows || '<tr><td colspan="9" style="text-align:center;color:#999;padding:4px;">Sin habitaciones en este turno</td></tr>'}
+        ${ownRows || '<tr><td colspan="10" style="text-align:center;color:#999;padding:4px;">Sin habitaciones en este turno</td></tr>'}
         <tr class="totals-row">
             <td colspan="4" style="text-align:right;letter-spacing:1px;">SUBTOTAL</td>
             <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.roomPrice).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.extra).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.consumption).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.damage).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(ownTotals.total).toFixed(2)}</td>
             <td></td>
         </tr>
@@ -306,7 +314,7 @@ ${otherEntries.length > 0 ? `
 <table>
     <thead>
         <tr>
-            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Total</th><th>Forma de Pago</th>
+            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Daños</th><th>Total</th><th>Forma de Pago</th>
         </tr>
     </thead>
     <tbody>
@@ -316,6 +324,7 @@ ${otherEntries.length > 0 ? `
             <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.roomPrice).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.extra).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.consumption).toFixed(2)}</td>
+            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.damage).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(otherTotals.total).toFixed(2)}</td>
             <td></td>
         </tr>
@@ -337,6 +346,7 @@ ${otherEntries.length > 0 ? `
             <tr><td>Habitaciones</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>
             <tr><td>Extras</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.extra).toFixed(2)}</td></tr>
             <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>
+            <tr><td>Daños</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.damage).toFixed(2)}</td></tr>
             <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL VENTAS</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
             ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr><tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(Number(totals.total) - totalExpenses).toFixed(2)}</td></tr>` : ''}
         </tbody></table>
@@ -740,6 +750,60 @@ export function useReprintCenter() {
             };
           }).filter(Boolean);
 
+          // Load breakdowns
+          let roomBreakdown: Record<string, { count: number; total: number }> = {};
+          let extraBreakdown: Record<string, { count: number; total: number }> = {};
+          let consumptionBreakdown: Record<string, { count: number; total: number }> = {};
+          let damageBreakdown: Record<string, { count: number; total: number }> = {};
+
+          if (shiftSessionId) {
+            const { data: accrualItems } = await supabase
+              .from("sales_order_items")
+              .select("id, qty, unit_price, concept_type, courtesy_reason, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
+              .eq("shift_session_id", shiftSessionId);
+
+            const CONCEPT_LABELS: Record<string, string> = {
+              EXTRA_PERSON: "Persona Extra",
+              EXTRA_HOUR: "Hora Extra",
+              RENEWAL: "Renovación",
+              PROMO_4H: "Promo 4H",
+            };
+
+            (accrualItems || []).forEach((item: any) => {
+              const qty = item.qty || 1;
+              const unitPrice = item.unit_price || 0;
+              const amount = qty * unitPrice;
+              const conceptType = item.concept_type;
+
+              if (conceptType === "ROOM_BASE") {
+                const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+                const stay = order?.room_stays?.[0] || (Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays);
+                const room = stay?.rooms;
+                const roomType = Array.isArray(room) ? room[0]?.room_types : room?.room_types;
+                const typeName = Array.isArray(roomType) ? roomType[0]?.name : roomType?.name || "Habitación";
+
+                if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
+                roomBreakdown[typeName].count += qty;
+                roomBreakdown[typeName].total += amount;
+              } else if (conceptType === "EXTRA_PERSON" || conceptType === "EXTRA_HOUR" || conceptType === "RENEWAL" || conceptType === "PROMO_4H") {
+                const label = CONCEPT_LABELS[conceptType] || conceptType;
+                if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
+                extraBreakdown[label].count += qty;
+                extraBreakdown[label].total += amount;
+              } else if (conceptType === "CONSUMPTION") {
+                const productName = item.products?.name || "Consumo";
+                if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
+                consumptionBreakdown[productName].count += qty;
+                consumptionBreakdown[productName].total += amount;
+              } else if (conceptType === "DAMAGE_CHARGE") {
+                const description = item.courtesy_reason || "Cargo por Daño";
+                if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
+                damageBreakdown[description].count += qty;
+                damageBreakdown[description].total += amount;
+              }
+            });
+          }
+
           // Load expenses
           let expenses: any[] = [];
           if (shiftSessionId) {
@@ -762,6 +826,10 @@ export function useReprintCenter() {
           // 1. Print thermal ticket only
           return await printClosing({
             ...ticket.rawData,
+            roomBreakdown,
+            extraBreakdown,
+            consumptionBreakdown,
+            damageBreakdown,
             transactions,
             expenses,
           });
