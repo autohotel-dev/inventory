@@ -119,7 +119,7 @@ export default function ReprintPage() {
         if (shiftSessionId) {
           const { data: accrualItems } = await supabase
             .from("sales_order_items")
-            .select("id, qty, unit_price, concept_type, courtesy_reason, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
+            .select("id, qty, unit_price, concept_type, is_courtesy, courtesy_reason, is_cancelled, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
             .eq("shift_session_id", shiftSessionId);
 
           const CONCEPT_LABELS: Record<string, string> = {
@@ -127,8 +127,9 @@ export default function ReprintPage() {
             CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
           };
 
-          // Filter out cancelled stays
+          // Filter out cancelled stays and items
           const activeItems = (accrualItems || []).filter((item: any) => {
+            if (item.is_cancelled) return false;
             const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
             const roomStay = Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays;
             return !roomStay || roomStay.status !== "CANCELADA";
@@ -163,9 +164,13 @@ export default function ReprintPage() {
             } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
               const product = Array.isArray(item.products) ? item.products[0] : item.products;
               const productName = product?.name || "Producto";
-              if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
-              consumptionBreakdown[productName].count += qty;
-              consumptionBreakdown[productName].total += amount;
+              let displayName = productName;
+              if (item.is_courtesy) {
+                displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
+              }
+              if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
+              consumptionBreakdown[displayName].count += qty;
+              consumptionBreakdown[displayName].total += amount;
             } else if (conceptType === "DAMAGE_CHARGE") {
               const description = item.courtesy_reason || "Cargo por Daño";
               if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };

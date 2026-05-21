@@ -59,7 +59,7 @@ async function printHPIncomeReport(
       rooms!inner(number),
       sales_orders!inner(
         id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
-        sales_order_items(concept_type, unit_price, qty, courtesy_reason, shift_session_id)
+        sales_order_items(concept_type, unit_price, qty, is_courtesy, courtesy_reason, is_cancelled, shift_session_id)
       )
     `)
     .in("sales_order_id", salesOrderIds)
@@ -75,7 +75,7 @@ async function printHPIncomeReport(
   const entries = filteredStays.map((stay: any, idx: number) => {
     const order = stay.sales_orders;
     let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
-    items = items.filter((item: any) => item.shift_session_id === shiftSessionId);
+    items = items.filter((item: any) => item.shift_session_id === shiftSessionId && !item.is_cancelled);
 
     const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
     let allPayments: any[] = [];
@@ -133,18 +133,20 @@ async function printHPIncomeReport(
       ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim()
       : "—";
 
+    const isCancelled = stay.status === 'CANCELADA';
+
     return {
       no: idx + 1,
       time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
       vehicle_plate: stay.vehicle_plate || '',
       room_number: stay.rooms?.number || '',
       checkout_valet_name: valetName,
-      room_price: roomPrice,
-      extra,
-      consumption,
-      damage,
-      total: roomPrice + extra + consumption + damage,
-      payment_method: paymentMethod,
+      room_price: isCancelled ? -roomPrice : roomPrice,
+      extra: isCancelled ? -extra : extra,
+      consumption: isCancelled ? -consumption : consumption,
+      damage: isCancelled ? -damage : damage,
+      total: isCancelled ? -(roomPrice + extra + consumption + damage) : (roomPrice + extra + consumption + damage),
+      payment_method: isCancelled ? 'CANCELADO' : paymentMethod,
       stay_status: stay.status,
       isOwnRoom: roomPrice > 0,
     };
@@ -156,7 +158,7 @@ async function printHPIncomeReport(
 
   // 4. Build payment breakdown
   const paymentBreakdown: Record<string, number> = {};
-  filteredStays.forEach((stay: any) => {
+  filteredStays.filter((stay: any) => stay.status !== 'CANCELADA').forEach((stay: any) => {
     const order = stay.sales_orders;
     const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
     rawOrderData.forEach((o: any) => {
@@ -759,7 +761,7 @@ export function useReprintCenter() {
           if (shiftSessionId) {
             const { data: accrualItems } = await supabase
               .from("sales_order_items")
-              .select("id, qty, unit_price, concept_type, courtesy_reason, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
+              .select("id, qty, unit_price, concept_type, is_courtesy, courtesy_reason, is_cancelled, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
               .eq("shift_session_id", shiftSessionId);
 
             const CONCEPT_LABELS: Record<string, string> = {
@@ -769,7 +771,16 @@ export function useReprintCenter() {
               PROMO_4H: "Promo 4H",
             };
 
-            (accrualItems || []).forEach((item: any) => {
+            // Filter out items belonging to cancelled stays or items that are cancelled
+            const activeItems = (accrualItems || []).filter((item: any) => {
+              if (item.is_cancelled) return false;
+              const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+              const roomStay = order?.room_stays;
+              const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
+              return !stay || stay.status !== 'CANCELADA';
+            });
+
+            activeItems.forEach((item: any) => {
               const qty = item.qty || 1;
               const unitPrice = item.unit_price || 0;
               const amount = qty * unitPrice;
@@ -790,11 +801,16 @@ export function useReprintCenter() {
                 if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
                 extraBreakdown[label].count += qty;
                 extraBreakdown[label].total += amount;
-              } else if (conceptType === "CONSUMPTION") {
-                const productName = item.products?.name || "Consumo";
-                if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
-                consumptionBreakdown[productName].count += qty;
-                consumptionBreakdown[productName].total += amount;
+              } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
+                const product = Array.isArray(item.products) ? item.products[0] : item.products;
+                const productName = product?.name || "Producto";
+                let displayName = productName;
+                if (item.is_courtesy) {
+                  displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
+                }
+                if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
+                consumptionBreakdown[displayName].count += qty;
+                consumptionBreakdown[displayName].total += amount;
               } else if (conceptType === "DAMAGE_CHARGE") {
                 const description = item.courtesy_reason || "Cargo por Daño";
                 if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };

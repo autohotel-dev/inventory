@@ -109,12 +109,12 @@ function PrintClosingContent() {
         const { data: staysData } = await supabase
             .from("room_stays")
             .select(`
-                check_in_at, vehicle_plate,
+                check_in_at, vehicle_plate, status,
                 rooms(number),
                 sales_orders(
                     total,
                     payments(payment_method, amount, terminal_code),
-                    sales_order_items(concept_type, qty, unit_price, total, products(name))
+                    sales_order_items(concept_type, qty, unit_price, total, is_courtesy, courtesy_reason, is_cancelled, products(name))
                 )
             `)
             .gte("check_in_at", closingData.period_start)
@@ -122,7 +122,8 @@ function PrintClosingContent() {
             .order("check_in_at", { ascending: true });
 
         if (staysData) {
-            const processed = staysData.map((stay: any) => {
+            const activeStays = staysData.filter((stay: any) => stay.status !== "CANCELADA");
+            const processed = activeStays.map((stay: any) => {
                 const payments = stay.sales_orders?.payments || [];
                 let method = "PENDIENTE";
                 if (payments.length > 0) {
@@ -139,13 +140,17 @@ function PrintClosingContent() {
 
                 const items = stay.sales_orders?.sales_order_items || [];
                 const stayItems: AdditionalItem[] = items
-                    .filter((item: any) => item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST")
-                    .map((item: any) => ({
-                        description: item.products?.name || CONCEPT_LABELS[item.concept_type] || item.concept_type || "Extra",
-                        quantity: item.qty || 1,
-                        total: item.total || (item.qty * item.unit_price) || 0,
-                        type: item.concept_type,
-                    }));
+                    .filter((item: any) => item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST" && !item.is_cancelled)
+                    .map((item: any) => {
+                        const productName = item.products?.name || CONCEPT_LABELS[item.concept_type] || item.concept_type || "Extra";
+                        const description = item.is_courtesy ? `${productName} (${item.courtesy_reason || "Cortesía"})` : productName;
+                        return {
+                            description,
+                            quantity: item.qty || 1,
+                            total: item.is_courtesy ? 0 : (item.total || (item.qty * item.unit_price) || 0),
+                            type: item.concept_type,
+                        };
+                    });
 
                 return {
                     time: new Date(stay.check_in_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),

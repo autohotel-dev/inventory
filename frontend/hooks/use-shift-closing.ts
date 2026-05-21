@@ -63,8 +63,9 @@ function buildTicketBreakdowns(accrualItems: any[]) {
   const consumptionBreakdown: Record<string, { count: number; total: number }> = {};
   const damageBreakdown: Record<string, { count: number; total: number }> = {};
 
-  // Filter out items belonging to cancelled stays
+  // Filter out items belonging to cancelled stays or items that are cancelled
   const activeItems = (accrualItems || []).filter((item: any) => {
+    if (item.is_cancelled) return false;
     const order = item.sales_orders;
     const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
     const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
@@ -95,9 +96,13 @@ function buildTicketBreakdowns(accrualItems: any[]) {
     } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
       const product = Array.isArray(item.products) ? item.products[0] : item.products;
       const productName = product?.name || "Producto";
-      if (!consumptionBreakdown[productName]) consumptionBreakdown[productName] = { count: 0, total: 0 };
-      consumptionBreakdown[productName].count += qty;
-      consumptionBreakdown[productName].total += amount;
+      let displayName = productName;
+      if (item.is_courtesy) {
+        displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
+      }
+      if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
+      consumptionBreakdown[displayName].count += qty;
+      consumptionBreakdown[displayName].total += amount;
     } else if (conceptType === "DAMAGE_CHARGE") {
       const description = item.courtesy_reason || "Cargo por Daño";
       if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
@@ -366,7 +371,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           rooms!inner(number),
           sales_orders!inner(
             id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
-            sales_order_items(concept_type, unit_price, qty, shift_session_id, courtesy_reason)
+            sales_order_items(concept_type, unit_price, qty, shift_session_id, is_courtesy, courtesy_reason, is_cancelled)
           )
         `)
         .in("sales_order_id", salesOrderIds)
@@ -382,7 +387,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       const entries = filteredStays.map((stay: any, idx: number) => {
         const order = stay.sales_orders;
         let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
-        items = items.filter((item: any) => item.shift_session_id === session.id);
+        items = items.filter((item: any) => item.shift_session_id === session.id && !item.is_cancelled);
 
         const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
         let allPayments: any[] = [];
