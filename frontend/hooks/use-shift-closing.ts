@@ -190,7 +190,31 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
     if (!summary) return;
     if (savingLockRef.current) return; // Synchronous double-click guard
     savingLockRef.current = true;
-    if (summary.total_transactions === 0) { showError("Error", "No hay transacciones en este turno para crear un corte"); savingLockRef.current = false; return; }
+    if (summary.total_transactions === 0) {
+      setSaving(true);
+      try {
+        const { error: sessionError } = await supabase
+          .from("shift_sessions")
+          .update({ 
+            status: "closed", 
+            notes: (session.notes ? session.notes + '\n' : '') + "Turno cerrado sin transacciones." 
+          })
+          .eq("id", session.id);
+        
+        if (sessionError) throw sessionError;
+
+        success("Turno cerrado", "El turno vacío se ha cerrado correctamente sin generar corte.");
+        onComplete();
+      } catch (err: any) {
+        console.error("Error closing empty shift:", err);
+        showError("Error", err.message || "No se pudo cerrar el turno vacío");
+      } finally {
+        setSaving(false);
+        savingLockRef.current = false;
+      }
+      return;
+    }
+
 
     setSaving(true);
     try {

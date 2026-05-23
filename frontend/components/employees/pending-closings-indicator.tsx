@@ -36,7 +36,7 @@ export function PendingClosingsIndicator({
             // Obtener empleado
             const { data: employee } = await supabase
                 .from("employees")
-                .select("id")
+                .select("id, role")
                 .eq("auth_user_id", user.id)
                 .single();
 
@@ -45,13 +45,20 @@ export function PendingClosingsIndicator({
                 return;
             }
 
+            const isAdminOrManager = employee.role === 'admin' || employee.role === 'manager';
+
             // Obtener sesiones pendientes de corte
-            const { data, error } = await supabase
+            let query = supabase
                 .from("shift_sessions")
                 .select("*, shift_definitions(*), employees(first_name, last_name)")
-                .eq("employee_id", employee.id)
                 .eq("status", "pending_closing")
                 .order("clock_out_at", { ascending: false });
+
+            if (!isAdminOrManager) {
+                query = query.eq("employee_id", employee.id);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
@@ -133,7 +140,7 @@ export function PendingClosingsIndicator({
                 </AlertTitle>
                 <AlertDescription className="mt-2">
                     <p className="text-sm text-muted-foreground mb-3">
-                        Tienes cortes de caja pendientes de completar:
+                        Hay cortes de caja pendientes por completar:
                     </p>
                     <div className="space-y-2">
                         {pendingClosings.map((session) => (
@@ -148,6 +155,7 @@ export function PendingClosingsIndicator({
                                     <Receipt className="h-4 w-4" />
                                     <span className="font-medium">
                                         {session.shift_definitions?.name}
+                                        {session.employees && ` - ${session.employees.first_name} ${session.employees.last_name}`}
                                     </span>
                                     <span className="text-xs text-muted-foreground">
                                         {new Date(session.clock_out_at!).toLocaleDateString("es-MX", {

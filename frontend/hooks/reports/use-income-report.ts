@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { IncomeEntry, IncomeReportProps, IncomeTotals } from "@/components/reports/income-report/types";
+import { DamageItem, IncomeEntry, IncomeReportProps, IncomeTotals } from "@/components/reports/income-report/types";
 
 export function useIncomeReport({
     reportType,
@@ -14,7 +14,8 @@ export function useIncomeReport({
     pageSize = 50,
 }: IncomeReportProps) {
     const [entries, setEntries] = useState<IncomeEntry[]>([]);
-    const [totals, setTotals] = useState<IncomeTotals>({ roomPrice: 0, extra: 0, consumption: 0, total: 0 });
+    const [totals, setTotals] = useState<IncomeTotals>({ roomPrice: 0, extra: 0, consumption: 0, damages: 0, total: 0 });
+    const [damageItems, setDamageItems] = useState<DamageItem[]>([]);
     const [totalCount, setTotalCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [reportNumber, setReportNumber] = useState("0001");
@@ -48,7 +49,16 @@ export function useIncomeReport({
                 setCurrentShift(rpcResult.currentShift);
             }
             if (rpcResult?.totals) {
-                setTotals(rpcResult.totals);
+                setTotals({
+                    roomPrice: Number(rpcResult.totals.roomPrice) || 0,
+                    extra: Number(rpcResult.totals.extra) || 0,
+                    consumption: Number(rpcResult.totals.consumption) || 0,
+                    damages: Number(rpcResult.totals.damages) || 0,
+                    total: Number(rpcResult.totals.total) || 0,
+                });
+            }
+            if (rpcResult?.damage_items) {
+                setDamageItems(rpcResult.damage_items || []);
             }
             if (rpcResult?.totalCount !== undefined) {
                 setTotalCount(rpcResult.totalCount);
@@ -62,6 +72,7 @@ export function useIncomeReport({
                 room_price: Number(e.room_price) || 0,
                 extra: Number(e.extra) || 0,
                 consumption: Number(e.consumption) || 0,
+                damage: Number(e.damage) || 0,
                 total: Number(e.total) || 0,
                 payment_method: e.payment_method || 'PENDIENTE',
                 card_type: e.card_type,
@@ -108,7 +119,7 @@ export function useIncomeReport({
         
         if (error) {
             console.error("Error fetching all entries:", error);
-            return { entries: [], totals: { roomPrice: 0, extra: 0, consumption: 0, total: 0 } };
+            return { entries: [], totals: { roomPrice: 0, extra: 0, consumption: 0, damages: 0, total: 0 }, damageItems: [] };
         }
 
         const processedEntries: IncomeEntry[] = (rpcResult?.entries || []).map((e: any) => ({
@@ -119,6 +130,7 @@ export function useIncomeReport({
             room_price: Number(e.room_price) || 0,
             extra: Number(e.extra) || 0,
             consumption: Number(e.consumption) || 0,
+            damage: Number(e.damage) || 0,
             total: Number(e.total) || 0,
             payment_method: e.payment_method || 'PENDIENTE',
             card_type: e.card_type,
@@ -137,7 +149,19 @@ export function useIncomeReport({
             })),
         }));
 
-        return { entries: processedEntries, totals: rpcResult?.totals || { roomPrice: 0, extra: 0, consumption: 0, total: 0 } };
+        const mappedTotals = rpcResult?.totals ? {
+            roomPrice: Number(rpcResult.totals.roomPrice) || 0,
+            extra: Number(rpcResult.totals.extra) || 0,
+            consumption: Number(rpcResult.totals.consumption) || 0,
+            damages: Number(rpcResult.totals.damages) || 0,
+            total: Number(rpcResult.totals.total) || 0,
+        } : { roomPrice: 0, extra: 0, consumption: 0, damages: 0, total: 0 };
+
+        return { 
+            entries: processedEntries, 
+            totals: mappedTotals, 
+            damageItems: rpcResult?.damage_items || [] 
+        };
     }, [reportType, shiftId, startDate, endDate, paymentMethodFilter, roomFilter, statusFilter]);
 
     return {
@@ -148,6 +172,7 @@ export function useIncomeReport({
         reportNumber,
         shiftInfo,
         currentShift,
+        damageItems,
         fetchAllForPrint
     };
 }

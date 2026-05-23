@@ -6,6 +6,15 @@ export interface PaymentDetail {
     terminal_code?: string;
 }
 
+export interface DamageItem {
+    id: string;
+    created_at: string;
+    time: string;
+    room_number: string;
+    reason: string;
+    amount: number;
+}
+
 export interface IncomeEntry {
     no: number;
     time: string;
@@ -14,6 +23,7 @@ export interface IncomeEntry {
     room_price: number;
     extra: number;
     consumption: number;
+    damage?: number;
     total: number;
     payment_method: string;
     card_type?: string;
@@ -42,5 +52,7 @@ export interface IncomeTotals {
     roomPrice: number;
     extra: number;
     consumption: number;
+    damages?: number;
     total: number;
 }
+

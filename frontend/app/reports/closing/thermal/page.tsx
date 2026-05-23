@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 interface ShiftClosingData {
     id: string;
+    shift_session_id?: string;
     period_start: string;
     period_end: string;
     total_cash: number;
@@ -42,11 +43,20 @@ interface AdditionalItem {
     type: string;
 }
 
+interface DamageDetailItem {
+    id: string;
+    time: string;
+    room_number: string;
+    reason: string;
+    amount: number;
+}
+
 function ThermalReceiptContent() {
     const searchParams = useSearchParams();
     const shiftId = searchParams.get("shiftId");
     const [closing, setClosing] = useState<ShiftClosingData | null>(null);
     const [stays, setStays] = useState<RoomStay[]>([]);
+    const [damages, setDamages] = useState<DamageDetailItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
@@ -57,38 +67,85 @@ function ThermalReceiptContent() {
         const { data: closingData } = await supabase
             .from("shift_closings")
             .select(`
-        *,
-        employees!shift_closings_employee_id_fkey(first_name, last_name),
-        shift_definitions(name)
-      `)
+                *,
+                employees!shift_closings_employee_id_fkey(first_name, last_name),
+                shift_definitions(name)
+            `)
             .eq("id", shiftId)
             .single();
 
         if (closingData) {
             setClosing(closingData);
 
-            // Fetch room stays for this period
-            const { data: staysData } = await supabase
-                .from("room_stays")
+            // Fetch damages for this shift session, excluding room 13/113
+            const { data: damagesData } = await supabase
+                .from("sales_order_items")
                 .select(`
-          check_in_at,
-          vehicle_plate,
-          rooms(number),
-          sales_orders(
-            total, 
-            payments(payment_method, amount),
-            sales_order_items(concept_type, qty, unit_price, total, products(name))
-          )
-        `)
-                .gte("check_in_at", closingData.period_start)
-                .lte("check_in_at", closingData.period_end)
-                .order("check_in_at", { ascending: true });
+                    id, qty, unit_price, total, courtesy_reason, created_at, is_cancelled,
+                    sales_orders(
+                        room_stays(
+                            rooms(number)
+                        )
+                    )
+                `)
+                .eq("shift_session_id", closingData.shift_session_id || shiftId)
+                .eq("concept_type", "DAMAGE_CHARGE");
 
-            if (staysData) {
-                const itemsMap = new Map<string, AdditionalItem>();
+            if (damagesData) {
+                const activeDamages = damagesData.filter((dmg: any) => {
+                    if (dmg.is_cancelled) return false;
+                    const order = dmg.sales_orders;
+                    const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+                    const room = Array.isArray(roomStay) ? roomStay[0]?.rooms : roomStay?.rooms;
+                    const roomNumber = (Array.isArray(room) ? room[0]?.number : room?.number) || "";
+                    return roomNumber !== "13" && roomNumber !== "113";
+                });
 
-                const processed = staysData.map((stay: any) => {
-                    const payments = stay.sales_orders?.payments || [];
+                const mappedDamages = activeDamages.map((dmg: any) => {
+                    const order = dmg.sales_orders;
+                    const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+                    const room = Array.isArray(roomStay) ? roomStay[0]?.rooms : roomStay?.rooms;
+                    const roomNumber = (Array.isArray(room) ? room[0]?.number : room?.number) || "—";
+                    return {
+                        id: dmg.id,
+                        time: new Date(dmg.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+                        room_number: roomNumber,
+                        reason: dmg.courtesy_reason || "Cargo por Daño",
+                        amount: dmg.total || (dmg.qty * dmg.unit_price) || 0
+                    };
+                });
+                setDamages(mappedDamages);
+            }
+
+            // Fetch sales orders for this shift session, excluding room 13 and 113
+            const { data: salesOrdersData } = await supabase
+                .from("sales_orders")
+                .select(`
+                    id, total, created_at, status, shift_session_id,
+                    room_stays(
+                        id, check_in_at, vehicle_plate, status,
+                        rooms(number)
+                    ),
+                    payments(payment_method, amount, terminal_code, status, concept),
+                    sales_order_items(concept_type, qty, unit_price, total, is_courtesy, courtesy_reason, is_cancelled, products(name))
+                `)
+                .eq("shift_session_id", closingData.shift_session_id || shiftId);
+
+            if (salesOrdersData) {
+                // Filter out cancelled orders and orders for rooms 13/113
+                const activeOrders = salesOrdersData.filter((order: any) => {
+                    if (order.status === "CANCELLED") return false;
+                    const roomStay = Array.isArray(order.room_stays) ? order.room_stays[0] : order.room_stays;
+                    if (roomStay) {
+                        if (roomStay.status === "CANCELADA") return false;
+                        const roomNumber = roomStay.rooms?.number;
+                        if (roomNumber === "13" || roomNumber === "113") return false;
+                    }
+                    return true;
+                });
+
+                const processed = activeOrders.map((order: any) => {
+                    const payments = order.payments?.filter((p: any) => p.status !== "PENDIENTE" && p.status !== "CANCELADO") || [];
                     let method = "PEND";
                     if (payments.length > 0) {
                         const methods = new Set(payments.map((p: any) => p.payment_method));
@@ -100,11 +157,12 @@ function ThermalReceiptContent() {
                         }
                     }
 
-                    const items = stay.sales_orders?.sales_order_items || [];
+                    const items = order.sales_order_items || [];
+                    const roomStay = Array.isArray(order.room_stays) ? order.room_stays[0] : order.room_stays;
                     const stayItems: AdditionalItem[] = [];
 
                     items.forEach((item: any) => {
-                        if (item.concept_type !== 'ROOM_BASE' && item.concept_type !== 'VEHICLE_REQUEST') {
+                        if (!item.is_cancelled && (roomStay ? (item.concept_type !== 'ROOM_BASE' && item.concept_type !== 'VEHICLE_REQUEST') : true)) {
                             let itemName = item.products?.name;
                             if (!itemName) {
                                 switch (item.concept_type) {
@@ -116,24 +174,38 @@ function ThermalReceiptContent() {
                                 }
                             }
                             
+                            let description = itemName;
+                            if (item.is_courtesy) {
+                                description = `${itemName} (${item.courtesy_reason || "Cortesía"})`;
+                            } else if (item.concept_type === "DAMAGE_CHARGE" && item.courtesy_reason) {
+                                description = `${itemName}: ${item.courtesy_reason}`;
+                            }
+
                             stayItems.push({
-                                description: itemName,
+                                description,
                                 quantity: item.qty || 1, 
-                                total: item.total || (item.qty * item.unit_price) || 0,
+                                total: item.is_courtesy ? 0 : (item.total || (item.qty * item.unit_price) || 0),
                                 type: item.concept_type 
                             });
                         }
                     });
 
+                    const time = roomStay?.check_in_at ? roomStay.check_in_at : order.created_at;
+                    const roomNumber = roomStay?.rooms?.number || "VENTA";
+                    const vehiclePlate = roomStay?.vehicle_plate || "—";
+
                     return {
-                        time: new Date(stay.check_in_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-                        room: stay.rooms?.number || "?",
-                        plate: stay.vehicle_plate?.substring(0, 8) || "-",
-                        total: stay.sales_orders?.total || 0,
+                        time: new Date(time).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+                        room: roomNumber,
+                        plate: vehiclePlate.substring(0, 8),
+                        total: order.total || 0,
                         method,
                         items: stayItems
                     };
                 });
+
+                // Sort by time ascending
+                processed.sort((a, b) => a.time.localeCompare(b.time));
                 setStays(processed);
             }
         }
@@ -176,6 +248,7 @@ function ThermalReceiptContent() {
 
     const employee = closing.employees;
     const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : "N/A";
+    const totalDamages = damages.reduce((sum, dmg) => sum + dmg.amount, 0);
 
     return (
         <>
@@ -273,7 +346,7 @@ function ThermalReceiptContent() {
           border-bottom: 1px dotted #ccc;
           vertical-align: top;
         }
-
+        
         .stays-table tr.stay-row td {
             font-weight: bold;
         }
@@ -333,6 +406,12 @@ function ThermalReceiptContent() {
                         <span>Tarjeta GETNET:</span>
                         <span>{formatMoney(closing.total_card_getnet)}</span>
                     </div>
+                    {totalDamages > 0 && (
+                        <div className="row">
+                            <span>Total Daños:</span>
+                            <span>{formatMoney(totalDamages)}</span>
+                        </div>
+                    )}
                     <div className="row total">
                         <span>TOTAL VENTAS:</span>
                         <span>{formatMoney(closing.total_sales)}</span>
@@ -402,10 +481,27 @@ function ThermalReceiptContent() {
                     </div>
                 )}
 
+                {/* Detalle de Daños */}
+                {damages.length > 0 && (
+                    <div className="section">
+                        <div className="section-title">DETALLE DE DAÑOS</div>
+                        {damages.map((dmg) => (
+                            <div key={dmg.id} className="row" style={{ fontSize: '9px' }}>
+                                <span>{dmg.time} Hab {dmg.room_number}: {dmg.reason}</span>
+                                <span>{formatMoney(dmg.amount)}</span>
+                            </div>
+                        ))}
+                        <div className="row total">
+                            <span>TOTAL DAÑOS:</span>
+                            <span>{formatMoney(totalDamages)}</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Detalle de Estancias */}
                 {stays.length > 0 && (
                     <div className="section">
-                        <div className="section-title">DETALLE ({stays.length})</div>
+                        <div className="section-title">DETALLE ESTANCIAS ({stays.length})</div>
                         <table className="stays-table">
                             <thead>
                                 <tr>

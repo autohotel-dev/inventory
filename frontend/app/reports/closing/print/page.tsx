@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 
 interface ShiftClosingData {
     id: string;
+    shift_session_id?: string;
     period_start: string;
     period_end: string;
     total_cash: number;
@@ -52,6 +53,14 @@ interface ShiftExpense {
     created_at: string;
 }
 
+interface DamageDetailItem {
+    id: string;
+    created_at: string;
+    room_number: string;
+    reason: string;
+    amount: number;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 const formatMoney = (amount: number) =>
@@ -80,6 +89,7 @@ function PrintClosingContent() {
     const [closing, setClosing] = useState<ShiftClosingData | null>(null);
     const [stays, setStays] = useState<RoomStay[]>([]);
     const [expenses, setExpenses] = useState<ShiftExpense[]>([]);
+    const [damages, setDamages] = useState<DamageDetailItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
@@ -105,26 +115,75 @@ function PrintClosingContent() {
             .order("created_at", { ascending: true });
         setExpenses(expensesData || []);
 
-        // Fetch room stays
-        const { data: staysData } = await supabase
-            .from("room_stays")
+        // Fetch damages directly for the session, excluding rooms 13 and 113
+        const { data: damagesData } = await supabase
+            .from("sales_order_items")
             .select(`
-                check_in_at, vehicle_plate, status,
-                rooms(number),
+                id, qty, unit_price, total, courtesy_reason, created_at, is_cancelled,
                 sales_orders(
-                    total,
-                    payments(payment_method, amount, terminal_code),
-                    sales_order_items(concept_type, qty, unit_price, total, is_courtesy, courtesy_reason, is_cancelled, products(name))
+                    room_stays(
+                        rooms(number)
+                    )
                 )
             `)
-            .gte("check_in_at", closingData.period_start)
-            .lte("check_in_at", closingData.period_end)
-            .order("check_in_at", { ascending: true });
+            .eq("shift_session_id", closingData.shift_session_id || shiftId)
+            .eq("concept_type", "DAMAGE_CHARGE");
 
-        if (staysData) {
-            const activeStays = staysData.filter((stay: any) => stay.status !== "CANCELADA");
-            const processed = activeStays.map((stay: any) => {
-                const payments = stay.sales_orders?.payments || [];
+        if (damagesData) {
+            const activeDamages = damagesData.filter((dmg: any) => {
+                if (dmg.is_cancelled) return false;
+                const order = dmg.sales_orders;
+                const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+                const room = Array.isArray(roomStay) ? roomStay[0]?.rooms : roomStay?.rooms;
+                const roomNumber = (Array.isArray(room) ? room[0]?.number : room?.number) || "";
+                return roomNumber !== "13" && roomNumber !== "113";
+            });
+
+            const mappedDamages = activeDamages.map((dmg: any) => {
+                const order = dmg.sales_orders;
+                const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
+                const room = Array.isArray(roomStay) ? roomStay[0]?.rooms : roomStay?.rooms;
+                const roomNumber = (Array.isArray(room) ? room[0]?.number : room?.number) || "—";
+                return {
+                    id: dmg.id,
+                    created_at: dmg.created_at,
+                    room_number: roomNumber,
+                    reason: dmg.courtesy_reason || "Cargo por Daño",
+                    amount: dmg.total || (dmg.qty * dmg.unit_price) || 0
+                };
+            });
+            setDamages(mappedDamages);
+        }
+
+        // Fetch sales orders for this shift session, excluding room 13 and 113
+        const { data: salesOrdersData } = await supabase
+            .from("sales_orders")
+            .select(`
+                id, total, created_at, status, shift_session_id,
+                room_stays(
+                    id, check_in_at, vehicle_plate, status,
+                    rooms(number)
+                ),
+                payments(payment_method, amount, terminal_code, status, concept),
+                sales_order_items(concept_type, qty, unit_price, total, is_courtesy, courtesy_reason, is_cancelled, products(name))
+            `)
+            .eq("shift_session_id", closingData.shift_session_id || shiftId);
+
+        if (salesOrdersData) {
+            // Filter out cancelled orders and orders for rooms 13/113
+            const activeOrders = salesOrdersData.filter((order: any) => {
+                if (order.status === "CANCELLED") return false;
+                const roomStay = Array.isArray(order.room_stays) ? order.room_stays[0] : order.room_stays;
+                if (roomStay) {
+                    if (roomStay.status === "CANCELADA") return false;
+                    const roomNumber = roomStay.rooms?.number;
+                    if (roomNumber === "13" || roomNumber === "113") return false;
+                }
+                return true;
+            });
+
+            const processed = activeOrders.map((order: any) => {
+                const payments = order.payments?.filter((p: any) => p.status !== "PENDIENTE" && p.status !== "CANCELADO") || [];
                 let method = "PENDIENTE";
                 if (payments.length > 0) {
                     const methods = new Set(payments.map((p: any) => p.payment_method));
@@ -138,12 +197,19 @@ function PrintClosingContent() {
                     }
                 }
 
-                const items = stay.sales_orders?.sales_order_items || [];
+                const items = order.sales_order_items || [];
+                const roomStay = Array.isArray(order.room_stays) ? order.room_stays[0] : order.room_stays;
+                
                 const stayItems: AdditionalItem[] = items
-                    .filter((item: any) => item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST" && !item.is_cancelled)
+                    .filter((item: any) => !item.is_cancelled && (roomStay ? (item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST") : true))
                     .map((item: any) => {
                         const productName = item.products?.name || CONCEPT_LABELS[item.concept_type] || item.concept_type || "Extra";
-                        const description = item.is_courtesy ? `${productName} (${item.courtesy_reason || "Cortesía"})` : productName;
+                        let description = productName;
+                        if (item.is_courtesy) {
+                            description = `${productName} (${item.courtesy_reason || "Cortesía"})`;
+                        } else if (item.concept_type === "DAMAGE_CHARGE" && item.courtesy_reason) {
+                            description = `${productName}: ${item.courtesy_reason}`;
+                        }
                         return {
                             description,
                             quantity: item.qty || 1,
@@ -152,15 +218,22 @@ function PrintClosingContent() {
                         };
                     });
 
+                const time = roomStay?.check_in_at ? roomStay.check_in_at : order.created_at;
+                const roomNumber = roomStay?.rooms?.number || "VENTA";
+                const vehiclePlate = roomStay?.vehicle_plate || "—";
+
                 return {
-                    time: new Date(stay.check_in_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-                    room: stay.rooms?.number || "?",
-                    plate: stay.vehicle_plate || "-",
-                    total: stay.sales_orders?.total || 0,
+                    time: new Date(time).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+                    room: roomNumber,
+                    plate: vehiclePlate,
+                    total: order.total || 0,
                     method,
                     items: stayItems,
                 };
             });
+
+            // Sort by time ascending
+            processed.sort((a, b) => a.time.localeCompare(b.time));
             setStays(processed);
         }
 
@@ -182,6 +255,7 @@ function PrintClosingContent() {
     const employee = closing.employees;
     const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : "N/A";
     const netCash = closing.total_cash - (closing.total_expenses || 0);
+    const totalDamages = damages.reduce((sum, dmg) => sum + dmg.amount, 0);
 
     return (
         <>
@@ -249,7 +323,10 @@ function PrintClosingContent() {
                 {/* ═══ RESUMEN DE VENTAS ═══ */}
                 <div style={styles.section}>
                     <h2 style={styles.sectionTitle}>Resumen de Ventas</h2>
-                    <div style={styles.summaryGrid}>
+                    <div style={{
+                        ...styles.summaryGrid,
+                        gridTemplateColumns: totalDamages > 0 ? 'repeat(auto-fit, minmax(130px, 1fr))' : '1fr 1fr'
+                    }}>
                         <div style={{ ...styles.summaryCard, borderLeft: '4px solid #10b981' }}>
                             <span style={styles.summaryLabel}>Efectivo</span>
                             <span style={styles.summaryValue}>{formatMoney(closing.total_cash)}</span>
@@ -262,6 +339,12 @@ function PrintClosingContent() {
                             <span style={styles.summaryLabel}>Tarjeta GETNET</span>
                             <span style={styles.summaryValue}>{formatMoney(closing.total_card_getnet)}</span>
                         </div>
+                        {totalDamages > 0 && (
+                            <div style={{ ...styles.summaryCard, borderLeft: '4px solid #f97316' }}>
+                                <span style={styles.summaryLabel}>Total Daños</span>
+                                <span style={styles.summaryValue}>{formatMoney(totalDamages)}</span>
+                            </div>
+                        )}
                         <div style={{ ...styles.summaryCard, borderLeft: '4px solid #8b5cf6', background: '#f8fafc' }}>
                             <span style={styles.summaryLabel}>TOTAL VENTAS</span>
                             <span style={{ ...styles.summaryValue, fontSize: '22px', fontWeight: 800 }}>
@@ -314,6 +397,39 @@ function PrintClosingContent() {
                                         </td>
                                     </tr>
                                 ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* ═══ DETALLE DE DAÑOS ═══ */}
+                {damages.length > 0 && (
+                    <div style={styles.section}>
+                        <h2 style={styles.sectionTitle}>Detalle de Daños</h2>
+                        <table style={styles.table}>
+                            <thead>
+                                <tr>
+                                    <th style={styles.th}>Hora</th>
+                                    <th style={styles.th}>Hab.</th>
+                                    <th style={styles.th}>Motivo / Concepto</th>
+                                    <th style={{ ...styles.th, textAlign: 'right' }}>Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {damages.map((dmg) => (
+                                    <tr key={dmg.id}>
+                                        <td style={styles.td}>{formatTime(dmg.created_at)}</td>
+                                        <td style={styles.td}>{dmg.room_number}</td>
+                                        <td style={styles.td}>{dmg.reason}</td>
+                                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600 }}>
+                                            {formatMoney(dmg.amount)}
+                                        </td>
+                                    </tr>
+                                ))}
+                                <tr style={{ fontWeight: 'bold', background: '#fafafa' }}>
+                                    <td colSpan={3} style={{ ...styles.td, textAlign: 'right', borderTop: '2px solid #e5e7eb' }}>TOTAL DAÑOS</td>
+                                    <td style={{ ...styles.td, textAlign: 'right', borderTop: '2px solid #e5e7eb' }}>{formatMoney(totalDamages)}</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -438,7 +554,7 @@ const styles: Record<string, React.CSSProperties> = {
         marginBottom: '12px',
     },
     summaryGrid: {
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px',
+        display: 'grid', gap: '10px',
     },
     summaryCard: {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',

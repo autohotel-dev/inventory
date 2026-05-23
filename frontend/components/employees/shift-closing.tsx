@@ -25,6 +25,7 @@ import { ShiftExpense, EXPENSE_TYPE_LABELS, EXPENSE_TYPE_ICONS } from "@/types/e
 import { useShiftClosing, formatCurrency } from "@/hooks/use-shift-closing";
 import type { EnrichedPayment, PaymentSummary } from "@/hooks/use-shift-closing";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ShiftClosingProps {
   session: ShiftSession;
@@ -111,6 +112,15 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-muted/10">
+            {summary?.total_transactions === 0 && (
+              <Alert className="border-amber-500 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTitle className="text-amber-700 dark:text-amber-500">Turno Vacío</AlertTitle>
+                <AlertDescription className="text-xs">
+                  Este turno no registró transacciones ni ventas. Al hacer clic en "Cerrar Turno", se cerrará directamente en el sistema sin necesidad de generar un reporte de corte.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* ═══ PAYMENT CARDS ═══ */}
             <div className="grid grid-cols-3 gap-4">

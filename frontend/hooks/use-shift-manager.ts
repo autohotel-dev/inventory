@@ -229,6 +229,36 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
         return;
       }
 
+      // Validar si el empleado tiene turnos pendientes de corte
+      const { data: pendingSessions, error: pendingError } = await supabase
+        .from("shift_sessions")
+        .select("id, clock_out_at, shift_definitions(name)")
+        .eq("employee_id", selectedEmployeeId)
+        .eq("status", "pending_closing");
+
+      if (pendingError) {
+        console.error("[SHIFT] Error checking pending sessions:", pendingError);
+      }
+
+      if (pendingSessions && pendingSessions.length > 0) {
+        const pendingShiftsInfo = pendingSessions
+          .map(s => {
+            const shiftName = s.shift_definitions?.name || "Turno";
+            const dateStr = s.clock_out_at 
+              ? new Date(s.clock_out_at).toLocaleDateString("es-MX", { day: '2-digit', month: '2-digit' })
+              : "";
+            return `${shiftName} (${dateStr})`;
+          })
+          .join(", ");
+
+        showError(
+          "Cortes pendientes",
+          `No puedes iniciar un nuevo turno porque tienes cortes de caja pendientes por completar: ${pendingShiftsInfo}. Por favor, completa tus cortes pendientes primero.`
+        );
+        setActionLoading(false);
+        return;
+      }
+
       const employeeRole = selectedEmployee.role;
       const roleLimit = getRoleLimit(employeeRole);
       const roleLabel = EMPLOYEE_ROLES.find(r => r.value === employeeRole)?.label || employeeRole;
@@ -351,11 +381,28 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
     setActionLoading(true);
     try {
+      const role = targetSession.employees?.role;
+      let statusToSet = 'pending_closing';
+      
+      if (role === 'cochero') {
+        statusToSet = 'closed';
+      } else if (!role) {
+        // Fallback de seguridad: consultar rol en base de datos si no viene pre-cargado
+        const { data: empData } = await supabase
+          .from("employees")
+          .select("role")
+          .eq("id", targetSession.employee_id)
+          .maybeSingle();
+        if (empData?.role === 'cochero') {
+          statusToSet = 'closed';
+        }
+      }
+
       const { error } = await supabase
         .from("shift_sessions")
         .update({
           clock_out_at: new Date().toISOString(),
-          status: "pending_closing",
+          status: statusToSet,
         })
         .eq("id", targetSession.id);
 

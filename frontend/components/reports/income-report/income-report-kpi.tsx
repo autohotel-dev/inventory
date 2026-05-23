@@ -26,7 +26,7 @@ export function IncomeReportKpi({ showStats, setShowStats, totals }: IncomeRepor
             </div>
 
             {showStats && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in slide-in-from-top-2 fade-in duration-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-in slide-in-from-top-2 fade-in duration-200">
                     {/* Total Habitaciones */}
                     <div className="bg-card p-6 rounded-xl border border-blue-200/50 dark:border-blue-900/50 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -100,6 +100,28 @@ export function IncomeReportKpi({ showStats, setShowStats, totals }: IncomeRepor
                         </div>
                     </div>
 
+                    {/* Total Daños */}
+                    <div className="bg-card p-6 rounded-xl border border-orange-200/50 dark:border-orange-900/50 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-500">
+                                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                            </svg>
+                        </div>
+                        <div className="flex flex-col gap-1 relative z-10">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                                    </svg>
+                                </div>
+                                <span className="text-sm font-semibold text-muted-foreground">Daños</span>
+                            </div>
+                            <div className="text-2xl font-bold text-foreground">
+                                {formatCurrency((totals.damages || 0))}
+                            </div>
+                        </div>
+                    </div>
+
                     {/* GRAN TOTAL */}
                     <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-xl shadow-lg relative overflow-hidden group hover:shadow-xl transition-shadow text-white">
                         <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-30 transition-opacity">
@@ -125,6 +147,7 @@ export function IncomeReportKpi({ showStats, setShowStats, totals }: IncomeRepor
                         </div>
                     </div>
                 </div>
+
             )}
         </div>
     );
