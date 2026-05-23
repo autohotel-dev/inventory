@@ -205,7 +205,7 @@ function ThermalReceiptContent() {
                 });
 
                 // Sort by time ascending
-                processed.sort((a, b) => a.time.localeCompare(b.time));
+                processed.sort((a: RoomStay, b: RoomStay) => a.time.localeCompare(b.time));
                 setStays(processed);
             }
         }
