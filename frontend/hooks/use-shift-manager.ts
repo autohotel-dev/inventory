@@ -242,7 +242,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
       if (pendingSessions && pendingSessions.length > 0) {
         const pendingShiftsInfo = pendingSessions
-          .map(s => {
+          .map((s: any) => {
             const shiftName = s.shift_definitions?.name || "Turno";
             const dateStr = s.clock_out_at 
               ? new Date(s.clock_out_at).toLocaleDateString("es-MX", { day: '2-digit', month: '2-digit' })
