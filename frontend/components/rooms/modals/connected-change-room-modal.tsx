@@ -117,7 +117,7 @@ export function ConnectedChangeRoomModal({
               ? `Devolución por cambio: Hab ${room.number} → ${newRoom.number}`
               : `Cargo por cambio: Hab ${room.number} → ${newRoom.number}`,
             is_paid: false,
-            delivery_status: "PENDING_VALET",
+            delivery_status: isRefund ? "DELIVERED" : "PENDING_VALET",
             issue_description: JSON.stringify({
               oldRoomNumber: room.number,
               newRoomNumber: newRoom.number,
