@@ -14,7 +14,7 @@ interface UseGranularPaymentProps {
 
 export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGranularPaymentProps) {
   const [step, setStep] = useState<'select' | 'pay'>('select');
-  const [forcedUnlockedItems] = useState<Set<string>>(new Set());
+  const [forcedUnlockedItems, setForcedUnlockedItems] = useState<Set<string>>(new Set());
   const [showDiscountInput, setShowDiscountInput] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -101,7 +101,7 @@ export function useGranularPayment({ salesOrderId, isOpen, onComplete }: UseGran
 
   // bridge function for unlock
   const forceUnlockItem = (itemId: string) => {
-    // Current implementation uses local state in GranularPaymentModal for this
+    setForcedUnlockedItems(prev => new Set([...prev, itemId]));
   };
 
   return {

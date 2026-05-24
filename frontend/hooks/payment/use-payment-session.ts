@@ -115,7 +115,7 @@ export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId
     
     // Actions
     applyValetData,
-    forceUnlockItem: (id: string) => {}, // Placeholder
+    forceUnlockItem,
     deleteUnpaidItem: (id: string, room: string) => itemDomain.deleteUnpaidItem(id, room)
   };
 }

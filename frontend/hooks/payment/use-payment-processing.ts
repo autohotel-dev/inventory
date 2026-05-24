@@ -79,6 +79,7 @@ export function usePaymentProcessing({
         cardType: p.cardType || null,
         reference: p.reference || null,
         collected_by: p.collected_by || null,
+        original_payment_id: (p as any).original_payment_id || null,
       }));
 
       // ─── Single atomic RPC call ────────────────────────────────────
@@ -90,6 +91,7 @@ export function usePaymentProcessing({
         p_payments: paymentData,
         p_tip_amount: tipAmount,
         p_selected_total: selectedTotal,
+        p_discounts: discounts,
       });
 
       if (rpcError) {
