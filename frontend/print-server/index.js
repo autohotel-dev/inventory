@@ -98,6 +98,33 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
+// Proxy requests starting with /sensors to the local sensors server on port 5002
+app.use('/sensors', (req, res) => {
+    const http = require('http');
+    const options = {
+        hostname: 'localhost',
+        port: 5002,
+        path: req.originalUrl,
+        method: req.method,
+        headers: { ...req.headers }
+    };
+
+    // Remove host header to avoid header/routing conflicts
+    delete options.headers['host'];
+
+    const proxyReq = http.request(options, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+    });
+
+    proxyReq.on('error', (err) => {
+        console.error('[PROXY] Error forwarding request to sensors server:', err.message);
+        res.status(502).send('Error de conexión con el servidor de sensores local (Port 5002). Asegúrate de que el monitor de sensores esté corriendo.');
+    });
+
+    req.pipe(proxyReq, { end: true });
+});
+
 // Helpers
 function formatMoney(amount) {
     return `$${amount.toFixed(2)}`;
