@@ -71,3 +71,7 @@ dist/
 
 # Serverless Framework
 .serverless/
+
+# Custom exclusions
+scratch/
+bun.lock
