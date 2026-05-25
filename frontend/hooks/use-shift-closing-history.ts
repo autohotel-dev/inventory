@@ -212,7 +212,24 @@ export function useShiftClosingHistory() {
 
   const exportClosing = async (closing: ShiftClosing) => {
     try {
-      // Cargar todos los detalles del corte con pagos e items
+      // 1. Cargar gastos del turno
+      const { data: expenseData } = await supabase
+        .from('shift_expenses')
+        .select('*')
+        .eq('shift_session_id', closing.shift_session_id)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: true });
+
+      const expenses = (expenseData || []).map((exp: any) => ({
+        time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        type: exp.expense_type,
+        description: exp.description,
+        amount: Number(exp.amount),
+        recipient: exp.recipient,
+      }));
+      const totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+
+      // 2. Cargar todos los detalles del corte con pagos e items
       const { data: details } = await supabase
         .from("shift_closing_details")
         .select("*, payments(id, amount, payment_method, reference, concept, terminal_code, created_at, sales_order_id, payment_terminals(code, name))")
@@ -294,6 +311,8 @@ export function useShiftClosingHistory() {
         countedCash: closing.counted_cash || 0,
         cashDifference: closing.cash_difference || 0,
         notes: closing.notes || undefined,
+        expenses,
+        totalExpenses,
         transactions,
       });
     } catch (err) {

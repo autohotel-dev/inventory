@@ -51,11 +51,20 @@ interface DamageDetailItem {
     amount: number;
 }
 
+interface ShiftExpense {
+    id: string;
+    description: string;
+    amount: number;
+    expense_type: string;
+    created_at: string;
+}
+
 function ThermalReceiptContent() {
     const searchParams = useSearchParams();
     const shiftId = searchParams.get("shiftId");
     const [closing, setClosing] = useState<ShiftClosingData | null>(null);
     const [stays, setStays] = useState<RoomStay[]>([]);
+    const [expenses, setExpenses] = useState<ShiftExpense[]>([]);
     const [damages, setDamages] = useState<DamageDetailItem[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -76,6 +85,15 @@ function ThermalReceiptContent() {
 
         if (closingData) {
             setClosing(closingData);
+
+            // Fetch expenses
+            const { data: expensesData } = await supabase
+                .from("shift_expenses")
+                .select("id, description, amount, expense_type, created_at")
+                .eq("shift_session_id", closingData.shift_session_id || shiftId)
+                .neq("status", "rejected")
+                .order("created_at", { ascending: true });
+            setExpenses(expensesData || []);
 
             // Fetch damages for this shift session, excluding room 13/113
             const { data: damagesData } = await supabase
@@ -423,12 +441,15 @@ function ThermalReceiptContent() {
                 </div>
 
                 {/* Gastos */}
-                {closing.total_expenses > 0 && (
+                {closing.total_expenses !== 0 && (
                     <div className="section">
-                        <div className="section-title">GASTOS</div>
+                        <div className="section-title">GASTOS Y AJUSTES</div>
                         <div className="row">
-                            <span>Total Gastos ({closing.expenses_count}):</span>
-                            <span>-{formatMoney(closing.total_expenses)}</span>
+                            <span>Total ({closing.expenses_count}):</span>
+                            <span>
+                                {closing.total_expenses > 0 ? "-" : "+"}
+                                {formatMoney(Math.abs(closing.total_expenses))}
+                            </span>
                         </div>
                     </div>
                 )}
@@ -446,7 +467,7 @@ function ThermalReceiptContent() {
                     </div>
                     <div className={`row highlight ${closing.cash_difference === 0 ? 'diff-ok' : closing.cash_difference > 0 ? 'diff-over' : 'diff-under'}`}>
                         <span>Diferencia:</span>
-                        <span>{closing.cash_difference >= 0 ? '+' : ''}{formatMoney(closing.cash_difference)}</span>
+                        <span>{closing.cash_difference >= 0 ? '+' : '-'}{formatMoney(Math.abs(closing.cash_difference))}</span>
                     </div>
                 </div>
 
@@ -543,6 +564,32 @@ function ThermalReceiptContent() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Detalle de Gastos */}
+                {expenses.length > 0 && (
+                    <div className="section">
+                        <div className="section-title">DETALLE DE GASTOS</div>
+                        {expenses.map((exp) => {
+                            const isAdjustment = exp.expense_type === "CASH_ADJUSTMENT";
+                            const isNegative = Number(exp.amount) < 0;
+                            const sign = isNegative ? "+" : "-";
+                            const displayAmount = Math.abs(Number(exp.amount));
+                            return (
+                                <div key={exp.id} className="row" style={{ fontSize: '9px' }}>
+                                    <span>{formatTime(exp.created_at)} {isAdjustment ? "[AJUSTE] " : ""}{exp.description}</span>
+                                    <span>{sign}{formatMoney(displayAmount)}</span>
+                                </div>
+                            );
+                        })}
+                        <div className="row total">
+                            <span>TOTAL GASTOS:</span>
+                            <span>
+                                {closing.total_expenses > 0 ? "-" : closing.total_expenses < 0 ? "+" : ""}
+                                {formatMoney(Math.abs(closing.total_expenses))}
+                            </span>
+                        </div>
                     </div>
                 )}
 

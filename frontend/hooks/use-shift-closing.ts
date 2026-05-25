@@ -230,7 +230,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           total_cash: summary.total_cash, total_card_bbva: summary.total_card_bbva,
           total_card_getnet: summary.total_card_getnet, total_sales: summary.total_sales,
           total_transactions: summary.total_transactions, total_expenses: summary.total_expenses || 0,
-          expenses_count: summary.expenses?.length || 0, counted_cash: summary.total_cash,
+          expenses_count: summary.expenses?.length || 0, counted_cash: netCash,
           cash_difference: 0, declared_card_bbva: summary.total_card_bbva,
           declared_card_getnet: summary.total_card_getnet, card_difference_bbva: 0,
           card_difference_getnet: 0, cash_breakdown: null, notes: notes.trim() || null, status: "pending",
@@ -304,9 +304,10 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         periodEnd: session.clock_out_at || new Date().toISOString(),
         totalCash: summary.total_cash, totalCardBBVA: summary.total_card_bbva,
         totalCardGetnet: summary.total_card_getnet, totalSales: summary.total_sales,
-        totalTransactions: summary.total_transactions, countedCash: summary.total_cash,
+        totalTransactions: summary.total_transactions, countedCash: netCash,
         cashDifference: 0, notes: notes.trim() || undefined,
         expenses,
+        totalExpenses: summary.total_expenses || 0,
         transactions: await Promise.all(summary.payments.map(async (payment: any) => {
           let items: any[] = [];
           if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {

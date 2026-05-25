@@ -292,6 +292,12 @@ function buildClosingTicket(data) {
     const { dateStr: startDate, timeStr: startTime } = formatDateTime(data.periodStart);
     const { dateStr: endDate, timeStr: endTime } = formatDateTime(data.periodEnd);
 
+    // Calcular gastos totales para deducirlos del efectivo esperado
+    let totalGastos = data.totalExpenses || 0;
+    if (data.expenses && data.expenses.length > 0 && !data.totalExpenses) {
+        totalGastos = data.expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+    }
+
     let t = CMD.INIT;
     // Margen superior
     t += CMD.MARGIN;
@@ -310,10 +316,17 @@ function buildClosingTicket(data) {
     t += CMD.ALIGN_LEFT;
 
     t += CMD.BOLD_ON + 'EFECTIVO' + CMD.NEW_LINE + CMD.BOLD_OFF;
-    t += `  Esperado:   ${formatMoney(data.totalCash)}` + CMD.NEW_LINE;
-    t += `  Contado:    ${formatMoney(data.countedCash)}` + CMD.NEW_LINE;
-    const diff = data.cashDifference >= 0 ? '+' : '';
-    t += `  Diferencia: ${diff}${formatMoney(data.cashDifference)}` + CMD.NEW_LINE + CMD.NEW_LINE;
+    t += `  Efectivo Ventas: ${formatMoney(data.totalCash)}` + CMD.NEW_LINE;
+    if (totalGastos !== 0) {
+        const sign = totalGastos > 0 ? '-' : '+';
+        t += `  Gastos/Ajustes:  ${sign}${formatMoney(Math.abs(totalGastos))}` + CMD.NEW_LINE;
+    }
+    const expectedCash = data.totalCash - totalGastos;
+    t += `  Esperado:         ${formatMoney(expectedCash)}` + CMD.NEW_LINE;
+    t += `  Contado:          ${formatMoney(data.countedCash)}` + CMD.NEW_LINE;
+    const cashDiff = data.countedCash - expectedCash;
+    const diffSign = cashDiff >= 0 ? '+' : '';
+    t += `  Diferencia:       ${diffSign}${formatMoney(cashDiff)}` + CMD.NEW_LINE + CMD.NEW_LINE;
 
     if (data.totalCardBBVA > 0) {
         t += CMD.BOLD_ON + 'TARJETA BBVA' + CMD.NEW_LINE + CMD.BOLD_OFF;
@@ -463,20 +476,23 @@ function buildClosingTicket(data) {
         const EXPENSE_LABELS = {
             UBER: 'Uber/Transporte', MAINTENANCE: 'Mantenimiento', REPAIR: 'Reparacion',
             SUPPLIES: 'Insumos', PETTY_CASH: 'Caja Chica', OTHER: 'Otro Gasto',
+            CASH_ADJUSTMENT: 'Ajuste de Caja'
         };
         t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'GASTOS DEL TURNO' + CMD.NEW_LINE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
-        let totalGastos = 0;
         data.expenses.forEach((exp, i) => {
             const label = EXPENSE_LABELS[exp.type] || exp.type || 'Gasto';
-            const desc = exp.description.length > 24 ? exp.description.substring(0, 23) + '.' : exp.description;
-            t += `${i + 1}. ${exp.time}  -${formatMoney(exp.amount)}` + CMD.NEW_LINE;
+            const desc = (exp.description || '').length > 24 ? exp.description.substring(0, 23) + '.' : exp.description || '';
+            const isNegative = exp.amount < 0;
+            const absAmount = Math.abs(exp.amount);
+            const sign = isNegative ? '+' : '-';
+            t += `${i + 1}. ${exp.time}  ${sign}${formatMoney(absAmount)}` + CMD.NEW_LINE;
             t += `   ${label}: ${desc}` + CMD.NEW_LINE;
-            totalGastos += exp.amount;
         });
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
-        t += CMD.BOLD_ON + formatLine('TOTAL GASTOS:', `-${formatMoney(totalGastos)}`) + CMD.NEW_LINE;
+        const totalGastosSign = totalGastos > 0 ? '-' : '+';
+        t += CMD.BOLD_ON + formatLine('TOTAL GASTOS:', `${totalGastosSign}${formatMoney(Math.abs(totalGastos))}`) + CMD.NEW_LINE;
         t += formatLine('EFECTIVO NETO:', formatMoney((data.totalCash || 0) - totalGastos)) + CMD.NEW_LINE + CMD.BOLD_OFF;
         t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     }
@@ -1403,7 +1419,9 @@ app.post('/print-closing', async (req, res) => {
             countedCash: data.counted_cash || data.total_cash || 0,
             cashDifference: (data.counted_cash || data.total_cash || 0) - (data.total_cash || 0),
             notes: data.notes || '',
-            transactions: data.transactions || []
+            transactions: data.transactions || [],
+            expenses: data.expenses || [],
+            totalExpenses: data.total_expenses || 0
         };
 
         const ticket = buildClosingTicket(closingData);
