@@ -935,7 +935,31 @@ export default function RoomsScreen() {
                     }}
                     handleProposeCheckout={async (stayId, roomNumber, valetId) => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        return await handleProposeCheckout(stayId, roomNumber, valetId, checkoutPayments);
+                        
+                        // Find the stay in our rooms state to get the most up-to-date data
+                        let targetStay = actionStay;
+                        if (!targetStay || targetStay.id !== stayId) {
+                            for (const r of rooms) {
+                                const s = r.room_stays?.find(x => x.id === stayId);
+                                if (s) {
+                                    targetStay = s;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        const orders = targetStay?.sales_orders;
+                        const remainingAmount = Array.isArray(orders)
+                            ? orders.reduce((sum: number, order: any) => sum + (order.remaining_amount || 0), 0)
+                            : (orders?.remaining_amount || 0);
+
+                        const proposedPayments: PaymentEntry[] = remainingAmount > 0 ? [{
+                            id: 'checkout-p1',
+                            amount: remainingAmount,
+                            method: 'EFECTIVO'
+                        }] : [];
+
+                        return await handleProposeCheckout(stayId, roomNumber, valetId, proposedPayments);
                     }}
                     pendingExtras={actionPendingExtras}
                     onVerifyExtras={() => {
