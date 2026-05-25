@@ -630,7 +630,7 @@ export function useReprintCenter() {
       {
         const { data, error } = await supabase
           .from("shift_closings")
-          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, shift_session_id, employees:employees!shift_closings_employee_id_fkey(first_name, last_name), shift_sessions(shift_definitions(name))")
+          .select("id, period_start, period_end, total_cash, total_card_bbva, total_card_getnet, total_sales, total_transactions, counted_cash, cash_difference, notes, status, employee_id, shift_session_id, total_expenses, expenses_count, employees:employees!shift_closings_employee_id_fkey(first_name, last_name), shift_sessions(shift_definitions(name))")
           .in("status", ["pending", "approved", "rejected"])
           .gte("period_end", fromISO)
           .lte("period_end", toISO)
@@ -663,6 +663,8 @@ export function useReprintCenter() {
               totalTransactions: closing.total_transactions || 0,
               countedCash: closing.counted_cash || 0,
               cashDifference: closing.cash_difference || 0,
+              totalExpenses: closing.total_expenses || 0,
+              expensesCount: closing.expenses_count || 0,
               notes: closing.notes || undefined,
               transactions: [], // Will be loaded on demand
             },
@@ -824,6 +826,7 @@ export function useReprintCenter() {
 
           // Load expenses
           let expenses: any[] = [];
+          let totalExpenses = 0;
           if (shiftSessionId) {
             const { data: expenseData } = await supabase
               .from("shift_expenses")
@@ -839,6 +842,7 @@ export function useReprintCenter() {
               amount: Number(exp.amount),
               recipient: exp.recipient,
             }));
+            totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
           }
 
           // 1. Print thermal ticket only
@@ -850,6 +854,7 @@ export function useReprintCenter() {
             damageBreakdown,
             transactions,
             expenses,
+            totalExpenses,
           });
         }
 

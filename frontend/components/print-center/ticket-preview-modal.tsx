@@ -297,8 +297,18 @@ function ClosingPreview({
 
       <div className="text-xs font-bold mt-1">EFECTIVO</div>
       <ReceiptLine
-        left="  Esperado:"
+        left="  Efectivo Ventas:"
         right={fmtCurrency(data.totalCash || 0)}
+      />
+      {data.totalExpenses !== undefined && Number(data.totalExpenses) !== 0 && (
+        <ReceiptLine
+          left="  Gastos/Ajustes:"
+          right={`${Number(data.totalExpenses) > 0 ? "-" : "+"}${fmtCurrency(Math.abs(Number(data.totalExpenses)))}`}
+        />
+      )}
+      <ReceiptLine
+        left="  Esperado:"
+        right={fmtCurrency((data.totalCash || 0) - (Number(data.totalExpenses) || 0))}
       />
       <ReceiptLine
         left="  Contado:"
