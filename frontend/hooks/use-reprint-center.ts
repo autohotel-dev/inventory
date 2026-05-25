@@ -34,71 +34,29 @@ async function printHPIncomeReport(
   periodStart: string,
   periodEnd: string
 ) {
-  // 1. Find all sales_order_ids linked to this shift session
-  const [{ data: shiftItems }, { data: shiftPayments }] = await Promise.all([
-    supabase.from("sales_order_items").select("sales_order_id").eq("shift_session_id", shiftSessionId),
-    supabase.from("payments").select("sales_order_id").eq("shift_session_id", shiftSessionId),
-  ]);
+  // 1. Call RPC to get income report entries
+  const { data: rpcResult, error } = await supabase.rpc('get_income_report', {
+    p_report_type: 'shift',
+    p_shift_id: shiftSessionId,
+    p_payment_method_filter: 'all',
+    p_room_filter: 'all',
+    p_status_filter: 'all'
+  });
 
-  const ids = new Set<string>();
-  (shiftItems || []).forEach((i: any) => i.sales_order_id && ids.add(i.sales_order_id));
-  (shiftPayments || []).forEach((p: any) => p.sales_order_id && ids.add(p.sales_order_id));
-  const salesOrderIds = Array.from(ids);
-
-  if (salesOrderIds.length === 0) {
-    console.log('[HP Reprint] No sales orders for this shift — skipping income report');
+  if (error) {
+    console.error('[HP Reprint] Error calling get_income_report RPC:', error);
     return;
   }
 
-  // 2. Fetch room_stays that match those sales orders
-  const { data: staysData } = await supabase
-    .from("room_stays")
-    .select(`
-      id, check_in_at, vehicle_plate, status,
-      checkout_valet:employees!room_stays_checkout_valet_employee_id_fkey(first_name, last_name),
-      rooms!inner(number),
-      sales_orders!inner(
-        id, total, payments(id, payment_method, card_type, card_last_4, terminal_code, amount, concept, status, shift_session_id),
-        sales_order_items(concept_type, unit_price, qty, is_courtesy, courtesy_reason, is_cancelled, shift_session_id)
-      )
-    `)
-    .in("sales_order_id", salesOrderIds)
-    .in("status", ["ACTIVA", "FINALIZADA", "CANCELADA"])
-    .order("check_in_at", { ascending: true });
+  const entriesRaw = rpcResult?.entries || [];
 
-  const filteredStays = (staysData || []).filter((stay: any) => {
-    const roomNum = stay.rooms?.number;
-    return roomNum !== '13' && roomNum !== '113';
-  });
+  if (entriesRaw.length === 0) {
+    console.log('[HP Reprint] No sales orders/entries for this shift — skipping income report');
+    return;
+  }
 
-  // 3. Build income entries
-  const entries = filteredStays.map((stay: any, idx: number) => {
-    const order = stay.sales_orders;
-    let items = Array.isArray(order) ? (order[0]?.sales_order_items || []) : (order?.sales_order_items || []);
-    items = items.filter((item: any) => item.shift_session_id === shiftSessionId && !item.is_cancelled);
-
-    const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
-    let allPayments: any[] = [];
-    rawOrderData.forEach((o: any) => {
-      if (o?.payments) allPayments.push(...(Array.isArray(o.payments) ? o.payments : [o.payments]));
-    });
-    allPayments = allPayments.filter((p: any) =>
-      p.shift_session_id === shiftSessionId &&
-      p.status !== 'PENDIENTE' &&
-      p.concept?.toUpperCase() !== 'CHECKOUT' &&
-      p.payment_method !== 'PENDIENTE'
-    );
-
-    const roomPrice = items.filter((i: any) => i.concept_type === "ROOM_BASE")
-      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
-    const extra = items.filter((i: any) => ["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(i.concept_type))
-      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
-    const consumption = items.filter((i: any) => ["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(i.concept_type))
-      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
-    const damage = items.filter((i: any) => i.concept_type === "DAMAGE_CHARGE")
-      .reduce((s: number, i: any) => s + (i.unit_price * i.qty), 0);
-
-    // Build detailed payment method string with card info for administration
+  // 2. Map raw entries to structured layout
+  const entries = entriesRaw.map((e: any) => {
     const buildCardLabel = (p: any) => {
       let label = 'TARJETA';
       if (p.terminal_code) label += ` ${p.terminal_code}`;
@@ -110,45 +68,30 @@ async function printHPIncomeReport(
       return label;
     };
 
-    let paymentMethod = "PENDIENTE";
-    if (allPayments.length === 1) {
-      const p = allPayments[0];
-      paymentMethod = p.payment_method === "TARJETA"
-        ? buildCardLabel(p)
-        : p.payment_method;
-    } else if (allPayments.length > 1) {
-      const uniqueMethods = new Set(allPayments.map((p: any) => p.payment_method));
-      if (uniqueMethods.size > 1) {
-        paymentMethod = allPayments.map((p: any) =>
-          p.payment_method === "TARJETA" ? buildCardLabel(p) : p.payment_method
-        ).join(' / ');
-      } else if (allPayments[0].payment_method === "TARJETA") {
-        paymentMethod = allPayments.map((p: any) => buildCardLabel(p)).join(' / ');
-      } else {
-        paymentMethod = allPayments[0].payment_method;
-      }
+    let paymentMethod = e.payment_method || "PENDIENTE";
+    if (e.payments && e.payments.length === 1) {
+      const p = e.payments[0];
+      paymentMethod = p.payment_method === "TARJETA" ? buildCardLabel(p) : p.payment_method;
+    } else if (e.payments && e.payments.length > 1) {
+      paymentMethod = e.payments.map((p: any) =>
+        p.payment_method === "TARJETA" ? buildCardLabel(p) : p.payment_method
+      ).join(' / ');
     }
 
-    const valetName = stay.checkout_valet
-      ? `${stay.checkout_valet.first_name} ${stay.checkout_valet.last_name}`.trim()
-      : "—";
-
-    const isCancelled = stay.status === 'CANCELADA';
-
     return {
-      no: idx + 1,
-      time: stay.check_in_at ? new Date(stay.check_in_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
-      vehicle_plate: stay.vehicle_plate || '',
-      room_number: stay.rooms?.number || '',
-      checkout_valet_name: valetName,
-      room_price: isCancelled ? -roomPrice : roomPrice,
-      extra: isCancelled ? -extra : extra,
-      consumption: isCancelled ? -consumption : consumption,
-      damage: isCancelled ? -damage : damage,
-      total: isCancelled ? -(roomPrice + extra + consumption + damage) : (roomPrice + extra + consumption + damage),
-      payment_method: isCancelled ? 'CANCELADO' : paymentMethod,
-      stay_status: stay.status,
-      isOwnRoom: roomPrice > 0,
+      no: Number(e.no),
+      time: e.time || '',
+      vehicle_plate: e.vehicle_plate || '',
+      room_number: e.room_number || '',
+      checkout_valet_name: e.checkout_valet_name || '—',
+      room_price: Number(e.room_price) || 0,
+      extra: Number(e.extra) || 0,
+      consumption: Number(e.consumption) || 0,
+      damage: Number(e.damage) || 0,
+      total: Number(e.total) || 0,
+      payment_method: paymentMethod,
+      stay_status: e.stay_status,
+      isOwnRoom: Number(e.room_price) > 0,
     };
   });
 
@@ -156,36 +99,25 @@ async function printHPIncomeReport(
   const ownEntries = entries.filter((e: any) => e.isOwnRoom).map((e: any, i: number) => ({ ...e, no: i + 1 }));
   const otherEntries = entries.filter((e: any) => !e.isOwnRoom).map((e: any, i: number) => ({ ...e, no: i + 1 }));
 
-  // 4. Build payment breakdown
+  // 3. Build payment breakdown from all payments in the shift
   const paymentBreakdown: Record<string, number> = {};
-  filteredStays.filter((stay: any) => stay.status !== 'CANCELADA').forEach((stay: any) => {
-    const order = stay.sales_orders;
-    const rawOrderData = order ? (Array.isArray(order) ? order : [order]) : [];
-    rawOrderData.forEach((o: any) => {
-      if (!o?.payments) return;
-      const pList = Array.isArray(o.payments) ? o.payments : [o.payments];
-      pList.filter((p: any) =>
-        p.shift_session_id === shiftSessionId &&
-        p.status !== 'PENDIENTE' &&
-        p.payment_method !== 'PENDIENTE'
-      ).forEach((p: any) => {
-        let key: string;
-        if (p.payment_method === "TARJETA") {
-          key = 'TARJETA';
-          if (p.terminal_code) key += ` ${p.terminal_code}`;
-          if (p.card_type) {
-            const ct = p.card_type.toUpperCase();
-            key += ct === 'CREDITO' ? ' CRÉD' : ct === 'DEBITO' ? ' DÉB' : ` ${ct}`;
-          }
-        } else {
-          key = p.payment_method;
+  entriesRaw.forEach((e: any) => {
+    (e.payments || []).forEach((p: any) => {
+      let key = p.payment_method;
+      if (p.payment_method === "TARJETA") {
+        key = 'TARJETA';
+        if (p.terminal_code) key += ` ${p.terminal_code}`;
+        if (p.card_type) {
+          const ct = p.card_type.toUpperCase();
+          key += ct === 'CREDITO' ? ' CRÉD' : ct === 'DEBITO' ? ' DÉB' : ` ${ct}`;
         }
-        paymentBreakdown[key] = (paymentBreakdown[key] || 0) + Number(p.amount);
-      });
+        if (p.card_last_4) key += ` ****${p.card_last_4}`;
+      }
+      paymentBreakdown[key] = (paymentBreakdown[key] || 0) + Number(p.amount);
     });
   });
 
-  // 5. Calculate totals (all, own, other)
+  // 4. Calculate totals (all, own, other)
   const calcTotals = (list: any[]) => list.reduce((acc: any, e: any) => ({
     roomPrice: acc.roomPrice + e.room_price,
     extra: acc.extra + e.extra,
@@ -197,7 +129,7 @@ async function printHPIncomeReport(
   const ownTotals = calcTotals(ownEntries);
   const otherTotals = calcTotals(otherEntries);
 
-  // 6. Format period
+  // 5. Format period
   const fmtDate = (d: string) => {
     const dt = new Date(d);
     return {
@@ -209,7 +141,7 @@ async function printHPIncomeReport(
   const { dateStr: endDate, timeStr: endTime } = fmtDate(periodEnd);
   const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
 
-  // 6b. Fetch shift expenses
+  // 6. Fetch shift expenses
   const { data: expenseData } = await supabase
     .from('shift_expenses')
     .select('*')
@@ -233,18 +165,29 @@ async function printHPIncomeReport(
   const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
   // 7. Build HTML table rows helper
-  const buildRow = (e: any) => `<tr>
+  const buildRow = (e: any) => {
+    const isCancelled = e.stay_status === 'CANCELADA';
+    const rowStyle = isCancelled ? 'color:#dc2626;text-decoration:line-through;' : '';
+    const cancelTag = isCancelled ? ' <span style="color:#dc2626;font-size:7px;font-weight:700;text-decoration:none;display:inline-block;">(CANCELADO)</span>' : '';
+    const activeTag = !isCancelled && e.stay_status === 'ACTIVA' ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : '';
+    const formatAmt = (val: number) => {
+      if (val === 0) return '—';
+      if (val < 0) return `<span style="color:#dc2626;text-decoration:none;display:inline-block;">-$${Math.abs(val).toFixed(2)}</span>`;
+      return `$${val.toFixed(2)}`;
+    };
+    return `<tr style="${rowStyle}">
         <td style="text-align:center;font-weight:600;">${e.no}</td>
         <td style="text-align:center;">${e.time}</td>
         <td style="text-align:center;text-transform:uppercase;">${e.vehicle_plate || '—'}</td>
-        <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === 'CANCELADA' ? ' <span style="color:#dc2626;font-size:7px;">(C)</span>' : e.stay_status === 'ACTIVA' ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : ''}</td>
-        <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
-        <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? '$' + Number(e.extra).toFixed(2) : '—'}</td>
-        <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? '$' + Number(e.consumption).toFixed(2) : '—'}</td>
-        <td style="text-align:right;font-family:monospace;">${e.damage > 0 ? '$' + Number(e.damage).toFixed(2) : '—'}</td>
-        <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
-        <td style="text-align:center;">${e.payment_method}</td>
+        <td style="text-align:center;font-weight:600;text-decoration:none;">${e.room_number}${cancelTag}${activeTag}</td>
+        <td style="text-align:right;font-family:monospace;">${formatAmt(e.room_price)}</td>
+        <td style="text-align:right;font-family:monospace;">${e.extra !== 0 ? formatAmt(e.extra) : '—'}</td>
+        <td style="text-align:right;font-family:monospace;">${e.consumption !== 0 ? formatAmt(e.consumption) : '—'}</td>
+        <td style="text-align:right;font-family:monospace;">${e.damage !== 0 ? formatAmt(e.damage) : '—'}</td>
+        <td style="text-align:right;font-weight:700;font-family:monospace;">${formatAmt(e.total)}</td>
+        <td style="text-align:center;${isCancelled ? 'text-decoration:none;color:#dc2626;font-weight:700;' : ''}">${e.payment_method}</td>
     </tr>`;
+  };
   const ownRows = ownEntries.map(buildRow).join('');
   const otherRows = otherEntries.map(buildRow).join('');
 

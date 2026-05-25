@@ -208,6 +208,7 @@ export function useShiftClosingHistory() {
   const CONCEPT_LABELS: Record<string, string> = {
     ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
     CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
+    ROOM_CHANGE_ADJUSTMENT: "Cambio de Habitación",
   };
 
   const exportClosing = async (closing: ShiftClosing) => {
@@ -298,6 +299,66 @@ export function useShiftClosingHistory() {
         };
       }).filter(Boolean);
 
+      // 3. Cargar desgloses (breakdowns) de habitaciones/extras/consumos/daños desde sales_order_items del turno
+      let roomBreakdown: Record<string, { count: number; total: number }> = {};
+      let extraBreakdown: Record<string, { count: number; total: number }> = {};
+      let consumptionBreakdown: Record<string, { count: number; total: number }> = {};
+      let damageBreakdown: Record<string, { count: number; total: number }> = {};
+
+      if (closing.shift_session_id) {
+        const { data: accrualItems } = await supabase
+          .from("sales_order_items")
+          .select("id, qty, unit_price, concept_type, is_courtesy, courtesy_reason, is_cancelled, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
+          .eq("shift_session_id", closing.shift_session_id);
+
+        const activeItems = (accrualItems || []).filter((item: any) => {
+          if (item.is_cancelled) return false;
+          const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+          const roomStay = order?.room_stays;
+          const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
+          return !stay || stay.status !== 'CANCELADA';
+        });
+
+        activeItems.forEach((item: any) => {
+          const qty = item.qty || 1;
+          const unitPrice = item.unit_price || 0;
+          const amount = qty * unitPrice;
+          const conceptType = item.concept_type;
+
+          if (conceptType === "ROOM_BASE") {
+            const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+            const stay = order?.room_stays?.[0] || (Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays);
+            const room = stay?.rooms;
+            const roomType = Array.isArray(room) ? room[0]?.room_types : room?.room_types;
+            const typeName = Array.isArray(roomType) ? roomType[0]?.name : roomType?.name || "Habitación";
+
+            if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
+            roomBreakdown[typeName].count += qty;
+            roomBreakdown[typeName].total += amount;
+          } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(conceptType)) {
+            const label = CONCEPT_LABELS[conceptType] || conceptType;
+            if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
+            extraBreakdown[label].count += qty;
+            extraBreakdown[label].total += amount;
+          } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
+            const product = Array.isArray(item.products) ? item.products[0] : item.products;
+            const productName = product?.name || "Producto";
+            let displayName = productName;
+            if (item.is_courtesy) {
+              displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
+            }
+            if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
+            consumptionBreakdown[displayName].count += qty;
+            consumptionBreakdown[displayName].total += amount;
+          } else if (conceptType === "DAMAGE_CHARGE") {
+            const description = item.courtesy_reason || "Cargo por Daño";
+            if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
+            damageBreakdown[description].count += qty;
+            damageBreakdown[description].total += amount;
+          }
+        });
+      }
+
       await printClosing({
         employeeName: `${closing.employees?.first_name || ''} ${closing.employees?.last_name || ''}`,
         shiftName: closing.shift_definitions?.name || 'Turno',
@@ -314,6 +375,10 @@ export function useShiftClosingHistory() {
         expenses,
         totalExpenses,
         transactions,
+        roomBreakdown,
+        extraBreakdown,
+        consumptionBreakdown,
+        damageBreakdown,
       });
     } catch (err) {
       console.error("Error al imprimir:", err);
