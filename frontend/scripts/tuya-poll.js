@@ -97,8 +97,7 @@ async function getTuyaStatus(deviceId) {
             path: `/v1.0/devices/${deviceId}/status`
         });
         if (!res.success) {
-            // Silence common offline errors to keep logs clean, or log verbose?
-            // console.log(`Error polling ${deviceId}: ${res.code}`);
+            console.log(`[Tuya API] Error polling ${deviceId}: ${res.code} - ${res.msg}`);
             return null;
         }
         return res.result;
