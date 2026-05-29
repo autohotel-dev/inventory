@@ -42,6 +42,11 @@ const POLL_INTERVAL_MS = 3000;         // Poll every 3 seconds (avoid API rate l
 const DB_REFRESH_INTERVAL_MS = 60000;  // Refresh sensor list from DB every minute
 const HTTP_PORT = process.env.SENSOR_PORT || 5002;
 
+// Anti-false-positive configuration
+const DEBOUNCE_POLLS = 2;              // State must be stable for N consecutive polls before confirming
+const RECONNECT_COOLDOWN_MS = 15000;   // Ignore state changes for 15s after sensor reconnects
+const MASS_RECONNECT_THRESHOLD = 0.30; // If >30% of sensors change in 1 poll, it's a reconnection event
+
 // Tuya UID (from IoT platform → linked app account)
 const TUYA_UID = process.env.TUYA_UID || env.TUYA_UID || 'az1779410416241VvePg';
 
@@ -78,6 +83,8 @@ let sensorDbMap = new Map();   // deviceId -> { id (uuid), name, room_number }
 let stats = {
     pollCount: 0,
     eventsDetected: 0,
+    eventsSuppressed: 0,
+    massReconnections: 0,
     errorsCount: 0,
     apiCalls: 0,
     lastPoll: null,
@@ -89,6 +96,10 @@ let stats = {
 
 // Pending DB writes queue (for Supabase failures)
 const pendingDbWrites = [];
+
+// Anti-false-positive state
+const pendingChanges = new Map();    // deviceId -> { newState, pollsSeen, firstSeen }
+const reconnectCooldown = new Map(); // deviceId -> timestamp when cooldown expires
 
 // --- LOAD SENSORS FROM DB ---
 async function refreshSensorList() {
@@ -312,22 +323,20 @@ async function pollAllSensors() {
     const devices = await fetchAllDeviceStatuses();
     if (!devices || !Array.isArray(devices)) return;
 
-    // Process each device
+    // --- PHASE 1: Collect all state changes this cycle ---
+    const changesThisCycle = [];
+
     for (const device of devices) {
         const deviceId = device.id;
         const sensor = sensorDbMap.get(deviceId);
-        
-        // Skip if not in our DB (e.g., hubs)
         if (!sensor) continue;
 
         const { isOpen, battery, online } = parseDoorState(device);
+        const cached = stateCache.get(deviceId);
 
-        const cacheKey = deviceId;
-        const cached = stateCache.get(cacheKey);
-
-        // First run: initialize cache and sync to DB
+        // First run: initialize cache and sync to DB (no alerts)
         if (!cached) {
-            stateCache.set(cacheKey, {
+            stateCache.set(deviceId, {
                 isOpen,
                 battery,
                 online,
@@ -338,37 +347,76 @@ async function pollAllSensors() {
 
             if (isOpen !== null) {
                 await updateSensorState(sensor, isOpen, battery, online);
-                console.log(`[INIT] ${sensor.name} (Hab ${sensor.room_number || '?'}): ${isOpen ? 'ABIERTA 🔴' : 'CERRADA 🟢'} | Bat: ${battery}% | ${online ? 'Online' : 'Offline'}`);
+                console.log(`[INIT] ${sensor.name} (Hab ${sensor.room_number || '?'}): ${isOpen ? 'ABIERTA \u{1F534}' : 'CERRADA \u{1F7E2}'} | Bat: ${battery}% | ${online ? 'Online' : 'Offline'}`);
             }
             continue;
         }
 
-        // Detect DOOR STATE change
+        // --- RECONNECTION COOLDOWN ---
+        // When a sensor comes back online, start a cooldown period
+        if (!cached.online && online) {
+            const cooldownUntil = Date.now() + RECONNECT_COOLDOWN_MS;
+            reconnectCooldown.set(deviceId, cooldownUntil);
+            console.log(`[RECONNECT] ${sensor.name} (Hab ${sensor.room_number}): OFFLINE \u2192 ONLINE. Cooldown ${RECONNECT_COOLDOWN_MS / 1000}s`);
+            // Update online status but DON'T trigger door state change
+            await updateSensorState(sensor, cached.isOpen, battery, online);
+            stateCache.set(deviceId, {
+                ...cached,
+                online,
+                battery: battery ?? cached.battery,
+                lastSeen: new Date().toISOString(),
+            });
+            continue;
+        }
+
+        // Check if still in cooldown
+        const cooldownExpiry = reconnectCooldown.get(deviceId);
+        if (cooldownExpiry && Date.now() < cooldownExpiry) {
+            // Still in cooldown — silently update state without alerts
+            if (isOpen !== null && cached.isOpen !== isOpen) {
+                stats.eventsSuppressed++;
+                console.log(`[SUPPRESSED] ${sensor.name} (Hab ${sensor.room_number}): Cambio ignorado (cooldown reconexion)`);
+            }
+            stateCache.set(deviceId, {
+                ...cached,
+                isOpen: isOpen ?? cached.isOpen,
+                battery: battery ?? cached.battery,
+                online,
+                lastSeen: new Date().toISOString(),
+            });
+            // Update DB state silently (no event log)
+            await updateSensorState(sensor, isOpen ?? cached.isOpen, battery, online);
+            continue;
+        } else if (cooldownExpiry) {
+            reconnectCooldown.delete(deviceId);
+        }
+
+        // --- DETECT STATE CHANGE ---
         if (isOpen !== null && cached.isOpen !== isOpen) {
-            const emoji = isOpen ? '🔴 ABIERTA' : '🟢 CERRADA';
-            const room = sensor.room_number || '?';
-            const time = new Date().toLocaleTimeString('es-MX');
-            
-            console.log(`\n*** [${time}] [CAMBIO] ${sensor.name} (Hab ${room}): ${emoji} ***\n`);
+            changesThisCycle.push({ deviceId, sensor, isOpen, battery, online, cached });
+        } else {
+            // No door change — clear any pending debounce
+            if (pendingChanges.has(deviceId)) {
+                const pending = pendingChanges.get(deviceId);
+                if (pending.newState !== (isOpen ?? cached.isOpen)) {
+                    // The pending change reverted — it was a glitch
+                    stats.eventsSuppressed++;
+                    console.log(`[DEBOUNCE] ${sensor.name} (Hab ${sensor.room_number}): Cambio revertido, falso positivo descartado`);
+                    pendingChanges.delete(deviceId);
+                }
+            }
 
-            await updateSensorState(sensor, isOpen, battery, online);
-            await logSensorEvent(sensor, isOpen);
-            stats.eventsDetected++;
+            // Update online/battery changes silently
+            if (cached.online !== online) {
+                console.log(`[STATUS] ${sensor.name}: ${online ? '\u{1F7E2} ONLINE' : '\u{1F534} OFFLINE'}`);
+                await updateSensorState(sensor, isOpen ?? cached.isOpen, battery, online);
+            } else if (battery !== null && cached.battery !== battery) {
+                await updateSensorState(sensor, isOpen ?? cached.isOpen, battery, online);
+            }
         }
 
-        // Detect ONLINE/OFFLINE change
-        if (cached.online !== online) {
-            console.log(`[STATUS] ${sensor.name}: ${online ? '🟢 ONLINE' : '🔴 OFFLINE'}`);
-            await updateSensorState(sensor, isOpen ?? cached.isOpen, battery, online);
-        }
-
-        // Update battery silently
-        if (battery !== null && cached.battery !== battery) {
-            await updateSensorState(sensor, isOpen ?? cached.isOpen, battery, online);
-        }
-
-        // Update cache
-        stateCache.set(cacheKey, {
+        // Update cache (always)
+        stateCache.set(deviceId, {
             isOpen: isOpen ?? cached.isOpen,
             battery: battery ?? cached.battery,
             online,
@@ -376,6 +424,64 @@ async function pollAllSensors() {
             name: sensor.name,
             room: sensor.room_number,
         });
+    }
+
+    // --- PHASE 2: Mass reconnection detection ---
+    if (changesThisCycle.length > 0) {
+        const monitoredCount = sensorDbMap.size;
+        const changeRatio = changesThisCycle.length / monitoredCount;
+
+        if (changeRatio >= MASS_RECONNECT_THRESHOLD) {
+            // Too many sensors changed at once — this is a connectivity event, not real activity
+            stats.massReconnections++;
+            stats.eventsSuppressed += changesThisCycle.length;
+            console.log(`\n[MASS RECONNECT] \u26a0\ufe0f ${changesThisCycle.length}/${monitoredCount} sensores cambiaron (${(changeRatio * 100).toFixed(0)}%). Suprimiendo todos como falsos positivos.\n`);
+
+            // Update DB state silently for all (no events logged)
+            for (const change of changesThisCycle) {
+                await updateSensorState(change.sensor, change.isOpen, change.battery, change.online);
+                pendingChanges.delete(change.deviceId);
+            }
+            return;
+        }
+    }
+
+    // --- PHASE 3: Debounce individual changes ---
+    for (const change of changesThisCycle) {
+        const { deviceId, sensor, isOpen, battery, online } = change;
+        const pending = pendingChanges.get(deviceId);
+
+        if (!pending || pending.newState !== isOpen) {
+            // First time seeing this change — start debounce
+            pendingChanges.set(deviceId, {
+                newState: isOpen,
+                pollsSeen: 1,
+                firstSeen: Date.now(),
+            });
+            // Update DB immediately (UI shows current state) but don't log event yet
+            await updateSensorState(sensor, isOpen, battery, online);
+        } else {
+            // Same change seen again — increment counter
+            pending.pollsSeen++;
+
+            if (pending.pollsSeen >= DEBOUNCE_POLLS) {
+                // Confirmed real change!
+                const emoji = isOpen ? '\u{1F534} ABIERTA' : '\u{1F7E2} CERRADA';
+                const room = sensor.room_number || '?';
+                const time = new Date().toLocaleTimeString('es-MX');
+
+                console.log(`\n*** [${time}] [CONFIRMADO] ${sensor.name} (Hab ${room}): ${emoji} (estable ${pending.pollsSeen} polls) ***\n`);
+
+                await updateSensorState(sensor, isOpen, battery, online);
+                await logSensorEvent(sensor, isOpen);
+                stats.eventsDetected++;
+                pendingChanges.delete(deviceId);
+            } else {
+                // Not yet confirmed — waiting for more polls
+                console.log(`[DEBOUNCE] ${sensor.name} (Hab ${sensor.room_number}): Cambio visto ${pending.pollsSeen}/${DEBOUNCE_POLLS} polls`);
+                await updateSensorState(sensor, isOpen, battery, online);
+            }
+        }
     }
 }
 
@@ -415,7 +521,7 @@ const server = http.createServer((req, res) => {
 
         const response = {
             success: true,
-            service: 'Luxor IoT Sensor Monitor v2',
+            service: 'Luxor IoT Sensor Monitor v3 (Anti False-Positive)',
             timestamp: new Date().toISOString(),
             stats: {
                 ...stats,
@@ -423,6 +529,13 @@ const server = http.createServer((req, res) => {
                 sensorsMonitored: sensorDbMap.size,
                 sensorsOnline: onlineCount,
                 doorsOpen: openCount,
+                pendingDebounce: pendingChanges.size,
+                activeCooldowns: reconnectCooldown.size,
+            },
+            antifalsePositive: {
+                debouncePollsRequired: DEBOUNCE_POLLS,
+                reconnectCooldownSec: RECONNECT_COOLDOWN_MS / 1000,
+                massReconnectThreshold: `${(MASS_RECONNECT_THRESHOLD * 100).toFixed(0)}%`,
             },
             sensors: sensorStatus,
         };
@@ -460,7 +573,7 @@ const server = http.createServer((req, res) => {
 // --- BOOTSTRAP ---
 async function start() {
     console.log("══════════════════════════════════════════════════════════════");
-    console.log("    🏨 Luxor IoT — Sensor Monitor v2 (Single API Call)");
+    console.log("    \u{1F3E8} Luxor IoT — Sensor Monitor v3 (Anti False-Positive)");
     console.log("══════════════════════════════════════════════════════════════");
     console.log(`  Tuya Region: ${TUYA_CREDENTIALS.REGION_URL}`);
     console.log(`  Tuya UID:    ${TUYA_UID}`);
