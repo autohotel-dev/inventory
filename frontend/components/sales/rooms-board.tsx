@@ -18,7 +18,7 @@ import { useRoomActions, getCurrentEmployeeId } from "@/hooks/room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
-import { useSensors } from "@/hooks/use-sensors";
+import { useSensors, getDoorOpenMinutes } from "@/hooks/use-sensors";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { GlobalClock } from "@/components/ui/global-clock";
@@ -101,8 +101,10 @@ function RoomsBoardInternal() {
   const [plateSearch, setPlateSearch] = useState("");
 
   // Sensores y Realtime
-  const { sensors } = useSensors();
+  const { sensors, doorOpenTimestamps } = useSensors();
   const prevSensorsRef = useRef<Map<string, boolean>>(new Map());
+  const batteryAlertedRef = useRef<Set<string>>(new Set());
+  const doorTimeAlertedRef = useRef<Set<string>>(new Set());
 
   // Lógicas Extraídas (Hooks)
   useRoomRealtime(fetchRooms, playAlert);
@@ -195,6 +197,51 @@ function RoomsBoardInternal() {
       prevSensorsRef.current.set(sensor.id, sensor.is_open);
     });
   }, [sensors, rooms, playError]);
+
+  // Detectar baterías bajas (una vez por sesión por sensor)
+  useEffect(() => {
+    sensors.forEach((sensor) => {
+      if (
+        sensor.battery_level !== undefined &&
+        sensor.battery_level < 20 &&
+        !batteryAlertedRef.current.has(sensor.id)
+      ) {
+        batteryAlertedRef.current.add(sensor.id);
+        const room = rooms.find((r) => r.id === sensor.room_id);
+        const roomNumber = room ? room.number : "?";
+        toast.warning(`🔋 Batería baja: Hab ${roomNumber}`, {
+          duration: 10000,
+          description: `Sensor ${sensor.name} al ${sensor.battery_level}%. Reemplazar pila.`,
+        });
+      }
+    });
+  }, [sensors, rooms]);
+
+  // Timer: revisar cada 30s si hay puertas abiertas >5 min
+  useEffect(() => {
+    const interval = setInterval(() => {
+      sensors.forEach((sensor) => {
+        if (!sensor.is_open) {
+          doorTimeAlertedRef.current.delete(sensor.id);
+          return;
+        }
+        const minutes = getDoorOpenMinutes(sensor.id, doorOpenTimestamps);
+        if (minutes >= 5 && !doorTimeAlertedRef.current.has(sensor.id)) {
+          doorTimeAlertedRef.current.add(sensor.id);
+          const room = rooms.find((r) => r.id === sensor.room_id);
+          const roomNumber = room ? room.number : "?";
+          if (room?.status === "OCUPADA") {
+            toast.error(`⏱️ Hab ${roomNumber} — Puerta abierta +${minutes}m`, {
+              duration: 15000,
+              description: "Revisar habitación. Lleva más de 5 minutos abierta.",
+            });
+            playError();
+          }
+        }
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [sensors, rooms, doorOpenTimestamps, playError]);
 
   // Actualizar selectedRoom cuando rooms cambie (después de fetchRooms)
   useEffect(() => {
@@ -526,7 +573,7 @@ function RoomsBoardInternal() {
         </div>
       </div>
 
-      <RoomMetricsBanner rooms={rooms} />
+      <RoomMetricsBanner rooms={rooms} sensors={sensors} />
 
       {/* ── Búsqueda por Placa ──────────────────────────────── */}
       <div className="relative">
@@ -600,6 +647,7 @@ function RoomsBoardInternal() {
           <RoomCardGrid
             rooms={rooms}
             sensors={sensors}
+            doorOpenTimestamps={doorOpenTimestamps}
             highlightedRoomIds={plateSearch.length >= 2 ? new Set(
               rooms.filter((r) => {
                 const stay = (r.room_stays || []).find((s: any) => s.status === "ACTIVA");
@@ -644,6 +692,7 @@ function RoomsBoardInternal() {
         getActiveStay={getActiveStay}
         getRemainingTimeLabel={getRemainingTimeLabel}
         getExtraHoursLabel={getExtraHoursLabel}
+        sensors={sensors}
       />
       <ConnectedCheckoutModal
         isOpen={modals.isOpen("checkout") && !!modals.selectedRoom}

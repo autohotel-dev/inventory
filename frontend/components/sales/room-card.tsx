@@ -56,7 +56,8 @@ export interface RoomCardProps {
   hasPendingPayment?: boolean; // Indica si tiene pago pendiente
   roomTypeName?: string; // Nombre del tipo de habitación (Sencilla, Jacuzzi, etc)
   notes?: string | null; // Notas de mantenimiento o bloqueo
-  sensorStatus?: { isOpen: boolean; batteryLevel?: number; isOnline: boolean } | null;
+  sensorStatus?: { isOpen: boolean; batteryLevel?: number; isOnline: boolean; lastSeen?: string } | null;
+  doorOpenMinutes?: number; // How many minutes the door has been open
   vehicleStatus?: {
     hasVehicle: boolean;
     isReady: boolean;
@@ -91,6 +92,7 @@ export function RoomCardComponent({
   roomTypeName,
   notes,
   sensorStatus,
+  doorOpenMinutes = 0,
   vehicleStatus,
   isValetPending,
   hasPendingService,
@@ -108,10 +110,16 @@ export function RoomCardComponent({
   /* FIX: Solo alertar si la puerta está abierta Y la habitación está OCUPADA */
   const isDoorOpen = sensorStatus?.isOpen;
   const showDoorAlert = isDoorOpen && status === "OCUPADA";
+  const isBatteryLow = sensorStatus && sensorStatus.batteryLevel !== undefined && sensorStatus.batteryLevel < 20;
+  const isSensorStale = sensorStatus && sensorStatus.lastSeen ? (Date.now() - new Date(sensorStatus.lastSeen).getTime() > 3600000) : false;
+  const isDoorCritical = showDoorAlert && doorOpenMinutes >= 10;
+  const isDoorWarning = showDoorAlert && doorOpenMinutes >= 5 && doorOpenMinutes < 10;
 
   // Clases dinámicas para alerta de puerta abierta
   const containerClasses = showDoorAlert
-    ? "bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105 transition-transform duration-300"
+    ? (isLowPowerMode
+        ? `${isDoorCritical ? 'bg-red-900/90 border-red-400 ring-2 ring-red-400/60' : isDoorWarning ? 'bg-orange-950/80 border-orange-500 ring-2 ring-orange-500/40' : 'bg-red-950/80 border-red-500 ring-2 ring-red-500/40'} z-20`
+        : `${isDoorCritical ? 'bg-red-900/95 border-red-400 ring-4 ring-red-400/70 shadow-[0_0_30px_rgba(239,68,68,0.8)] animate-pulse z-20 scale-110' : isDoorWarning ? 'bg-orange-950/90 border-orange-500 ring-4 ring-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-pulse z-20 scale-105' : 'bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105'} transition-transform duration-300`)
     : `${bgClass || "bg-white/5 dark:bg-black/40"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "border-white/20 dark:hover:border-white/20"}`;
 
   return (
@@ -297,8 +305,48 @@ export function RoomCardComponent({
 
       {/* Indicador de Sensor (Puerta Abierta) - Solo si está ocupada */}
       {showDoorAlert && (
-        <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-red-400 z-50 animate-bounce">
-          ¡PUERTA ABIERTA!
+        <div className={cn(
+          "absolute -top-2 -right-2 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border z-50",
+          isDoorCritical ? "bg-red-500 border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.8)]" :
+          isDoorWarning ? "bg-orange-500 border-orange-300" :
+          "bg-red-600 border-red-400",
+          !isLowPowerMode && (isDoorCritical ? "animate-pulse" : "animate-bounce")
+        )}>
+          {isDoorCritical ? `⚠️ +${doorOpenMinutes}m` :
+           isDoorWarning ? `¡${doorOpenMinutes}m!` :
+           "¡ABIERTA!"}
+        </div>
+      )}
+
+      {/* Indicador de Batería Baja */}
+      {isBatteryLow && !showDoorAlert && (
+        <div
+          className="absolute -bottom-1.5 -left-1.5 bg-amber-600 text-white rounded-full p-0.5 z-50 shadow-md border border-amber-400"
+          title={`Batería baja: ${sensorStatus?.batteryLevel}%`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="16" height="10" x="2" y="7" rx="2" />
+            <line x1="22" x2="22" y1="11" y2="13" />
+            <line x1="6" x2="6" y1="11" y2="13" />
+          </svg>
+        </div>
+      )}
+
+      {/* Indicador de Sensor Offline Prolongado (>1hr) */}
+      {isSensorStale && !showDoorAlert && !isBatteryLow && (
+        <div
+          className="absolute -bottom-1.5 -left-1.5 bg-zinc-600 text-zinc-300 rounded-full p-0.5 z-50 shadow-md border border-zinc-500"
+          title={`Sensor desconectado desde ${sensorStatus?.lastSeen ? new Date(sensorStatus.lastSeen).toLocaleTimeString('es-MX') : 'desconocido'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m2 2 20 20" />
+            <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+            <path d="M2 8.82a15 15 0 0 1 4.17-2.65" />
+            <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76" />
+            <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68" />
+            <path d="M5 13a10 10 0 0 1 5.24-2.76" />
+            <line x1="12" x2="12.01" y1="20" y2="20" />
+          </svg>
         </div>
       )}
 
@@ -521,10 +569,12 @@ function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
   const oldSensor = oldProps.sensorStatus;
   const newSensor = newProps.sensorStatus;
   if (!!oldSensor !== !!newSensor) return false;
+  if (oldProps.doorOpenMinutes !== newProps.doorOpenMinutes) return false;
   if (oldSensor && newSensor) {
     if (oldSensor.isOpen !== newSensor.isOpen) return false;
     if (oldSensor.batteryLevel !== newSensor.batteryLevel) return false;
     if (oldSensor.isOnline !== newSensor.isOnline) return false;
+    if (oldSensor.lastSeen !== newSensor.lastSeen) return false;
   }
 
   const oldVehicle = oldProps.vehicleStatus;

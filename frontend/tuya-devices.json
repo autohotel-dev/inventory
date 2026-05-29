@@ -1,308 +1,452 @@
 [
   {
-    "id": "eb3999211df939e8f9cwm2",
-    "name": "Sensor 134",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138d8fc5cb3ae",
-    "online": false
-  },
-  {
-    "id": "eb111d2fd1bd2ddc8b2ukr",
-    "name": "Sensor 133",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138a79ac6461c",
-    "online": false
-  },
-  {
-    "id": "ebade2474a382d3944dwrd",
-    "name": "Sensor 132",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138beb22a2b3e",
-    "online": false
-  },
-  {
-    "id": "eb21beeebcf04bd5fahwe7",
-    "name": "Sensor 131",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138458a23697d",
-    "online": false
-  },
-  {
-    "id": "ebfd4a62899dd248fdoioy",
-    "name": "Sensor 130",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138b31e86957a",
-    "online": false
-  },
-  {
-    "id": "eb08597af0392e9fa978y5",
-    "name": "Sensor 129",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138f16959bb2b",
-    "online": false
-  },
-  {
-    "id": "eb3620706ed87d8079cyb5",
-    "name": "Sensor 128",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138f43c62f9a3",
-    "online": false
-  },
-  {
-    "id": "eb5425a05267a68770tuea",
-    "name": "Sensor 127",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138f6851f9c4a",
-    "online": false
-  },
-  {
-    "id": "ebe4c264f5b40fa6274w8b",
-    "name": "Sensor 126",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1386553f159f8",
-    "online": false
-  },
-  {
-    "id": "eb2f4adb457aa352d85rpo",
-    "name": "Sensor 125",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1384dfe0b729b",
-    "online": false
-  },
-  {
-    "id": "eba8038a0f1d5ce7463qy5",
-    "name": "Sensor 124",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1387fbc08bef3",
-    "online": false
-  },
-  {
-    "id": "ebadc9bce419d164d1e2h0",
-    "name": "Sensor 123",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138178a172378",
-    "online": false
-  },
-  {
-    "id": "eb9ca71d157bdeda24mhta",
-    "name": "Sensor 122",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1389512f34846",
-    "online": false
-  },
-  {
-    "id": "eb0ad9ebdcf663a01bvmxq",
-    "name": "Sensor 121",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138f0aa7fd705",
-    "online": false
-  },
-  {
-    "id": "eb454ed7af331275b11szu",
-    "name": "Sensor 120",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1380477161fb0",
-    "online": false
-  },
-  {
-    "id": "ebe17732fa467e97dekf9r",
-    "name": "Sensor 119",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138fbd005c9af",
-    "online": false
-  },
-  {
-    "id": "eb2dd30d5408228710ssfu",
-    "name": "Sensor 118",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138b17b0e2cf7",
-    "online": false
-  },
-  {
-    "id": "eb96dc324ac5d6f580lsaw",
-    "name": "Sensor 117",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138a2a9e702c7",
-    "online": false
-  },
-  {
-    "id": "eb8a2702874e315910qidl",
-    "name": "Sensor 116",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1381215369710",
-    "online": false
-  },
-  {
-    "id": "eb53723a266201d746zy0c",
-    "name": "Sensor 115",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138ea520d8d17",
-    "online": false
-  },
-  {
-    "id": "eb4c73415552f62ceeadly",
-    "name": "Sensor 101",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138f758162823",
-    "online": false
-  },
-  {
-    "id": "eb41f38ab40b7bfbacxr0y",
-    "name": "Sensor 106",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138b65e32f845",
-    "online": false
-  },
-  {
-    "id": "eb65fcd09149ef8fa3bpen",
-    "name": "Sensor 105",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c13899ad81f92a",
-    "online": false
-  },
-  {
-    "id": "eb3a3dcaeb23b30f1564og",
-    "name": "Sensor 109",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138e80d600c91",
-    "online": false
-  },
-  {
-    "id": "eb9ff6d09303389bb6jwgm",
-    "name": "Sensor 108",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138f6653d7d4c",
-    "online": false
-  },
-  {
-    "id": "eb054935ba40012cb7ny2n",
-    "name": "Sensor 107",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138d09765eb99",
-    "online": false
-  },
-  {
-    "id": "eb9129e1317b754816ha4j",
-    "name": "Sensor 111",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138eaa139ef39",
-    "online": false
-  },
-  {
-    "id": "eb711bfaa41bcde856xejf",
-    "name": "Sensor 110",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c1380cd97d36b1",
-    "online": false
-  },
-  {
-    "id": "eb3e9c5f04f32b2758d9ln",
-    "name": "Sensor 112",
-    "local_key": "+Hy&C?]d=RGTF]en",
-    "product_name": "Contact Sensor",
-    "model": "SHSCZ100",
-    "node_id": "a4c138751dde40ec",
-    "online": false
-  },
-  {
-    "id": "eb2e09ba1f09e6714cj0dd",
-    "name": "Sensor 113",
-    "local_key": "+Hy&C?]d=RGTF]en",
+    "id": "eb8a72a0d8fe3c16a078ek",
+    "name": "Sensor 149",
+    "local_key": "are>#(wSl=t80bP(",
     "product_name": "Contact Sensor",
     "model": "SHSCZ100",
     "node_id": "a4c138f109ed0571",
-    "online": false
+    "online": true,
+    "category": "mcs"
   },
   {
-    "id": "eb4b0861df2051c7f9ysh7",
-    "name": "Sensor 115",
-    "local_key": "+Hy&C?]d=RGTF]en",
+    "id": "eb181bfcf61456de184fqe",
+    "name": "Sensor 134",
+    "local_key": "NG+efU*6ehV|Wsun",
     "product_name": "Contact Sensor",
     "model": "SHSCZ100",
-    "node_id": "a4c138b05430554f",
-    "online": false
+    "node_id": "a4c138d8fc5cb3ae",
+    "online": true,
+    "category": "mcs"
   },
   {
-    "id": "eba8efcb81d078aa14h4cu",
-    "name": "MAIN HUB",
-    "local_key": "+Hy&C?]d=RGTF]en",
+    "id": "eb57dd0944c0577817fmvq",
+    "name": "Sensor 133",
+    "local_key": "NG+efU*6ehV|Wsun",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138a79ac6461c",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb5e4f7caaecdf6a2fqx9r",
+    "name": "Sensor 132",
+    "local_key": "NG+efU*6ehV|Wsun",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138beb22a2b3e",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb4d754134721bf49ajthn",
+    "name": "Sensor 131",
+    "local_key": "NG+efU*6ehV|Wsun",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138458a23697d",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb03b10030b9d3e5f4jkwv",
+    "name": "Sensor 130",
+    "local_key": "NG+efU*6ehV|Wsun",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138b31e86957a",
+    "online": false,
+    "category": "mcs"
+  },
+  {
+    "id": "ebcefb7ac8e22a36c5ltub",
+    "name": "HUB 150",
+    "local_key": "NG+efU*6ehV|Wsun",
+    "product_name": "SHGATEWAYZWB",
+    "model": "SHGATEWAYZWB",
+    "node_id": "9cd99661d9f390cf",
+    "online": true,
+    "category": "wg2"
+  },
+  {
+    "id": "eb18448d699987688b1psf",
+    "name": "Sensor 128",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138f43c62f9a3",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebc41bea3967a3f748gnny",
+    "name": "Sensor 127",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138f6851f9c4a",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebc3f0feb622b3db11zeqe",
+    "name": "Sensor 125",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1384dfe0b729b",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb0e14799dcf9da016j9xf",
+    "name": "Sensor 124",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1387fbc08bef3",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb812dec248cfcb686xnpv",
+    "name": "Sensor 123",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138178a172378",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb84cc34ec4ec4dcb12far",
+    "name": "Sensor 122",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1389512f34846",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebe3278f9e9ce7a166awx3",
+    "name": "Sensor 121",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138f0aa7fd705",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb76969ec9594e68e7p3d4",
+    "name": "Sensor 120",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1380477161fb0",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eba64e69442bd960eci1nz",
+    "name": "Sensor 119",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138fbd005c9af",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb61f16ced597a1cbdstya",
+    "name": "Sensor 118",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138b17b0e2cf7",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb06db72bea7318aefmqhv",
+    "name": "Sensor 148",
+    "local_key": "are>#(wSl=t80bP(",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1381664b7b91f",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebe75a32c11b1f4026opcb",
+    "name": "HUB 148",
+    "local_key": "are>#(wSl=t80bP(",
     "product_name": "SHGATEWAYZWB",
     "model": "SHGATEWAYZWB",
     "node_id": "66292cd51975ee2b",
-    "online": false
+    "online": true,
+    "category": "wg2"
   },
   {
-    "id": "ebddf1a0cb51bbc468icop",
-    "name": "SECOND HUB",
-    "local_key": "0j5ZaTDVj>C1x=?B",
-    "product_name": "SHGATEWAYZWB",
-    "model": "SHGATEWAYZWB",
-    "node_id": "dffc5ffbc8897958",
-    "online": false
+    "id": "ebb6979a47dc526feadi04",
+    "name": "Sensor 116",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1381215369710",
+    "online": true,
+    "category": "mcs"
   },
   {
-    "id": "eb6fd9da04552687debo4y",
+    "id": "eb5dcbdfbd285f0e32aoum",
     "name": "Sensor 114",
-    "local_key": "+Hy&C?]d=RGTF]en",
+    "local_key": "#s4u!SnE5$FDeW7-",
     "product_name": "Contact Sensor",
     "model": "SHSCZ100",
     "node_id": "a4c13822941347d8",
-    "online": false
+    "online": false,
+    "category": "mcs"
+  },
+  {
+    "id": "eb05877a518910304bf39n",
+    "name": "Sensor 115",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138b05430554f",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb26e65559b319dd92x1ii",
+    "name": "Sensor 111",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138eaa139ef39",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebe40a5dde181d1ae32cmn",
+    "name": "Sensor 110",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1380cd97d36b1",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb5199180fda32561amru5",
+    "name": "Sensor 109",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138e80d600c91",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb2d2176f2e17c266dml4m",
+    "name": "Sensor 107",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138d09765eb99",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebb68ff7848f121bcefgrq",
+    "name": "Sensor 146",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c13890ebe5271a",
+    "online": false,
+    "category": "mcs"
+  },
+  {
+    "id": "eb2d5260e3ce59f3a7slto",
+    "name": "Sensor 147",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1381f72a485f1",
+    "online": false,
+    "category": "mcs"
+  },
+  {
+    "id": "eb53d495428dda45a9tc2c",
+    "name": "Sensor 146",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1382ecea20795",
+    "online": false,
+    "category": "mcs"
+  },
+  {
+    "id": "ebd6f10bde17ec7843ukqx",
+    "name": "Sensor 142",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138525512d09e",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb10e2af383a0ae1f7e0zw",
+    "name": "Sensor 106",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138b65e32f845",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb2ad3bba589a7da11wmtt",
+    "name": "Sensor 112",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138751dde40ec",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebd4db7155b683ff7aoytc",
+    "name": "Sensor 108",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138f6653d7d4c",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb007354c3d76a7edavlnz",
+    "name": "Sensor 141",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138a3168b6b73",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebbe1c42e2145ee7fd2whp",
+    "name": "HUB 141",
+    "local_key": "#s4u!SnE5$FDeW7-",
+    "product_name": "SHGATEWAYZWB",
+    "model": "SHGATEWAYZWB",
+    "node_id": "dffc5ffbc8897958",
+    "online": true,
+    "category": "wg2"
+  },
+  {
+    "id": "ebb890cd86c0cafc3eepcf",
+    "name": "Sensor 104",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c13899ad81f92a",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb5ba65e9341003ac1uih7",
+    "name": "Sensor 143",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1381e1d50fb2d",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebcd96672707f0c4dfk4yu",
+    "name": "Sensor 140",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c13863d8f00466",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb1ec107552144d605mxoq",
+    "name": "Sensor 103",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138378e0f536f",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebd2a2cd13169e846bgcai",
+    "name": "Sensor 102",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138d941b39c89",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb1fcc3041de2476f8yml5",
+    "name": "Sensor 101",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c138f758162823",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebaa3b15d7cfcb5a1d6l4a",
+    "name": "Sensor 144",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c1386d735f1d89",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebf9f0b34f808ff7a08j5x",
+    "name": "Sensor 138",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c13898001af7d7",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "ebf06c8529e56461c8ljsn",
+    "name": "Sensor 139",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "Contact Sensor",
+    "model": "SHSCZ100",
+    "node_id": "a4c13851fdbdf989",
+    "online": true,
+    "category": "mcs"
+  },
+  {
+    "id": "eb9b23960db47680aeymxk",
+    "name": "HUB 139",
+    "local_key": "xgrgoUF2^W7?}34:",
+    "product_name": "SHGATEWAYZWB",
+    "model": "SHGATEWAYZWB",
+    "node_id": "5e2b6121848c8d67",
+    "online": true,
+    "category": "wg2"
   }
 ]

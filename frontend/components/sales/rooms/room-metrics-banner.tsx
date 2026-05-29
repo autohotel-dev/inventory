@@ -6,9 +6,10 @@ import { Room } from "@/components/sales/room-types";
 
 interface RoomMetricsBannerProps {
   rooms: Room[];
+  sensors?: any[];
 }
 
-export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
+export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProps) {
   const counts = useMemo(() => {
     const init = { libre: 0, ocupada: 0, sucia: 0, bloqueada: 0, limpiando: 0 };
     rooms.forEach((r) => {
@@ -22,6 +23,21 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
     });
     return init;
   }, [rooms]);
+
+  const sensorStats = useMemo(() => {
+    if (!sensors.length) return null;
+    const occupiedRoomIds = new Set(
+      rooms.filter(r => r.status === "OCUPADA").map(r => r.id)
+    );
+    const openInOccupied = sensors.filter(s => s.is_open && occupiedRoomIds.has(s.room_id)).length;
+    const online = sensors.filter(s => s.status === 'ONLINE').length;
+    const lowBattery = sensors.filter(s => s.battery_level !== undefined && s.battery_level < 20).length;
+    const stale = sensors.filter(s => {
+      if (!s.last_seen) return true;
+      return Date.now() - new Date(s.last_seen).getTime() > 3600000;
+    }).length;
+    return { openInOccupied, online, total: sensors.length, lowBattery, stale };
+  }, [sensors, rooms]);
 
   return (
     <div className="space-y-4">
@@ -68,6 +84,53 @@ export function RoomMetricsBanner({ rooms }: RoomMetricsBannerProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sensor metrics strip */}
+      {sensorStats && (
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-2.5">
+          <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-500 mr-1">Sensores</span>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">🚪</span>
+            <span className={`text-xs font-bold ${sensorStats.openInOccupied > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
+              {sensorStats.openInOccupied} {sensorStats.openInOccupied === 1 ? 'abierta' : 'abiertas'}
+            </span>
+          </div>
+
+          <div className="w-px h-4 bg-white/10" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">📡</span>
+            <span className={`text-xs font-bold ${sensorStats.online === sensorStats.total ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {sensorStats.online}/{sensorStats.total} online
+            </span>
+          </div>
+
+          {sensorStats.lowBattery > 0 && (
+            <>
+              <div className="w-px h-4 bg-white/10" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🔋</span>
+                <span className="text-xs font-bold text-amber-400">
+                  {sensorStats.lowBattery} baja
+                </span>
+              </div>
+            </>
+          )}
+
+          {sensorStats.stale > 0 && (
+            <>
+              <div className="w-px h-4 bg-white/10" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">⚠️</span>
+                <span className="text-xs font-bold text-zinc-400">
+                  {sensorStats.stale} sin señal
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Leyenda de estados y tipos - Responsive Fix */}
       <div className="bg-muted/30 p-3 rounded-lg border border-border/50 flex flex-wrap gap-x-8 gap-y-3 justify-center text-xs text-muted-foreground">

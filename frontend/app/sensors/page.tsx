@@ -1,6 +1,7 @@
 "use client";
 
 import { SensorsTable } from "@/components/sensors/sensors-table";
+import { SensorActivityReport } from "@/components/sensors/sensor-activity-report";
 import { RoleGuard } from "@/components/auth/role-guard";
 import { Radio } from "lucide-react";
 
@@ -20,6 +21,7 @@ export default function SensorsPage() {
                     </div>
                 </div>
 
+                <SensorActivityReport />
                 <SensorsTable />
             </div>
         </RoleGuard>

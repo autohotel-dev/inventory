@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp, CreditCard, Receipt, Banknote, Building2, Bed, ShoppingBag, Calendar, ArrowRight } from "lucide-react";
+import { X, Users, Clock, DollarSign, Home, ChevronDown, ChevronUp, CreditCard, Receipt, Banknote, Building2, Bed, ShoppingBag, Calendar, ArrowRight, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Room, RoomStay, STATUS_CONFIG } from "@/components/sales/room-types";
@@ -30,6 +30,7 @@ interface RoomInfoPopoverProps {
   getActiveStay: (room: Room) => RoomStay | null;
   getRemainingTimeLabel: (room: Room) => { eta: string; remaining: string; minutesToCheckout: number } | null;
   getExtraHoursLabel: (room: Room) => number;
+  sensors?: any[];
 }
 
 export function RoomInfoPopover({
@@ -39,12 +40,16 @@ export function RoomInfoPopover({
   getActiveStay,
   getRemainingTimeLabel,
   getExtraHoursLabel,
+  sensors = [],
 }: RoomInfoPopoverProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [conceptSummary, setConceptSummary] = useState<ConceptSummary[]>([]);
+  const [showSensorHistory, setShowSensorHistory] = useState(false);
+  const [sensorEvents, setSensorEvents] = useState<any[]>([]);
+  const [loadingSensorEvents, setLoadingSensorEvents] = useState(false);
 
   // Cargar resumen de conceptos al abrir
   useEffect(() => {
@@ -429,6 +434,122 @@ export function RoomInfoPopover({
                 )}
               </div>
             )}
+            {/* Sensor Activity Section - Available for ALL room statuses */}
+            {(() => {
+              const roomSensor = sensors.find(s => s.room_id === room.id);
+              if (!roomSensor) return null;
+
+              const fetchSensorEvents = async () => {
+                setLoadingSensorEvents(true);
+                const supabase = createClient();
+                const { data, error } = await supabase
+                  .from('sensor_events')
+                  .select('*')
+                  .eq('sensor_id', roomSensor.id)
+                  .order('created_at', { ascending: false })
+                  .limit(10);
+                if (!error && data) setSensorEvents(data);
+                setLoadingSensorEvents(false);
+              };
+
+              const batteryLevel = roomSensor.battery_level ?? 0;
+              const isOnline = roomSensor.status === 'ONLINE';
+              const lastSeen = roomSensor.last_seen ? new Date(roomSensor.last_seen) : null;
+              const isStale = lastSeen ? (Date.now() - lastSeen.getTime() > 3600000) : true;
+
+              return (
+                <div className="pt-2 border-t border-white/5">
+                  <button
+                    onClick={() => {
+                      const next = !showSensorHistory;
+                      setShowSensorHistory(next);
+                      if (next && sensorEvents.length === 0) fetchSensorEvents();
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all",
+                      showSensorHistory ? "bg-white/5 text-cyan-400 shadow-inner" : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Radio className={cn("h-3.5 w-3.5", showSensorHistory ? "text-cyan-400" : "text-zinc-600")} />
+                      <span>Sensor</span>
+                      <span className={cn(
+                        "w-1.5 h-1.5 rounded-full",
+                        isStale ? "bg-zinc-500" : isOnline ? "bg-emerald-400" : "bg-red-400"
+                      )} />
+                    </div>
+                    {showSensorHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+
+                  {showSensorHistory && (
+                    <div className="mt-3 bg-zinc-900/60 border border-white/5 rounded-2xl p-3 space-y-3 animate-in slide-in-from-top-4 duration-500 max-h-56 overflow-y-auto custom-scrollbar shadow-inner">
+                      {/* Sensor Status Card */}
+                      <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "w-2 h-2 rounded-full",
+                            isStale ? "bg-zinc-500" : isOnline ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-400"
+                          )} />
+                          <span className="text-[10px] font-bold text-zinc-400">
+                            {isStale ? "Sin señal" : isOnline ? "Online" : "Offline"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "text-[10px] font-bold",
+                            batteryLevel < 20 ? "text-red-400" : batteryLevel < 50 ? "text-amber-400" : "text-emerald-400"
+                          )}>
+                            🔋 {batteryLevel}%
+                          </span>
+                          {lastSeen && (
+                            <span className="text-[9px] text-zinc-600 font-mono">
+                              {lastSeen.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Events Timeline */}
+                      {loadingSensorEvents ? (
+                        <div className="flex flex-col items-center py-4 gap-2">
+                          <div className="w-5 h-5 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+                          <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Cargando...</p>
+                        </div>
+                      ) : sensorEvents.length === 0 ? (
+                        <p className="text-center text-[10px] text-zinc-600 py-4">Sin eventos registrados</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {sensorEvents.map((evt, i) => {
+                            const evtDate = new Date(evt.created_at);
+                            const isOpen = evt.new_state === true || evt.new_state === 'true';
+                            return (
+                              <div key={evt.id || i} className="flex items-center gap-2 py-1 group">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full shrink-0",
+                                  isOpen ? "bg-red-400" : "bg-emerald-400"
+                                )} />
+                                <span className={cn(
+                                  "text-[10px] font-bold flex-1",
+                                  isOpen ? "text-red-400" : "text-emerald-400"
+                                )}>
+                                  {isOpen ? "Abierta 🔴" : "Cerrada 🟢"}
+                                </span>
+                                <span className="text-[9px] text-zinc-600 font-mono">
+                                  {evtDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                                <span className="text-[8px] text-zinc-700 font-mono">
+                                  {evtDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Sutil Glow en la parte inferior */}

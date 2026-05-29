@@ -6,10 +6,12 @@ import { Room } from "@/components/sales/room-types";
 import { getActiveStay } from "@/hooks/room-actions";
 import { toast } from "sonner";
 import { ROOM_STATUS_BG, ROOM_STATUS_ACCENT } from "@/components/sales/room-types";
+import { getDoorOpenMinutes } from "@/hooks/use-sensors";
 
 interface RoomCardGridProps {
   rooms: Room[];
   sensors: any[];
+  doorOpenTimestamps?: Map<string, number>;
   highlightedRoomIds?: Set<string>;
   isLowPowerMode?: boolean;
   getRemainingTimeLabel: (room: Room) => any;
@@ -26,6 +28,7 @@ interface RoomCardGridProps {
 export const RoomCardGrid = memo(function RoomCardGrid({
   rooms,
   sensors,
+  doorOpenTimestamps,
   highlightedRoomIds,
   isLowPowerMode,
   getRemainingTimeLabel,
@@ -150,7 +153,12 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             sensorStatus={(() => {
               const s = sensors.find(sen => sen.room_id === room.id);
               if (!s) return null;
-              return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE' };
+              return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE', lastSeen: s.last_seen };
+            })()}
+            doorOpenMinutes={(() => {
+              const s = sensors.find(sen => sen.room_id === room.id);
+              if (!s || !s.is_open || !doorOpenTimestamps) return 0;
+              return getDoorOpenMinutes(s.id, doorOpenTimestamps);
             })()}
             vehicleStatus={(status === "OCUPADA" || status === "BLOQUEADA") ? (activeStay ? vehicleStatus : null) : null}
             onInfo={() => {
