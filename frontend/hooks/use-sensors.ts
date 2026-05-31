@@ -20,8 +20,8 @@ export interface Sensor {
 export function isSensorStale(sensor: Sensor): boolean {
     if (!sensor.last_seen) return true;
     const lastSeen = new Date(sensor.last_seen).getTime();
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    return lastSeen < oneHourAgo;
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return lastSeen < twentyFourHoursAgo;
 }
 
 /**

@@ -374,8 +374,8 @@ const server = http.createServer((req, res) => {
         const data = {};
         stateCache.forEach((value, key) => {
             const lastSeenTime = value.lastSeen ? new Date(value.lastSeen).getTime() : 0;
-            // Mark online if seen in the last 1 hour
-            const online = (Date.now() - lastSeenTime) < (60 * 60 * 1000);
+            // Mark online if seen in the last 24 hours
+            const online = (Date.now() - lastSeenTime) < (24 * 60 * 60 * 1000);
             data[key] = {
                 ...value,
                 online

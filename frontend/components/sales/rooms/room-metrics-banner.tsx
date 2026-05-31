@@ -31,20 +31,20 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
     );
     
     const openInOccupied = sensors.filter(s => {
-      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 3600000);
+      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 24 * 3600000);
       const isOnline = s.status === 'ONLINE' && !isStale;
       return s.is_open && isOnline && occupiedRoomIds.has(s.room_id);
     }).length;
 
     const online = sensors.filter(s => {
-      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 3600000);
+      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 24 * 3600000);
       return s.status === 'ONLINE' && !isStale;
     }).length;
 
     const lowBattery = sensors.filter(s => s.battery_level !== undefined && s.battery_level < 20).length;
     const stale = sensors.filter(s => {
       if (!s.last_seen) return true;
-      return Date.now() - new Date(s.last_seen).getTime() > 3600000;
+      return Date.now() - new Date(s.last_seen).getTime() > 24 * 3600000;
     }).length;
     return { openInOccupied, online, total: sensors.length, lowBattery, stale };
   }, [sensors, rooms]);

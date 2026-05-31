@@ -109,7 +109,7 @@ export function RoomCardComponent({
 }: RoomCardProps) {
   /* FIX: Solo alertar si la puerta está abierta, la habitación está OCUPADA Y el sensor está ONLINE y no stale */
   const isDoorOpen = sensorStatus?.isOpen;
-  const isSensorStale = sensorStatus && sensorStatus.lastSeen ? (Date.now() - new Date(sensorStatus.lastSeen).getTime() > 3600000) : false;
+  const isSensorStale = sensorStatus && sensorStatus.lastSeen ? (Date.now() - new Date(sensorStatus.lastSeen).getTime() > 24 * 3600000) : false;
   const isOnline = sensorStatus?.isOnline && !isSensorStale;
   const showDoorAlert = isDoorOpen && isOnline && status === "OCUPADA";
   const isBatteryLow = sensorStatus && sensorStatus.batteryLevel !== undefined && sensorStatus.batteryLevel < 20;
