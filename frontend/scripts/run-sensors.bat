@@ -5,7 +5,7 @@ echo ===================================================
 echo   Iniciando Monitor de Sensores Tuya (Node.js Local)
 echo ===================================================
 echo.
-node scripts/tuya-sensor-monitor.js
+node scripts/tuya-poll-local-multi.js
 echo.
 echo [Presiona cualquier tecla para cerrar...]
 pause > nul

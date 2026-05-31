@@ -58,6 +58,69 @@ export function useSensors() {
         }
     }, []);
 
+    const pollLocalSensors = useCallback(async () => {
+        try {
+            // First try localhost:3001 for local PC operation, then fall back to env URL
+            const printServerUrl = 'http://localhost:3001';
+            const res = await fetch(`${printServerUrl}/sensors/status`);
+            if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+            
+            const data = await res.json();
+            if (data && data.success && data.sensors) {
+                setSensors(prev => 
+                    prev.map(sensor => {
+                        const localSensor = data.sensors[sensor.device_id];
+                        if (localSensor) {
+                            return {
+                                ...sensor,
+                                is_open: localSensor.isOpen,
+                                battery_level: localSensor.battery !== null ? localSensor.battery : sensor.battery_level,
+                                status: localSensor.online ? 'ONLINE' : 'OFFLINE',
+                                last_seen: localSensor.lastSeen || sensor.last_seen
+                            };
+                        }
+                        return sensor;
+                    })
+                );
+            }
+        } catch (err: any) {
+            console.debug("Local LAN sensor poll skipped/failed, trying configured domain fallback:", err.message);
+            // Fallback to the configured public print server URL (in case they use a tablet on WiFi)
+            try {
+                const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+                const res = await fetch(`${printServerUrl}/sensors/status`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && data.success && data.sensors) {
+                    setSensors(prev => 
+                        prev.map(sensor => {
+                            const localSensor = data.sensors[sensor.device_id];
+                            if (localSensor) {
+                                return {
+                                    ...sensor,
+                                    is_open: localSensor.isOpen,
+                                    battery_level: localSensor.battery !== null ? localSensor.battery : sensor.battery_level,
+                                    status: localSensor.online ? 'ONLINE' : 'OFFLINE',
+                                    last_seen: localSensor.lastSeen || sensor.last_seen
+                                };
+                            }
+                            return sensor;
+                        })
+                    );
+                }
+            } catch (fallbackErr) {
+                // Fail silently
+            }
+        }
+    }, []);
+
+    // Polling local sensor server for LAN fallback resilience
+    useEffect(() => {
+        pollLocalSensors(); // Initial poll
+        const interval = setInterval(pollLocalSensors, 3000);
+        return () => clearInterval(interval);
+    }, [pollLocalSensors]);
+
     useEffect(() => {
         // Initial fetch
         fetchSensors();

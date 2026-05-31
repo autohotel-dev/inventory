@@ -18,7 +18,7 @@ import { useRoomActions, getCurrentEmployeeId } from "@/hooks/room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
-import { useSensors, getDoorOpenMinutes } from "@/hooks/use-sensors";
+import { useSensors, getDoorOpenMinutes, isSensorStale } from "@/hooks/use-sensors";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { GlobalClock } from "@/components/ui/global-clock";
@@ -177,8 +177,9 @@ function RoomsBoardInternal() {
         return;
       }
 
-      // Si cambió de cerrado a abierto -> ALERTA
-      if (sensor.is_open && wasOpen === false) {
+      // Si cambió de cerrado a abierto -> ALERTA (solo si el sensor está ONLINE y no stale)
+      const isOnline = sensor.status === 'ONLINE' && !isSensorStale(sensor);
+      if (sensor.is_open && wasOpen === false && isOnline) {
         const room = rooms.find((r) => r.id === sensor.room_id);
         const roomNumber = room ? room.number : "Desconocida";
 
@@ -221,7 +222,8 @@ function RoomsBoardInternal() {
   useEffect(() => {
     const interval = setInterval(() => {
       sensors.forEach((sensor) => {
-        if (!sensor.is_open) {
+        const isOnline = sensor.status === 'ONLINE' && !isSensorStale(sensor);
+        if (!sensor.is_open || !isOnline) {
           doorTimeAlertedRef.current.delete(sensor.id);
           return;
         }

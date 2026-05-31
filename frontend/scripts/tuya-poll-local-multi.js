@@ -65,8 +65,15 @@ const sensors = allDevices.filter(d => d.model === 'SHSCZ100' || d.product_name?
 console.log(`Loaded ${gateways.length} Gateways and ${sensors.length} Sensors from JSON.`);
 
 // --- GLOBAL STATE ---
-const stateCache = new Map(); // sensorId -> { isOpen: bool, battery: number, lastSeen: string }
+const stateCache = new Map(); // sensorId -> { name: string, isOpen: bool, battery: number, lastSeen: string }
 const activeGateways = [];
+
+// Robustness and mitigation parameters
+const DEBOUNCE_TIME_MS = 4000;       // 4 seconds debounce
+const GW_COOLDOWN_TIME_MS = 8000;     // 8 seconds cooldown after gateway reconnects
+const pendingTimeouts = new Map();    // sensorId -> timeoutId
+const gatewayCooldowns = new Map();   // gatewayId -> timestamp when cooldown expires
+const pendingDbWrites = [];           // Array to store failed DB write requests
 
 // --- GATEWAY CONNECTIONS ---
 function startGatewayConnection(gw) {
@@ -81,6 +88,8 @@ function startGatewayConnection(gw) {
 
     gateway.on('connected', () => {
         console.log(`[GATEWAY] ✅ Connected to ${gw.name}!`);
+        // Start cooldown to ignore initial connection glitches
+        gatewayCooldowns.set(gw.id, Date.now() + GW_COOLDOWN_TIME_MS);
     });
 
     gateway.on('disconnected', () => {
@@ -124,21 +133,69 @@ function startGatewayConnection(gw) {
             
             const battery = dps['103'] || dps[103] || dps['battery_percentage'] || null;
 
+            // --- GATEWAY COOLDOWN CHECK ---
+            const cooldownUntil = gatewayCooldowns.get(gw.id);
+            if (cooldownUntil && Date.now() < cooldownUntil) {
+                console.log(`[COOLDOWN] [${gw.name}] Ignoring event from ${sensor.name} (Gateway reconnecting)`);
+                return;
+            }
+
             const cacheKey = sensor.id;
             const prev = stateCache.get(cacheKey);
 
-            if (!prev || prev.isOpen !== isOpen) {
+            // If first run, initialize in-memory and write to DB immediately
+            if (!prev) {
                 stateCache.set(cacheKey, {
                     name: sensor.name,
                     isOpen,
-                    battery: battery || (prev ? prev.battery : null),
+                    battery: battery || null,
                     lastSeen: new Date().toISOString()
                 });
-
-                console.log(`*** [EVENT] ${sensor.name} -> ${isOpen ? 'OPEN 🔴' : 'CLOSED 🟢'} (Bat: ${battery}%) ***`);
-                
+                console.log(`[INIT] ${sensor.name} -> ${isOpen ? 'OPEN 🔴' : 'CLOSED 🟢'} (Bat: ${battery || 'N/A'}%)`);
                 updateSensorInDB(sensor.id, isOpen, battery);
-                logSensorEvent(sensor.id, isOpen);
+                return;
+            }
+
+            // Silently update battery/lastSeen in cache, and update DB if battery changes
+            if (battery !== null && prev.battery !== battery) {
+                prev.battery = battery;
+                updateSensorInDB(sensor.id, prev.isOpen, battery);
+            }
+            prev.lastSeen = new Date().toISOString();
+
+            // If door state changed, apply DEBOUNCE
+            if (prev.isOpen !== isOpen) {
+                // Clear any pending timeout for this sensor
+                if (pendingTimeouts.has(cacheKey)) {
+                    clearTimeout(pendingTimeouts.get(cacheKey));
+                    pendingTimeouts.delete(cacheKey);
+                }
+
+                console.log(`[DEBOUNCE] ${sensor.name} changed to ${isOpen ? 'OPEN 🔴' : 'CLOSED 🟢'}? Debouncing for ${DEBOUNCE_TIME_MS / 1000}s...`);
+
+                // Start new debounce timeout
+                const timeoutId = setTimeout(() => {
+                    pendingTimeouts.delete(cacheKey);
+                    
+                    // Re-verify and apply change
+                    prev.isOpen = isOpen;
+                    prev.lastSeen = new Date().toISOString();
+                    stateCache.set(cacheKey, prev);
+
+                    console.log(`*** [EVENT CONFIRMED] ${sensor.name} -> ${isOpen ? 'OPEN 🔴' : 'CLOSED 🟢'} (Bat: ${prev.battery}%) ***`);
+                    
+                    updateSensorInDB(sensor.id, isOpen, prev.battery);
+                    logSensorEvent(sensor.id, isOpen);
+                }, DEBOUNCE_TIME_MS);
+
+                pendingTimeouts.set(cacheKey, timeoutId);
+            } else {
+                // Reverted back to the stable state during debounce, cancel it
+                if (pendingTimeouts.has(cacheKey)) {
+                    console.log(`[DEBOUNCE CANCELLED] ${sensor.name} reverted back to ${prev.isOpen ? 'OPEN 🔴' : 'CLOSED 🟢'} (glitch filtered)`);
+                    clearTimeout(pendingTimeouts.get(cacheKey));
+                    pendingTimeouts.delete(cacheKey);
+                }
             }
         }
     });
@@ -147,7 +204,9 @@ function startGatewayConnection(gw) {
     console.log(`[GATEWAY] [${gw.name}] Searching on local network...`);
     gateway.find().then(() => {
         console.log(`[GATEWAY] [${gw.name}] Discovered at IP: ${gateway.device.ip}. Connecting...`);
-        gateway.connect();
+        gateway.connect().catch(err => {
+            console.error(`[GATEWAY] [${gw.name}] Connection failed: ${err.message}`);
+        });
     }).catch(err => {
         console.error(`[GATEWAY] [${gw.name}] Discovery failed: ${err.message}. Retrying in 10s...`);
         setTimeout(() => startGatewayConnection(gw), 10000);
@@ -158,45 +217,121 @@ function startGatewayConnection(gw) {
 
 function reconnect(gw, client) {
     client.find().then(() => {
-        client.connect();
+        client.connect().catch(err => {
+            console.error(`[GATEWAY] [${gw.name}] Reconnect failed during connection attempt: ${err.message}`);
+        });
     }).catch(err => {
-        console.error(`[GATEWAY] [${gw.name}] Reconnect failed: ${err.message}. Retrying...`);
+        console.error(`[GATEWAY] [${gw.name}] Reconnect discovery failed: ${err.message}. Retrying...`);
         setTimeout(() => reconnect(gw, client), 5000);
     });
 }
 
 // --- DATABASE SYNCS ---
+// --- DATABASE SYNCS ---
 async function updateSensorInDB(deviceId, isOpen, batteryLevel) {
+    const updateData = {
+        is_open: isOpen,
+        last_seen: new Date().toISOString(),
+        status: 'ONLINE'
+    };
+
+    if (batteryLevel !== null && batteryLevel !== undefined) {
+        updateData.battery_level = Number(batteryLevel);
+    }
+
     try {
-        const updateData = {
-            is_open: isOpen,
-            last_seen: new Date().toISOString(),
-            status: 'ONLINE'
-        };
-
-        if (batteryLevel !== null && batteryLevel !== undefined) {
-            updateData.battery_level = Number(batteryLevel);
-        }
-
-        await supabase.from('sensors').update(updateData).eq('device_id', deviceId);
+        const { error } = await supabase.from('sensors').update(updateData).eq('device_id', deviceId);
+        if (error) throw error;
     } catch (e) {
-        console.error(`[DB] Error updating status for ${deviceId}:`, e.message);
+        console.error(`[DB] Error updating status for ${deviceId}: ${e.message}. Enqueuing for retry.`);
+        pendingDbWrites.push({
+            type: 'update',
+            table: 'sensors',
+            data: updateData,
+            filter: { device_id: deviceId },
+            timestamp: Date.now()
+        });
     }
 }
 
 async function logSensorEvent(deviceId, isOpen) {
+    const eventData = {
+        sensor_id: null,
+        event_type: isOpen ? 'OPEN' : 'CLOSE',
+        payload: { source: 'local_multi_polling' },
+        created_at: new Date().toISOString()
+    };
+
     try {
-        const { data: sensor } = await supabase.from('sensors').select('id').eq('device_id', deviceId).single();
+        const { data: sensor, error: fetchError } = await supabase.from('sensors').select('id').eq('device_id', deviceId).single();
+        if (fetchError) throw fetchError;
         if (!sensor) return;
 
-        await supabase.from('sensor_events').insert({
-            sensor_id: sensor.id,
-            event_type: isOpen ? 'OPEN' : 'CLOSE',
-            payload: { source: 'local_multi_polling' },
-            timestamp: new Date().toISOString()
-        });
+        eventData.sensor_id = sensor.id;
+        const { error: insertError } = await supabase.from('sensor_events').insert(eventData);
+        if (insertError) throw insertError;
     } catch (e) {
-        console.error(`[DB] Error logging event for ${deviceId}:`, e.message);
+        console.error(`[DB] Error logging event for ${deviceId}: ${e.message}. Enqueuing...`);
+        pendingDbWrites.push({
+            type: 'insert',
+            table: 'sensor_events',
+            data: eventData,
+            deviceId: deviceId,
+            timestamp: Date.now()
+        });
+    }
+}
+
+// --- FLUSH PENDING DB WRITES ---
+async function flushPendingDbWrites() {
+    if (pendingDbWrites.length === 0) return;
+    
+    console.log(`[DB] Offline Cache: Flushing ${pendingDbWrites.length} pending writes to Supabase...`);
+    const toFlush = [...pendingDbWrites];
+    pendingDbWrites.length = 0;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const write of toFlush) {
+        try {
+            if (write.type === 'update') {
+                const { error } = await supabase
+                    .from(write.table)
+                    .update(write.data)
+                    .eq('device_id', write.filter.device_id);
+                if (error) throw error;
+            } else if (write.type === 'insert') {
+                if (!write.data.sensor_id && write.deviceId) {
+                    const { data: sensor } = await supabase
+                        .from('sensors')
+                        .select('id')
+                        .eq('device_id', write.deviceId)
+                        .single();
+                    if (sensor) {
+                        write.data.sensor_id = sensor.id;
+                    }
+                }
+                
+                if (!write.data.sensor_id) {
+                    throw new Error("Could not resolve sensor UUID");
+                }
+
+                const { error } = await supabase.from(write.table).insert(write.data);
+                if (error) throw error;
+            }
+            successCount++;
+        } catch (e) {
+            failCount++;
+            // Re-enqueue if older than 1 hour, else discard
+            if (Date.now() - write.timestamp < 3600000) {
+                pendingDbWrites.push(write);
+            }
+        }
+    }
+    
+    if (successCount > 0) {
+        console.log(`[DB] Offline Cache Flush Complete: ${successCount} OK, ${pendingDbWrites.length} still queued.`);
     }
 }
 
@@ -209,6 +344,9 @@ console.log("==================================================");
 gateways.forEach(gw => {
     startGatewayConnection(gw);
 });
+
+// Periodically flush cached DB writes every 15 seconds
+setInterval(flushPendingDbWrites, 15000);
 
 // --- HTTP SERVER (Expose to web/local just like Print Server) ---
 const server = http.createServer((req, res) => {
@@ -235,7 +373,13 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         const data = {};
         stateCache.forEach((value, key) => {
-            data[key] = value;
+            const lastSeenTime = value.lastSeen ? new Date(value.lastSeen).getTime() : 0;
+            // Mark online if seen in the last 1 hour
+            const online = (Date.now() - lastSeenTime) < (60 * 60 * 1000);
+            data[key] = {
+                ...value,
+                online
+            };
         });
         res.end(JSON.stringify({
             success: true,
