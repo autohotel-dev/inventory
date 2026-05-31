@@ -249,7 +249,7 @@ BEGIN
     FROM (
       SELECT sales_order_id AS soid FROM public.sales_order_items WHERE shift_session_id = v_session_id AND sales_order_id IS NOT NULL AND is_cancelled IS NOT TRUE
       UNION
-      SELECT sales_order_id AS soid FROM public.payments WHERE shift_session_id = v_session_id AND sales_order_id IS NOT NULL AND (status NOT IN ('PENDIENTE', 'CANCELADO') OR (status = 'CANCELADO' AND concept = 'REFUND'))
+      SELECT sales_order_id AS soid FROM public.payments WHERE shift_session_id = v_session_id AND sales_order_id IS NOT NULL AND (status NOT IN ('PENDIENTE', 'CANCELADO') OR (status = 'CANCELADO' AND concept = 'REFUND')) AND UPPER(COALESCE(concept, '')) <> 'CHECKOUT'
     ) sub;
   END IF;
 
@@ -498,7 +498,7 @@ BEGIN
     FROM (
       SELECT sales_order_id AS soid FROM public.sales_order_items WHERE shift_session_id = v_session_id AND sales_order_id IS NOT NULL AND is_cancelled IS NOT TRUE
       UNION
-      SELECT sales_order_id AS soid FROM public.payments WHERE shift_session_id = v_session_id AND sales_order_id IS NOT NULL AND (status NOT IN ('PENDIENTE', 'CANCELADO') OR (status = 'CANCELADO' AND concept = 'REFUND'))
+      SELECT sales_order_id AS soid FROM public.payments WHERE shift_session_id = v_session_id AND sales_order_id IS NOT NULL AND (status NOT IN ('PENDIENTE', 'CANCELADO') OR (status = 'CANCELADO' AND concept = 'REFUND')) AND UPPER(COALESCE(concept, '')) <> 'CHECKOUT'
     ) sub;
   END IF;
 
