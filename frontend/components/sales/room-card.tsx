@@ -307,7 +307,7 @@ export function RoomCardComponent({
       {/* Indicador de Sensor (Puerta Abierta) - Solo si está ocupada */}
       {showDoorAlert && (
         <div className={cn(
-          "absolute -top-2 -right-2 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border z-50",
+          "absolute -top-2 -left-2 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border z-50",
           isDoorCritical ? "bg-red-500 border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.8)]" :
           isDoorWarning ? "bg-orange-500 border-orange-300" :
           "bg-red-600 border-red-400",
