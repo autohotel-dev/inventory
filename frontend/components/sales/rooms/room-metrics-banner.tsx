@@ -29,8 +29,18 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
     const occupiedRoomIds = new Set(
       rooms.filter(r => r.status === "OCUPADA").map(r => r.id)
     );
-    const openInOccupied = sensors.filter(s => s.is_open && occupiedRoomIds.has(s.room_id)).length;
-    const online = sensors.filter(s => s.status === 'ONLINE').length;
+    
+    const openInOccupied = sensors.filter(s => {
+      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 3600000);
+      const isOnline = s.status === 'ONLINE' && !isStale;
+      return s.is_open && isOnline && occupiedRoomIds.has(s.room_id);
+    }).length;
+
+    const online = sensors.filter(s => {
+      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 3600000);
+      return s.status === 'ONLINE' && !isStale;
+    }).length;
+
     const lowBattery = sensors.filter(s => s.battery_level !== undefined && s.battery_level < 20).length;
     const stale = sensors.filter(s => {
       if (!s.last_seen) return true;
