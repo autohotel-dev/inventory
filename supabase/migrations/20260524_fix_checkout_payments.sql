@@ -105,12 +105,12 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'No se encontró la estancia activa o ya fue finalizada.');
   END IF;
 
-  -- Check tolerance expiration (1 hour = 3600 seconds)
-  IF v_tolerance_started_at IS NOT NULL AND v_tolerance_type IS NOT NULL THEN
-    IF EXTRACT(EPOCH FROM (v_now - v_tolerance_started_at)) > 3600 THEN
-      RETURN jsonb_build_object('success', false, 'error', 'La tolerancia ha expirado. Se requiere cobrar hora extra.');
-    END IF;
-  END IF;
+  -- Check tolerance expiration (1 hour = 3600 seconds) - IGNORED on checkout
+  -- IF v_tolerance_started_at IS NOT NULL AND v_tolerance_type IS NOT NULL THEN
+  --   IF EXTRACT(EPOCH FROM (v_now - v_tolerance_started_at)) > 3600 THEN
+  --     RETURN jsonb_build_object('success', false, 'error', 'La tolerancia ha expirado. Se requiere cobrar hora extra.');
+  --   END IF;
+  -- END IF;
 
   -- Check vehicle checkout verified
   IF v_vehicle_plate IS NOT NULL AND v_checkout_valet_employee_id IS NULL THEN
@@ -302,7 +302,9 @@ BEGIN
     status = 'FINALIZADA',
     actual_check_out_at = v_now,
     checkout_valet_employee_id = COALESCE(p_checkout_valet_id, checkout_valet_employee_id),
-    checkout_shift_session_id = v_session_id
+    checkout_shift_session_id = v_session_id,
+    tolerance_started_at = NULL,
+    tolerance_type = NULL
   WHERE id = v_stay_id;
 
   -- Update order totals
@@ -319,10 +321,7 @@ BEGIN
 
   -- Update room status
   UPDATE public.rooms SET
-    status = CASE
-      WHEN v_tolerance_started_at IS NOT NULL THEN 'OCUPADA'
-      ELSE 'SUCIA'
-    END
+    status = 'SUCIA'
   WHERE id = v_room_id;
 
   -- ═══════════════════════════════════════════════════════════════════

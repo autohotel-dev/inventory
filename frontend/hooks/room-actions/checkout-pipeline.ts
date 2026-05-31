@@ -54,16 +54,6 @@ export async function validateStayForCheckout(
     return { ok: false };
   }
 
-  // Check tolerance
-  if (freshStay.tolerance_started_at && freshStay.tolerance_type) {
-    if (isToleranceExpired(freshStay.tolerance_started_at)) {
-      toast.error("La tolerancia ha expirado", {
-        description: "Se requiere cobrar hora extra. Por favor, cierre y vuelva a abrir el checkout.",
-        duration: 6000
-      });
-      return { ok: false };
-    }
-  }
 
   // Check vehicle
   if (freshStay.vehicle_plate && !freshStay.checkout_valet_employee_id) {
