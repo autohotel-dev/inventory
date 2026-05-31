@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, RefreshCw, Battery, Radio, Pencil } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Battery, Radio, Pencil, Search, SlidersHorizontal } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,7 +43,63 @@ export function SensorsTable() {
     const [newSensorName, setNewSensorName] = useState("");
     const [selectedRoomId, setSelectedRoomId] = useState("");
 
+    // Filter & Sort State
+    const [searchTerm, setSearchTerm] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all"); // all, online, offline
+    const [assignmentFilter, setAssignmentFilter] = useState("all"); // all, assigned, unassigned
+    const [sortBy, setSortBy] = useState("room_asc"); // room_asc, room_desc, name, battery_low, last_seen
+
     const supabase = createClient();
+
+    const getFilteredAndSortedSensors = () => {
+        return sensors
+            .filter((sensor) => {
+                // Search term match
+                const roomNum = sensor.room?.number || "";
+                const name = sensor.name || "";
+                const deviceId = sensor.device_id || "";
+                const searchLower = searchTerm.toLowerCase();
+                const matchesSearch = 
+                    roomNum.toLowerCase().includes(searchLower) ||
+                    name.toLowerCase().includes(searchLower) ||
+                    deviceId.toLowerCase().includes(searchLower);
+
+                // Status filter match
+                const matchesStatus = 
+                    statusFilter === "all" ||
+                    (statusFilter === "online" && sensor.status === "ONLINE") ||
+                    (statusFilter === "offline" && sensor.status === "OFFLINE");
+
+                // Assignment filter match
+                const matchesAssignment = 
+                    assignmentFilter === "all" ||
+                    (assignmentFilter === "assigned" && !!sensor.room) ||
+                    (assignmentFilter === "unassigned" && !sensor.room);
+
+                return matchesSearch && matchesStatus && matchesAssignment;
+            })
+            .sort((a, b) => {
+                if (sortBy === "room_asc" || sortBy === "room_desc") {
+                    const numA = parseInt(a.room?.number || "999999");
+                    const numB = parseInt(b.room?.number || "999999");
+                    return sortBy === "room_asc" ? numA - numB : numB - numA;
+                }
+                if (sortBy === "name") {
+                    return (a.name || "").localeCompare(b.name || "");
+                }
+                if (sortBy === "battery_low") {
+                    return (a.battery_level ?? 100) - (b.battery_level ?? 100);
+                }
+                if (sortBy === "last_seen") {
+                    const timeA = new Date(a.last_seen || 0).getTime();
+                    const timeB = new Date(b.last_seen || 0).getTime();
+                    return timeB - timeA; // Descending (most recent first)
+                }
+                return 0;
+            });
+    };
+
+    const filteredSensors = getFilteredAndSortedSensors();
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -205,6 +261,57 @@ export function SensorsTable() {
                 </div>
             </div>
 
+            {/* Filters and Search Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/20 p-3 rounded-lg border">
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar hab, nombre o ID..."
+                        className="pl-8 h-9"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Estado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos los Estados</SelectItem>
+                            <SelectItem value="online">En Línea</SelectItem>
+                            <SelectItem value="offline">Offline</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div>
+                    <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+                        <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Asignación" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todas las Habitaciones</SelectItem>
+                            <SelectItem value="assigned">Asignados</SelectItem>
+                            <SelectItem value="unassigned">Sin Asignar</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                        <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Ordenar por" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="room_asc">Habitación (Menor a Mayor)</SelectItem>
+                            <SelectItem value="room_desc">Habitación (Mayor a Menor)</SelectItem>
+                            <SelectItem value="name">Nombre</SelectItem>
+                            <SelectItem value="battery_low">Batería Más Baja</SelectItem>
+                            <SelectItem value="last_seen">Última Conexión</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
             <div id="sensor-grid" className="rounded-md border bg-card">
                 <table className="w-full text-sm">
                     <thead className="bg-muted/50 border-b">
@@ -224,8 +331,14 @@ export function SensorsTable() {
                                     No hay sensores registrados.
                                 </td>
                             </tr>
+                        ) : filteredSensors.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                                    No se encontraron sensores que coincidan con la búsqueda.
+                                </td>
+                            </tr>
                         ) : (
-                            sensors.map((sensor) => (
+                            filteredSensors.map((sensor) => (
                                 <tr key={sensor.id} className="border-b last:border-0 hover:bg-muted/10">
                                     <td className="p-3 font-medium">
                                         {sensor.room ? `Hab. ${sensor.room.number}` : <Badge variant="outline">Sin Asignar</Badge>}

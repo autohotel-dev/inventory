@@ -16,7 +16,7 @@ function loadEnv() {
         const envPath = path.resolve(__dirname, '../.env.local');
         if (!fs.existsSync(envPath)) return {};
         const envConfig = {};
-        const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+        const lines = fs.readFileSync(envPath, 'utf8').replace(/\r/g, '').split('\n');
         for (const line of lines) {
             const match = line.match(/^([^=]+)=(.*)$/);
             if (match) {

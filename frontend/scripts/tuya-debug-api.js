@@ -11,7 +11,7 @@ function loadEnv() {
     const envPath = path.resolve(__dirname, '../.env.local');
     if (!fs.existsSync(envPath)) return {};
     const envConfig = {};
-    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    fs.readFileSync(envPath, 'utf8').replace(/\r/g, '').split('\n').forEach(line => {
         const m = line.match(/^([^=]+)=(.*)$/);
         if (m) envConfig[m[1].trim()] = m[2].trim().replace(/^["'](.*?)["']$/, '$1');
     });
