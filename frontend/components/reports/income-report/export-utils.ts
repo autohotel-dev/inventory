@@ -209,7 +209,7 @@ export const handleCsvExport = ({ entries, totals, receptionistName, periodLabel
     lines.push(`"Recepcionista:","${receptionistName}","Periodo:","${periodLabel}","Exportado:","${new Date().toLocaleString("es-MX")}"`);
     lines.push("");
 
-    lines.push(["No.", "Horario", "Placas", "Habitación", "Aprobó Salida", "Estado", "Precio Hab.", "Extras", "Consumo", "Total", "Forma Pago", "Detalle Pago"].map(h => `"${h}"`).join(","));
+    lines.push(["No.", "Horario", "Placas", "Habitación", "Dio Entrada", "Aprobó Salida", "Estado", "Precio Hab.", "Extras", "Consumo", "Total", "Forma Pago", "Detalle Pago"].map(h => `"${h}"`).join(","));
 
     entries.forEach(e => {
         let payDetail = "";
@@ -228,6 +228,7 @@ export const handleCsvExport = ({ entries, totals, receptionistName, periodLabel
             e.time,
             e.vehicle_plate,
             e.room_number,
+            e.checkin_valet_name || "—",
             e.checkout_valet_name || "—",
             e.stay_status || "",
             e.room_price.toFixed(2),

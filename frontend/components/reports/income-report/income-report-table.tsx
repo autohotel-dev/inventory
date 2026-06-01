@@ -70,7 +70,8 @@ export function IncomeReportTable({
                                 <th className="border-r border-border p-2 w-20 font-semibold print:border-r-2 print:border-black">Hab.</th>
                                 <th className="border-r border-border p-2 w-32 font-semibold print:border-r-2 print:border-black">Recepcionista</th>
                                 <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Turno</th>
-                                <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Aprobó</th>
+                                <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Dio Entrada</th>
+                                <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Aprobó Salida</th>
                                 <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Precio</th>
                                 <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Extra</th>
                                 <th className="border-r border-border p-2 w-24 font-semibold print:border-r-2 print:border-black">Consumo</th>
@@ -105,6 +106,9 @@ export function IncomeReportTable({
                                         </td>
                                         <td className="border-r border-border p-2 text-center text-[10px] text-muted-foreground print:border-r print:border-black">
                                             {entry.shift_name || "—"}
+                                        </td>
+                                        <td className="border-r border-border p-2 text-center text-[10px] text-muted-foreground print:border-r print:border-black capitalize">
+                                            {entry.checkin_valet_name || "—"}
                                         </td>
                                         <td className="border-r border-border p-2 text-center text-[10px] text-muted-foreground print:border-r print:border-black capitalize">
                                             {entry.checkout_valet_name || "—"}
@@ -169,7 +173,7 @@ export function IncomeReportTable({
                                     </tr>
                                     {expandedRows.includes(entry.no) && entry.payments && (
                                         <tr className="bg-muted/30 print:hidden animate-in fade-in-0 slide-in-from-top-1">
-                                            <td colSpan={11} className="p-0 border-r border-border"></td>
+                                            <td colSpan={12} className="p-0 border-r border-border"></td>
                                             <td className="p-2 border-b border-border bg-muted/30 shadow-inner">
                                                 <div className="space-y-1">
                                                     {entry.payments.map((p: any, pIdx: number) => (
@@ -206,7 +210,7 @@ export function IncomeReportTable({
                             )}
 
                             <tr className="border-t-2 border-border font-bold bg-muted print:border-t-2 print:border-black">
-                                <td colSpan={7} className="border-r border-border p-3 text-right uppercase print:border-r-2 print:border-black">
+                                <td colSpan={8} className="border-r border-border p-3 text-right uppercase print:border-r-2 print:border-black">
                                     SUMA TOTAL
                                 </td>
                                 <td className="border-r border-border p-3 text-right print:border-r-2 print:border-black">

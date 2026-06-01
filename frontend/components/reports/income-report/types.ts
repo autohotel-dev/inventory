@@ -31,6 +31,7 @@ export interface IncomeEntry {
     terminal_code?: string;
     stay_status?: string;
     checkout_valet_name?: string;
+    checkin_valet_name?: string;
     receptionist_name?: string;
     shift_name?: string;
     payments?: PaymentDetail[];
