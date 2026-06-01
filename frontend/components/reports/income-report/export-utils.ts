@@ -32,6 +32,11 @@ export const generatePaymentBreakdown = (entries: IncomeEntry[]) => {
 export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel }: ExportParams) => {
     const paymentBreakdown = generatePaymentBreakdown(entries);
 
+    const formatTimeStr = (iso: string | undefined) => {
+        if (!iso) return "—";
+        try { return new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+    };
+
     const tableRows = entries.map((e, idx) => {
         let payDetail = "";
         if (e.payment_method === "MIXTO" && e.payments) {
@@ -44,17 +49,40 @@ export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel
             payDetail = e.payment_method;
         }
 
+        const prevShiftTag = e.is_from_previous_shift ? `<br/><span style="font-size:6px;color:#7c3aed;">🔄 ${e.original_checkin_employee || ''}</span>` : '';
+
+        let detailRows = '';
+        if (e.consumption_details && e.consumption_details.length > 0) {
+            detailRows += `<tr><td colspan="12" style="padding:2px 8px;background:#fffbeb;">
+                <b style="font-size:7px;color:#92400e;">📦 CONSUMOS:</b>
+                <table style="width:100%;border-collapse:collapse;margin:1px 0;">
+                <tr style="background:#fef3c7;"><th style="font-size:6px;padding:1px 3px;text-align:left;">Producto</th><th style="font-size:6px;padding:1px 3px;text-align:center;">Cant</th><th style="font-size:6px;padding:1px 3px;text-align:right;">Total</th><th style="font-size:6px;padding:1px 3px;text-align:center;">Hora</th><th style="font-size:6px;padding:1px 3px;text-align:left;">Aceptó</th><th style="font-size:6px;padding:1px 3px;text-align:left;">Cobró</th></tr>
+                ${e.consumption_details.map(c => `<tr><td style="font-size:7px;padding:1px 3px;">${c.product_name}</td><td style="font-size:7px;padding:1px 3px;text-align:center;">${c.qty}</td><td style="font-size:7px;padding:1px 3px;text-align:right;font-family:monospace;">$${Number(c.total).toFixed(2)}</td><td style="font-size:7px;padding:1px 3px;text-align:center;">${formatTimeStr(c.created_at)}</td><td style="font-size:7px;padding:1px 3px;">${c.accepted_by_name || '—'}</td><td style="font-size:7px;padding:1px 3px;">${c.payment_by_name || '—'}</td></tr>`).join('')}
+                </table></td></tr>`;
+        }
+        if (e.extra_details && e.extra_details.length > 0) {
+            detailRows += `<tr><td colspan="12" style="padding:2px 8px;background:#eff6ff;">
+                <b style="font-size:7px;color:#1e40af;">⏰ EXTRAS:</b>
+                <table style="width:100%;border-collapse:collapse;margin:1px 0;">
+                <tr style="background:#dbeafe;"><th style="font-size:6px;padding:1px 3px;text-align:left;">Concepto</th><th style="font-size:6px;padding:1px 3px;text-align:center;">Cant</th><th style="font-size:6px;padding:1px 3px;text-align:right;">Total</th><th style="font-size:6px;padding:1px 3px;text-align:center;">Hora</th><th style="font-size:6px;padding:1px 3px;text-align:left;">Registró</th></tr>
+                ${e.extra_details.map(x => `<tr><td style="font-size:7px;padding:1px 3px;">${x.concept_label}</td><td style="font-size:7px;padding:1px 3px;text-align:center;">${x.qty}</td><td style="font-size:7px;padding:1px 3px;text-align:right;font-family:monospace;">$${Number(x.total).toFixed(2)}</td><td style="font-size:7px;padding:1px 3px;text-align:center;">${formatTimeStr(x.created_at)}</td><td style="font-size:7px;padding:1px 3px;">${x.registered_by_name || '—'}</td></tr>`).join('')}
+                </table></td></tr>`;
+        }
+
         return `<tr>
             <td style="text-align:center;font-weight:600;">${e.no}</td>
             <td style="text-align:center;">${e.time}</td>
             <td style="text-align:center;text-transform:uppercase;">${e.vehicle_plate || "—"}</td>
-            <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === "CANCELADA" ? ' <span style="color:#dc2626;font-size:7px;">(C)</span>' : e.stay_status === "ACTIVA" ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : ""}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(e.room_price).toFixed(2)}</td>
+            <td style="text-align:center;font-weight:600;">${e.room_number}${e.stay_status === "CANCELADA" ? ' <span style="color:#dc2626;font-size:7px;">(C)</span>' : e.stay_status === "ACTIVA" ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : ""}${prevShiftTag}</td>
+            <td style="text-align:center;font-size:7px;">${e.receptionist_name || '—'}</td>
+            <td style="text-align:center;font-size:7px;">${e.checkin_valet_name || '—'}</td>
+            <td style="text-align:center;font-size:7px;">${e.checkout_valet_name || '—'}</td>
+            <td style="text-align:right;font-family:monospace;">${e.room_price > 0 ? '$' + Number(e.room_price).toFixed(2) : '—'}</td>
             <td style="text-align:right;font-family:monospace;">${e.extra > 0 ? "$" + Number(e.extra).toFixed(2) : "—"}</td>
             <td style="text-align:right;font-family:monospace;">${e.consumption > 0 ? "$" + Number(e.consumption).toFixed(2) : "—"}</td>
             <td style="text-align:right;font-weight:700;font-family:monospace;">$${Number(e.total).toFixed(2)}</td>
             <td style="text-align:center;">${payDetail}</td>
-        </tr>`;
+        </tr>${detailRows}`;
     }).join("");
 
     const breakdownRows = Object.entries(paymentBreakdown).map(([method, amount]) =>
@@ -102,7 +130,10 @@ export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel
             <th>Hora</th>
             <th>Placas</th>
             <th>Hab</th>
-            <th>Precio</th>
+            <th>Recepcionista</th>
+            <th>Dio Entrada</th>
+            <th>Aprobó Salida</th>
+            <th>Precio Hab.</th>
             <th>Extra</th>
             <th>Consumo</th>
             <th>Total</th>
@@ -112,7 +143,7 @@ export const handlePrintHtml = ({ entries, totals, receptionistName, periodLabel
     <tbody>
         ${tableRows}
         <tr class="totals-row">
-            <td colspan="4" style="text-align:right;letter-spacing:1px;">TOTAL</td>
+            <td colspan="7" style="text-align:right;letter-spacing:1px;">TOTAL</td>
             <td style="text-align:right;font-family:monospace;">$${Number(totals.roomPrice).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(totals.extra).toFixed(2)}</td>
             <td style="text-align:right;font-family:monospace;">$${Number(totals.consumption).toFixed(2)}</td>
@@ -209,7 +240,7 @@ export const handleCsvExport = ({ entries, totals, receptionistName, periodLabel
     lines.push(`"Recepcionista:","${receptionistName}","Periodo:","${periodLabel}","Exportado:","${new Date().toLocaleString("es-MX")}"`);
     lines.push("");
 
-    lines.push(["No.", "Horario", "Placas", "Habitación", "Dio Entrada", "Aprobó Salida", "Estado", "Precio Hab.", "Extras", "Consumo", "Total", "Forma Pago", "Detalle Pago"].map(h => `"${h}"`).join(","));
+    lines.push(["No.", "Horario", "Placas", "Habitación", "Recepcionista", "Dio Entrada", "Aprobó Salida", "Estado", "Turno Anterior", "Ingresada Por", "Precio Hab.", "Extras", "Consumo", "Total", "Forma Pago", "Detalle Pago"].map(h => `"${h}"`).join(","));
 
     entries.forEach(e => {
         let payDetail = "";
@@ -228,9 +259,12 @@ export const handleCsvExport = ({ entries, totals, receptionistName, periodLabel
             e.time,
             e.vehicle_plate,
             e.room_number,
+            e.receptionist_name || "—",
             e.checkin_valet_name || "—",
             e.checkout_valet_name || "—",
             e.stay_status || "",
+            e.is_from_previous_shift ? "Sí" : "No",
+            e.original_checkin_employee || "—",
             e.room_price.toFixed(2),
             e.extra.toFixed(2),
             e.consumption.toFixed(2),
@@ -238,10 +272,23 @@ export const handleCsvExport = ({ entries, totals, receptionistName, periodLabel
             e.payment_method,
             payDetail
         ].map(val => `"${val}"`).join(","));
+
+        // Add consumption detail sub-rows
+        if (e.consumption_details && e.consumption_details.length > 0) {
+            e.consumption_details.forEach(c => {
+                lines.push(["", "", "", "", "", "", "", "", "", "", "", "", "", "", `CONSUMO: ${c.product_name} x${c.qty} = $${Number(c.total).toFixed(2)}`, `Cobró: ${c.payment_by_name || '—'} | Aceptó: ${c.accepted_by_name || '—'}`].map(v => `"${v}"`).join(","));
+            });
+        }
+        // Add extra detail sub-rows
+        if (e.extra_details && e.extra_details.length > 0) {
+            e.extra_details.forEach(x => {
+                lines.push(["", "", "", "", "", "", "", "", "", "", "", "", "", "", `EXTRA: ${x.concept_label} x${x.qty} = $${Number(x.total).toFixed(2)}`, `Registró: ${x.registered_by_name || '—'}`].map(v => `"${v}"`).join(","));
+            });
+        }
     });
 
     lines.push("");
-    lines.push(["", "", "", "", "", "TOTALES:", totals.roomPrice.toFixed(2), totals.extra.toFixed(2), totals.consumption.toFixed(2), totals.total.toFixed(2), "", ""].map(v => `"${v}"`).join(","));
+    lines.push(["", "", "", "", "", "", "", "", "", "TOTALES:", totals.roomPrice.toFixed(2), totals.extra.toFixed(2), totals.consumption.toFixed(2), totals.total.toFixed(2), "", ""].map(v => `"${v}"`).join(","));
 
     const paymentBreakdown = generatePaymentBreakdown(entries);
     lines.push("");
