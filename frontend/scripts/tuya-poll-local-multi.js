@@ -90,6 +90,26 @@ function startGatewayConnection(gw) {
         console.log(`[GATEWAY] ✅ Connected to ${gw.name}!`);
         // Start cooldown to ignore initial connection glitches
         gatewayCooldowns.set(gw.id, Date.now() + GW_COOLDOWN_TIME_MS);
+
+        // Mark all sensors under this gateway as ONLINE
+        const gwSensors = sensors.filter(s => s.local_key === gw.local_key);
+        console.log(`[GATEWAY] [${gw.name}] Marking ${gwSensors.length} sensors as ONLINE...`);
+
+        gwSensors.forEach(s => {
+            const cacheKey = s.id;
+            const prev = stateCache.get(cacheKey) || {
+                name: s.name,
+                isOpen: false, // default to closed if not pre-seeded/known
+                battery: null,
+                lastSeen: null
+            };
+
+            prev.lastSeen = new Date().toISOString();
+            stateCache.set(cacheKey, prev);
+
+            // Update DB immediately
+            updateSensorInDB(s.id, prev.isOpen, prev.battery);
+        });
     });
 
     gateway.on('disconnected', () => {
@@ -336,17 +356,41 @@ async function flushPendingDbWrites() {
 }
 
 // --- INITIAL BOOTSTRAP ---
-console.log("==================================================");
-console.log("=== Tuya LOCAL MULTI-GATEWAY DAEMON (Offline) ===");
-console.log("==================================================");
+async function bootstrap() {
+    console.log("==================================================");
+    console.log("=== Tuya LOCAL MULTI-GATEWAY DAEMON (Offline) ===");
+    console.log("==================================================");
 
-// Start connection for all gateways in JSON
-gateways.forEach(gw => {
-    startGatewayConnection(gw);
-});
+    // 1. Pre-seed cache from Supabase
+    try {
+        console.log("[INIT] Pre-seeding sensor cache from Supabase...");
+        const { data, error } = await supabase.from('sensors').select('*');
+        if (error) throw error;
+        if (data) {
+            data.forEach(s => {
+                stateCache.set(s.device_id, {
+                    name: s.name,
+                    isOpen: s.is_open,
+                    battery: s.battery_level,
+                    lastSeen: s.last_seen
+                });
+            });
+            console.log(`[INIT] ✅ Pre-seeded cache with ${data.length} sensors from Supabase.`);
+        }
+    } catch (e) {
+        console.error("[INIT] ⚠️ Failed to pre-seed cache from Supabase:", e.message);
+    }
 
-// Periodically flush cached DB writes every 15 seconds
-setInterval(flushPendingDbWrites, 15000);
+    // 2. Start connection for all gateways in JSON
+    gateways.forEach(gw => {
+        startGatewayConnection(gw);
+    });
+
+    // Periodically flush cached DB writes every 15 seconds
+    setInterval(flushPendingDbWrites, 15000);
+}
+
+bootstrap();
 
 // --- HTTP SERVER (Expose to web/local just like Print Server) ---
 const server = http.createServer((req, res) => {

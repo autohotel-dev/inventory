@@ -3,6 +3,7 @@ const cors = require('cors');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const PdfPrinter = require('pdfmake');
 
 const app = express();
@@ -143,8 +144,80 @@ function formatDateTime(date) {
     };
 }
 
-// Enviar a impresora por TCP
-function sendToPrinter(data) {
+// Auto-discovery of the printer IP on the local network
+async function autoDiscoverPrinterIP() {
+    console.log('[AUTO-DISCOVERY] Iniciando búsqueda de impresora térmica en la red local...');
+    try {
+        const interfaces = os.networkInterfaces();
+        let localSubnet = '192.168.0'; // fallback
+        
+        // Find local IPv4 address that belongs to the local network
+        for (const name of Object.keys(interfaces)) {
+            for (const netInfo of interfaces[name]) {
+                if (netInfo.family === 'IPv4' && !netInfo.internal) {
+                    if (netInfo.address.startsWith('192.168.')) {
+                        const parts = netInfo.address.split('.');
+                        localSubnet = `${parts[0]}.${parts[1]}.${parts[2]}`;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        console.log(`[AUTO-DISCOVERY] Escaneando subred ${localSubnet}.x en puerto ${PRINTER_PORT}...`);
+        const discoveredIPs = [];
+        const scanPromises = [];
+        const timeout = 600; // fast check
+        
+        for (let i = 2; i <= 254; i++) {
+            const ip = `${localSubnet}.${i}`;
+            // Skip HP Printer IP to avoid sending ESC/POS commands to it
+            if (ip === HP_PRINTER_IP) continue;
+            
+            scanPromises.push(new Promise((res) => {
+                const socket = new net.Socket();
+                socket.setTimeout(timeout);
+                socket.on('connect', () => {
+                    discoveredIPs.push(ip);
+                    socket.destroy();
+                    res();
+                });
+                socket.on('error', () => {
+                    socket.destroy();
+                    res();
+                });
+                socket.on('timeout', () => {
+                    socket.destroy();
+                    res();
+                });
+                socket.connect(PRINTER_PORT, ip);
+            }));
+        }
+        
+        await Promise.all(scanPromises);
+        
+        if (discoveredIPs.length > 0) {
+            const newIP = discoveredIPs[0];
+            console.log(`[AUTO-DISCOVERY] ¡Impresora encontrada en ${newIP}!`);
+            PRINTER_IP = newIP;
+            saveConfig({
+                printerIP: PRINTER_IP,
+                printerPort: PRINTER_PORT,
+                hpPrinterIP: HP_PRINTER_IP,
+                hpPrinterPort: HP_PRINTER_PORT
+            });
+            return newIP;
+        } else {
+            console.warn('[AUTO-DISCOVERY] No se encontró ningún dispositivo en puerto 9100.');
+        }
+    } catch (err) {
+        console.error('[AUTO-DISCOVERY] Error en el escaneo automático:', err.message);
+    }
+    return null;
+}
+
+// Enviar a impresora por TCP (con auto-descubrimiento en caso de error)
+function sendToPrinter(data, isRetry = false) {
     return new Promise((resolve, reject) => {
         const socket = new net.Socket();
         let resolved = false;
@@ -160,7 +233,7 @@ function sendToPrinter(data) {
                     if (!resolved) {
                         resolved = true;
                         socket.destroy();
-                        reject(err);
+                        handleFailure(err);
                     }
                 } else {
                     setTimeout(() => {
@@ -174,11 +247,31 @@ function sendToPrinter(data) {
             });
         });
 
+        const handleFailure = async (err) => {
+            if (!isRetry) {
+                console.warn(`[PRINTER] Conexión fallida a ${PRINTER_IP}. Intentando auto-descubrimiento...`);
+                const newIP = await autoDiscoverPrinterIP();
+                if (newIP) {
+                    console.log(`[PRINTER] Reintentando impresión con nueva IP: ${newIP}`);
+                    try {
+                        const result = await sendToPrinter(data, true);
+                        resolve(result);
+                        return;
+                    } catch (retryErr) {
+                        reject(retryErr);
+                        return;
+                    }
+                }
+            }
+            reject(err);
+        };
+
         socket.on('error', (err) => {
             console.error('[PRINTER] Error de socket:', err);
             if (!resolved) {
                 resolved = true;
-                reject(new Error(`Error de conexión: ${err.message}`));
+                socket.destroy();
+                handleFailure(new Error(`Error de conexión: ${err.message}`));
             }
         });
 
@@ -186,7 +279,7 @@ function sendToPrinter(data) {
             if (!resolved) {
                 resolved = true;
                 socket.destroy();
-                reject(new Error('Timeout: La impresora no responde'));
+                handleFailure(new Error('Timeout: La impresora no responde'));
             }
         });
 
@@ -1482,4 +1575,20 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('      POST /print       - Imprimir ticket');
     console.log('      POST /print/test  - Prueba de impresión');
     console.log('');
+
+    // Validar conectividad inicial a la impresora térmica
+    const socket = new net.Socket();
+    socket.setTimeout(2000);
+    socket.on('connect', () => {
+        console.log(`[PRINTER] Conexión inicial exitosa con la impresora en ${PRINTER_IP}:${PRINTER_PORT}`);
+        socket.destroy();
+    });
+    const triggerDiscovery = () => {
+        console.warn(`[PRINTER] No se pudo conectar a ${PRINTER_IP}:${PRINTER_PORT} al iniciar. Ejecutando búsqueda automática...`);
+        socket.destroy();
+        autoDiscoverPrinterIP();
+    };
+    socket.on('error', triggerDiscovery);
+    socket.on('timeout', triggerDiscovery);
+    socket.connect(PRINTER_PORT, PRINTER_IP);
 });
