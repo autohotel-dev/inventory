@@ -18,20 +18,8 @@ export function RoomReminderAlert({
   level,
   onClose,
 }: RoomReminderAlertProps) {
-  // Reproducir sonido al abrir
-  useEffect(() => {
-    if (!isOpen) return;
-
-    try {
-      const audio = new Audio("/room-alert.mp3");
-      audio.volume = level === "5" ? 1.0 : 0.6; // Más fuerte si es urgente
-      audio.play().catch(() => {
-        // Ignorar errores de reproducción (permisos del navegador)
-      });
-    } catch (e) {
-      console.error("Error reproduciendo sonido de alerta", e);
-    }
-  }, [isOpen, level]);
+  // Sonido ya se reproduce desde el hook useCheckoutReminders via Web Audio API.
+  // No es necesario cargar un .mp3 adicional aquí.
 
   // Auto-cerrar después de 30 segundos si es nivel 20
   useEffect(() => {
