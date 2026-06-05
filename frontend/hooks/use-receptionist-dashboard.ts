@@ -10,6 +10,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftSession, ShiftDefinition } from "@/components/employees/types";
 import { useToast } from "@/hooks/use-toast";
 import { useShiftExpenses } from "@/hooks/use-shift-expenses";
+import { useEmployeeCharges } from "@/hooks/use-employee-charges";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { invalidateReceptionCache } from "@/hooks/room-actions/shift-helpers";
 
@@ -73,6 +74,7 @@ export function useReceptionistDashboard() {
   const [sessionToClose, setSessionToClose] = useState<ShiftSession | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showEmployeeChargeModal, setShowEmployeeChargeModal] = useState(false);
   const [activeValetCount, setActiveValetCount] = useState(0);
   const [showCashAdjustModal, setShowCashAdjustModal] = useState(false);
   const [cashAdjustmentInput, setCashAdjustmentInput] = useState("");
@@ -86,6 +88,7 @@ export function useReceptionistDashboard() {
 
   const effectiveSession = activeSession || systemActiveSession;
   const { expenses, totalExpenses, loading: expensesLoading, refetch: refetchExpenses } = useShiftExpenses(effectiveSession?.id || null);
+  const { charges: employeeCharges, totalCharges: totalEmployeeCharges, totalDiscount: totalEmployeeDiscount, loading: chargesLoading, refetch: refetchCharges } = useEmployeeCharges(effectiveSession?.id || null);
 
   // ─── Clock ────────────────────────────────────────────────────────
 
@@ -397,14 +400,16 @@ export function useReceptionistDashboard() {
     // State
     summary, loading, currentTime, activeSession, systemActiveSession,
     showClosingModal, showClockOutOptions, sessionToClose, actionLoading,
-    showExpenseModal, activeValetCount, showCashAdjustModal, cashAdjustmentInput,
+    showExpenseModal, showEmployeeChargeModal, activeValetCount, showCashAdjustModal, cashAdjustmentInput,
     currentShift, pinCode, showPinInput, startingShift, employeePin,
     effectiveSession,
     // Expenses
     expenses, totalExpenses, expensesLoading, refetchExpenses,
+    // Employee Charges
+    employeeCharges, totalEmployeeCharges, totalEmployeeDiscount, chargesLoading, refetchCharges,
     // Setters
     setShowClosingModal, setShowClockOutOptions, setSessionToClose, setActionLoading,
-    setShowExpenseModal, setShowCashAdjustModal, setCashAdjustmentInput,
+    setShowExpenseModal, setShowEmployeeChargeModal, setShowCashAdjustModal, setCashAdjustmentInput,
     setPinCode, setShowPinInput,
     // Actions
     handleStartShift, handleClockOutClick, handleClockOutWithClosing,

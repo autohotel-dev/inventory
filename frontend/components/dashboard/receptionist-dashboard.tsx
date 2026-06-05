@@ -32,6 +32,16 @@ const ExpensesList = dynamic(
   { ssr: false, loading: () => <div className="animate-pulse bg-muted h-24 rounded-lg" /> }
 );
 
+const EmployeeChargeModal = dynamic(
+  () => import("@/components/expenses/employee-charge-modal").then(mod => ({ default: mod.EmployeeChargeModal })),
+  { ssr: false }
+);
+
+const EmployeeChargesList = dynamic(
+  () => import("@/components/expenses/employee-charges-list").then(mod => ({ default: mod.EmployeeChargesList })),
+  { ssr: false, loading: () => <div className="animate-pulse bg-muted h-24 rounded-lg" /> }
+);
+
 // Iconos por turno
 const SHIFT_ICONS: Record<string, React.ReactNode> = {
   MORNING: <Sun className="h-8 w-8" />,
@@ -51,13 +61,14 @@ export function ReceptionistDashboard() {
   const {
     employeeName, employeeId, roleLoading, isRestrictedRole, isAdmin, isManager, canAdjustCash,
     summary, loading, currentTime, activeSession, showClosingModal,
-    showClockOutOptions, sessionToClose, actionLoading, showExpenseModal,
+    showClockOutOptions, sessionToClose, actionLoading, showExpenseModal, showEmployeeChargeModal,
     activeValetCount, showCashAdjustModal, cashAdjustmentInput,
     currentShift, pinCode, showPinInput, startingShift, employeePin,
     effectiveSession,
     expenses, totalExpenses, expensesLoading, refetchExpenses,
+    employeeCharges, totalEmployeeCharges, totalEmployeeDiscount, chargesLoading, refetchCharges,
     setShowClosingModal, setShowClockOutOptions, setSessionToClose, setActionLoading,
-    setShowExpenseModal, setShowCashAdjustModal, setCashAdjustmentInput,
+    setShowExpenseModal, setShowEmployeeChargeModal, setShowCashAdjustModal, setCashAdjustmentInput,
     setPinCode, setShowPinInput,
     handleStartShift, handleClockOutClick, handleClockOutWithClosing,
     handleClockOutDeferred, handleClosingComplete, fetchShiftSummary, showError,
@@ -507,6 +518,16 @@ export function ReceptionistDashboard() {
         />
       )}
 
+      {/* Cargos a Empleados - Solo mostrar si NO es un rol restringido */}
+      {effectiveSession && !isRestrictedRole && (
+        <EmployeeChargesList
+          charges={employeeCharges}
+          totalCharges={totalEmployeeCharges}
+          totalDiscount={totalEmployeeDiscount}
+          loading={chargesLoading}
+        />
+      )}
+
       {/* Acciones rápidas para recepcionista */}
       <Card>
         <CardHeader>
@@ -565,6 +586,20 @@ export function ReceptionistDashboard() {
               >
                 <span className="text-3xl">💸</span>
                 <span className="text-sm font-medium">Registrar Gasto</span>
+              </button>
+            )}
+
+            {!isRestrictedRole && (
+              <button
+                onClick={() => effectiveSession && setShowEmployeeChargeModal(true)}
+                disabled={!effectiveSession}
+                className={`flex flex-col items-center gap-2 p-4 border rounded-lg transition-colors text-center ${effectiveSession
+                  ? "hover:bg-muted cursor-pointer"
+                  : "opacity-50 cursor-not-allowed"
+                  }`}
+              >
+                <span className="text-3xl">🍳</span>
+                <span className="text-sm font-medium">Cargo a Empleado</span>
               </button>
             )}
           </div>
@@ -660,6 +695,19 @@ export function ReceptionistDashboard() {
           onSuccess={() => {
             refetchExpenses();
             fetchShiftSummary();
+          }}
+        />
+      )}
+
+      {/* Modal de cargos a empleados */}
+      {effectiveSession && (
+        <EmployeeChargeModal
+          open={showEmployeeChargeModal}
+          onClose={() => setShowEmployeeChargeModal(false)}
+          sessionId={effectiveSession.id}
+          registeredByEmployeeId={employeeId || ''}
+          onSuccess={() => {
+            refetchCharges();
           }}
         />
       )}
