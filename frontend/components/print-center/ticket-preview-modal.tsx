@@ -308,7 +308,7 @@ function ClosingPreview({
       )}
       <ReceiptLine
         left="  Esperado:"
-        right={fmtCurrency((data.totalCash || 0) - (Number(data.totalExpenses) || 0))}
+        right={fmtCurrency((data.totalCash || 0) - (Number(data.totalExpenses) || 0) + ((data.employeeCharges || []).filter((c: any) => c.paymentMethod === 'CASH').reduce((s: number, c: any) => s + Number(c.total), 0)))}
       />
       <ReceiptLine
         left="  Contado:"
@@ -548,9 +548,58 @@ function ClosingPreview({
                 right={`-${fmtCurrency(data.totalExpenses || 0)}`}
                 bold
               />
+              <div className="border-t border-double border-zinc-600 my-2" />
+            </>
+          )}
+
+          {/* ═══ CARGOS A EMPLEADOS ═══ */}
+          {data.employeeCharges?.length > 0 && (
+            <>
+              <div className="text-center text-xs font-bold mt-1 mb-0.5">
+                CARGOS A EMPLEADOS
+              </div>
+              <ReceiptDivider />
+              {(data.employeeCharges || []).map((c: any, i: number) => {
+                const CHARGE_ICONS: Record<string, string> = {
+                  BREAKFAST: '🍳', LUNCH: '🍽️', CONSUMPTION: '☕',
+                  PRODUCT: '📦', OTHER: '📝',
+                };
+                const PAY_LABELS: Record<string, string> = {
+                  CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nóm', COURTESY: 'Cortesía',
+                };
+                const icon = CHARGE_ICONS[c.chargeType] || '📝';
+                return (
+                  <div key={i} className="text-[11px] mb-0.5">
+                    <div className="flex justify-between">
+                      <span className="max-w-[70%] truncate">
+                        {icon} {c.description}
+                      </span>
+                      <span className="tabular-nums font-medium text-cyan-400">
+                        {Number(c.total) === 0 ? 'CORT' : fmtCurrency(c.total)}
+                      </span>
+                    </div>
+                    <div className="text-[9px] text-zinc-500 ml-4">
+                      {c.time} · {c.employeeName} · {PAY_LABELS[c.paymentMethod] || c.paymentMethod}
+                    </div>
+                  </div>
+                );
+              })}
+              <ReceiptDivider />
+              <ReceiptLine
+                left="TOTAL CARGOS:"
+                right={fmtCurrency((data.employeeCharges || []).reduce((s: number, c: any) => s + Number(c.total), 0))}
+                bold
+              />
+              <div className="border-t border-double border-zinc-600 my-2" />
+            </>
+          )}
+
+          {/* ═══ EFECTIVO NETO ═══ */}
+          {((data.totalExpenses || 0) > 0 || (data.employeeCharges || []).some((c: any) => c.paymentMethod === 'CASH')) && (
+            <>
               <ReceiptLine
                 left="EFECTIVO NETO:"
-                right={fmtCurrency((data.totalCash || 0) - (data.totalExpenses || 0))}
+                right={fmtCurrency((data.totalCash || 0) - (data.totalExpenses || 0) + ((data.employeeCharges || []).filter((c: any) => c.paymentMethod === 'CASH').reduce((s: number, c: any) => s + Number(c.total), 0)))}
                 bold
               />
               <div className="border-t border-double border-zinc-600 my-2" />

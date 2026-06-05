@@ -199,6 +199,40 @@ async function printHPIncomeReport(
     `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${exp.time} — ${exp.typeLabel}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${exp.description}${exp.recipient ? ' (' + exp.recipient + ')' : ''}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;color:#dc2626;">-$${exp.amount.toFixed(2)}</td></tr>`
   ).join('') + `<tr><td colspan="2" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL GASTOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : '';
 
+  // 9. Load employee charges for the shift
+  const { data: chargesData } = await supabase
+    .from('shift_employee_charges')
+    .select(`
+      id, charge_type, description, total, discount_amount,
+      payment_method, created_at,
+      charged_employee:charged_to(first_name, last_name)
+    `)
+    .eq('shift_session_id', shiftSessionId)
+    .neq('status', 'rejected')
+    .order('created_at', { ascending: true });
+
+  const CHARGE_TYPE_LABELS: Record<string, string> = {
+    BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+    PRODUCT: 'Producto', OTHER: 'Otro',
+  };
+  const CHARGE_PAY_LABELS: Record<string, string> = {
+    CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nóm', COURTESY: 'Cortesía',
+  };
+
+  const employeeCharges = chargesData || [];
+  const totalCharges = employeeCharges.reduce((sum: number, c: any) => sum + Number(c.total), 0);
+  const totalChargesCash = employeeCharges
+    .filter((c: any) => c.payment_method === 'CASH')
+    .reduce((sum: number, c: any) => sum + Number(c.total), 0);
+
+  const chargeRows = employeeCharges.length > 0 ? employeeCharges.map((c: any) => {
+    const empName = c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—';
+    return `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} — ${CHARGE_TYPE_LABELS[c.charge_type] || c.charge_type}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.description} (${empName})</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;color:#0891b2;">${Number(c.total) === 0 ? 'CORT' : '$' + Number(c.total).toFixed(2)}</td></tr>`;
+  }).join('') + `<tr><td colspan="2" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL CARGOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#0891b2;">$${totalCharges.toFixed(2)}</td></tr>` : '';
+
+  // Compute net cash with charges
+  const netCashWithCharges = Number(totals.total) - totalExpenses + totalChargesCash;
+
   // 8. Open browser print window
   const printHtml = `<!DOCTYPE html>
 <html lang="es">
@@ -293,11 +327,14 @@ ${otherEntries.length > 0 ? `
             <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>
             <tr><td>Daños</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.damage).toFixed(2)}</td></tr>
             <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL VENTAS</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
-            ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr><tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(Number(totals.total) - totalExpenses).toFixed(2)}</td></tr>` : ''}
+            ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : ''}
+            ${totalChargesCash > 0 ? `<tr><td style="color:#0891b2;">Cargos empleados (efectivo)</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#0891b2;">+$${totalChargesCash.toFixed(2)}</td></tr>` : ''}
+            ${totalExpenses > 0 || totalChargesCash > 0 ? `<tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${netCashWithCharges.toFixed(2)}</td></tr>` : ''}
         </tbody></table>
     </div>
 </div>
 ${expenses.length > 0 ? `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Gastos del Turno</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Descripci&oacute;n</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ''}
+${employeeCharges.length > 0 ? `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Cargos a Empleados</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Descripci&oacute;n</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${chargeRows}</tbody></table></div>` : ''}
 <div class="signature">
     <div class="sig-line"><div class="line"></div><span>Recepcionista</span></div>
     <div class="sig-line"><div class="line"></div><span>Supervisor / Gerente</span></div>
@@ -788,6 +825,33 @@ export function useReprintCenter() {
             totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
           }
 
+          // Load employee charges
+          let employeeCharges: any[] = [];
+          let totalEmployeeCharges = 0;
+          if (shiftSessionId) {
+            const { data: chargesData } = await supabase
+              .from('shift_employee_charges')
+              .select(`
+                id, charge_type, description, total, discount_amount,
+                payment_method, created_at,
+                charged_employee:charged_to(first_name, last_name)
+              `)
+              .eq('shift_session_id', shiftSessionId)
+              .neq('status', 'rejected')
+              .order('created_at', { ascending: true });
+
+            employeeCharges = (chargesData || []).map((c: any) => ({
+              time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+              employeeName: c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—',
+              chargeType: c.charge_type,
+              description: c.description,
+              total: Number(c.total),
+              discountAmount: Number(c.discount_amount),
+              paymentMethod: c.payment_method,
+            }));
+            totalEmployeeCharges = employeeCharges.reduce((sum: number, c: any) => sum + c.total, 0);
+          }
+
           // 1. Print thermal ticket only
           return await printClosing({
             ...ticket.rawData,
@@ -798,6 +862,8 @@ export function useReprintCenter() {
             transactions,
             expenses,
             totalExpenses,
+            employeeCharges,
+            totalEmployeeCharges,
           });
         }
 

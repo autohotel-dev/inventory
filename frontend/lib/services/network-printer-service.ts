@@ -100,6 +100,16 @@ export interface ClosingTicketData {
         recipient?: string;
     }>;
     totalExpenses?: number;
+    employeeCharges?: Array<{
+        time: string;
+        employeeName: string;
+        chargeType: string;
+        description: string;
+        total: number;
+        discountAmount: number;
+        paymentMethod: string;
+    }>;
+    totalEmployeeCharges?: number;
 }
 
 /**
@@ -614,8 +624,45 @@ function buildClosingTicket(data: ClosingTicketData): string {
         });
         ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
         ticket += COMMANDS.BOLD_ON + formatLine('TOTAL GASTOS:', `-${formatMoney(totalGastos)}`) + COMMANDS.NEW_LINE;
-        ticket += formatLine('EFECTIVO NETO:', formatMoney((data.totalCash || 0) - totalGastos)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.BOLD_OFF;
         ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+    }
+
+    // Cargos a empleados (si hay)
+    const CHARGE_TYPE_LABELS: Record<string, string> = {
+        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+        PRODUCT: 'Producto', OTHER: 'Otro',
+    };
+    const CHARGE_PAY_LABELS: Record<string, string> = {
+        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nom', COURTESY: 'Cortesia',
+    };
+
+    if (data.employeeCharges && data.employeeCharges.length > 0) {
+        ticket += COMMANDS.ALIGN_CENTER + COMMANDS.BOLD_ON + 'CARGOS A EMPLEADOS' + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.ALIGN_LEFT;
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        data.employeeCharges.forEach((c, i) => {
+            const typeLbl = CHARGE_TYPE_LABELS[c.chargeType] || c.chargeType;
+            const payLbl = CHARGE_PAY_LABELS[c.paymentMethod] || c.paymentMethod;
+            ticket += `${i + 1}. ${c.time}  ${c.total === 0 ? 'CORTESIA' : formatMoney(c.total)}` + COMMANDS.NEW_LINE;
+            ticket += `   ${typeLbl}: ${c.description}` + COMMANDS.NEW_LINE;
+            ticket += `   ${c.employeeName} (${payLbl})` + COMMANDS.NEW_LINE;
+        });
+        ticket += COMMANDS.DIVIDER_DASH + COMMANDS.NEW_LINE;
+        ticket += COMMANDS.BOLD_ON + formatLine('TOTAL CARGOS:', formatMoney(data.totalEmployeeCharges || 0)) + COMMANDS.NEW_LINE + COMMANDS.BOLD_OFF;
+        ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+    }
+
+    // Efectivo Neto
+    {
+        const totalGastos = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
+        const totalChargesCash = (data.employeeCharges || []).filter(c => c.paymentMethod === 'CASH').reduce((s, c) => s + c.total, 0);
+        if (totalGastos > 0 || totalChargesCash > 0) {
+            ticket += COMMANDS.BOLD_ON;
+            ticket += formatLine('EFECTIVO NETO:', formatMoney((data.totalCash || 0) - totalGastos + totalChargesCash)) + COMMANDS.NEW_LINE;
+            ticket += COMMANDS.BOLD_OFF;
+            ticket += COMMANDS.DIVIDER_DOUBLE + COMMANDS.NEW_LINE;
+        }
     }
 
     // Notas

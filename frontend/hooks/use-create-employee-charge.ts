@@ -60,6 +60,7 @@ export function useCreateEmployeeCharge() {
                     discount_type: data.discount_type || null,
                     discount_value: data.discount_value || 0,
                     discount_amount: discountAmount,
+                    subtotal,
                     total,
                     payment_method: data.payment_method,
                     notes: data.notes || null,

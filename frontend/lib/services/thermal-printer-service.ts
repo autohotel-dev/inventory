@@ -57,6 +57,16 @@ export interface ClosingTicketData {
         recipient?: string;
     }>;
     totalExpenses?: number;
+    employeeCharges?: Array<{
+        time: string;
+        employeeName: string;
+        chargeType: string;
+        description: string;
+        total: number;
+        discountAmount: number;
+        paymentMethod: string;
+    }>;
+    totalEmployeeCharges?: number;
 }
 
 export interface PrinterConfig {
@@ -660,9 +670,52 @@ export class ThermalPrinterService {
                 printer.drawLine();
                 printer.bold(true);
                 printer.println(formatLine('TOTAL GASTOS:', `-$${totalGastos.toFixed(2)}`));
-                printer.println(formatLine('EFECTIVO NETO:', `$${((data.totalCash || 0) - totalGastos).toFixed(2)}`));
                 printer.bold(false);
                 printer.drawLine();
+            }
+
+            // ===== CARGOS A EMPLEADOS =====
+            const CHARGE_TYPE_LABELS: Record<string, string> = {
+                BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+                PRODUCT: 'Producto', OTHER: 'Otro',
+            };
+            const CHARGE_PAY_LABELS: Record<string, string> = {
+                CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nom', COURTESY: 'Cortesia',
+            };
+
+            if (data.employeeCharges && data.employeeCharges.length > 0) {
+                printer.newLine();
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("CARGOS A EMPLEADOS");
+                printer.bold(false);
+                printer.alignLeft();
+                printer.drawLine();
+                data.employeeCharges.forEach((c, i) => {
+                    const typeLbl = CHARGE_TYPE_LABELS[c.chargeType] || c.chargeType;
+                    const payLbl = CHARGE_PAY_LABELS[c.paymentMethod] || c.paymentMethod;
+                    printer.println(`${i + 1}. ${c.time}  ${c.total === 0 ? 'CORTESIA' : '$' + c.total.toFixed(2)}`);
+                    printer.println(`   ${typeLbl}: ${c.description}`);
+                    printer.println(`   ${c.employeeName} (${payLbl})`);
+                });
+                printer.drawLine();
+                printer.bold(true);
+                printer.println(formatLine('TOTAL CARGOS:', `$${(data.totalEmployeeCharges || 0).toFixed(2)}`));
+                printer.bold(false);
+                printer.drawLine();
+            }
+
+            // ===== EFECTIVO NETO =====
+            {
+                const totalGastos = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
+                const totalChargesCash = (data.employeeCharges || []).filter(c => c.paymentMethod === 'CASH').reduce((s, c) => s + c.total, 0);
+                if (totalGastos > 0 || totalChargesCash > 0) {
+                    printer.newLine();
+                    printer.bold(true);
+                    printer.println(formatLine('EFECTIVO NETO:', `$${((data.totalCash || 0) - totalGastos + totalChargesCash).toFixed(2)}`));
+                    printer.bold(false);
+                    printer.drawLine();
+                }
             }
 
             // ===== NOTAS =====

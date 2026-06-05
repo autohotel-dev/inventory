@@ -45,6 +45,16 @@ interface ClosingTicketData {
         recipient?: string;
     }>;
     totalExpenses?: number;
+    employeeCharges?: Array<{
+        time: string;
+        employeeName: string;
+        chargeType: string;
+        description: string;
+        total: number;
+        discountAmount: number;
+        paymentMethod: string;
+    }>;
+    totalEmployeeCharges?: number;
 }
 
 interface UsePrintClosingReturn {

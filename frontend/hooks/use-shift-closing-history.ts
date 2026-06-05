@@ -377,6 +377,33 @@ export function useShiftClosingHistory() {
         });
       }
 
+      // 4. Cargar cargos a empleados del turno
+      let employeeCharges: any[] = [];
+      let totalEmployeeCharges = 0;
+      if (closing.shift_session_id) {
+        const { data: chargesData } = await supabase
+          .from('shift_employee_charges')
+          .select(`
+            id, charge_type, description, total, discount_amount,
+            payment_method, created_at,
+            charged_employee:charged_to(first_name, last_name)
+          `)
+          .eq('shift_session_id', closing.shift_session_id)
+          .neq('status', 'rejected')
+          .order('created_at', { ascending: true });
+
+        employeeCharges = (chargesData || []).map((c: any) => ({
+          time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          employeeName: c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—',
+          chargeType: c.charge_type,
+          description: c.description,
+          total: Number(c.total),
+          discountAmount: Number(c.discount_amount),
+          paymentMethod: c.payment_method,
+        }));
+        totalEmployeeCharges = employeeCharges.reduce((sum: number, c: any) => sum + c.total, 0);
+      }
+
       await printClosing({
         employeeName: `${closing.employees?.first_name || ''} ${closing.employees?.last_name || ''}`,
         shiftName: closing.shift_definitions?.name || 'Turno',
@@ -397,6 +424,8 @@ export function useShiftClosingHistory() {
         extraBreakdown,
         consumptionBreakdown,
         damageBreakdown,
+        employeeCharges,
+        totalEmployeeCharges,
       });
     } catch (err) {
       console.error("Error al imprimir:", err);

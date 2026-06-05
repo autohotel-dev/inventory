@@ -106,7 +106,7 @@ export function ShiftClosingDetailModal({
               <div>
                 <p className="text-sm font-medium">Arqueo de Caja</p>
                 <p className="text-xs text-muted-foreground">
-                  Esperado: {formatCurrency(selectedClosing.total_cash || 0)} •
+                  Esperado: {formatCurrency(selectedClosing.counted_cash || 0)} •
                   Contado: {formatCurrency(selectedClosing.counted_cash || 0)}
                 </p>
               </div>
