@@ -220,7 +220,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
   // ─── Computed ─────────────────────────────────────────────────────
 
-  const netCash = summary ? summary.total_cash - (summary.total_expenses || 0) : 0;
+  const netCash = summary ? summary.total_cash - (summary.total_expenses || 0) + (summary.total_employee_charges_cash || 0) : 0;
   const shiftStart = new Date(session.clock_in_at);
   const shiftEnd = session.clock_out_at ? new Date(session.clock_out_at) : new Date();
   const durationMs = shiftEnd.getTime() - shiftStart.getTime();

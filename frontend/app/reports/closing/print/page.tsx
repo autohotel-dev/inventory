@@ -282,9 +282,12 @@ function PrintClosingContent() {
 
     const employee = closing.employees;
     const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : "N/A";
-    const netCash = closing.total_cash - (closing.total_expenses || 0);
     const totalDamages = damages.reduce((sum, dmg) => sum + dmg.amount, 0);
     const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
+    const totalEmployeeChargesCash = employeeCharges
+        .filter(c => c.payment_method === 'CASH')
+        .reduce((sum, c) => sum + Number(c.total), 0);
+    const netCash = closing.total_cash - (closing.total_expenses || 0) + totalEmployeeChargesCash;
 
     const CHARGE_TYPE_LABELS: Record<string, string> = {
         BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
@@ -403,6 +406,12 @@ function PrintClosingContent() {
                             <div style={{ ...styles.cashRow, color: '#d97706' }}>
                                 <span>(-) Gastos ({closing.expenses_count})</span>
                                 <span style={{ fontWeight: 600 }}>-{formatMoney(closing.total_expenses)}</span>
+                            </div>
+                        )}
+                        {totalEmployeeChargesCash > 0 && (
+                            <div style={{ ...styles.cashRow, color: '#0891b2' }}>
+                                <span>(+) Cargos Empleados (efectivo)</span>
+                                <span style={{ fontWeight: 600 }}>+{formatMoney(totalEmployeeChargesCash)}</span>
                             </div>
                         )}
                         <div style={styles.cashTotal}>

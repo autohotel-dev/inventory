@@ -240,6 +240,9 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                   <p className="text-[10px] font-medium text-muted-foreground mt-2 flex items-center gap-1 opacity-70">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Efectivo
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1" /> Gastos
+                    {(summary?.total_employee_charges_cash || 0) > 0 && (
+                      <><span className="w-1.5 h-1.5 rounded-full bg-cyan-500 ml-1" /> Cargos</>
+                    )}
                   </p>
                 </div>
               </div>

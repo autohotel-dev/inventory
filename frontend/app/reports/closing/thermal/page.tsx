@@ -262,14 +262,27 @@ function ThermalReceiptContent() {
         }
     }, [shiftId, fetchData]);
 
+    // Auto-print after load
     useEffect(() => {
         if (!loading && closing) {
-            // Auto-print after data loads
             setTimeout(() => {
                 window.print();
             }, 500);
         }
     }, [loading, closing]);
+
+    const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
+    const totalEmployeeChargesCash = employeeCharges
+        .filter(c => c.payment_method === 'CASH')
+        .reduce((sum, c) => sum + Number(c.total), 0);
+
+    const CHARGE_TYPE_LABELS: Record<string, string> = {
+        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+        PRODUCT: 'Producto', OTHER: 'Otro',
+    };
+    const CHARGE_PAYMENT_LABELS: Record<string, string> = {
+        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nóm', COURTESY: 'Cortesía',
+    };
 
     const formatMoney = (amount: number) => `$${amount.toFixed(2)}`;
     const formatDate = (dateStr: string) => {
@@ -292,15 +305,6 @@ function ThermalReceiptContent() {
     const employee = closing.employees;
     const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : "N/A";
     const totalDamages = damages.reduce((sum, dmg) => sum + dmg.amount, 0);
-    const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
-
-    const CHARGE_TYPE_LABELS: Record<string, string> = {
-        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
-        PRODUCT: 'Producto', OTHER: 'Otro',
-    };
-    const CHARGE_PAYMENT_LABELS: Record<string, string> = {
-        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nóm', COURTESY: 'Cortesía',
-    };
 
     return (
         <>
@@ -493,7 +497,7 @@ function ThermalReceiptContent() {
                     <div className="section-title">ARQUEO EFECTIVO</div>
                     <div className="row">
                         <span>Esperado:</span>
-                        <span>{formatMoney(closing.total_cash - (closing.total_expenses || 0))}</span>
+                        <span>{formatMoney(closing.total_cash - (closing.total_expenses || 0) + totalEmployeeChargesCash)}</span>
                     </div>
                     <div className="row">
                         <span>Contado:</span>
