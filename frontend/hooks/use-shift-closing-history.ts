@@ -30,6 +30,7 @@ export function useShiftClosingHistory() {
   const [closingDetails, setClosingDetails] = useState<any[]>([]);
   const [closingSalesOrders, setClosingSalesOrders] = useState<any[]>([]);
   const [closingReviews, setClosingReviews] = useState<any[]>([]);
+  const [employeeCharges, setEmployeeCharges] = useState<any[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [processingAction, setProcessingAction] = useState(false);
@@ -108,11 +109,28 @@ export function useShiftClosingHistory() {
     setClosingReviews(data || []);
   };
 
+  const loadEmployeeCharges = async (shiftSessionId: string) => {
+    const { data } = await supabase
+      .from('shift_employee_charges')
+      .select(`
+        id, charge_type, description, unit_price, quantity, subtotal,
+        discount_type, discount_value, discount_amount, total,
+        payment_method, notes, created_at, status,
+        charged_employee:charged_to(first_name, last_name, role)
+      `)
+      .eq('shift_session_id', shiftSessionId)
+      .neq('status', 'rejected')
+      .order('created_at', { ascending: true });
+    setEmployeeCharges(data || []);
+  };
+
   const openDetail = async (closing: ShiftClosing) => {
     setSelectedClosing(closing);
+    setEmployeeCharges([]);
     await Promise.all([
       loadClosingDetails(closing.id, closing.period_start, closing.period_end),
-      loadClosingReviews(closing.id)
+      loadClosingReviews(closing.id),
+      ...(closing.shift_session_id ? [loadEmployeeCharges(closing.shift_session_id)] : []),
     ]);
   };
 
@@ -393,7 +411,7 @@ export function useShiftClosingHistory() {
   return {
     // State
     closings, loading, currentEmployeeId, isAdmin, selectedClosing,
-    closingDetails, closingSalesOrders, closingReviews, loadingDetails,
+    closingDetails, closingSalesOrders, closingReviews, employeeCharges, loadingDetails,
     statusFilter, processingAction, currentPage, pageSize, totalCount,
     showRejectModal, rejectionReason, showCorrectionModal, correctionClosing,
     correctionCountedCash, correctionDeclaredBBVA, correctionDeclaredGetnet,

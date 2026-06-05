@@ -30,6 +30,23 @@ export interface EnrichedPayment {
   itemsRaw: Array<{ name: string; qty: number; unitPrice: number; total: number }> | null;
 }
 
+export interface EmployeeChargeEntry {
+  id: string;
+  charge_type: string;
+  description: string;
+  unit_price: number;
+  quantity: number;
+  subtotal: number;
+  discount_type: string | null;
+  discount_value: number;
+  discount_amount: number;
+  total: number;
+  payment_method: string;
+  notes: string | null;
+  created_at: string;
+  charged_employee?: { first_name: string; last_name: string; role: string } | null;
+}
+
 export interface PaymentSummary {
   total_cash: number;
   total_card_bbva: number;
@@ -44,6 +61,10 @@ export interface PaymentSummary {
   accrual_items: any[];
   unassigned_card_payments: EnrichedPayment[];
   unhandled_payment_methods: Array<{payment: EnrichedPayment, method: string}>;
+  // Employee Charges
+  employee_charges: EmployeeChargeEntry[];
+  total_employee_charges: number;
+  total_employee_charges_cash: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -150,6 +171,25 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       if (error) throw error;
       if (rpcResult?.error) throw new Error(rpcResult.error);
 
+      // Fetch employee charges for this shift
+      const { data: chargesData } = await supabase
+        .from('shift_employee_charges')
+        .select(`
+          id, charge_type, description, unit_price, quantity, subtotal,
+          discount_type, discount_value, discount_amount, total,
+          payment_method, notes, created_at,
+          charged_employee:charged_to(first_name, last_name, role)
+        `)
+        .eq('shift_session_id', session.id)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: true });
+
+      const employeeCharges: EmployeeChargeEntry[] = (chargesData || []) as any[];
+      const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
+      const totalEmployeeChargesCash = employeeCharges
+        .filter(c => c.payment_method === 'CASH')
+        .reduce((sum, c) => sum + Number(c.total), 0);
+
       setSummary({
         total_cash: Number(rpcResult.total_cash) || 0,
         total_card_bbva: Number(rpcResult.total_card_bbva) || 0,
@@ -164,6 +204,9 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         accrual_items: rpcResult.accrual_items || [],
         unassigned_card_payments: rpcResult.unassigned_card_payments || [],
         unhandled_payment_methods: rpcResult.unhandled_payment_methods || [],
+        employee_charges: employeeCharges,
+        total_employee_charges: totalEmployeeCharges,
+        total_employee_charges_cash: totalEmployeeChargesCash,
       });
     } catch (err) {
       console.error("Error loading payment summary:", err);
@@ -308,6 +351,16 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         cashDifference: 0, notes: notes.trim() || undefined,
         expenses,
         totalExpenses: summary.total_expenses || 0,
+        employeeCharges: (summary.employee_charges || []).map(c => ({
+          time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          employeeName: c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—',
+          chargeType: c.charge_type,
+          description: c.description,
+          total: Number(c.total),
+          discountAmount: Number(c.discount_amount),
+          paymentMethod: c.payment_method,
+        })),
+        totalEmployeeCharges: summary.total_employee_charges || 0,
         transactions: await Promise.all(summary.payments.map(async (payment: any) => {
           let items: any[] = [];
           if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {
@@ -505,6 +558,41 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       }));
       const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
+      // 6b. Fetch employee charges
+      const { data: chargesData } = await supabase
+        .from('shift_employee_charges')
+        .select(`
+          id, charge_type, description, unit_price, quantity, subtotal,
+          discount_type, discount_value, discount_amount, total,
+          payment_method, notes, created_at,
+          charged_employee:charged_to(first_name, last_name, role)
+        `)
+        .eq('shift_session_id', session.id)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: true });
+
+      const CHARGE_TYPE_LABELS: Record<string, string> = {
+        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+        PRODUCT: 'Producto', OTHER: 'Otro',
+      };
+      const CHARGE_PAYMENT_LABELS: Record<string, string> = {
+        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc. Nómina', COURTESY: 'Cortesía',
+      };
+
+      const employeeCharges = (chargesData || []).map((c: any) => ({
+        time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        employeeName: c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—',
+        chargeType: CHARGE_TYPE_LABELS[c.charge_type] || c.charge_type,
+        description: c.description,
+        quantity: c.quantity,
+        unitPrice: Number(c.unit_price),
+        discountAmount: Number(c.discount_amount),
+        total: Number(c.total),
+        paymentMethod: CHARGE_PAYMENT_LABELS[c.payment_method] || c.payment_method,
+      }));
+      const totalEmployeeCharges = employeeCharges.reduce((s: number, c: any) => s + c.total, 0);
+      const totalEmployeeChargesCash = (chargesData || []).filter((c: any) => c.payment_method === 'CASH').reduce((s: number, c: any) => s + Number(c.total), 0);
+
       // 7. Build HTML table rows helper
       const buildRow = (e: any) => {
         const isCancelled = e.stay_status === 'CANCELADA';
@@ -633,11 +721,19 @@ ${otherEntries.length > 0 ? `
             <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>
             <tr><td>Daños</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.damage).toFixed(2)}</td></tr>
             <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL VENTAS</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
-            ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr><tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(Number(totals.total) - totalExpenses).toFixed(2)}</td></tr>` : ''}
+            ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : ''}
+            ${totalEmployeeCharges > 0 ? `<tr><td style="color:#0891b2;">Cargos a empleados</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#0891b2;">+$${totalEmployeeChargesCash.toFixed(2)}</td></tr>` : ''}
+            ${(totalExpenses > 0 || totalEmployeeCharges > 0) ? `<tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(Number(totals.total) - totalExpenses + totalEmployeeChargesCash).toFixed(2)}</td></tr>` : ''}
         </tbody></table>
     </div>
 </div>
 ${expenses.length > 0 ? `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Gastos del Turno</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Descripci&oacute;n</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ''}
+${employeeCharges.length > 0 ? (() => {
+  const chargeRows = employeeCharges.map((c: any) =>
+    `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${c.time} — ${c.chargeType}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${c.employeeName}: ${c.description}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${c.paymentMethod}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;color:#0891b2;">$${c.total.toFixed(2)}</td></tr>`
+  ).join('');
+  return `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Cargos a Empleados</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Empleado / Desc.</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Pago</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${chargeRows}<tr><td colspan="3" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL CARGOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#0891b2;">$${totalEmployeeCharges.toFixed(2)}</td></tr></tbody></table></div>`;
+})() : ''}
 <div class="signature">
     <div class="sig-line"><div class="line"></div><span>Recepcionista</span></div>
     <div class="sig-line"><div class="line"></div><span>Supervisor / Gerente</span></div>

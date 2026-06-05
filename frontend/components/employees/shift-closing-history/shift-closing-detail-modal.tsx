@@ -23,6 +23,8 @@ interface ShiftClosingDetailModalProps {
   approveClosing: (id: string) => void;
   exportClosing: (closing: ShiftClosing) => void;
   openCorrectionModal: (closing: ShiftClosing) => void;
+  employeeCharges?: any[];
+  chargesLoading?: boolean;
 }
 
 const getStatusBadge = (status: ShiftClosing["status"]) => {
@@ -49,7 +51,9 @@ export function ShiftClosingDetailModal({
   openRejectModal,
   approveClosing,
   exportClosing,
-  openCorrectionModal
+  openCorrectionModal,
+  employeeCharges,
+  chargesLoading,
 }: ShiftClosingDetailModalProps) {
   if (!selectedClosing) return null;
 
@@ -383,6 +387,74 @@ export function ShiftClosingDetailModal({
               </div>
             </div>
           )}
+
+          {/* Cargos a Empleados */}
+          {!chargesLoading && employeeCharges && employeeCharges.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="p-3 bg-muted/50 border-b flex items-center justify-between">
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  🍳 Cargos a Empleados ({employeeCharges.length})
+                </h4>
+                <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                  Total: {formatCurrency(employeeCharges.reduce((sum: number, c: any) => sum + Number(c.total), 0))}
+                </Badge>
+              </div>
+              <div className="max-h-[250px] overflow-y-auto">
+                <div className="divide-y">
+                  {employeeCharges.map((charge: any, idx: number) => {
+                    const empName = charge.charged_employee
+                      ? `${charge.charged_employee.first_name} ${charge.charged_employee.last_name}`
+                      : '—';
+                    const CHARGE_LABELS: Record<string, string> = {
+                      BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+                      PRODUCT: 'Producto', OTHER: 'Otro',
+                    };
+                    const CHARGE_ICONS: Record<string, string> = {
+                      BREAKFAST: '🍳', LUNCH: '🍽️', CONSUMPTION: '☕', PRODUCT: '📦', OTHER: '📝',
+                    };
+                    const PAY_LABELS: Record<string, string> = {
+                      CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc. Nómina', COURTESY: 'Cortesía',
+                    };
+                    return (
+                      <div key={charge.id} className="p-3 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs text-muted-foreground font-mono">#{(idx + 1).toString().padStart(2, '0')}</span>
+                              <span className="text-sm font-medium">
+                                {new Date(charge.created_at).toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-500 border-cyan-500/30">
+                                {CHARGE_ICONS[charge.charge_type] || '📝'} {CHARGE_LABELS[charge.charge_type] || charge.charge_type}
+                              </Badge>
+                            </div>
+                            <p className="text-sm truncate">{charge.description}</p>
+                            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                              <span className="text-muted-foreground font-medium">{empName}</span>
+                              <Badge variant="secondary" className="text-[10px]">
+                                {PAY_LABELS[charge.payment_method] || charge.payment_method}
+                              </Badge>
+                              {Number(charge.discount_amount) > 0 && (
+                                <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  -{formatCurrency(Number(charge.discount_amount))} desc.
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className={`text-lg font-bold ${Number(charge.total) === 0 ? 'text-green-600' : 'text-cyan-600'}`}>
+                              {Number(charge.total) === 0 ? 'Cortesía' : formatCurrency(Number(charge.total))}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* Estado actual */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">

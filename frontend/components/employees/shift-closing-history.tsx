@@ -14,7 +14,7 @@ import { ShiftClosingCorrectionModal } from "./shift-closing-history/shift-closi
 export function ShiftClosingHistory() {
   const {
     closings, loading, isAdmin, selectedClosing,
-    closingDetails, closingSalesOrders, closingReviews, loadingDetails,
+    closingDetails, closingSalesOrders, closingReviews, employeeCharges, loadingDetails,
     statusFilter, processingAction, currentPage, pageSize, totalCount,
     showRejectModal, rejectionReason, showCorrectionModal, correctionClosing,
     correctionCountedCash, correctionDeclaredBBVA, correctionDeclaredGetnet,
@@ -81,6 +81,8 @@ export function ShiftClosingHistory() {
         approveClosing={approveClosing}
         exportClosing={exportClosing}
         openCorrectionModal={openCorrectionModal}
+        employeeCharges={employeeCharges}
+        chargesLoading={loadingDetails}
       />
 
       <ShiftClosingRejectModal

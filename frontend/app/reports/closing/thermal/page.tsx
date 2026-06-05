@@ -59,6 +59,17 @@ interface ShiftExpense {
     created_at: string;
 }
 
+interface EmployeeChargeItem {
+    id: string;
+    charge_type: string;
+    description: string;
+    total: number;
+    discount_amount: number;
+    payment_method: string;
+    created_at: string;
+    charged_employee?: { first_name: string; last_name: string } | null;
+}
+
 function ThermalReceiptContent() {
     const searchParams = useSearchParams();
     const shiftId = searchParams.get("shiftId");
@@ -66,6 +77,7 @@ function ThermalReceiptContent() {
     const [stays, setStays] = useState<RoomStay[]>([]);
     const [expenses, setExpenses] = useState<ShiftExpense[]>([]);
     const [damages, setDamages] = useState<DamageDetailItem[]>([]);
+    const [employeeCharges, setEmployeeCharges] = useState<EmployeeChargeItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
@@ -94,6 +106,19 @@ function ThermalReceiptContent() {
                 .neq("status", "rejected")
                 .order("created_at", { ascending: true });
             setExpenses(expensesData || []);
+
+            // Fetch employee charges
+            const { data: chargesData } = await supabase
+                .from("shift_employee_charges")
+                .select(`
+                    id, charge_type, description, total, discount_amount,
+                    payment_method, created_at,
+                    charged_employee:charged_to(first_name, last_name)
+                `)
+                .eq("shift_session_id", closingData.shift_session_id || shiftId)
+                .neq("status", "rejected")
+                .order("created_at", { ascending: true });
+            setEmployeeCharges((chargesData || []) as EmployeeChargeItem[]);
 
             // Fetch damages for this shift session, excluding room 13/113
             const { data: damagesData } = await supabase
@@ -267,6 +292,15 @@ function ThermalReceiptContent() {
     const employee = closing.employees;
     const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : "N/A";
     const totalDamages = damages.reduce((sum, dmg) => sum + dmg.amount, 0);
+    const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
+
+    const CHARGE_TYPE_LABELS: Record<string, string> = {
+        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+        PRODUCT: 'Producto', OTHER: 'Otro',
+    };
+    const CHARGE_PAYMENT_LABELS: Record<string, string> = {
+        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc.Nóm', COURTESY: 'Cortesía',
+    };
 
     return (
         <>
@@ -598,6 +632,36 @@ function ThermalReceiptContent() {
                     <div className="section">
                         <div className="section-title">NOTAS</div>
                         <p style={{ margin: 0, fontSize: '9px' }}>{closing.notes}</p>
+                    </div>
+                )}
+
+                {/* Cargos a Empleados */}
+                {employeeCharges.length > 0 && (
+                    <div className="section">
+                        <div className="section-title">CARGOS A EMPLEADOS</div>
+                        {employeeCharges.map((charge) => {
+                            const empName = charge.charged_employee
+                                ? `${charge.charged_employee.first_name} ${charge.charged_employee.last_name}`
+                                : '—';
+                            return (
+                                <div key={charge.id} className="row" style={{ fontSize: '9px' }}>
+                                    <span>
+                                        {formatTime(charge.created_at)}{' '}
+                                        {CHARGE_TYPE_LABELS[charge.charge_type] || charge.charge_type}:{' '}
+                                        {empName}
+                                    </span>
+                                    <span>
+                                        {Number(charge.total) === 0
+                                            ? 'CORT'
+                                            : formatMoney(Number(charge.total))}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                        <div className="row total">
+                            <span>TOTAL CARGOS:</span>
+                            <span>{formatMoney(totalEmployeeCharges)}</span>
+                        </div>
                     </div>
                 )}
 

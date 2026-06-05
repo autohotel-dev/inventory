@@ -61,6 +61,20 @@ interface DamageDetailItem {
     amount: number;
 }
 
+interface EmployeeChargeItem {
+    id: string;
+    charge_type: string;
+    description: string;
+    unit_price: number;
+    quantity: number;
+    subtotal: number;
+    discount_amount: number;
+    total: number;
+    payment_method: string;
+    created_at: string;
+    charged_employee?: { first_name: string; last_name: string } | null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 const formatMoney = (amount: number) =>
@@ -90,6 +104,7 @@ function PrintClosingContent() {
     const [stays, setStays] = useState<RoomStay[]>([]);
     const [expenses, setExpenses] = useState<ShiftExpense[]>([]);
     const [damages, setDamages] = useState<DamageDetailItem[]>([]);
+    const [employeeCharges, setEmployeeCharges] = useState<EmployeeChargeItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
@@ -114,6 +129,19 @@ function PrintClosingContent() {
             .neq("status", "rejected")
             .order("created_at", { ascending: true });
         setExpenses(expensesData || []);
+
+        // Fetch employee charges
+        const { data: chargesData } = await supabase
+            .from("shift_employee_charges")
+            .select(`
+                id, charge_type, description, unit_price, quantity, subtotal,
+                discount_amount, total, payment_method, created_at,
+                charged_employee:charged_to(first_name, last_name)
+            `)
+            .eq("shift_session_id", closingData.shift_session_id || shiftId)
+            .neq("status", "rejected")
+            .order("created_at", { ascending: true });
+        setEmployeeCharges((chargesData || []) as EmployeeChargeItem[]);
 
         // Fetch damages directly for the session, excluding rooms 13 and 113
         const { data: damagesData } = await supabase
@@ -256,6 +284,15 @@ function PrintClosingContent() {
     const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : "N/A";
     const netCash = closing.total_cash - (closing.total_expenses || 0);
     const totalDamages = damages.reduce((sum, dmg) => sum + dmg.amount, 0);
+    const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
+
+    const CHARGE_TYPE_LABELS: Record<string, string> = {
+        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
+        PRODUCT: 'Producto', OTHER: 'Otro',
+    };
+    const CHARGE_PAYMENT_LABELS: Record<string, string> = {
+        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc. Nómina', COURTESY: 'Cortesía',
+    };
 
     return (
         <>
@@ -484,6 +521,57 @@ function PrintClosingContent() {
                     <div style={styles.section}>
                         <h2 style={styles.sectionTitle}>Observaciones</h2>
                         <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>{closing.notes}</p>
+                    </div>
+                )}
+
+                {/* ═══ CARGOS A EMPLEADOS ═══ */}
+                {employeeCharges.length > 0 && (
+                    <div style={styles.section}>
+                        <h2 style={styles.sectionTitle}>Cargos a Empleados ({employeeCharges.length})</h2>
+                        <table style={styles.table}>
+                            <thead>
+                                <tr>
+                                    <th style={styles.th}>Hora</th>
+                                    <th style={styles.th}>Empleado</th>
+                                    <th style={styles.th}>Tipo</th>
+                                    <th style={styles.th}>Descripción</th>
+                                    <th style={{ ...styles.th, textAlign: 'right' }}>Desc.</th>
+                                    <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
+                                    <th style={styles.th}>Pago</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {employeeCharges.map((charge) => {
+                                    const empName = charge.charged_employee
+                                        ? `${charge.charged_employee.first_name} ${charge.charged_employee.last_name}`
+                                        : '—';
+                                    return (
+                                        <tr key={charge.id}>
+                                            <td style={styles.td}>{formatTime(charge.created_at)}</td>
+                                            <td style={styles.td}>{empName}</td>
+                                            <td style={styles.td}>{CHARGE_TYPE_LABELS[charge.charge_type] || charge.charge_type}</td>
+                                            <td style={styles.td}>{charge.description}</td>
+                                            <td style={{ ...styles.td, textAlign: 'right', color: Number(charge.discount_amount) > 0 ? '#059669' : '#9ca3af' }}>
+                                                {Number(charge.discount_amount) > 0 ? `-${formatMoney(Number(charge.discount_amount))}` : '—'}
+                                            </td>
+                                            <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600, color: Number(charge.total) === 0 ? '#059669' : '#0891b2' }}>
+                                                {Number(charge.total) === 0 ? 'Cortesía' : formatMoney(Number(charge.total))}
+                                            </td>
+                                            <td style={{ ...styles.td, fontSize: '11px' }}>
+                                                {CHARGE_PAYMENT_LABELS[charge.payment_method] || charge.payment_method}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                <tr style={{ fontWeight: 'bold', background: '#fafafa' }}>
+                                    <td colSpan={5} style={{ ...styles.td, textAlign: 'right', borderTop: '2px solid #e5e7eb' }}>TOTAL CARGOS</td>
+                                    <td style={{ ...styles.td, textAlign: 'right', borderTop: '2px solid #e5e7eb', color: '#0891b2', fontWeight: 700 }}>
+                                        {formatMoney(totalEmployeeCharges)}
+                                    </td>
+                                    <td style={{ ...styles.td, borderTop: '2px solid #e5e7eb' }}></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 )}
 

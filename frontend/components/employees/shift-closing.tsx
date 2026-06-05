@@ -42,6 +42,8 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
     formatCurrency: fc,
   } = useShiftClosing({ session, onComplete });
 
+  const [showCharges, setShowCharges] = useState(false);
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background border-0 shadow-2xl">
@@ -197,7 +199,7 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
               </div>
             </div>
 
-            {/* ═══ GASTOS + EFECTIVO NETO ═══ */}
+            {/* ═══ GASTOS + CARGOS A EMPLEADOS + EFECTIVO NETO ═══ */}
             <div className="grid grid-cols-2 gap-4">
               {/* Gastos */}
               <div
@@ -242,6 +244,52 @@ export function ShiftClosingModal({ session, onClose, onComplete }: ShiftClosing
                 </div>
               </div>
             </div>
+
+            {/* ═══ CARGOS A EMPLEADOS (solo si hay) ═══ */}
+            {(summary?.employee_charges?.length || 0) > 0 && (
+              <div
+                className="rounded-2xl border bg-background/50 backdrop-blur-md p-5 transition-all duration-300 cursor-pointer hover:shadow-lg border-cyan-200/50 dark:border-cyan-900/50 hover:border-cyan-400/50"
+                onClick={() => setShowCharges(!showCharges)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">🍳 Cargos a Empleados</span>
+                  <Badge variant="outline" className="text-[10px] bg-cyan-500/10 text-cyan-600 border-cyan-500/20 font-bold px-2">
+                    {summary?.employee_charges?.length} CARGOS
+                  </Badge>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <p className="text-2xl font-black font-mono tracking-tighter text-cyan-600 dark:text-cyan-500">
+                    {formatCurrency(summary?.total_employee_charges || 0)}
+                  </p>
+                  {(summary?.total_employee_charges_cash || 0) > 0 && (summary?.total_employee_charges_cash || 0) !== (summary?.total_employee_charges || 0) && (
+                    <span className="text-[10px] text-muted-foreground">
+                      ({formatCurrency(summary?.total_employee_charges_cash || 0)} en efectivo)
+                    </span>
+                  )}
+                </div>
+                {showCharges && summary?.employee_charges && summary.employee_charges.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-border/50 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                    {summary.employee_charges.map((charge: any) => {
+                      const empName = charge.charged_employee ? `${charge.charged_employee.first_name} ${charge.charged_employee.last_name}` : '—';
+                      const CHARGE_ICONS: Record<string, string> = { BREAKFAST: '🍳', LUNCH: '🍽️', CONSUMPTION: '☕', PRODUCT: '📦', OTHER: '📝' };
+                      const PAYMENT_ICONS: Record<string, string> = { CASH: '💵', DEDUCCION_NOMINA: '📋', COURTESY: '🎁' };
+                      return (
+                        <div key={charge.id} className="flex justify-between items-center text-xs p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
+                          <div className="flex-1 pr-3">
+                            <span className="font-medium">{CHARGE_ICONS[charge.charge_type] || '📝'} {charge.description}</span>
+                            <span className="text-muted-foreground ml-2">— {empName}</span>
+                            <span className="text-muted-foreground ml-1">{PAYMENT_ICONS[charge.payment_method] || ''}</span>
+                          </div>
+                          <span className="font-bold text-cyan-700 dark:text-cyan-400 font-mono">
+                            {Number(charge.total) === 0 ? 'Cortesía' : `$${Number(charge.total).toFixed(0)}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ═══ OBSERVACIONES ═══ */}
             <div className="space-y-2 bg-background/50 backdrop-blur-md border border-border/50 rounded-2xl p-5">
