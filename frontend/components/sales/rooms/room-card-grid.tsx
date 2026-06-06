@@ -111,6 +111,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
         valetPending,
         activeStay,
         tvRemoteStatus: tvRemote?.status || 'SIN_REGISTRO',
+        tvAssignedName: tvRemote?.assigned_employee_name || null,
       };
     });
   }, [rooms, getRemainingTimeLabel]);
@@ -127,7 +128,8 @@ export const RoomCardGrid = memo(function RoomCardGrid({
         isCriticalService,
         valetPending,
         activeStay,
-        tvRemoteStatus
+        tvRemoteStatus,
+        tvAssignedName
       }) => {
 
 
@@ -178,6 +180,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             valetId={activeStay && (status === "OCUPADA" || status === "BLOQUEADA") ? activeStay.valet_employee_id : null}
             onCancelStay={onCancelStay ? () => onCancelStay(room) : undefined}
             tvRemoteStatus={tvRemoteStatus}
+            tvAssignedName={tvAssignedName}
             onAssignRemote={onAssignRemote ? () => onAssignRemote(room) : undefined}
           />
         );

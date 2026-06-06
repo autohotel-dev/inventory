@@ -113,6 +113,7 @@ export interface Room {
     asset_type: string;
     status: string;
     assigned_employee_id: string | null;
+    assigned_employee_name?: string | null;
   }[];
   notes?: string | null;
 }

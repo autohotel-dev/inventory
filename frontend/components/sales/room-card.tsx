@@ -76,6 +76,7 @@ export interface RoomCardProps {
   onViewServices?: () => void;
   onCancelStay?: () => void;
   tvRemoteStatus?: string; // e.g. PENDIENTE_ENCENDIDO, TV_ENCENDIDA, EN_HABITACION, EXTRAVIADO
+  tvAssignedName?: string | null; // Name of the cochero assigned to handle TV
   onAssignRemote?: () => void;
   isLowPowerMode?: boolean;
 }
@@ -104,6 +105,7 @@ export function RoomCardComponent({
   onViewServices,
   onCancelStay,
   tvRemoteStatus,
+  tvAssignedName,
   onAssignRemote,
   isLowPowerMode,
 }: RoomCardProps) {
@@ -436,13 +438,15 @@ export function RoomCardComponent({
                 onAssignRemote?.();
               }}
               title={
-                tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "TV: Esperando encendido por cochero" :
-                tvRemoteStatus === "TV_ENCENDIDA" ? "TV: Encendida" :
+                tvRemoteStatus === "PENDIENTE_ENCENDIDO" 
+                  ? `TV: Esperando encendido${tvAssignedName ? ` por ${tvAssignedName}` : ' por cochero'}` :
+                tvRemoteStatus === "TV_ENCENDIDA" 
+                  ? `TV: Encendida${tvAssignedName ? ` por ${tvAssignedName}` : ''}` :
                 tvRemoteStatus === "EXTRAVIADO" ? "TV: Control extraviado" :
                 "TV: Control en habitación"
               }
               className={cn(
-                "h-6 w-6 flex items-center justify-center rounded-md border shadow-md transition-all hover:scale-125 active:scale-95",
+                "relative h-6 w-6 flex items-center justify-center rounded-md border shadow-md transition-all hover:scale-125 active:scale-95",
                 tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/30 border-orange-400 text-orange-300 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.5)]" :
                 tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.4)]" :
                 tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/40 border-red-400 text-red-300 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" :
@@ -450,6 +454,19 @@ export function RoomCardComponent({
               )}
             >
               <Tv className="h-3.5 w-3.5" />
+              {/* Inicial del cochero asignado */}
+              {tvAssignedName && (tvRemoteStatus === "PENDIENTE_ENCENDIDO" || tvRemoteStatus === "TV_ENCENDIDA") && (
+                <span 
+                  className={cn(
+                    "absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full flex items-center justify-center text-[7px] font-black border shadow-sm",
+                    tvRemoteStatus === "PENDIENTE_ENCENDIDO" 
+                      ? "bg-orange-500 border-orange-600 text-white" 
+                      : "bg-emerald-500 border-emerald-600 text-white"
+                  )}
+                >
+                  {tvAssignedName.charAt(0).toUpperCase()}
+                </span>
+              )}
             </button>
           )}
           {statusBadge}
@@ -564,6 +581,7 @@ function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
   if (oldProps.notes !== newProps.notes) return false;
   if (oldProps.roomTypeName !== newProps.roomTypeName) return false;
   if (oldProps.tvRemoteStatus !== newProps.tvRemoteStatus) return false;
+  if (oldProps.tvAssignedName !== newProps.tvAssignedName) return false;
   if (oldProps.isLowPowerMode !== newProps.isLowPowerMode) return false;
 
   // Shallow Compare for objects
