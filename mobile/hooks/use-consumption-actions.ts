@@ -281,9 +281,23 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
-    const handleCancelConsumption = useCallback(async (consumptionId: string) => {
+    const handleCancelConsumption = useCallback(async (consumptionId: string, valetId?: string) => {
         setLoading(true);
         try {
+            // Verificar que el item le pertenece al cochero antes de cancelar
+            if (valetId) {
+                const { data: item } = await supabase
+                    .from('sales_order_items')
+                    .select('delivery_accepted_by')
+                    .eq('id', consumptionId)
+                    .single();
+
+                if (item?.delivery_accepted_by && item.delivery_accepted_by !== valetId) {
+                    showFeedback('No autorizado', 'Solo puedes cancelar servicios que tú aceptaste', 'error');
+                    return false;
+                }
+            }
+
             const { error } = await supabase
                 .from('sales_order_items')
                 .update({

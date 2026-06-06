@@ -410,7 +410,8 @@ function RoomActionModal({
                                                     activeOpacity={0.8}
                                                     onPress={() => {
                                                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                                                        onUpdateStatus(room.id, action.status, null);
+                                                        // Al desbloquear, limpiar notas y foto de mantenimiento
+                                                        onUpdateStatus(room.id, action.status, null, null);
                                                         onClose();
                                                     }}
                                                     style={{
@@ -459,7 +460,7 @@ function RoomActionModal({
                                                 if (action.status === 'BLOQUEADA') {
                                                     setIsReportingMaintenance(true);
                                                 } else {
-                                                    onUpdateStatus(room.id, action.status, null);
+                                                    onUpdateStatus(room.id, action.status);
                                                     onClose();
                                                 }
                                             }}
@@ -607,6 +608,7 @@ export default function CamaristaPanel() {
                     number,
                     status,
                     notes,
+                    maintenance_image_url,
                     room_type_id,
                     room_types(*)
                 `)
@@ -666,7 +668,7 @@ export default function CamaristaPanel() {
         syncOfflineQueue().then(() => fetchRooms());
     };
 
-    const updateRoomStatus = async (roomId: string, newStatus: string, notes: string | null = null, maintenanceImageUrl: string | null = null) => {
+    const updateRoomStatus = async (roomId: string, newStatus: string, notes?: string | null, maintenanceImageUrl?: string | null) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         // Optimistic update
@@ -685,7 +687,7 @@ export default function CamaristaPanel() {
                 console.log('[Offline] Guardando acción en cola...');
                 await addOfflineAction({
                     type: 'UPDATE_ROOM_STATUS',
-                    payload: { roomId, newStatus, notes, maintenanceImageUrl } as any
+                    payload: { roomId, newStatus, notes, maintenanceImageUrl }
                 });
                 return; // Salir sin hacer la llamada a Supabase
             }

@@ -42,12 +42,19 @@ export default function DashboardScreen() {
     const pulseAnim = useRef(new Animated.Value(1)).current;
     useEffect(() => {
         if (urgentRooms.length > 0) {
-            Animated.loop(
+            const animation = Animated.loop(
                 Animated.sequence([
                     Animated.timing(pulseAnim, { toValue: 1.03, duration: 800, useNativeDriver: true }),
                     Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
                 ])
-            ).start();
+            );
+            animation.start();
+            return () => {
+                animation.stop();
+                pulseAnim.setValue(1);
+            };
+        } else {
+            pulseAnim.setValue(1);
         }
     }, [urgentRooms.length]);
 
@@ -150,7 +157,7 @@ export default function DashboardScreen() {
                         .select('amount')
                         .eq('collected_by', employeeId)
                         .gte('created_at', session.clock_in_at)
-                        .eq('status', 'COMPLETADO');
+                        .in('status', ['COBRADO_POR_VALET', 'COMPLETADO']);
 
                     const totalCollected = (payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
 
@@ -194,10 +201,16 @@ export default function DashboardScreen() {
         fetchCurrentShift();
         fetchStatsRef.current();
 
+        let timeout: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fetchStatsRef.current(), 1000);
+        };
+
         const channel = supabase.channel('dashboard-stats')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, () => fetchStatsRef.current())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, () => fetchStatsRef.current())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchStatsRef.current())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, debouncedFetch)
             .subscribe();
 
         const interval = setInterval(() => fetchStatsRef.current(), 30000);
@@ -205,6 +218,7 @@ export default function DashboardScreen() {
         return () => {
             supabase.removeChannel(channel);
             clearInterval(interval);
+            clearTimeout(timeout);
         };
     }, []);
 

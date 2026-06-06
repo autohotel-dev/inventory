@@ -75,6 +75,12 @@ export const CheckoutModal = memo(({
     const toggleChecklist = (field: keyof typeof checklist) => {
         setChecklist((prev: any) => ({ ...prev, [field]: !prev[field] }));
     };
+
+    // sales_orders can be an array or single object depending on the join
+    const orders = room?.stay?.sales_orders;
+    const computedRemainingAmount = Array.isArray(orders)
+        ? orders.reduce((sum: number, o: any) => sum + (o.remaining_amount || 0), 0)
+        : (orders?.remaining_amount || 0);
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
@@ -95,10 +101,10 @@ export const CheckoutModal = memo(({
                                 <Text className="text-3xl font-black text-zinc-900 dark:text-white">{room?.stay?.check_in_at ? `${Math.floor((Date.now() - new Date(room.stay.check_in_at).getTime()) / 3600000)}h ${Math.floor(((Date.now() - new Date(room.stay.check_in_at).getTime()) % 3600000) / 60000)}m` : '--'}</Text>
                             </View>
 
-                            {(room?.stay?.sales_orders?.remaining_amount ?? 0) > 0 && (
+                            {computedRemainingAmount > 0 && (
                                 <View className={`rounded-2xl p-5 mb-6 border-2 bg-amber-500/10 border-amber-500/50`}>
                                     <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 text-amber-500`}>Saldo Pendiente</Text>
-                                    <Text className="text-2xl font-black text-white">${(room?.stay?.sales_orders?.remaining_amount ?? 0).toFixed(2)}</Text>
+                                    <Text className="text-2xl font-black text-white">${computedRemainingAmount.toFixed(2)}</Text>
                                 </View>
                             )}
 
@@ -301,7 +307,7 @@ export const CheckoutModal = memo(({
                                             Ingresa cómo paga el cliente para agilizar la salida en recepción.
                                         </Text>
                                         <MultiPaymentInput
-                                            totalAmount={room?.stay?.sales_orders?.remaining_amount ?? 0}
+                                            totalAmount={computedRemainingAmount}
                                             payments={payments}
                                             onPaymentsChange={setPayments}
                                             disabled={actionLoading}

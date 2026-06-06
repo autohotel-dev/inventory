@@ -10,6 +10,7 @@ export interface OfflineAction {
     roomId: string;
     newStatus: string;
     notes?: string | null;
+    maintenanceImageUrl?: string | null;
   };
   timestamp: number;
 }
@@ -70,6 +71,9 @@ export const syncOfflineQueue = async (): Promise<number> => {
         const updatePayload: any = { status: action.payload.newStatus };
         if (action.payload.notes !== undefined) {
           updatePayload.notes = action.payload.notes;
+        }
+        if (action.payload.maintenanceImageUrl !== undefined) {
+          updatePayload.maintenance_image_url = action.payload.maintenanceImageUrl;
         }
 
         const { error } = await supabase

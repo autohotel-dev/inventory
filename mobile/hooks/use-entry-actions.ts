@@ -19,10 +19,9 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         try {
             // Intento 1: ¿Estamos Offline? Encolarlo.
             const isEnqueued = await SyncQueue.enqueue({
-                type: 'UPDATE',
-                table: 'room_stays',
-                payload: { valet_employee_id: valetId },
-                matchCriteria: { id: stayId }
+                type: 'RPC',
+                rpcName: 'claim_entry_valet',
+                payload: { p_stay_id: stayId, p_valet_id: valetId }
             });
 
             if (isEnqueued) {

@@ -188,10 +188,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'active')
                 .maybeSingle();
 
+            // Obtener product_id del item base de la orden
+            const { data: baseItem } = await supabase
+                .from('sales_order_items')
+                .select('product_id')
+                .eq('sales_order_id', salesOrderId)
+                .eq('concept_type', 'ROOM_BASE')
+                .limit(1)
+                .maybeSingle();
+
             const { data: item, error: itemError } = await supabase
                 .from('sales_order_items')
                 .insert({
                     sales_order_id: salesOrderId,
+                    product_id: baseItem?.product_id || null,
                     concept_type: 'DAMAGE_CHARGE',
                     description: `DAÑO: ${description}`,
                     unit_price: amount,
@@ -222,6 +232,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 if (insErr) throw insErr;
             }
 
+            // Actualizar totales de la orden
+            const { data: currentOrder } = await supabase
+                .from('sales_orders')
+                .select('total, remaining_amount')
+                .eq('id', salesOrderId)
+                .single();
+
+            if (currentOrder) {
+                await supabase.from('sales_orders').update({
+                    total: (currentOrder.total || 0) + amount,
+                    remaining_amount: (currentOrder.remaining_amount || 0) + amount,
+                }).eq('id', salesOrderId);
+            }
+
             showFeedback('✅ Daño Informado', `Hab. ${roomNumber}: Cargo por $${amount.toFixed(2)} generado. Corrobora el cobro en recepción.`);
             await onRefresh();
             return true;
@@ -250,10 +274,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'active')
                 .maybeSingle();
 
+            // Obtener product_id del item base de la orden
+            const { data: baseItem } = await supabase
+                .from('sales_order_items')
+                .select('product_id')
+                .eq('sales_order_id', salesOrderId)
+                .eq('concept_type', 'ROOM_BASE')
+                .limit(1)
+                .maybeSingle();
+
             const { data: item, error: itemError } = await supabase
                 .from('sales_order_items')
                 .insert({
                     sales_order_id: salesOrderId,
+                    product_id: baseItem?.product_id || null,
                     concept_type: 'EXTRA_HOUR',
                     description: 'HORA EXTRA (COCHERO)',
                     unit_price: amount,
@@ -284,6 +318,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 if (insErr) throw insErr;
             }
 
+            // Actualizar totales de la orden
+            const { data: currentOrder } = await supabase
+                .from('sales_orders')
+                .select('total, remaining_amount')
+                .eq('id', salesOrderId)
+                .single();
+
+            if (currentOrder) {
+                await supabase.from('sales_orders').update({
+                    total: (currentOrder.total || 0) + amount,
+                    remaining_amount: (currentOrder.remaining_amount || 0) + amount,
+                }).eq('id', salesOrderId);
+            }
+
             showFeedback('✅ Hora Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
             await onRefresh();
             return true;
@@ -312,10 +360,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'active')
                 .maybeSingle();
 
+            // Obtener product_id del item base de la orden
+            const { data: baseItem } = await supabase
+                .from('sales_order_items')
+                .select('product_id')
+                .eq('sales_order_id', salesOrderId)
+                .eq('concept_type', 'ROOM_BASE')
+                .limit(1)
+                .maybeSingle();
+
             const { data: item, error: itemError } = await supabase
                 .from('sales_order_items')
                 .insert({
                     sales_order_id: salesOrderId,
+                    product_id: baseItem?.product_id || null,
                     concept_type: 'EXTRA_PERSON',
                     description: 'PERSONA EXTRA (COCHERO)',
                     unit_price: amount,
@@ -344,6 +402,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     shift_session_id: session?.id || null,
                 });
                 if (insErr) throw insErr;
+            }
+
+            // Actualizar totales de la orden
+            const { data: currentOrder } = await supabase
+                .from('sales_orders')
+                .select('total, remaining_amount')
+                .eq('id', salesOrderId)
+                .single();
+
+            if (currentOrder) {
+                await supabase.from('sales_orders').update({
+                    total: (currentOrder.total || 0) + amount,
+                    remaining_amount: (currentOrder.remaining_amount || 0) + amount,
+                }).eq('id', salesOrderId);
             }
 
             showFeedback('✅ Persona Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
@@ -442,10 +514,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
 
             // If missing and damageAmount > 0, create a damage charge
             if (newStatus === 'PERDIDO' && damageAmount > 0) {
+                // Obtener product_id del item base de la orden
+                const { data: baseItem } = await supabase
+                    .from('sales_order_items')
+                    .select('product_id')
+                    .eq('sales_order_id', salesOrderId)
+                    .eq('concept_type', 'ROOM_BASE')
+                    .limit(1)
+                    .maybeSingle();
+
                 const { error: chargeError } = await supabase
                     .from('sales_order_items')
                     .insert({
                         sales_order_id: salesOrderId,
+                        product_id: baseItem?.product_id || null,
                         concept_type: 'DAMAGE_CHARGE',
                         description: `DAÑO: Faltante de ${itemName}`,
                         unit_price: damageAmount,
@@ -455,6 +537,20 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                     });
                 
                 if (chargeError) throw chargeError;
+
+                // Actualizar totales de la orden
+                const { data: currentOrder } = await supabase
+                    .from('sales_orders')
+                    .select('total, remaining_amount')
+                    .eq('id', salesOrderId)
+                    .single();
+
+                if (currentOrder) {
+                    await supabase.from('sales_orders').update({
+                        total: (currentOrder.total || 0) + damageAmount,
+                        remaining_amount: (currentOrder.remaining_amount || 0) + damageAmount,
+                    }).eq('id', salesOrderId);
+                }
 
                 // Notify reception
                 const { data: receptionSessions } = await supabase

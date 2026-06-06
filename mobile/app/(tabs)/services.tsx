@@ -373,7 +373,7 @@ export default function ServicesScreen() {
                                                                 <Text className="text-[10px] font-black uppercase tracking-wider text-white">Entregar</Text>
                                                             </TouchableOpacity>
                                                         ) : null}
-                                                        <TouchableOpacity onPress={() => showConfirm('Cancelar', '¿Deseas cancelar?', () => handleCancelConsumption(item.id), { type: 'danger' })} className={`p-2 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                                                        <TouchableOpacity onPress={() => showConfirm('Cancelar', '¿Deseas cancelar?', () => handleCancelConsumption(item.id, employeeId!), { type: 'danger' })} className={`p-2 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
                                                             <XCircle color="#ef4444" size={16} />
                                                         </TouchableOpacity>
                                                     </View>
