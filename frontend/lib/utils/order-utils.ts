@@ -37,13 +37,18 @@ export interface PendingItemSummary {
 }
 
 export function summarizePendingItems(
-  items: Array<{ concept_type?: string; total?: number; is_paid?: boolean; is_cancelled?: boolean }>
+  items: Array<{ concept_type?: string; total?: number; is_paid?: boolean; is_cancelled?: boolean; delivery_status?: string }>
 ): { pendingItems: PendingItemSummary[]; hasUndeliveredItems: boolean } {
   const pendingByType: Record<string, { total: number; count: number }> = {};
-  const hasUndeliveredItems = false;
+  let hasUndeliveredItems = false;
 
   for (const item of items) {
     if (item.is_cancelled) continue;
+
+    // Check if this item is blocking checkout
+    if (!item.is_paid && isItemBlockingCheckout(item)) {
+      hasUndeliveredItems = true;
+    }
 
     if (!item.is_paid) {
       const type = item.concept_type || "PRODUCT";

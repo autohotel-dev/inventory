@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { EmployeePerformanceData } from "@/components/analytics/employee-performance/types";
 
@@ -65,8 +65,8 @@ export function useEmployeePerformance() {
                 .from('shift_sessions')
                 .select('id')
                 .eq('employee_id', emp.id)
-                .gte('start_time', today)
-                .lte('start_time', `${today} 23:59:59`);
+                .gte('clock_in_at', today + 'T00:00:00')
+                .lte('clock_in_at', today + 'T23:59:59');
 
               const shiftIds = employeeShifts?.map((shift: any) => shift.id) || [];
 
@@ -131,7 +131,7 @@ export function useEmployeePerformance() {
               : 0;
 
             const lastActivity = todayStays && todayStays.length > 0
-              ? format(new Date(Math.max(...todayStays.map((s: any) => new Date(s.check_in_at).getTime()))), 'Hace X min', { locale: es })
+              ? formatDistanceToNow(new Date(Math.max(...todayStays.map((s: any) => new Date(s.check_in_at).getTime()))), { addSuffix: true, locale: es })
               : "Sin actividad hoy";
 
             const status = todayStays && todayStays.length > 0

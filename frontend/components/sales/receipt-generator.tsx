@@ -66,14 +66,15 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
 
       if (orderError) throw orderError;
 
-      // Obtener items
+      // Obtener items (excluir cancelados)
       const { data: items } = await supabase
         .from("sales_order_items")
         .select(`
           id, qty, unit_price, total, concept_type, is_paid, payment_method,
           products:product_id(name, sku)
         `)
-        .eq("sales_order_id", orderId);
+        .eq("sales_order_id", orderId)
+        .neq("is_cancelled", true);
 
       // Obtener pagos
       const { data: payments } = await supabase
@@ -195,10 +196,8 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
         </div>
 
         <div class="totals">
-          <div class="total-row">
-            <span>Subtotal:</span>
-            <span>${formatCurrency(receiptData.order.total)}</span>
-          </div>
+          <div class="total-row grand">
+            <span>Total:</span>
             <span>${formatCurrency(receiptData.order.total)}</span>
           </div>
           ${(() => {
