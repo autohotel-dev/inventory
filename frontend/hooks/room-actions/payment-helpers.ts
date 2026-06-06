@@ -116,7 +116,7 @@ export async function updatePendingPaymentsHelper(
     return totalPaid;
   }
 
-  logger.info("Found pending payments to update", {
+  logger.debug("Found pending payments to update", {
     count: pendingPayments.length,
     payments: pendingPayments,
     totalPaid
@@ -187,13 +187,13 @@ export async function updatePendingPaymentsHelper(
         .update(updateData)
         .eq("id", pending.id);
 
-      logger.info("Updated pending payment (single payment)", {
+      logger.debug("Updated pending payment (single payment)", {
         paymentId: pending.id,
         updates: { status: "PAGADO", payment_method: p.method }
       });
     }
 
-    logger.info("Updated pending payment to PAGADO", {
+    logger.debug("Updated pending payment to PAGADO", {
       paymentId: pending.id,
       concept: pending.concept,
       amount: pending.amount,
@@ -217,7 +217,7 @@ export async function updatePendingPaymentsHelper(
         .update({ remaining_amount: newRemaining, paid_amount: newPaid })
         .eq("id", salesOrderId);
 
-      logger.info("Updated sales_order totals after pending payment", {
+      logger.debug("Updated sales_order totals after pending payment", {
         salesOrderId,
         paidAmountApplied,
         newRemaining,

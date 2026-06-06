@@ -205,7 +205,7 @@ export function GranularPaymentModal({
                       applyDiscount={applyDiscount}
                       removeDiscount={removeDiscount}
                       deleteUnpaidItem={(id) => deleteUnpaidItem(id, roomNumber || '')}
-                      forceUnlockItem={(id) => { }}
+                      forceUnlockItem={(id) => session.forceUnlockItem(id)}
                       setShowDiscountInput={setShowDiscountInput}
                       setConfirmDeleteId={setConfirmDeleteId}
                       isRefundItem={isRefundItem}

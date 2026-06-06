@@ -60,7 +60,6 @@ export const SERVICE_CONCEPTS = [
   ...VALET_CONCEPTS,
   'TOLERANCE_EXPIRED',
   'LATE_CHECKOUT',
-  'PROMO_4H'
 ];
 
 /**

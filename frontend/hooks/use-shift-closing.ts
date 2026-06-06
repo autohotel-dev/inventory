@@ -324,15 +324,8 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         ROOM_CHANGE_ADJUSTMENT: "Cambio de Hab.",
       };
 
-      // Load expenses for the shift
-      const { data: expenseData } = await supabase
-        .from('shift_expenses')
-        .select('*')
-        .eq('shift_session_id', session.id)
-        .neq('status', 'rejected')
-        .order('created_at', { ascending: true });
-
-      const expenses = (expenseData || []).map((exp: any) => ({
+      // Reuse expenses from summary (already loaded by loadPaymentSummary)
+      const expenses = (summary.expenses || []).map((exp: any) => ({
         time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         type: exp.expense_type,
         description: exp.description,
@@ -417,6 +410,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   // ─── Print HP (letter-size income report via browser print dialog) ──────────
 
   const handlePrintHP = async () => {
+    if (!summary) return;
     try {
       const employeeName = `${session.employees?.first_name} ${session.employees?.last_name}`;
       const periodStart = session.clock_in_at;
@@ -535,20 +529,13 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       })();
       const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
 
-      // 6. Fetch shift expenses
-      const { data: expenseData } = await supabase
-        .from('shift_expenses')
-        .select('*')
-        .eq('shift_session_id', session.id)
-        .neq('status', 'rejected')
-        .order('created_at', { ascending: true });
-
+      // 6. Reuse expenses from summary (already loaded by loadPaymentSummary)
       const EXPENSE_LABELS: Record<string, string> = {
         UBER: '🚗 Uber / Transporte', MAINTENANCE: '🔧 Mantenimiento', REPAIR: '🛠️ Reparación',
         SUPPLIES: '📦 Insumos', PETTY_CASH: '💵 Caja Chica', OTHER: '📝 Otro Gasto',
       };
 
-      const expenses = (expenseData || []).map((exp: any) => ({
+      const expenses = (summary.expenses || []).map((exp: any) => ({
         time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         type: exp.expense_type,
         typeLabel: EXPENSE_LABELS[exp.expense_type] || exp.expense_type,
@@ -558,19 +545,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       }));
       const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
-      // 6b. Fetch employee charges
-      const { data: chargesData } = await supabase
-        .from('shift_employee_charges')
-        .select(`
-          id, charge_type, description, unit_price, quantity, subtotal,
-          discount_type, discount_value, discount_amount, total,
-          payment_method, notes, created_at,
-          charged_employee:charged_to(first_name, last_name, role)
-        `)
-        .eq('shift_session_id', session.id)
-        .neq('status', 'rejected')
-        .order('created_at', { ascending: true });
-
+      // 6b. Reuse employee charges from summary (already loaded by loadPaymentSummary)
       const CHARGE_TYPE_LABELS: Record<string, string> = {
         BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
         PRODUCT: 'Producto', OTHER: 'Otro',
@@ -579,7 +554,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc. Nómina', COURTESY: 'Cortesía',
       };
 
-      const employeeCharges = (chargesData || []).map((c: any) => ({
+      const employeeCharges = (summary.employee_charges || []).map((c: any) => ({
         time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         employeeName: c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—',
         chargeType: CHARGE_TYPE_LABELS[c.charge_type] || c.charge_type,
@@ -591,7 +566,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         paymentMethod: CHARGE_PAYMENT_LABELS[c.payment_method] || c.payment_method,
       }));
       const totalEmployeeCharges = employeeCharges.reduce((s: number, c: any) => s + c.total, 0);
-      const totalEmployeeChargesCash = (chargesData || []).filter((c: any) => c.payment_method === 'CASH').reduce((s: number, c: any) => s + Number(c.total), 0);
+      const totalEmployeeChargesCash = (summary.employee_charges || []).filter((c: any) => c.payment_method === 'CASH').reduce((s: number, c: any) => s + Number(c.total), 0);
 
       // 7. Build HTML table rows helper
       const buildRow = (e: any) => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { VALET_CONCEPTS, CONCEPT_LABELS, VALET_TO_SYSTEM_MAP, OrderItem } from "@/components/sales/payment/payment-constants";
@@ -17,8 +17,13 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
   const [isWaitingForValet, setIsWaitingForValet] = useState(false);
   const [waitingReason, setWaitingReason] = useState<'check-in' | 'items' | null>(null);
 
+  // Stable ref for items to avoid cascading re-fetches
+  const itemsRef = useRef(items);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
   const fetchValetData = useCallback(async () => {
     if (!salesOrderId) return;
+    const items = itemsRef.current;
     try {
       const supabase = createClient();
       
@@ -129,11 +134,17 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
     } catch (error) {
       console.error("Error fetching valet data:", error);
     }
-  }, [salesOrderId, items]);
+  }, [salesOrderId]); // Only re-create when salesOrderId changes
 
   useEffect(() => {
     fetchValetData();
   }, [fetchValetData]);
+
+  // Re-fetch when items change (report filtering depends on current items)
+  useEffect(() => {
+    if (items.length > 0) fetchValetData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length]);
 
   const corroborateValetPayment = async (paymentIds: string[]) => {
     try {

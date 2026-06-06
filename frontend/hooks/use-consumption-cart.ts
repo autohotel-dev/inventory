@@ -503,12 +503,12 @@ export function useConsumptionCart({
 
   const processConsumption = async () => {
     if (cartItems.size === 0) { toast.error("Agrega al menos un producto"); return; }
-    if (processingLockRef.current) return; // Synchronous double-click guard
-    processingLockRef.current = true;
     if (!isReceptionist && !isAdmin && !isManager) {
       toast.error("Acceso denegado", { description: "Solo los recepcionistas pueden realizar ventas directas." });
       return;
     }
+    if (processingLockRef.current) return; // Synchronous double-click guard
+    processingLockRef.current = true;
 
     setProcessing(true);
     const supabase = createClient();
@@ -519,6 +519,8 @@ export function useConsumptionCart({
         .from("sales_orders").select("warehouse_id").eq("id", salesOrderId).single();
       if (!orderInfo?.warehouse_id) {
         toast.error("Error de configuración", { description: "La orden no tiene almacén asignado" });
+        processingLockRef.current = false;
+        setProcessing(false);
         return;
       }
 
@@ -530,6 +532,8 @@ export function useConsumptionCart({
       if (stockErrors.length > 0) {
         playError();
         toast.error("Stock insuficiente", { description: stockErrors.join("\n"), duration: 7000 });
+        processingLockRef.current = false;
+        setProcessing(false);
         return;
       }
 
@@ -625,9 +629,14 @@ export function useConsumptionCart({
         const folio = `COM-${date.getFullYear().toString().slice(-2)}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
         const printData = {
           roomNumber: roomNumber || 'N/A', folio, date: new Date(),
-          items: Array.from(cartItems.values()).map(({ product, qty }) => ({
-            name: product.name, qty, price: product.price, total: product.price * qty
-          })),
+          items: Array.from(cartItems.values()).map(({ product, qty, is_courtesy }) => {
+            const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
+            return {
+              name: product.name, qty,
+              price: qty > 0 ? Math.round((total / qty) * 100) / 100 : product.price,
+              total
+            };
+          }),
           subtotal: totalAmount, total: totalAmount, hotelName: undefined
         };
         const printSuccess = await printConsumptionTickets(printData);

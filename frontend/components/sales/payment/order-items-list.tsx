@@ -310,7 +310,7 @@ export function OrderItemsList({
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center">
                     <p className="font-black text-sm text-zinc-300 truncate tracking-tight">{getItemDescription(item)}</p>
-                    <p className="font-black text-sm text-zinc-400">{formatCurrency(item.total)}</p>
+                    <p className="font-black text-sm text-zinc-400">{formatCurrency(getItemTotal(item))}</p>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500/70 py-0.5 px-1.5 bg-emerald-500/5 rounded border border-emerald-500/10">

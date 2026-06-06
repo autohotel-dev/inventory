@@ -96,8 +96,6 @@ export function ConnectedStartStayModal({
 
     setStartStayLoading(true);
     const supabase = createClient();
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-    const methodsSummary = payments.map((p) => p.method).join(", ");
 
     try {
       const roomType = room.room_types;
@@ -211,16 +209,22 @@ export function ConnectedStartStayModal({
           const { data: { user } } = await supabase.auth.getUser();
           let shiftSessionId: string | undefined;
           if (user) {
-            const { data: session } = await supabase
-              .from("shift_sessions")
+            const { data: empData } = await supabase
+              .from("employees")
               .select("id")
               .eq("auth_user_id", user.id)
-              .eq("status", "active")
-              .is("clock_out_at", null)
-              .order("clock_in_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            shiftSessionId = session?.id;
+              .single();
+            if (empData) {
+              const { data: session } = await supabase
+                .from("shift_sessions")
+                .select("id")
+                .eq("employee_id", empData.id)
+                .in("status", ["active", "open"])
+                .order("clock_in_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              shiftSessionId = session?.id;
+            }
           }
 
           startFlowWithEvent(

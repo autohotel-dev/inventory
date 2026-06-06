@@ -4,12 +4,6 @@
  */
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Room } from "@/components/sales/room-types";
-import { PaymentEntry } from "@/components/sales/multi-payment-input";
-import { logger } from "@/lib/utils/logger";
-import { generatePaymentReference } from "./room-action-helpers";
-import { getReceptionShiftId, getReceptionEmployeeId } from "./shift-helpers";
-import { updatePendingPaymentsHelper } from "./payment-helpers";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -113,83 +107,3 @@ export async function unsubscribeGuestNotifications(roomNumber: string): Promise
   }
 }
 
-// ─── Step 4: Build Payment Data for RPC ─────────────────────────────
-
-/**
- * @deprecated LEGACY — Not used in current checkout flow.
- * The current flow uses the atomic `process_full_checkout` RPC in checkout-actions.ts.
- * Kept for reference only. Do NOT call this function.
- *
- * Reconciles pending payments and builds the payment array for the checkout RPC.
- */
-export async function buildCheckoutPayments(
-  supabase: ReturnType<typeof createClient>,
-  checkoutInfo: CheckoutInfo,
-  payments: PaymentEntry[] | undefined,
-  totalPaid: number
-): Promise<any[]> {
-  // Reconcile pending payments first
-  let remainingAfterPending = totalPaid;
-  if (payments && payments.length > 0) {
-    const validPayments = payments.filter(p => p.amount > 0);
-    remainingAfterPending = await updatePendingPaymentsHelper(
-      supabase, checkoutInfo.salesOrderId, validPayments, totalPaid, "CHK"
-    );
-  }
-
-  // Check if we already have confirmed non-checkout payments
-  if (remainingAfterPending <= 0 || !payments || payments.length === 0) {
-    return [];
-  }
-
-  let hasExistingConfirmedPayments = false;
-  const { count } = await supabase
-    .from("payments")
-    .select("id", { count: "exact", head: true })
-    .eq("sales_order_id", checkoutInfo.salesOrderId)
-    .eq("status", "PAGADO")
-    .neq("concept", "CHECKOUT");
-  hasExistingConfirmedPayments = (count || 0) > 0;
-
-  if (hasExistingConfirmedPayments) return [];
-
-  // Build new payment records
-  const validPayments = payments.filter(p => p.amount > 0);
-  const currentShiftId = await getReceptionShiftId(supabase);
-  const currentEmployeeId = await getReceptionEmployeeId(supabase);
-  const isMultipago = validPayments.length > 1;
-
-  if (isMultipago) {
-    const proportion = remainingAfterPending / totalPaid;
-    return validPayments.map(p => ({
-      sales_order_id: checkoutInfo.salesOrderId,
-      amount: Number((p.amount * proportion).toFixed(2)),
-      payment_method: p.method,
-      reference: p.reference || generatePaymentReference("CHK"),
-      concept: "CHECKOUT",
-      status: "PAGADO",
-      payment_type: "PARCIAL",
-      shift_session_id: currentShiftId,
-      collected_by: currentEmployeeId,
-      terminal_code: p.terminal,
-      card_last_4: p.cardLast4,
-      card_type: p.cardType
-    }));
-  }
-
-  const p = validPayments[0];
-  return [{
-    sales_order_id: checkoutInfo.salesOrderId,
-    amount: remainingAfterPending,
-    payment_method: p.method,
-    reference: p.reference || generatePaymentReference("CHK"),
-    concept: "CHECKOUT",
-    status: "PAGADO",
-    payment_type: "COMPLETO",
-    shift_session_id: currentShiftId,
-    collected_by: currentEmployeeId,
-    terminal_code: p.terminal,
-    card_last_4: p.cardLast4,
-    card_type: p.cardType
-  }];
-}

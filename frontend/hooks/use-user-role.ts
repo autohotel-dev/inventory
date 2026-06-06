@@ -114,7 +114,7 @@ export function useUserRole(): UserRoleData {
       }
     } catch (err) {
       console.error("Error fetching user role:", err);
-      setRole("admin"); // Fallback a admin si hay error
+      setRole(null); // Fail closed — deny access on error instead of granting admin
       setHasActiveShift(false);
     } finally {
       setIsLoading(false);

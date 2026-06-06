@@ -86,7 +86,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
         // Persona NUEVA
         const previousTotalPeople = activeStay.total_people ?? current;
         const newTotalPeople = previousTotalPeople + 1;
-        const baseCapacity = room.room_types!.base_capacity ?? 2; // NOTE: base_capacity doesn't exist in schema — always defaults to 2
+        const baseCapacity = room.room_types!.base_capacity ?? 2;
         const shouldChargeExtra = newCurrentPeople > baseCapacity || previousTotalPeople >= baseCapacity;
 
         if (shouldChargeExtra) {
@@ -237,27 +237,68 @@ export function createPeopleActions(ctx: RoomActionContext) {
         const toleranceStart = new Date(activeStay.tolerance_started_at);
         const minutesElapsed = Math.floor((Date.now() - toleranceStart.getTime()) / 60000);
         const minutesRemaining = Math.max(0, 60 - minutesElapsed);
+        const toleranceExpired = isToleranceExpired(activeStay.tolerance_started_at);
 
+        // FIX: Check if tolerance expired and charge accordingly
+        if (toleranceExpired) {
+          const currentShiftId = await getReceptionShiftId(supabase);
+
+          if (activeStay.tolerance_type === 'ROOM_EMPTY') {
+            const basePrice = room.room_types!.base_price ?? 0;
+            if (basePrice > 0) {
+              await createPendingCharge(supabase, activeStay.sales_order_id, basePrice, "TOLERANCIA_EXPIRADA", "TOL", currentShiftId);
+              toast.warning("⏱️ Tolerancia expirada - Habitación cobrada", {
+                description: `Hab. ${room.number}: +$${basePrice.toFixed(2)} MXN (pendiente). Regresó en ${minutesElapsed} min (tolerancia de 60 min).`,
+                duration: 6000,
+              });
+            }
+          } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
+            const extraPrice = room.room_types!.extra_person_price ?? 0;
+            if (extraPrice > 0) {
+              await createPendingCharge(supabase, activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX", currentShiftId);
+              toast.warning("⏱️ Tolerancia expirada - Persona extra cobrada", {
+                description: `Hab. ${room.number}: +$${extraPrice.toFixed(2)} MXN (pendiente). Regresó en ${minutesElapsed} min (tolerancia de 60 min).`,
+                duration: 6000,
+              });
+            }
+          }
+
+          // Audit expired return
+          logFinancialAction("TOLERANCE", {
+            roomNumber: room.number,
+            stayId: activeStay.id,
+            amount: activeStay.tolerance_type === 'ROOM_EMPTY'
+              ? (room.room_types!.base_price ?? 0)
+              : (room.room_types!.extra_person_price ?? 0),
+            description: `Tolerancia EXPIRADA en Hab. ${room.number}. Tipo: ${activeStay.tolerance_type}. Tiempo: ${minutesElapsed}min de 60min`,
+            extra: { action: "RETURN_EXPIRED", tolerance_type: activeStay.tolerance_type, minutes_elapsed: minutesElapsed },
+            severity: "WARNING",
+          });
+        } else {
+          toast.success("✅ Persona regresó a tiempo", {
+            description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Regresó en ${minutesElapsed} min (quedaban ${minutesRemaining} min).`,
+          });
+
+          // Audit on-time return
+          logFinancialAction("TOLERANCE", {
+            roomNumber: room.number,
+            stayId: activeStay.id,
+            description: `Persona regresó dentro de tolerancia en Hab. ${room.number}. Tiempo: ${minutesElapsed}min de 60min`,
+            extra: { action: "RETURN", minutes_elapsed: minutesElapsed, minutes_remaining: minutesRemaining },
+          });
+        }
+
+        // Clear tolerance regardless
         await supabase.from("room_stays").update({
           current_people: newCurrentPeople,
           tolerance_started_at: null,
           tolerance_type: null,
         }).eq("id", activeStay.id);
 
-        toast.success("✅ Persona regresó a tiempo", {
-          description: `Hab. ${room.number}: ${newCurrentPeople} persona${newCurrentPeople !== 1 ? 's' : ''}. Regresó en ${minutesElapsed} min (quedaban ${minutesRemaining} min).`,
-        });
-
-        // ─── Audit Log ─────────────────────────────────────────
-        logFinancialAction("TOLERANCE", {
-          roomNumber: room.number,
-          stayId: activeStay.id,
-          description: `Persona regresó dentro de tolerancia en Hab. ${room.number}. Tiempo: ${minutesElapsed}min de 60min`,
-          extra: { action: "RETURN", minutes_elapsed: minutesElapsed, minutes_remaining: minutesRemaining },
-        });
-
-        await notifyActiveValets(supabase, '👤 Persona Regresó',
-          `Habitación ${room.number}: La persona regresó dentro del tiempo de tolerancia.`,
+        await notifyActiveValets(supabase, toleranceExpired ? '⏱️ Regreso Tardío' : '👤 Persona Regresó',
+          toleranceExpired
+            ? `Habitación ${room.number}: La persona regresó FUERA del tiempo de tolerancia (${minutesElapsed} min).`
+            : `Habitación ${room.number}: La persona regresó dentro del tiempo de tolerancia.`,
           { type: 'PERSON_RETURN', roomNumber: room.number, stayId: activeStay.id }
         );
         return;

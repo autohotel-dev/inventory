@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
         );
 
         const body = await req.json();
-        console.log("Webhook received:", JSON.stringify(body));
+        console.debug("Webhook received:", JSON.stringify(body).slice(0, 200));
 
         // Normalizar entrada (Soporta estructura compleja de Tuya o simple de IFTTT)
         // IFTTT: { "deviceId": "...", "status": "OPEN", "auth": "..." }

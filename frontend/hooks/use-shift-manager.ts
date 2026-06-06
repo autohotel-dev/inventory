@@ -19,7 +19,6 @@ function calculateShiftEnd(clockIn: Date, shiftDef: ShiftDefinition): Date {
 }
 
 export function useShiftManager(onShiftChange?: (session: ShiftSession | null) => void) {
-  const supabase = createClient();
   const { success, error: showError } = useToast();
   const systemConfig = useSystemConfigRead();
 
@@ -53,6 +52,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
   };
 
   const loadData = useCallback(async () => {
+    const supabase = createClient();
     try {
       const [shiftsRes, employeesRes, sessionRes] = await Promise.all([
         supabase.from("shift_definitions").select("*").eq("is_active", true).order("start_time"),
@@ -183,12 +183,13 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
     } finally {
       setLoading(false);
     }
-  }, [supabase, onShiftChange, systemConfig]);
+  }, [onShiftChange, systemConfig]);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 60000);
 
+    const supabase = createClient();
     const channel = supabase
       .channel('shift-indicator-realtime')
       .on(
@@ -205,12 +206,13 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [loadData, supabase]);
+  }, [loadData]);
 
   const handleClockIn = async () => {
     if (!selectedEmployeeId || !currentShift) return;
 
     setActionLoading(true);
+    const supabase = createClient();
     try {
       // Safety net: auto-close any expired sessions before allowing new clock-in
       try {
@@ -350,6 +352,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
     setActionLoading(true);
     try {
+      const supabase = createClient();
       const { error } = await supabase
         .from("shift_sessions")
         .update({
@@ -381,6 +384,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
 
     setActionLoading(true);
     try {
+      const supabase = createClient();
       const role = targetSession.employees?.role;
       let statusToSet = 'pending_closing';
       
