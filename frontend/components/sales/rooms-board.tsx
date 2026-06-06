@@ -53,7 +53,7 @@ const ConnectedStatusNoteModal = dynamic(() => import("@/components/rooms/modals
 const RoomHourManagementModal = dynamic(() => import("@/components/sales/room-hour-management-modal").then(m => ({ default: m.RoomHourManagementModal })), { ssr: false });
 const AddDamageChargeModal = dynamic(() => import("@/components/sales/add-damage-charge-modal").then(m => ({ default: m.AddDamageChargeModal })), { ssr: false });
 const GuestPortalQRModal = dynamic(() => import("@/components/sales/guest-portal-qr-modal").then(m => ({ default: m.GuestPortalQRModal })), { ssr: false });
-const ValetDashboard = dynamic(() => import("@/components/valet/valet-dashboard").then(m => ({ default: m.ValetDashboard })), { ssr: false });
+// ValetDashboard removed — valets now use the dedicated mobile app
 const RoomInfoPopover = dynamic(() => import("@/components/sales/room-info-popover").then(m => ({ default: m.RoomInfoPopover })), { ssr: false });
 const RoomActionsWheel = dynamic(() => import("@/components/sales/room-actions-wheel").then(m => ({ default: m.RoomActionsWheel })), { ssr: false });
 const RoomReminderAlert = dynamic(() => import("@/components/sales/room-reminder-alert").then(m => ({ default: m.RoomReminderAlert })), { ssr: false });
@@ -63,7 +63,7 @@ import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 
 // Wrapper component para manejar la lógica de rol sin violar hooks rules
 function RoomsBoardWrapper() {
-  const { isValet, employeeId, isLoading: roleLoading } = useUserRole();
+  const { isLoading: roleLoading } = useUserRole();
 
   if (roleLoading) {
     return (
@@ -73,10 +73,7 @@ function RoomsBoardWrapper() {
     );
   }
 
-  if (isValet && employeeId) {
-    return <ValetDashboard employeeId={employeeId} />;
-  }
-
+  // Valets use the dedicated mobile app — no redirect needed here
   return <RoomsBoardInternal />;
 }
 

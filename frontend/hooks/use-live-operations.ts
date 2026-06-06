@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -69,23 +69,32 @@ export function useLiveOperations() {
     }
   }, [filters]);
 
+  // Stable refs to avoid re-subscribing on every filter/fetch change
+  const fetchFlowsRef = useRef(fetchFlows);
+  const filtersRef = useRef(filters);
+  useEffect(() => { fetchFlowsRef.current = fetchFlows; }, [fetchFlows]);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
+
+  // Initial fetch when filters change
   useEffect(() => {
     fetchFlows();
+  }, [fetchFlows]);
 
+  // Realtime subscription — mount ONCE
+  useEffect(() => {
     const supabase = createClient();
-    
-    // Subscribe to realtime changes in operations
+
     const channel = supabase.channel('live-operations-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, () => fetchFlows(filters, true))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => fetchFlows(filters, true))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchFlows(filters, true))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, () => fetchFlows(filters, true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, () => fetchFlowsRef.current(filtersRef.current, true))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => fetchFlowsRef.current(filtersRef.current, true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchFlowsRef.current(filtersRef.current, true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' }, () => fetchFlowsRef.current(filtersRef.current, true))
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchFlows, filters]);
+  }, []); // No deps — subscribe ONCE
 
   return {
     flows,

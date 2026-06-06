@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { invalidateReceptionCache } from "@/hooks/room-actions/shift-helpers";
 
 /**
  * Hook dedicado a la suscripción de eventos en tiempo real (Supabase WebSockets).
@@ -89,9 +90,20 @@ export function useRoomRealtime(
               debouncedFetch();
             }
           )
+          // Invalidate reception shift cache when shifts change
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "shift_sessions" },
+            () => {
+              if (!isSubscribed) return;
+              // Invalidate the cached reception context so next charge uses the correct shift
+              invalidateReceptionCache();
+              debouncedFetch();
+            }
+          )
           .subscribe((status: string, err?: Error) => {
             if (status === "SUBSCRIBED") {
-              console.log("✅ [Realtime] Conexión activada");
+              console.debug("✅ [Realtime] Conexión activada");
             } else if (status === "CHANNEL_ERROR") {
               console.warn("⚠️ [Realtime] Error en canal:", err?.message || "");
             } else if (status === "TIMED_OUT") {

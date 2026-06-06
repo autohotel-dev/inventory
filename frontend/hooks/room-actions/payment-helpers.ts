@@ -211,9 +211,10 @@ export async function updatePendingPaymentsHelper(
 
     if (currentOrder) {
       const newRemaining = Math.max(0, (Number(currentOrder.remaining_amount) || 0) - paidAmountApplied);
+      const newPaid = (Number(currentOrder.paid_amount) || 0) + paidAmountApplied;
       await supabase
         .from("sales_orders")
-        .update({ remaining_amount: newRemaining })
+        .update({ remaining_amount: newRemaining, paid_amount: newPaid })
         .eq("id", salesOrderId);
 
       logger.info("Updated sales_order totals after pending payment", {

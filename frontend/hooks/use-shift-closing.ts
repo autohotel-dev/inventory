@@ -436,7 +436,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       const entriesRaw = rpcResult?.entries || [];
 
       if (entriesRaw.length === 0) {
-        console.log('[HP] No sales orders/entries for this shift — skipping income report');
+        console.debug('[HP] No sales orders/entries for this shift — skipping income report');
         toast.warning('Sin registros para hoja de ingresos', {
           description: 'No hay registros de ingreso en este turno para generar el reporte',
           duration: 6000

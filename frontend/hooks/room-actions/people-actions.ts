@@ -64,7 +64,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
           } else if (activeStay.tolerance_type === 'PERSON_LEFT') {
             const extraPrice = room.room_types!.extra_person_price ?? 0;
             if (extraPrice > 0) {
-              await createPendingCharge(supabase, activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX");
+              await createPendingCharge(supabase, activeStay.sales_order_id, extraPrice, "PERSONA_EXTRA", "PEX", currentShiftId);
               toast.warning("Tolerancia expirada - Persona extra cobrada", {
                 description: `Hab. ${room.number}: +$${extraPrice.toFixed(2)} MXN (pendiente)`,
               });
@@ -86,7 +86,7 @@ export function createPeopleActions(ctx: RoomActionContext) {
         // Persona NUEVA
         const previousTotalPeople = activeStay.total_people ?? current;
         const newTotalPeople = previousTotalPeople + 1;
-        const baseCapacity = room.room_types!.base_capacity ?? 2;
+        const baseCapacity = room.room_types!.base_capacity ?? 2; // NOTE: base_capacity doesn't exist in schema — always defaults to 2
         const shouldChargeExtra = newCurrentPeople > baseCapacity || previousTotalPeople >= baseCapacity;
 
         if (shouldChargeExtra) {

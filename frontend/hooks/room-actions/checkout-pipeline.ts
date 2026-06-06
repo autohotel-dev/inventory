@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { PaymentEntry } from "@/components/sales/multi-payment-input";
 import { logger } from "@/lib/utils/logger";
-import { isToleranceExpired, generatePaymentReference } from "./room-action-helpers";
+import { generatePaymentReference } from "./room-action-helpers";
 import { getReceptionShiftId, getReceptionEmployeeId } from "./shift-helpers";
 import { updatePendingPaymentsHelper } from "./payment-helpers";
 
@@ -116,6 +116,10 @@ export async function unsubscribeGuestNotifications(roomNumber: string): Promise
 // ─── Step 4: Build Payment Data for RPC ─────────────────────────────
 
 /**
+ * @deprecated LEGACY — Not used in current checkout flow.
+ * The current flow uses the atomic `process_full_checkout` RPC in checkout-actions.ts.
+ * Kept for reference only. Do NOT call this function.
+ *
  * Reconciles pending payments and builds the payment array for the checkout RPC.
  */
 export async function buildCheckoutPayments(

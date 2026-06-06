@@ -111,7 +111,7 @@ export function usePaymentProcessing({
         toast.info("Habitación desbloqueada → OCUPADA");
       }
 
-      console.log(`✅ Pago procesado: ${rpcResult.payments_processed} pago(s), ` +
+      console.debug(`✅ Pago procesado: ${rpcResult.payments_processed} pago(s), ` +
         `${rpcResult.valet_payments_consumed} del cochero, ` +
         `${rpcResult.new_payments_created} nuevo(s), ` +
         `restante: $${rpcResult.new_remaining}`);

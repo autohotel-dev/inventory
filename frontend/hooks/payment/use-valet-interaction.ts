@@ -218,12 +218,6 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
 
   // Función para aplicar datos de pagos de cochero al formulario
   const applyValetPaymentData = (reports: any[]) => {
-    console.log('🔍 FRONTEND DEBUG: applyValetPaymentData llamado');
-    console.log('  - Reports recibidos:', reports.length);
-    reports.forEach((r, i) => {
-      console.log(`  - Report ${i}: collected_by=${r.collected_by}, id=${r.id}`);
-    });
-    
     if (!reports || reports.length === 0) return;
     const newPayments = reports.map((p: any, i: number) => ({
       id: Date.now().toString() + i,
@@ -238,13 +232,6 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
       original_payment_id: p.id // Guardar referencia al pago original
     }));
     
-    console.log('🔍 FRONTEND DEBUG: Nuevos payments creados:');
-    newPayments.forEach((p, i) => {
-      console.log(`  - New Payment ${i}: collected_by=${p.collected_by}, original_id=${p.original_payment_id}`);
-    });
-    
-    // Esta función necesita ser manejada por el componente que usa el hook
-    // Por ahora solo retornamos los datos procesados
     return newPayments;
   };
 

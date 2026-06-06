@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Room } from "@/components/sales/room-types";
 import { toast } from "sonner";
@@ -136,43 +136,55 @@ export function useValetDashboard(employeeId: string) {
         await fetchMyConsumptions();
     });
 
+    // Stable refs to avoid re-subscribing on every render
+    const fetchRoomsRef = useRef(fetchRooms);
+    const fetchPendingRef = useRef(fetchPendingConsumptions);
+    const fetchMyRef = useRef(fetchMyConsumptions);
+    const modalsOpenRef = useRef(false);
+
+    useEffect(() => { fetchRoomsRef.current = fetchRooms; }, [fetchRooms]);
+    useEffect(() => { fetchPendingRef.current = fetchPendingConsumptions; }, [fetchPendingConsumptions]);
+    useEffect(() => { fetchMyRef.current = fetchMyConsumptions; }, [fetchMyConsumptions]);
+    useEffect(() => { modalsOpenRef.current = showCheckInModal || showCheckoutModal || showDeliveryModal; }, [showCheckInModal, showCheckoutModal, showDeliveryModal]);
+
+    // Realtime subscription — mount ONCE
     useEffect(() => {
         const supabase = createClient();
-        console.log("Setting up realtime subscription for ValetDashboard");
         const channel = supabase
             .channel('valet-dashboard-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' },
-                () => fetchRooms(true))
+                () => fetchRoomsRef.current(true))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' },
-                () => fetchRooms(true))
+                () => fetchRoomsRef.current(true))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' },
-                () => fetchRooms(true))
+                () => fetchRoomsRef.current(true))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_order_items' },
                 () => {
-                    fetchPendingConsumptions();
-                    fetchMyConsumptions();
+                    fetchPendingRef.current();
+                    fetchMyRef.current();
                 })
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [fetchRooms, fetchPendingConsumptions, fetchMyConsumptions]);
+    }, []); // No deps — subscribe ONCE
 
+    // Initial fetch + polling — mount ONCE
     useEffect(() => {
-        fetchRooms(false);
-        fetchPendingConsumptions();
-        fetchMyConsumptions();
+        fetchRoomsRef.current(false);
+        fetchPendingRef.current();
+        fetchMyRef.current();
 
         const interval = setInterval(() => {
-            if (!showCheckInModal && !showCheckoutModal && !showDeliveryModal) {
-                fetchRooms(true);
-                fetchPendingConsumptions();
-                fetchMyConsumptions();
+            if (!modalsOpenRef.current) {
+                fetchRoomsRef.current(true);
+                fetchPendingRef.current();
+                fetchMyRef.current();
             }
         }, 30000);
         return () => clearInterval(interval);
-    }, [employeeId, showCheckInModal, showCheckoutModal, showDeliveryModal, fetchRooms, fetchPendingConsumptions, fetchMyConsumptions]);
+    }, []); // No deps — stable interval
 
     // Computed Properties
     const roomsWithoutVehicle = useMemo(() => rooms.filter(r => {
