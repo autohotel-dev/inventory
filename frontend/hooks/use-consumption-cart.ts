@@ -598,9 +598,11 @@ export function useConsumptionCart({
       const { data: orderData } = await supabase
         .from("sales_orders").select("subtotal, total, paid_amount, remaining_amount").eq("id", salesOrderId).single();
       if (orderData) {
+        const newRemaining = (orderData.remaining_amount || 0) + totalAmount;
         await supabase.from("sales_orders").update({
           subtotal: (orderData.subtotal || 0) + totalAmount,
           total: (orderData.total || 0) + totalAmount,
+          remaining_amount: newRemaining,
           status: "PARTIAL",
         }).eq("id", salesOrderId);
 

@@ -164,6 +164,16 @@ async function printHPIncomeReport(
   }));
   const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
+  // 6c. Fetch total_cash from the closing record
+  const { data: closingRecord } = await supabase
+    .from('shift_closings')
+    .select('total_cash')
+    .eq('shift_session_id', shiftSessionId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const closingTotalCash = Number(closingRecord?.total_cash) || 0;
+
   // 7. Build HTML table rows helper
   const buildRow = (e: any) => {
     const isCancelled = e.stay_status === 'CANCELADA';
@@ -231,7 +241,7 @@ async function printHPIncomeReport(
   }).join('') + `<tr><td colspan="2" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL CARGOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#0891b2;">$${totalCharges.toFixed(2)}</td></tr>` : '';
 
   // Compute net cash with charges
-  const netCashWithCharges = Number(totals.total) - totalExpenses + totalChargesCash;
+  const netCashWithCharges = closingTotalCash - totalExpenses + totalChargesCash;
 
   // 8. Open browser print window
   const printHtml = `<!DOCTYPE html>

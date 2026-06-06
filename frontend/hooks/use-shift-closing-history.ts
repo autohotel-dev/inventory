@@ -197,7 +197,26 @@ export function useShiftClosingHistory() {
     setSavingCorrection(true);
     try {
       const correctionCashTotal = calculateCorrectionCashTotal();
-      const expectedCash = correctionClosing.total_cash || 0;
+
+      // Fetch expenses and employee charges to compute the real expected net cash
+      let totalExpenses = 0;
+      let totalChargesCash = 0;
+      if (correctionClosing.shift_session_id) {
+        const [{ data: expData }, { data: chargesData }] = await Promise.all([
+          supabase.from('shift_expenses').select('amount')
+            .eq('shift_session_id', correctionClosing.shift_session_id)
+            .neq('status', 'rejected'),
+          supabase.from('shift_employee_charges').select('total, payment_method')
+            .eq('shift_session_id', correctionClosing.shift_session_id)
+            .neq('status', 'rejected'),
+        ]);
+        totalExpenses = (expData || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
+        totalChargesCash = (chargesData || [])
+          .filter((c: any) => c.payment_method === 'CASH')
+          .reduce((s: number, c: any) => s + Number(c.total), 0);
+      }
+
+      const expectedCash = (correctionClosing.total_cash || 0) - totalExpenses + totalChargesCash;
       const cashDifference = correctionCashTotal - expectedCash;
       const bbvaAmount = parseFloat(correctionDeclaredBBVA) || 0;
       const getnetAmount = parseFloat(correctionDeclaredGetnet) || 0;

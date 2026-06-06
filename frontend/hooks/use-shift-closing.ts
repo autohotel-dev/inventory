@@ -722,8 +722,8 @@ ${otherEntries.length > 0 ? `
             <tr><td>Daños</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.damage).toFixed(2)}</td></tr>
             <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL VENTAS</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
             ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : ''}
-            ${totalEmployeeCharges > 0 ? `<tr><td style="color:#0891b2;">Cargos a empleados</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#0891b2;">+$${totalEmployeeChargesCash.toFixed(2)}</td></tr>` : ''}
-            ${(totalExpenses > 0 || totalEmployeeCharges > 0) ? `<tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(Number(totals.total) - totalExpenses + totalEmployeeChargesCash).toFixed(2)}</td></tr>` : ''}
+            ${totalEmployeeChargesCash > 0 ? `<tr><td style="color:#0891b2;">Cargos empleados (efectivo)</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#0891b2;">+$${totalEmployeeChargesCash.toFixed(2)}</td></tr>` : ''}
+            ${(totalExpenses > 0 || totalEmployeeChargesCash > 0) ? `<tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(summary!.total_cash - totalExpenses + totalEmployeeChargesCash).toFixed(2)}</td></tr>` : ''}
         </tbody></table>
     </div>
 </div>
