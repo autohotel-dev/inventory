@@ -140,11 +140,11 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             id={room.id}
             number={room.number}
             status={room.status as any}
-            bgClass={isSaliendo ? "bg-gradient-to-br from-orange-950/60 to-amber-900/40" : ROOM_STATUS_BG[status as keyof typeof ROOM_STATUS_BG]}
+            bgClass={isSaliendo ? "bg-gradient-to-br from-[#1a0f05] to-[#2c1a0a]" : ROOM_STATUS_BG[status as keyof typeof ROOM_STATUS_BG]}
             accentClass={
               highlightedRoomIds?.has(room.id)
                 ? "ring-2 ring-blue-500 border-blue-500/50 shadow-[0_0_25px_rgba(59,130,246,0.5)] scale-105 z-10"
-                : isSaliendo ? "ring-1 ring-orange-500/40 border-orange-500/20" : ROOM_STATUS_ACCENT[status as keyof typeof ROOM_STATUS_ACCENT]
+                : isSaliendo ? "ring-1 ring-yellow-800/40 border-yellow-900/30" : ROOM_STATUS_ACCENT[status as keyof typeof ROOM_STATUS_ACCENT]
             }
             statusBadge={renderStatusBadge(status, isSaliendo)}
             hasPendingPayment={!!hasPendingPayment}

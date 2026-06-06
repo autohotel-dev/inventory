@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle, Tv, Flame, Wind, Lock, Sparkles, CheckCircle2, User, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -81,7 +81,7 @@ export interface RoomCardProps {
   isLowPowerMode?: boolean;
 }
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 
 export function RoomCardComponent({
   number,
@@ -118,14 +118,40 @@ export function RoomCardComponent({
   const isDoorCritical = showDoorAlert && doorOpenMinutes >= 10;
   const isDoorWarning = showDoorAlert && doorOpenMinutes >= 5 && doorOpenMinutes < 10;
 
+  // Vehicle tooltip state — uses fixed positioning to escape all stacking contexts
+  const vehicleIconRef = useRef<HTMLDivElement>(null);
+  const [vehicleTooltip, setVehicleTooltip] = useState<{ top: number; left: number } | null>(null);
+
+  const showVehicleTooltip = useCallback(() => {
+    if (vehicleIconRef.current) {
+      const rect = vehicleIconRef.current.getBoundingClientRect();
+      setVehicleTooltip({
+        top: rect.top - 8, // 8px above the icon
+        left: rect.left + rect.width / 2,
+      });
+    }
+  }, []);
+
+  const hideVehicleTooltip = useCallback(() => {
+    setVehicleTooltip(null);
+  }, []);
+
   // Clases dinámicas para alerta de puerta abierta
-  const containerClasses = showDoorAlert
+  // Color ÚNICO: Indigo/Violeta — no usado por ningún otro estado
+  // LIBRE=verde, OCUPADA=rojo, SUCIA=morado, BLOQUEADA=naranja, LIMPIANDO=cyan
+  const doorAlertClasses = showDoorAlert
     ? (isLowPowerMode
-        ? `${isDoorCritical ? 'bg-red-900/90 border-red-400 ring-2 ring-red-400/60' : isDoorWarning ? 'bg-orange-950/80 border-orange-500 ring-2 ring-orange-500/40' : 'bg-red-950/80 border-red-500 ring-2 ring-red-500/40'} z-20`
-        : `${isDoorCritical ? 'bg-red-900/95 border-red-400 ring-4 ring-red-400/70 shadow-[0_0_30px_rgba(239,68,68,0.8)] animate-pulse z-20 scale-110' : isDoorWarning ? 'bg-orange-950/90 border-orange-500 ring-4 ring-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-pulse z-20 scale-105' : 'bg-red-950/90 border-red-500 ring-4 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse z-20 scale-105'} transition-transform duration-300`)
+        ? `${isDoorCritical ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-1 ring-indigo-500/40' : isDoorWarning ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-1 ring-indigo-500/30' : 'bg-gradient-to-br from-[#080420] to-[#0f0c30] border-l-4 border-l-indigo-600 ring-1 ring-indigo-500/25'}`
+        : `${isDoorCritical ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-2 ring-indigo-500/50 shadow-[0_0_18px_rgba(79,70,229,0.3)]' : isDoorWarning ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-2 ring-indigo-500/40 shadow-[0_0_14px_rgba(79,70,229,0.25)]' : 'bg-gradient-to-br from-[#080420] to-[#0f0c30] border-l-4 border-l-indigo-600 ring-2 ring-indigo-600/35 shadow-[0_0_10px_rgba(79,70,229,0.15)]'} transition-all duration-300`)
+    : '';
+
+  // Cuando la puerta está abierta, el doorAlertClasses YA incluye su propio bg-gradient, se ignora el bgClass original
+  const containerClasses = showDoorAlert
+    ? `${accentClass || ""} ${doorAlertClasses}`
     : `${bgClass || "bg-white/5 dark:bg-black/40"} ${accentClass || ""} ${hasPendingPayment ? "ring-2 ring-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "border-white/20 dark:hover:border-white/20"}`;
 
   return (
+    <>
     <div
       id="tour-room-card"
       data-room-status={status}
@@ -241,14 +267,14 @@ export function RoomCardComponent({
       )}
       
       {/* Indicador de pago pendiente (Solo si NO está la alerta de puerta para no saturar) */}
-      {hasPendingPayment && !showDoorAlert && (
+      {hasPendingPayment && (
         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full p-0.5 animate-pulse z-50" title="Pago pendiente">
           <AlertCircle className="h-3 w-3 text-white" />
         </div>
       )}
 
       {/* Indicador de Servicio de Consumo Pendiente (Charola de Comida) - Ahora Clickable */}
-      {hasPendingService && !showDoorAlert && (
+      {hasPendingService && (
         <button
           type="button"
           onClick={(e) => {
@@ -267,7 +293,7 @@ export function RoomCardComponent({
       )}
 
       {/* Indicador de Valet Pendiente (Workflow Estricto) - Bloqueo Visual */}
-      {isValetPending && !showDoorAlert && (
+      {isValetPending && (
         <>
           <div className="absolute inset-0 z-40 bg-background/60 backdrop-blur-sm rounded-xl border-2 border-orange-500/50 flex flex-col items-center justify-center gap-1.5 cursor-not-allowed transition-colors">
             <span className="bg-orange-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-lg animate-pulse">
@@ -294,7 +320,7 @@ export function RoomCardComponent({
       )}
 
       {/* Indicador de BLOQUEO DE SALIDA (Pago Pendiente) - SOP 4 */}
-      {hasPendingPayment && !showDoorAlert && status === "OCUPADA" && !isValetPending && (
+      {hasPendingPayment && status === "OCUPADA" && !isValetPending && (
         <>
           <div className="absolute inset-0 z-40 pointer-events-none bg-amber-950/40 backdrop-blur-[1px] rounded-xl border-2 border-amber-500/40 flex flex-col items-center justify-center animate-pulse transition-colors">
             <div className="bg-amber-600 text-white text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-full shadow-lg border border-amber-400/50 flex items-center gap-1">
@@ -306,23 +332,50 @@ export function RoomCardComponent({
         </>
       )}
 
-      {/* Indicador de Sensor (Puerta Abierta) - Solo si está ocupada */}
+      {/* Indicador de Sensor (Puerta Abierta) — Marca de agua central, no bloquea interacciones */}
       {showDoorAlert && (
         <div className={cn(
-          "absolute -top-2 -left-2 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border z-50",
-          isDoorCritical ? "bg-red-500 border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.8)]" :
-          isDoorWarning ? "bg-orange-500 border-orange-300" :
-          "bg-red-600 border-red-400",
-          !isLowPowerMode && (isDoorCritical ? "animate-pulse" : "animate-bounce")
+          "absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-[5] rounded-xl",
+          !isLowPowerMode && isDoorCritical && "animate-pulse"
         )}>
-          {isDoorCritical ? `⚠️ +${doorOpenMinutes}m` :
-           isDoorWarning ? `¡${doorOpenMinutes}m!` :
-           "¡ABIERTA!"}
+          {/* Icono grande de puerta abierta */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn(
+              "drop-shadow-lg",
+              isDoorCritical ? "text-indigo-400/50" :
+              isDoorWarning ? "text-indigo-400/40" :
+              "text-indigo-400/30"
+            )}
+          >
+            <path d="M13 4h3a2 2 0 0 1 2 2v14" />
+            <path d="M2 20h3" />
+            <path d="M13 20h9" />
+            <path d="M10 12v.01" />
+            <path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z" />
+          </svg>
+          {/* Contador de tiempo */}
+          <span className={cn(
+            "text-[10px] font-black tracking-wider mt-0.5",
+            isDoorCritical ? "text-indigo-300/60" :
+            isDoorWarning ? "text-indigo-300/50" :
+            "text-indigo-300/40"
+          )}>
+            {doorOpenMinutes >= 1 ? `${doorOpenMinutes} min` : "ABIERTA"}
+          </span>
         </div>
       )}
 
       {/* Indicador de Batería Baja */}
-      {isBatteryLow && !showDoorAlert && (
+      {isBatteryLow && (
         <div
           className="absolute -bottom-1.5 -left-1.5 bg-amber-600 text-white rounded-full p-0.5 z-50 shadow-md border border-amber-400"
           title={`Batería baja: ${sensorStatus?.batteryLevel}%`}
@@ -336,7 +389,7 @@ export function RoomCardComponent({
       )}
 
       {/* Indicador de Sensor Offline Prolongado (>1hr) */}
-      {isSensorStale && !showDoorAlert && !isBatteryLow && (
+      {isSensorStale && !isBatteryLow && (
         <div
           className="absolute -bottom-1.5 -left-1.5 bg-zinc-600 text-zinc-300 rounded-full p-0.5 z-50 shadow-md border border-zinc-500"
           title={`Sensor desconectado desde ${sensorStatus?.lastSeen ? new Date(sensorStatus.lastSeen).toLocaleTimeString('es-MX') : 'desconocido'}`}
@@ -354,78 +407,29 @@ export function RoomCardComponent({
       )}
 
       {/* Indicador de Valet solicitando salida (Notificación del cochero) */}
-      {vehicleStatus?.isWaitingAuthorization && !showDoorAlert && (
+      {vehicleStatus?.isWaitingAuthorization && (
         <div className="absolute -top-2 -left-2 bg-amber-600 text-white p-1 rounded-md shadow-lg border border-amber-400 z-50 animate-pulse" title="Valet avisa que el cliente está saliendo">
           <Car className="h-3.5 w-3.5" />
         </div>
       )}
 
       {/* Fila superior: Número + Estado */}
-      <div className="flex items-start justify-between gap-1 mb-2 relative z-50">
+      <div className="flex items-start justify-between gap-1 mb-2 relative z-10">
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="font-black text-xl leading-none tracking-tighter text-foreground drop-shadow-sm">{number}</span>
 
           {/* Indicador de Vehículo */}
           {vehicleStatus?.hasVehicle && (
-            <div className="relative group/vehicle">
-              <div
-                className={`flex items-center justify-center h-5 w-5 rounded-md shadow-sm border cursor-help ${vehicleStatus.isReady
-                  ? "bg-emerald-500 border-emerald-400 text-white animate-pulse"
-                  : "bg-blue-600 border-blue-500 text-white"
-                  }`}
-              >
-                <Car className="h-3 w-3" />
-              </div>
-
-              {/* Rich Tooltip (Premium Modern Dark) */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 opacity-0 invisible group-hover/vehicle:opacity-100 group-hover/vehicle:visible transition-all duration-300 z-50 pointer-events-none transform group-hover/vehicle:-translate-y-1">
-                <div className="bg-[#0a0a0a] text-white text-xs rounded-xl shadow-2xl border border-white/10 p-0 overflow-hidden ring-1 ring-white/5 relative">
-                  {/* Subtle Gradient Glow at top */}
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-70"></div>
-
-                  <div className="p-3.5 flex flex-col gap-3">
-                    {/* Header */}
-                    <div className="flex items-center gap-2.5 pb-2 border-b border-white/5">
-                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-1.5 rounded-lg shadow-lg shadow-indigo-500/20">
-                        <Car className="h-3.5 w-3.5 text-white" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold tracking-tight text-sm text-white">Vehículo</span>
-                        <span className="text-[10px] text-zinc-500 font-medium">Detalles Registrados</span>
-                      </div>
-                    </div>
-
-                    {/* Grid Info */}
-                    <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-2 text-[11px]">
-                      <div className="flex items-center gap-1.5 text-zinc-500">
-                        <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
-                        <span className="font-medium">Marca</span>
-                      </div>
-                      <span className="font-medium text-zinc-300 truncate tracking-wide">{vehicleStatus.brand || '---'}</span>
-
-                      <div className="flex items-center gap-1.5 text-zinc-500">
-                        <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
-                        <span className="font-medium">Modelo</span>
-                      </div>
-                      <span className="font-medium text-zinc-300 truncate tracking-wide">{vehicleStatus.model || '---'}</span>
-
-                      <div className="flex items-center gap-1.5 text-zinc-500">
-                        <div className="w-1 h-1 rounded-full bg-indigo-500/50 shadow-[0_0_5px_rgba(99,102,241,0.5)]"></div>
-                        <span className="font-medium text-indigo-300">Placa</span>
-                      </div>
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 blur-sm rounded"></div>
-                        <span className="relative font-mono font-bold text-white bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit block shadow-sm tracking-wider">
-                          {vehicleStatus.plate || '---'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Flechita decorativa */}
-                  <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0a0a0a] border-r border-b border-white/10 rotate-45 transform"></div>
-                </div>
-              </div>
+            <div
+              ref={vehicleIconRef}
+              onMouseEnter={showVehicleTooltip}
+              onMouseLeave={hideVehicleTooltip}
+              className={`flex items-center justify-center h-5 w-5 rounded-md shadow-sm border cursor-help ${vehicleStatus.isReady
+                ? "bg-emerald-500 border-emerald-400 text-white animate-pulse"
+                : "bg-blue-600 border-blue-500 text-white"
+                }`}
+            >
+              <Car className="h-3 w-3" />
             </div>
           )}
         </div>
@@ -435,22 +439,27 @@ export function RoomCardComponent({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onAssignRemote?.();
+                if (tvRemoteStatus !== "TV_ENCENDIDA") {
+                  onAssignRemote?.();
+                }
               }}
+              disabled={tvRemoteStatus === "TV_ENCENDIDA"}
               title={
                 tvRemoteStatus === "PENDIENTE_ENCENDIDO" 
                   ? `TV: Esperando encendido${tvAssignedName ? ` por ${tvAssignedName}` : ' por cochero'}` :
                 tvRemoteStatus === "TV_ENCENDIDA" 
-                  ? `TV: Encendida${tvAssignedName ? ` por ${tvAssignedName}` : ''}` :
+                  ? `TV: Encendida${tvAssignedName ? ` por ${tvAssignedName}` : ''} ✓` :
                 tvRemoteStatus === "EXTRAVIADO" ? "TV: Control extraviado" :
                 "TV: Control en habitación"
               }
               className={cn(
-                "relative h-6 w-6 flex items-center justify-center rounded-md border shadow-md transition-all hover:scale-125 active:scale-95",
+                "relative h-6 w-6 flex items-center justify-center rounded-md border shadow-md transition-all",
+                tvRemoteStatus === "TV_ENCENDIDA" 
+                  ? "bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.4)] cursor-default"
+                  : "hover:scale-125 active:scale-95",
                 tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/30 border-orange-400 text-orange-300 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.5)]" :
-                tvRemoteStatus === "TV_ENCENDIDA" ? "bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.4)]" :
                 tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/40 border-red-400 text-red-300 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" :
-                "bg-zinc-500/30 border-zinc-400 text-zinc-300 shadow-[0_0_4px_rgba(161,161,170,0.3)]"
+                tvRemoteStatus !== "TV_ENCENDIDA" ? "bg-zinc-500/30 border-zinc-400 text-zinc-300 shadow-[0_0_4px_rgba(161,161,170,0.3)]" : ""
               )}
             >
               <Tv className="h-3.5 w-3.5" />
@@ -562,6 +571,66 @@ export function RoomCardComponent({
         </div>
       </div>
     </div>
+
+      {/* Vehicle Tooltip — rendered with fixed positioning OUTSIDE the card's stacking context */}
+      {vehicleTooltip && vehicleStatus?.hasVehicle && (
+        <div
+          className="fixed z-[9999] w-56 pointer-events-none animate-in fade-in duration-200"
+          style={{
+            top: vehicleTooltip.top,
+            left: vehicleTooltip.left,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="bg-[#0a0a0a] text-white text-xs rounded-xl shadow-2xl border border-white/10 p-0 overflow-hidden ring-1 ring-white/5 relative">
+            {/* Subtle Gradient Glow at top */}
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-70"></div>
+
+            <div className="p-3.5 flex flex-col gap-3">
+              {/* Header */}
+              <div className="flex items-center gap-2.5 pb-2 border-b border-white/5">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-1.5 rounded-lg shadow-lg shadow-indigo-500/20">
+                  <Car className="h-3.5 w-3.5 text-white" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold tracking-tight text-sm text-white">Vehículo</span>
+                  <span className="text-[10px] text-zinc-500 font-medium">Detalles Registrados</span>
+                </div>
+              </div>
+
+              {/* Grid Info */}
+              <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-2 text-[11px]">
+                <div className="flex items-center gap-1.5 text-zinc-500">
+                  <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
+                  <span className="font-medium">Marca</span>
+                </div>
+                <span className="font-medium text-zinc-300 truncate tracking-wide">{vehicleStatus.brand || '---'}</span>
+
+                <div className="flex items-center gap-1.5 text-zinc-500">
+                  <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
+                  <span className="font-medium">Modelo</span>
+                </div>
+                <span className="font-medium text-zinc-300 truncate tracking-wide">{vehicleStatus.model || '---'}</span>
+
+                <div className="flex items-center gap-1.5 text-zinc-500">
+                  <div className="w-1 h-1 rounded-full bg-indigo-500/50 shadow-[0_0_5px_rgba(99,102,241,0.5)]"></div>
+                  <span className="font-medium text-indigo-300">Placa</span>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 blur-sm rounded"></div>
+                  <span className="relative font-mono font-bold text-white bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit block shadow-sm tracking-wider">
+                    {vehicleStatus.plate || '---'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Flechita decorativa */}
+            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0a0a0a] border-r border-b border-white/10 rotate-45 transform"></div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

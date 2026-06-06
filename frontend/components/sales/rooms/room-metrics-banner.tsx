@@ -167,6 +167,14 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
             <div className="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-sm" />
             <span>Limpiando</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm bg-indigo-600 border-l-2 border-l-indigo-400 shadow-sm" />
+            <span>Cochera Abierta</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#2c1a0a] ring-1 ring-yellow-800/50 shadow-sm" />
+            <span>Saliendo</span>
+          </div>
         </div>
 
         {/* Tipos de Estancia */}

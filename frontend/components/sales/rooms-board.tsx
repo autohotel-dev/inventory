@@ -453,7 +453,7 @@ function RoomsBoardInternal() {
       config = {
         label: "Saliendo",
         shortLabel: "Sal.",
-        color: "bg-orange-950/50 text-orange-100 border-orange-400/40 animate-pulse",
+        color: "bg-[#2c1a0a] text-yellow-100 border-yellow-800/50 animate-pulse",
       };
     }
 
