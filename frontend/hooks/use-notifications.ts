@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -33,9 +33,9 @@ interface UseNotificationsReturn {
 export function useNotifications(): UseNotificationsReturn {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
-    const supabase = createClient();
 
     const fetchNotifications = useCallback(async () => {
+        const supabase = createClient();
         try {
             const { data: { user } } = await supabase.auth.getUser();
 
@@ -64,11 +64,16 @@ export function useNotifications(): UseNotificationsReturn {
         } finally {
             setLoading(false);
         }
-    }, [supabase]);
+    }, []);
+
+    // Ref to hold the latest fetchNotifications — avoids re-subscribing on every change
+    const fetchRef = useRef(fetchNotifications);
+    useEffect(() => { fetchRef.current = fetchNotifications; }, [fetchNotifications]);
 
     useEffect(() => {
         fetchNotifications();
 
+        const supabase = createClient();
         // Subscribe to real-time changes
         let channel: RealtimeChannel;
 
@@ -87,8 +92,8 @@ export function useNotifications(): UseNotificationsReturn {
                         filter: `user_id=eq.${user.id}`
                     },
                     (payload: any) => {
-                        console.log('Notification change received:', payload);
-                        fetchNotifications(); // Refresh on any change
+                        console.debug('Notification change received:', payload);
+                        fetchRef.current(); // Refresh on any change
                     }
                 )
                 .subscribe();
@@ -99,9 +104,10 @@ export function useNotifications(): UseNotificationsReturn {
                 supabase.removeChannel(channel);
             }
         };
-    }, [fetchNotifications, supabase]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const markAsRead = async (id: string) => {
+        const supabase = createClient();
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -124,7 +130,6 @@ export function useNotifications(): UseNotificationsReturn {
                 );
             } else {
                 console.warn("Notification not found or RLS restricted update", id);
-                // Optionally revert optimistic update if we did one before (here we wait)
             }
         } catch (error) {
             console.error("Error marking notification as read:", error);
@@ -132,6 +137,7 @@ export function useNotifications(): UseNotificationsReturn {
     };
 
     const markAllAsRead = async () => {
+        const supabase = createClient();
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -156,6 +162,7 @@ export function useNotifications(): UseNotificationsReturn {
     };
 
     const archiveNotification = async (id: string) => {
+        const supabase = createClient();
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -178,6 +185,7 @@ export function useNotifications(): UseNotificationsReturn {
     };
 
     const deleteNotification = async (id: string) => {
+        const supabase = createClient();
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;

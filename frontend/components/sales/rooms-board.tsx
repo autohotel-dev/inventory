@@ -227,7 +227,7 @@ function RoomsBoardInternal() {
           doorTimeAlertedRef.current.delete(sensor.id);
           return;
         }
-        const minutes = getDoorOpenMinutes(sensor.id, doorOpenTimestamps);
+        const minutes = getDoorOpenMinutes(sensor, doorOpenTimestamps);
         if (minutes >= 5 && !doorTimeAlertedRef.current.has(sensor.id)) {
           doorTimeAlertedRef.current.add(sensor.id);
           const room = rooms.find((r) => r.id === sensor.room_id);

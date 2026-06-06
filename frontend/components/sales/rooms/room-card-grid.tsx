@@ -159,8 +159,8 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             })()}
             doorOpenMinutes={(() => {
               const s = sensors.find(sen => sen.room_id === room.id);
-              if (!s || !s.is_open || !doorOpenTimestamps) return 0;
-              return getDoorOpenMinutes(s.id, doorOpenTimestamps);
+              if (!s || !s.is_open) return 0;
+              return getDoorOpenMinutes(s, doorOpenTimestamps);
             })()}
             vehicleStatus={(status === "OCUPADA" || status === "BLOQUEADA") ? (activeStay ? vehicleStatus : null) : null}
             onInfo={() => {

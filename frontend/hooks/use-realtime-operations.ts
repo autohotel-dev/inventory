@@ -89,6 +89,11 @@ export function useRealtimeOperations() {
   const [shifts, setShifts] = useState<ShiftOption[]>([]);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
+  // Refs to hold the latest fetch functions — used by the realtime subscription
+  // to avoid re-subscribing when filters/page change
+  const fetchFlowsRef = useRef<((reset?: boolean, overridePage?: number) => Promise<void>) | undefined>(undefined);
+  const fetchStatsRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
   // ─── Fetch Employees for Filter ────────────────────────────────────────
 
   const fetchEmployees = useCallback(async () => {
@@ -145,9 +150,9 @@ export function useRealtimeOperations() {
   // ─── Fetch Flows WITH Events ───────────────────────────────────────────
 
   const fetchFlows = useCallback(
-    async (reset = false) => {
+    async (reset = false, overridePage?: number) => {
       const supabase = createClient();
-      const currentPage = reset ? 0 : page;
+      const currentPage = reset ? 0 : (overridePage ?? page);
       if (reset) setPage(0);
 
       setLoading(true);
@@ -250,6 +255,7 @@ export function useRealtimeOperations() {
     [filters, page]
   );
 
+
   // ─── Fetch Stats ─────────────────────────────────────────────────────────
 
   const fetchStats = useCallback(async () => {
@@ -300,7 +306,12 @@ export function useRealtimeOperations() {
     });
   }, []);
 
+  // Keep refs updated with the latest functions (must be after both are declared)
+  useEffect(() => { fetchFlowsRef.current = fetchFlows; }, [fetchFlows]);
+  useEffect(() => { fetchStatsRef.current = fetchStats; }, [fetchStats]);
+
   // ─── Realtime Subscription ───────────────────────────────────────────────
+  // NOTE: Empty deps [] — subscribes ONCE. Uses refs to call latest fetch functions.
 
   useEffect(() => {
     const supabase = createClient();
@@ -318,8 +329,8 @@ export function useRealtimeOperations() {
         () => {
           clearTimeout(debounceTimeout);
           debounceTimeout = setTimeout(() => {
-            fetchFlows(true);
-            fetchStats();
+            fetchFlowsRef.current?.(true);
+            fetchStatsRef.current?.();
           }, 500);
         }
       )
@@ -360,14 +371,18 @@ export function useRealtimeOperations() {
       clearTimeout(debounceTimeout);
       supabase.removeChannel(channel);
     };
-  }, [fetchFlows, fetchStats]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Initial Fetch ───────────────────────────────────────────────────────
+  // ─── Initial Fetch & Filter Changes ─────────────────────────────────────
+  // Debounced to avoid refetching on every keystroke in search fields
 
   useEffect(() => {
-    fetchFlows(true);
-    fetchStats();
-  }, [filters]);
+    const timeout = setTimeout(() => {
+      fetchFlows(true);
+      fetchStats();
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchEmployees();
@@ -402,8 +417,9 @@ export function useRealtimeOperations() {
   // ─── Public API ──────────────────────────────────────────────────────────
 
   const loadMore = () => {
-    setPage((p) => p + 1);
-    fetchFlows(false);
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchFlows(false, nextPage);
   };
 
   const updateFilter = (key: keyof OperationFilters, value: string) => {

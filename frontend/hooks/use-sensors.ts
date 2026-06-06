@@ -12,6 +12,7 @@ export interface Sensor {
     is_open: boolean;
     battery_level: number;
     last_seen: string;
+    door_opened_at: string | null;
 }
 
 /**
@@ -26,19 +27,28 @@ export function isSensorStale(sensor: Sensor): boolean {
 
 /**
  * Get the duration in minutes a door has been open.
- * Returns 0 if the door is closed or unknown.
+ * Uses the backend-provided door_opened_at timestamp (survives page reload).
+ * Falls back to client-side tracking if door_opened_at is not available yet.
  */
-export function getDoorOpenMinutes(sensorId: string, openTimestamps: Map<string, number>): number {
-    const openedAt = openTimestamps.get(sensorId);
-    if (!openedAt) return 0;
-    return Math.floor((Date.now() - openedAt) / 60000);
+export function getDoorOpenMinutes(sensor: Sensor, fallbackTimestamps?: Map<string, number>): number {
+    if (!sensor.is_open) return 0;
+    // Prefer backend timestamp (persists across reloads)
+    if (sensor.door_opened_at) {
+        return Math.floor((Date.now() - new Date(sensor.door_opened_at).getTime()) / 60000);
+    }
+    // Fallback to client-side tracking (for sensors without the migration applied yet)
+    const openedAt = fallbackTimestamps?.get(sensor.id);
+    if (openedAt) {
+        return Math.floor((Date.now() - openedAt) / 60000);
+    }
+    return 0;
 }
 
 export function useSensors() {
     const [sensors, setSensors] = useState<Sensor[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Track when each door was opened (sensorId -> timestamp)
+    // Fallback: client-side tracking for sensors that don't have door_opened_at yet
     const doorOpenTimestamps = useRef<Map<string, number>>(new Map());
 
     const fetchSensors = useCallback(async () => {
@@ -88,6 +98,8 @@ export function useSensors() {
             // Fallback to the configured public print server URL (in case they use a tablet on WiFi)
             try {
                 const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+                // Skip fallback if it's the same URL we already tried
+                if (printServerUrl === 'http://localhost:3001') return;
                 const res = await fetch(`${printServerUrl}/sensors/status`);
                 if (!res.ok) return;
                 const data = await res.json();
@@ -138,7 +150,7 @@ export function useSensors() {
                     table: 'sensors'
                 },
                 (payload: any) => {
-                    console.log("[Sensors] Realtime event:", payload);
+                    console.debug("[Sensors] Realtime event:", payload);
 
                     if (payload.eventType === 'INSERT') {
                         setSensors(prev => {
@@ -155,7 +167,7 @@ export function useSensors() {
                 }
             )
             .subscribe((status: string) => {
-                console.log("[Sensors] Subscription status:", status);
+                console.debug("[Sensors] Subscription status:", status);
             });
 
         return () => {
@@ -163,17 +175,16 @@ export function useSensors() {
         };
     }, [fetchSensors]);
 
-    // Track door open timestamps
+    // Fallback: track door open timestamps client-side (for sensors without door_opened_at)
     useEffect(() => {
         sensors.forEach(sensor => {
             const ts = doorOpenTimestamps.current;
-            if (sensor.is_open) {
-                // If just opened, record the timestamp
+            if (sensor.is_open && !sensor.door_opened_at) {
+                // Only track client-side if backend doesn't provide the timestamp
                 if (!ts.has(sensor.id)) {
                     ts.set(sensor.id, Date.now());
                 }
-            } else {
-                // Door closed, clear the timestamp
+            } else if (!sensor.is_open) {
                 ts.delete(sensor.id);
             }
         });
