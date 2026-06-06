@@ -87,8 +87,8 @@ export function ProfitabilityReport() {
                         0
                     );
 
-                    // Asumimos que el costo es el precio de compra del producto
-                    const cost_price = product.price * 0.6; // 60% del precio de venta como costo estimado
+                    // Use the actual cost from the product record
+                    const cost_price = product.cost || 0;
                     const total_cost = quantity_sold * cost_price;
                     const profit = total_revenue - total_cost;
                     const margin_percentage = total_revenue > 0 ? (profit / total_revenue) * 100 : 0;

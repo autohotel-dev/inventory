@@ -71,16 +71,18 @@ export function StockAlertsReport() {
             // Fetch consumption data from last 30 days for velocity calculation
             const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
             const { data: recentConsumptions } = await supabase
-                .from('order_items')
-                .select('product_id, quantity, created_at')
-                .gte('created_at', thirtyDaysAgo);
+                .from('sales_order_items')
+                .select('product_id, qty, created_at')
+                .gte('created_at', thirtyDaysAgo)
+                .neq('is_cancelled', true);
 
             // Build a map of average daily consumption per product
             const consumptionMap = new Map<string, number>();
             if (recentConsumptions) {
                 const grouped = new Map<string, number>();
                 recentConsumptions.forEach((item: any) => {
-                    grouped.set(item.product_id, (grouped.get(item.product_id) || 0) + (item.quantity || 0));
+                    if (!item.product_id) return; // Skip non-product items (room charges, etc.)
+                    grouped.set(item.product_id, (grouped.get(item.product_id) || 0) + (item.qty || 0));
                 });
                 grouped.forEach((total, productId) => {
                     consumptionMap.set(productId, total / 30); // avg per day
