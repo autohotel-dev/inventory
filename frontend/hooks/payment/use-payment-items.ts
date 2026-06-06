@@ -106,12 +106,20 @@ export function usePaymentItems({ salesOrderId, isOpen, forcedUnlockedItems }: U
       setDeletingItemId(itemId);
       const supabase = createClient();
       
-      const { data: userSession } = await supabase.auth.getSession();
-      const employeeId = userSession.session?.user?.id || null;
+      const { data: { user } } = await supabase.auth.getUser();
+      let resolvedEmployeeId: string | null = null;
+      if (user) {
+        const { data: emp } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .single();
+        resolvedEmployeeId = emp?.id || null;
+      }
 
       const { data, error } = await supabase.rpc("cancel_reception_item_v1", {
         p_item_id: itemId,
-        p_employee_id: employeeId
+        p_employee_id: resolvedEmployeeId
       });
 
       if (error) throw error;
