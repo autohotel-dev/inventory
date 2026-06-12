@@ -439,11 +439,8 @@ export function RoomCardComponent({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (tvRemoteStatus !== "TV_ENCENDIDA") {
-                  onAssignRemote?.();
-                }
+                onAssignRemote?.();
               }}
-              disabled={tvRemoteStatus === "TV_ENCENDIDA"}
               title={
                 tvRemoteStatus === "PENDIENTE_ENCENDIDO" 
                   ? `TV: Esperando encendido${tvAssignedName ? ` por ${tvAssignedName}` : ' por cochero'}` :
@@ -455,7 +452,7 @@ export function RoomCardComponent({
               className={cn(
                 "relative h-6 w-6 flex items-center justify-center rounded-md border shadow-md transition-all",
                 tvRemoteStatus === "TV_ENCENDIDA" 
-                  ? "bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.4)] cursor-default"
+                  ? "bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.4)]"
                   : "hover:scale-125 active:scale-95",
                 tvRemoteStatus === "PENDIENTE_ENCENDIDO" ? "bg-orange-500/30 border-orange-400 text-orange-300 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.5)]" :
                 tvRemoteStatus === "EXTRAVIADO" ? "bg-red-500/40 border-red-400 text-red-300 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" :
