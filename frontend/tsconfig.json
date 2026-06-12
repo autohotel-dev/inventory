@@ -36,7 +36,6 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "lib/services/thermal-printer-service.ts"
+    "node_modules"
   ]
 }

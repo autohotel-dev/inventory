@@ -1,12 +1,73 @@
 // Thermal Printer Service usando ESC/POS protocol
 // Compatible con impresoras EPSON, Star, ZJIANG y genéricas
-// NOTE: This service is only used by the USB print server (print-server/)
-// Frontend should use network-printer-service.ts instead
 
 import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer';
 
-// Re-export types from shared location
-export type { ConsumptionTicketData, ClosingTicketData } from '@/lib/types/printer';
+export interface ConsumptionTicketData {
+    roomNumber: string;
+    folio: string;
+    date: Date;
+    items: Array<{
+        name: string;
+        qty: number;
+        price: number;
+        total: number;
+    }>;
+    subtotal: number;
+    total: number;
+    hotelName?: string;
+}
+
+export interface ClosingTicketData {
+    employeeName: string;
+    shiftName: string;
+    periodStart: Date | string;
+    periodEnd: Date | string;
+    totalCash: number;
+    totalCardBBVA: number;
+    totalCardGetnet: number;
+    totalSales: number;
+    totalTransactions: number;
+    countedCash: number;
+    cashDifference: number;
+    notes?: string;
+    transactions: Array<{
+        time: string;
+        amount: number;
+        paymentMethod: string;
+        terminalCode?: string;
+        reference?: string;
+        concept?: string;
+        items?: Array<{
+            name: string;
+            qty: number;
+            unitPrice: number;
+            total: number;
+        }>;
+    }>;
+    roomBreakdown?: Record<string, { count: number; total: number }>;
+    extraBreakdown?: Record<string, { count: number; total: number }>;
+    consumptionBreakdown?: Record<string, { count: number; total: number }>;
+    damageBreakdown?: Record<string, { count: number; total: number }>;
+    expenses?: Array<{
+        time: string;
+        type: string;
+        description: string;
+        amount: number;
+        recipient?: string;
+    }>;
+    totalExpenses?: number;
+    employeeCharges?: Array<{
+        time: string;
+        employeeName: string;
+        chargeType: string;
+        description: string;
+        total: number;
+        discountAmount: number;
+        paymentMethod: string;
+    }>;
+    totalEmployeeCharges?: number;
+}
 
 export interface PrinterConfig {
     type: 'usb' | 'network' | 'serial';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import type { ClosingTicketData } from '@/lib/types/printer';
+import type { ClosingTicketData } from '@/lib/services/thermal-printer-service';
 
 export async function POST(request: NextRequest) {
     try {
