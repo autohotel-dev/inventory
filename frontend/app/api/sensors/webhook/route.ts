@@ -9,6 +9,16 @@ import { createClient } from "@supabase/supabase-js"; // Usar cliente directo pa
 
 export async function POST(req: NextRequest) {
     try {
+        // Validar webhook secret
+        const webhookSecret = process.env.TUYA_WEBHOOK_SECRET;
+        if (webhookSecret) {
+            const authHeader = req.headers.get('Authorization') || req.headers.get('X-Webhook-Secret');
+            const token = authHeader?.replace('Bearer ', '');
+            if (token !== webhookSecret) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
+        }
+
         // Cliente Admin para bypass RLS
         const supabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +26,6 @@ export async function POST(req: NextRequest) {
         );
 
         const body = await req.json();
-        console.debug("Webhook received:", JSON.stringify(body).slice(0, 200));
 
         // Normalizar entrada (Soporta estructura compleja de Tuya o simple de IFTTT)
         // IFTTT: { "deviceId": "...", "status": "OPEN", "auth": "..." }
