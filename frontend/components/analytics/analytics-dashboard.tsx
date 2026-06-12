@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
@@ -14,16 +16,25 @@ import {
   Target,
   Bot
 } from "lucide-react";
-import { SalesReport } from "./sales-report";
-import { ProfitabilityReport } from "./profitability-report";
-import { StockAlertsReport } from "./stock-alerts-report";
-import { AnalyticsDashboardOverview } from "./analytics-dashboard-overview";
-import { RoomStaysReport } from "./room-stays-report";
-import { KpisDashboard } from "./kpis-dashboard";
-import { EmployeePerformance } from "./employee-performance";
-import { PredictionEngine } from "./prediction-engine";
-import { SmartAlerts } from "./smart-alerts";
-import { AIAssistant } from "./ai-assistant";
+
+const SalesReport = dynamic(() => import("./sales-report").then(m => ({ default: m.SalesReport })), { ssr: false });
+const ProfitabilityReport = dynamic(() => import("./profitability-report").then(m => ({ default: m.ProfitabilityReport })), { ssr: false });
+const StockAlertsReport = dynamic(() => import("./stock-alerts-report").then(m => ({ default: m.StockAlertsReport })), { ssr: false });
+const AnalyticsDashboardOverview = dynamic(() => import("./analytics-dashboard-overview").then(m => ({ default: m.AnalyticsDashboardOverview })), { ssr: false });
+const RoomStaysReport = dynamic(() => import("./room-stays-report").then(m => ({ default: m.RoomStaysReport })), { ssr: false });
+const KpisDashboard = dynamic(() => import("./kpis-dashboard").then(m => ({ default: m.KpisDashboard })), { ssr: false });
+const EmployeePerformance = dynamic(() => import("./employee-performance").then(m => ({ default: m.EmployeePerformance })), { ssr: false });
+const PredictionEngine = dynamic(() => import("./prediction-engine").then(m => ({ default: m.PredictionEngine })), { ssr: false });
+const SmartAlerts = dynamic(() => import("./smart-alerts").then(m => ({ default: m.SmartAlerts })), { ssr: false });
+const AIAssistant = dynamic(() => import("./ai-assistant").then(m => ({ default: m.AIAssistant })), { ssr: false });
+
+function TabLoading() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="animate-pulse text-muted-foreground">Cargando...</div>
+    </div>
+  );
+}
 
 export function AnalyticsDashboard() {
   return (
@@ -103,52 +114,72 @@ export function AnalyticsDashboard() {
 
       {/* Tab: Overview (Dashboard original) */}
       <TabsContent value="overview" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <AnalyticsDashboardOverview />
+        <Suspense fallback={<TabLoading />}>
+          <AnalyticsDashboardOverview />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Room Stays Report */}
       <TabsContent value="stays" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <RoomStaysReport />
+        <Suspense fallback={<TabLoading />}>
+          <RoomStaysReport />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Sales Report */}
       <TabsContent value="sales" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <SalesReport />
+        <Suspense fallback={<TabLoading />}>
+          <SalesReport />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Profitability */}
       <TabsContent value="profitability" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <ProfitabilityReport />
+        <Suspense fallback={<TabLoading />}>
+          <ProfitabilityReport />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Stock Alerts */}
       <TabsContent value="stock" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <StockAlertsReport />
+        <Suspense fallback={<TabLoading />}>
+          <StockAlertsReport />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: KPIs */}
       <TabsContent value="kpis" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <KpisDashboard />
+        <Suspense fallback={<TabLoading />}>
+          <KpisDashboard />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Performance */}
       <TabsContent value="performance" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <EmployeePerformance />
+        <Suspense fallback={<TabLoading />}>
+          <EmployeePerformance />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Predictions */}
       <TabsContent value="predictions" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <PredictionEngine />
+        <Suspense fallback={<TabLoading />}>
+          <PredictionEngine />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: Alerts */}
       <TabsContent value="alerts" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <SmartAlerts />
+        <Suspense fallback={<TabLoading />}>
+          <SmartAlerts />
+        </Suspense>
       </TabsContent>
 
       {/* Tab: AI Assistant */}
       <TabsContent value="assistant" className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
-        <AIAssistant />
+        <Suspense fallback={<TabLoading />}>
+          <AIAssistant />
+        </Suspense>
       </TabsContent>
     </Tabs>
   );
