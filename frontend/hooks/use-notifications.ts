@@ -74,12 +74,12 @@ export function useNotifications(): UseNotificationsReturn {
         fetchNotifications();
 
         const supabase = createClient();
-        // Subscribe to real-time changes
-        let channel: RealtimeChannel;
+        let channel: RealtimeChannel | null = null;
+        let isMounted = true;
 
-        supabase.auth.getUser().then(({ data }: any) => {
-            const user = data?.user;
-            if (!user) return;
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user || !isMounted) return;
 
             channel = supabase
                 .channel('notifications_changes')
@@ -91,15 +91,15 @@ export function useNotifications(): UseNotificationsReturn {
                         table: 'notifications',
                         filter: `user_id=eq.${user.id}`
                     },
-                    (payload: any) => {
-                        console.debug('Notification change received:', payload);
-                        fetchRef.current(); // Refresh on any change
+                    () => {
+                        if (isMounted) fetchRef.current();
                     }
                 )
                 .subscribe();
-        });
+        })();
 
         return () => {
+            isMounted = false;
             if (channel) {
                 supabase.removeChannel(channel);
             }
