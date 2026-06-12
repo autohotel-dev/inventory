@@ -263,7 +263,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
     try {
       const { data: existingClosing } = await supabase.from("shift_closings").select("id")
         .eq("shift_session_id", session.id).maybeSingle();
-      if (existingClosing) { showError("Error", "Ya existe un corte registrado para este turno"); setSaving(false); return; }
+      if (existingClosing) { showError("Error", "Ya existe un corte registrado para este turno"); setSaving(false); savingLockRef.current = false; return; }
 
       const { data: closing, error: closingError } = await supabase.from("shift_closings")
         .insert({
