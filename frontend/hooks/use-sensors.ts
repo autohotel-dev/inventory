@@ -83,7 +83,7 @@ export function useSensors() {
                         if (localSensor) {
                             const newIsOpen = localSensor.isOpen;
                             const newBattery = localSensor.battery !== null ? localSensor.battery : sensor.battery_level;
-                            const newStatus = localSensor.online ? 'ONLINE' : 'OFFLINE';
+                            const newStatus: 'ONLINE' | 'OFFLINE' = localSensor.online ? 'ONLINE' : 'OFFLINE';
                             const newLastSeen = localSensor.lastSeen || sensor.last_seen;
                             if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus || sensor.last_seen !== newLastSeen) {
                                 changed = true;
@@ -111,7 +111,7 @@ export function useSensors() {
                             if (localSensor) {
                                 const newIsOpen = localSensor.isOpen;
                                 const newBattery = localSensor.battery !== null ? localSensor.battery : sensor.battery_level;
-                                const newStatus = localSensor.online ? 'ONLINE' : 'OFFLINE';
+                                const newStatus: 'ONLINE' | 'OFFLINE' = localSensor.online ? 'ONLINE' : 'OFFLINE';
                                 const newLastSeen = localSensor.lastSeen || sensor.last_seen;
                                 if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus || sensor.last_seen !== newLastSeen) {
                                     changed = true;
