@@ -2,6 +2,9 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Re-export formatters for backwards compatibility
+export { formatCurrency, formatDate, formatDateTime } from '@/lib/utils/formatters';
+
 // Tipos para los datos de exportación
 export interface ExportColumn {
     header: string;
@@ -143,40 +146,4 @@ export function exportToPDF(options: ExportOptions): void {
 
     // Descargar archivo
     doc.save(`${filename}.pdf`);
-}
-
-/**
- * Formatear número como moneda
- */
-export function formatCurrency(value: number): string {
-    return new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: 'MXN'
-    }).format(value);
-}
-
-/**
- * Formatear fecha
- */
-export function formatDate(date: string | Date): string {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('es-ES', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
-}
-
-/**
- * Formatear fecha y hora
- */
-export function formatDateTime(date: string | Date): string {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleString('es-ES', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
 }
