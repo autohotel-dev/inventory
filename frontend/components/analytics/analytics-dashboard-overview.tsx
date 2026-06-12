@@ -16,7 +16,7 @@ import {
     Trophy,
     Boxes
 } from "lucide-react";
-import { formatCurrency } from "@/lib/export-utils";
+import { formatCurrency } from "@/lib/utils/formatters";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 

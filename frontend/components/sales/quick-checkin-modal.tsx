@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RoomType } from "@/components/sales/room-types";
 import { Label } from "@/components/ui/label";
-import { formatDateTime } from "@/lib/export-utils"; // FIX #9: Use centralized date formatter
+import { formatDateTime } from "@/lib/utils/formatters";
 import {
   Minus,
   Plus,
@@ -37,8 +37,6 @@ function formatTime(date: Date) {
     minute: "2-digit",
   });
 }
-
-// FIX #9: Removed local formatDateTime - using centralized utility from export-utils
 
 export function QuickCheckinModal({
   isOpen,

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getBrandOptions, getModelsForBrand, searchVehicles } from "@/lib/constants/vehicle-catalog";
-import { formatDateTime } from "@/lib/export-utils"; // FIX #9: Use centralized date formatter
+import { formatDateTime } from "@/lib/utils/formatters";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 
 export interface VehicleInfo {
@@ -28,8 +28,6 @@ export interface RoomStartStayModalProps {
   onClose: () => void;
   onConfirm: (initialPeople: number, payments: PaymentEntry[], vehicle: VehicleInfo, durationNights: number) => void;
 }
-
-// FIX #9: Removed local formatDateTime - using centralized utility from export-utils
 
 export function RoomStartStayModal({
   isOpen,
