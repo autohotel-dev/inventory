@@ -1,5 +1,8 @@
 "use client";
 
+// NOTE: This component uses demo/mock data for predictions and insights.
+// Replace with real API calls when AI backend is implemented.
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
