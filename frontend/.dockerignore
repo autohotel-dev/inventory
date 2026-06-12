@@ -1,0 +1,15 @@
+node_modules
+.env*
+.git
+.gitignore
+.next
+*.md
+print-server
+components
+hooks
+lib
+app
+public
+types
+providers
+contexts
