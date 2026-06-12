@@ -150,6 +150,34 @@ export function useValetInteraction({ salesOrderId, items = [], employeeId }: Us
     try {
       const supabase = createClient();
       
+      // Verificar tiempo mínimo entre cobro del cochero y corroboración
+      if (paymentIds.length > 0 && salesOrderId) {
+        const { data: valetPayment } = await supabase
+          .from('payments')
+          .select('created_at')
+          .eq('sales_order_id', salesOrderId)
+          .eq('status', 'COBRADO_POR_VALET')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (valetPayment?.created_at) {
+          const valetTime = new Date(valetPayment.created_at).getTime();
+          const now = Date.now();
+          const diffMinutes = (now - valetTime) / 60000;
+          
+          // Si menos de 2 minutos desde el cobro, advertir
+          if (diffMinutes < 2) {
+            const confirmed = window.confirm(
+              `⚠️ El cochero registró el cobro hace solo ${Math.round(diffMinutes * 60)} segundos.\n\n` +
+              `¿Estás seguro de que el cochero ya entregó el dinero?\n\n` +
+              `Si el cochero aún no ha llegado, espera a que entregue el dinero antes de corroborar.`
+            );
+            if (!confirmed) return;
+          }
+        }
+      }
+      
       const realIds = paymentIds.filter(id => id.includes('-') && id.length > 20 && !id.startsWith('check-in'));
       
       // Update real payments in payments table
