@@ -40,6 +40,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Root debug scripts (ad-hoc test/debug utilities)
+/test_*.ts
+/get_*.ts
+/tmp_*.js
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
