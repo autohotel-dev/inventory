@@ -8,6 +8,7 @@ const PdfPrinter = require('pdfmake');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const PRINT_SERVER_API_KEY = process.env.PRINT_SERVER_API_KEY;
 
 // ─── Dynamic Printer Config ──────────────────────────────────────────
 // Persisted in a local JSON file so the IP survives restarts/power outages.
@@ -76,20 +77,17 @@ const allowedOrigins = [
 app.use((req, res, next) => {
     const origin = req.headers.origin;
 
-    // Verificar si el origen está permitido (incluyendo *.vercel.app)
-    const isAllowed = allowedOrigins.includes(origin) ||
-        (origin && /^https:\/\/.*\.vercel\.app$/.test(origin));
+    const isAllowed = allowedOrigins.includes(origin);
 
     if (isAllowed) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }
 
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-API-Key');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400');
 
-    // Responder inmediatamente a preflight OPTIONS
     if (req.method === 'OPTIONS') {
         return res.status(204).end();
     }
@@ -98,6 +96,20 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '10mb' }));
+
+// Authentication middleware — skip /health (status check)
+app.use((req, res, next) => {
+    if (req.path === '/health') return next();
+
+    if (PRINT_SERVER_API_KEY) {
+        const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+        if (apiKey !== PRINT_SERVER_API_KEY) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+    }
+
+    next();
+});
 
 // Proxy requests starting with /sensors to the local sensors server on port 5002
 app.use('/sensors', (req, res) => {
