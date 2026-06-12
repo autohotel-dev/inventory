@@ -70,55 +70,58 @@ export function useSensors() {
 
     const pollLocalSensors = useCallback(async () => {
         try {
-            // First try localhost:3001 for local PC operation, then fall back to env URL
             const printServerUrl = 'http://localhost:3001';
             const res = await fetch(`${printServerUrl}/sensors/status`);
             if (!res.ok) throw new Error(`HTTP status ${res.status}`);
             
             const data = await res.json();
             if (data && data.success && data.sensors) {
-                setSensors(prev => 
-                    prev.map(sensor => {
+                setSensors(prev => {
+                    let changed = false;
+                    const next = prev.map(sensor => {
                         const localSensor = data.sensors[sensor.device_id];
                         if (localSensor) {
-                            return {
-                                ...sensor,
-                                is_open: localSensor.isOpen,
-                                battery_level: localSensor.battery !== null ? localSensor.battery : sensor.battery_level,
-                                status: localSensor.online ? 'ONLINE' : 'OFFLINE',
-                                last_seen: localSensor.lastSeen || sensor.last_seen
-                            };
+                            const newIsOpen = localSensor.isOpen;
+                            const newBattery = localSensor.battery !== null ? localSensor.battery : sensor.battery_level;
+                            const newStatus = localSensor.online ? 'ONLINE' : 'OFFLINE';
+                            const newLastSeen = localSensor.lastSeen || sensor.last_seen;
+                            if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus || sensor.last_seen !== newLastSeen) {
+                                changed = true;
+                                return { ...sensor, is_open: newIsOpen, battery_level: newBattery, status: newStatus, last_seen: newLastSeen };
+                            }
                         }
                         return sensor;
-                    })
-                );
+                    });
+                    return changed ? next : prev;
+                });
             }
         } catch (err: any) {
             console.debug("Local LAN sensor poll skipped/failed, trying configured domain fallback:", err.message);
-            // Fallback to the configured public print server URL (in case they use a tablet on WiFi)
             try {
                 const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-                // Skip fallback if it's the same URL we already tried
                 if (printServerUrl === 'http://localhost:3001') return;
                 const res = await fetch(`${printServerUrl}/sensors/status`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data && data.success && data.sensors) {
-                    setSensors(prev => 
-                        prev.map(sensor => {
+                    setSensors(prev => {
+                        let changed = false;
+                        const next = prev.map(sensor => {
                             const localSensor = data.sensors[sensor.device_id];
                             if (localSensor) {
-                                return {
-                                    ...sensor,
-                                    is_open: localSensor.isOpen,
-                                    battery_level: localSensor.battery !== null ? localSensor.battery : sensor.battery_level,
-                                    status: localSensor.online ? 'ONLINE' : 'OFFLINE',
-                                    last_seen: localSensor.lastSeen || sensor.last_seen
-                                };
+                                const newIsOpen = localSensor.isOpen;
+                                const newBattery = localSensor.battery !== null ? localSensor.battery : sensor.battery_level;
+                                const newStatus = localSensor.online ? 'ONLINE' : 'OFFLINE';
+                                const newLastSeen = localSensor.lastSeen || sensor.last_seen;
+                                if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus || sensor.last_seen !== newLastSeen) {
+                                    changed = true;
+                                    return { ...sensor, is_open: newIsOpen, battery_level: newBattery, status: newStatus, last_seen: newLastSeen };
+                                }
                             }
                             return sensor;
-                        })
-                    );
+                        });
+                        return changed ? next : prev;
+                    });
                 }
             } catch (fallbackErr) {
                 // Fail silently
