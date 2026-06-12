@@ -93,7 +93,9 @@ export default function StaffNotificationsPage() {
         const data = await res.json();
         setHistory(data.notifications || []);
       }
-    } catch { /* silent */ }
+    } catch {
+      setFeedback({ type: "error", text: "Error al cargar historial" });
+    }
     setLoadingHistory(false);
   }, []);
 
