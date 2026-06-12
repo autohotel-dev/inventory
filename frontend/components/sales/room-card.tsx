@@ -137,12 +137,11 @@ export function RoomCardComponent({
   }, []);
 
   // Clases dinámicas para alerta de puerta abierta
-  // Color ÚNICO: Indigo/Violeta — no usado por ningún otro estado
-  // LIBRE=verde, OCUPADA=rojo, SUCIA=morado, BLOQUEADA=naranja, LIMPIANDO=cyan
+  // Door open: rojo suave (similar a OCUPADA pero con distintivo de puerta abierta)
   const doorAlertClasses = showDoorAlert
     ? (isLowPowerMode
-        ? `${isDoorCritical ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-1 ring-indigo-500/40' : isDoorWarning ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-1 ring-indigo-500/30' : 'bg-gradient-to-br from-[#080420] to-[#0f0c30] border-l-4 border-l-indigo-600 ring-1 ring-indigo-500/25'}`
-        : `${isDoorCritical ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-2 ring-indigo-500/50 shadow-[0_0_18px_rgba(79,70,229,0.3)]' : isDoorWarning ? 'bg-gradient-to-br from-[#060318] to-[#0d0a2e] border-l-4 border-l-indigo-500 ring-2 ring-indigo-500/40 shadow-[0_0_14px_rgba(79,70,229,0.25)]' : 'bg-gradient-to-br from-[#080420] to-[#0f0c30] border-l-4 border-l-indigo-600 ring-2 ring-indigo-600/35 shadow-[0_0_10px_rgba(79,70,229,0.15)]'} transition-all duration-300`)
+        ? `${isDoorCritical ? 'bg-gradient-to-br from-red-950/80 to-red-900/60 border-l-4 border-l-red-500 ring-1 ring-red-500/40' : isDoorWarning ? 'bg-gradient-to-br from-red-950/70 to-red-900/50 border-l-4 border-l-red-400 ring-1 ring-red-500/30' : 'bg-gradient-to-br from-red-950/60 to-red-900/40 border-l-4 border-l-red-400 ring-1 ring-red-500/25'}`
+        : `${isDoorCritical ? 'bg-gradient-to-br from-red-950/80 to-red-900/60 border-l-4 border-l-red-500 ring-2 ring-red-500/50 shadow-[0_0_18px_rgba(239,68,68,0.3)]' : isDoorWarning ? 'bg-gradient-to-br from-red-950/70 to-red-900/50 border-l-4 border-l-red-400 ring-2 ring-red-500/40 shadow-[0_0_14px_rgba(239,68,68,0.25)]' : 'bg-gradient-to-br from-red-950/60 to-red-900/40 border-l-4 border-l-red-400 ring-2 ring-red-400/35 shadow-[0_0_10px_rgba(239,68,68,0.15)]'} transition-all duration-300`)
     : '';
 
   // Cuando la puerta está abierta, el doorAlertClasses YA incluye su propio bg-gradient, se ignora el bgClass original
@@ -351,9 +350,9 @@ export function RoomCardComponent({
             strokeLinejoin="round"
             className={cn(
               "drop-shadow-lg",
-              isDoorCritical ? "text-indigo-400/50" :
-              isDoorWarning ? "text-indigo-400/40" :
-              "text-indigo-400/30"
+              isDoorCritical ? "text-red-400/50" :
+              isDoorWarning ? "text-red-400/40" :
+              "text-red-400/30"
             )}
           >
             <path d="M13 4h3a2 2 0 0 1 2 2v14" />
@@ -365,9 +364,9 @@ export function RoomCardComponent({
           {/* Contador de tiempo */}
           <span className={cn(
             "text-[10px] font-black tracking-wider mt-0.5",
-            isDoorCritical ? "text-indigo-300/60" :
-            isDoorWarning ? "text-indigo-300/50" :
-            "text-indigo-300/40"
+            isDoorCritical ? "text-red-300/60" :
+            isDoorWarning ? "text-red-300/50" :
+            "text-red-300/40"
           )}>
             {doorOpenMinutes >= 1 ? `${doorOpenMinutes} min` : "ABIERTA"}
           </span>
