@@ -47,24 +47,49 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
     setLoadingCocheros(true);
     const supabase = createClient();
     try {
+      // Solo cocheros con turno activo en este momento:
+      // employees con role cochero + shift_session active + clock_out_at IS NULL
       const { data, error } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name, role')
-        .eq('is_active', true)
-        .ilike('role', '%cochero%');
+        .from('shift_sessions')
+        .select('employee_id, employees!inner(id, first_name, last_name, role)')
+        .eq('status', 'active')
+        .is('clock_out_at', null)
+        .ilike('employees.role', '%cochero%')
+        .eq('employees.is_active', true);
 
       if (error) throw error;
-      setCocheros(data || []);
+
+      // Normalizar resultado al formato Employee[]
+      const onShiftCocheros: Employee[] = (data || []).map((row: any) => ({
+        id: row.employees.id,
+        first_name: row.employees.first_name,
+        last_name: row.employees.last_name,
+        role: row.employees.role,
+      }));
+
+      // Deduplicar por id (por si hay sesiones duplicadas)
+      const unique = Array.from(
+        new Map(onShiftCocheros.map(c => [c.id, c])).values()
+      );
+
+      setCocheros(unique);
+
+      // Poblamos activeShiftEmployeeIds de paso (evita la segunda query)
+      setActiveShiftEmployeeIds(new Set(unique.map(c => c.id)));
     } catch (error) {
-      console.error("Error fetching cocheros:", error);
-      toast.error("Error al obtener cocheros");
+      console.error("Error fetching cocheros en turno:", error);
+      toast.error("Error al obtener cocheros en turno");
     } finally {
       setLoadingCocheros(false);
     }
   };
 
-  /** Fetches which employees currently have an active shift_session */
+  /** Fetches which employees currently have an active shift_session.
+   * Only called as a fallback if fetchActiveCocheros fails to populate the set.
+   */
   const fetchActiveShiftIds = async () => {
+    // If we already populated from fetchActiveCocheros, skip the extra query
+    if (activeShiftEmployeeIds.size > 0) return;
     const supabase = createClient();
     try {
       const { data } = await supabase
@@ -76,7 +101,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
       const ids = new Set<string>((data || []).map((r: { employee_id: string }) => r.employee_id));
       setActiveShiftEmployeeIds(ids);
     } catch {
-      // Non-critical — if this fails, we simply don't show the out-of-shift warning
+      // Non-critical
     }
   };
 
@@ -329,8 +354,12 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
               <p className="text-sm text-zinc-400 font-bold mb-3 uppercase tracking-widest text-center">Selecciona al Cochero en turno:</p>
               
               {cocheros.length === 0 ? (
-                <div className="text-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
-                  No hay cocheros activos.
+                <div className="text-center p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-1">
+                  <p className="text-sm font-bold text-amber-300">Sin cocheros en turno</p>
+                  <p className="text-[10px] text-amber-500/70">
+                    No hay cocheros con turno activo en este momento.
+                    Espera a que un cochero abra su turno para asignar.
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
