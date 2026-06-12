@@ -13,6 +13,7 @@ import { RefreshCw } from "lucide-react";
 import { Room, STATUS_CONFIG } from "@/components/sales/room-types";
 import { RoomMetricsBanner } from "@/components/sales/rooms/room-metrics-banner";
 import { RoomCardGrid } from "@/components/sales/rooms/room-card-grid";
+import { OrphanedTVsBanner } from "@/components/sales/orphaned-tvs-banner";
 import { useRoomsQuery } from "@/hooks/use-rooms-query";
 import { useRoomActions, getCurrentEmployeeId } from "@/hooks/room-actions";
 import { useSoundNotifications } from "@/hooks/use-sound-notifications";
@@ -573,6 +574,9 @@ function RoomsBoardInternal() {
       </div>
 
       <RoomMetricsBanner rooms={rooms} sensors={sensors} />
+
+      {/* ── TVs huérfanas: cocheros del turno anterior que no confirmaron ── */}
+      <OrphanedTVsBanner onRelease={() => fetchRooms(true)} />
 
       {/* ── Búsqueda por Placa ──────────────────────────────── */}
       <div className="relative">

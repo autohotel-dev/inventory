@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Users, Tv, Key, Wind, User, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Users, Tv, Key, Wind, User, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Room } from "@/components/sales/room-types";
 import { createAdminNotificationForEmployee } from "@/lib/services/valet-notification-service";
 
@@ -31,11 +31,14 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
   const [loadingCocheros, setLoadingCocheros] = useState(true);
   const [currentAssignedId, setCurrentAssignedId] = useState<string | null>(null);
   const [showChangeMode, setShowChangeMode] = useState(false);
+  /** IDs of employees who currently have an active shift_session */
+  const [activeShiftEmployeeIds, setActiveShiftEmployeeIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen && room) {
       fetchActiveCocheros();
       fetchCurrentAssignment();
+      fetchActiveShiftIds();
       setShowChangeMode(false);
     }
   }, [isOpen, room]);
@@ -57,6 +60,23 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
       toast.error("Error al obtener cocheros");
     } finally {
       setLoadingCocheros(false);
+    }
+  };
+
+  /** Fetches which employees currently have an active shift_session */
+  const fetchActiveShiftIds = async () => {
+    const supabase = createClient();
+    try {
+      const { data } = await supabase
+        .from('shift_sessions')
+        .select('employee_id')
+        .eq('status', 'active')
+        .is('clock_out_at', null);
+
+      const ids = new Set<string>((data || []).map((r: { employee_id: string }) => r.employee_id));
+      setActiveShiftEmployeeIds(ids);
+    } catch {
+      // Non-critical — if this fails, we simply don't show the out-of-shift warning
     }
   };
 
@@ -98,7 +118,24 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
     return cocheros.find(c => c.id === currentAssignedId) || null;
   }, [currentAssignedId, cocheros]);
 
-  const hasAssigned = !!assignedCochero;
+  const hasAssigned = !!currentAssignedId; // true even if cochero is off-shift
+
+  /**
+   * True when there is an assigned cochero but they have no active shift session.
+   * This is the "orphaned" state that blocks the new receptionist.
+   */
+  const assignedCocheroIsOffShift = useMemo(() => {
+    if (!currentAssignedId) return false;
+    if (activeShiftEmployeeIds.size === 0) return false; // not loaded yet
+    return !activeShiftEmployeeIds.has(currentAssignedId);
+  }, [currentAssignedId, activeShiftEmployeeIds]);
+
+  // Auto-activate change mode when the assigned cochero is off-shift
+  useEffect(() => {
+    if (assignedCocheroIsOffShift && !showChangeMode) {
+      setShowChangeMode(true);
+    }
+  }, [assignedCocheroIsOffShift]);
 
   const handleReturnToReception = async () => {
     if (!room) return;
@@ -232,6 +269,21 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
               : `${assetType === 'TV_REMOTE' ? 'Selecciona al cochero que irá a encender la TV en la' : 'Habitación'} ${room.number}`
             }
           </DialogDescription>
+
+          {/* ── Off-shift warning banner ── */}
+          {assignedCocheroIsOffShift && (
+            <div className="mx-auto mt-3 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-left max-w-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-300">
+                  Cochero fuera de turno
+                </p>
+                <p className="text-[10px] text-amber-500/80 mt-0.5 leading-relaxed">
+                  El cochero asignado ya salió de turno. Selecciona uno del turno actual para continuar.
+                </p>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="py-4">
