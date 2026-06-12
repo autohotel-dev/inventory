@@ -297,83 +297,105 @@ export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
 
   return (
     <Card className={cn(
-      "overflow-hidden transition-all duration-300 border-border/50",
-      flow.status === 'ACTIVA' ? "bg-card/90 shadow-lg shadow-emerald-900/5 ring-1 ring-emerald-500/20" : "bg-card/50 opacity-80 hover:opacity-100"
+      "overflow-hidden transition-all duration-300 border",
+      flow.status === 'ACTIVA' 
+        ? "border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 to-card shadow-lg shadow-emerald-900/5" 
+        : "border-border/50 bg-card/60 hover:bg-card/80"
     )}>
       {/* HEADER */}
       <div 
-        className={cn("px-5 py-4 flex flex-col justify-between gap-4 cursor-pointer hover:bg-muted/30 transition-colors", viewMode === 'grid' ? "" : "sm:flex-row sm:items-center")}
+        className={cn(
+          "px-5 py-4 flex flex-col gap-3 cursor-pointer hover:bg-muted/20 transition-colors",
+          viewMode === 'grid' ? "" : "sm:flex-row sm:items-center sm:justify-between"
+        )}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shrink-0">
-            <Activity className="h-6 w-6" />
+          {/* Indicador de estado visual */}
+          <div className={cn(
+            "h-11 w-11 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+            flow.status === 'ACTIVA' 
+              ? "bg-emerald-500/20 text-emerald-500" 
+              : "bg-muted text-muted-foreground"
+          )}>
+            {flow.status === 'ACTIVA' ? <Activity className="h-5 w-5 animate-pulse" /> : <CheckCircle className="h-5 w-5" />}
           </div>
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="text-lg font-bold font-mono tracking-tight text-foreground">
-                {flow.visualId}
-              </h3>
-              <Badge variant="outline" className={cn("font-mono text-xs", getStatusColor(flow.status))}>
-                {flow.status}
+          
+          <div className="space-y-1">
+            {/* Fila principal: ID + Status */}
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold font-mono tracking-tight">{flow.visualId}</h3>
+              <Badge variant="outline" className={cn("text-[10px] font-medium", getStatusColor(flow.status))}>
+                {flow.status === 'ACTIVA' ? '● Activo' : flow.status}
               </Badge>
+              {flow.vehiclePlate && (
+                <Badge variant="secondary" className="text-[10px] font-mono gap-1">
+                  <Car className="h-3 w-3" /> {flow.vehiclePlate}
+                </Badge>
+              )}
             </div>
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5 font-medium">
+            
+            {/* Fila secundaria: Hab + Hora */}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1 font-medium">
                 <DoorOpen className="h-3.5 w-3.5" /> Hab. {flow.roomNumber}
               </span>
-              <span>•</span>
-              <span className="flex items-center gap-1.5">
+              <span className="text-muted-foreground/30">·</span>
+              <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" /> 
                 {format(new Date(flow.checkInAt), "dd MMM, HH:mm", { locale: es })}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] sm:text-xs">
-              <span className="flex items-center gap-1 text-emerald-500/80 font-medium">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Ingreso
-              </span>
-              <span className="text-muted-foreground/30">•</span>
-              <span className={cn("flex items-center gap-1 font-medium transition-colors", hasVehicleReq ? "text-blue-500/80" : "text-muted-foreground/40")}>
-                <div className={cn("h-1.5 w-1.5 rounded-full", hasVehicleReq ? "bg-blue-500" : "bg-muted-foreground/30")} /> Solicitud Coche
-              </span>
-              <span className="text-muted-foreground/30">•</span>
-              <span className={cn("flex items-center gap-1 font-medium transition-colors", hasCheckoutReq ? "text-amber-500/80" : "text-muted-foreground/40")}>
-                <div className={cn("h-1.5 w-1.5 rounded-full", hasCheckoutReq ? "bg-amber-500" : "bg-muted-foreground/30")} /> Checkout
-              </span>
+
+            {/* Barra de progreso del flujo */}
+            <div className="flex items-center gap-1.5 pt-1">
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[10px] text-emerald-600 font-medium">Ingreso</span>
+              </div>
+              <div className="h-px flex-1 bg-border/50 max-w-[20px]" />
+              <div className="flex items-center gap-1">
+                <div className={cn("h-1.5 w-1.5 rounded-full", hasVehicleReq ? "bg-blue-500" : "bg-muted-foreground/20")} />
+                <span className={cn("text-[10px] font-medium", hasVehicleReq ? "text-blue-600" : "text-muted-foreground/40")}>Vehículo</span>
+              </div>
+              <div className="h-px flex-1 bg-border/50 max-w-[20px]" />
+              <div className="flex items-center gap-1">
+                <div className={cn("h-1.5 w-1.5 rounded-full", hasCheckoutReq ? "bg-amber-500" : "bg-muted-foreground/20")} />
+                <span className={cn("text-[10px] font-medium", hasCheckoutReq ? "text-amber-600" : "text-muted-foreground/40")}>Checkout</span>
+              </div>
               {flow.status === 'FINALIZADA' && (
                 <>
-                  <span className="text-muted-foreground/30">•</span>
-                  <span className="flex items-center gap-1 text-slate-400 font-medium">
-                    <div className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Salida
-                  </span>
+                  <div className="h-px flex-1 bg-border/50 max-w-[20px]" />
+                  <div className="flex items-center gap-1">
+                    <div className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                    <span className="text-[10px] text-slate-500 font-medium">Salida</span>
+                  </div>
                 </>
               )}
             </div>
           </div>
         </div>
 
-        <div className={cn("flex items-center gap-4 text-sm", viewMode === 'grid' ? "justify-between w-full border-t border-border/30 pt-3 mt-1" : "mt-3 sm:mt-0")}>
+        {/* Lado derecho: Monto + acciones */}
+        <div className={cn(
+          "flex items-center gap-3",
+          viewMode === 'grid' ? "justify-between w-full border-t border-border/30 pt-3 mt-1" : "sm:flex-shrink-0"
+        )}>
           {totalConfirmed > 0 && (
-            <div className="flex flex-col items-end mr-2">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</span>
-              <span className="font-mono font-bold text-emerald-500">${totalConfirmed.toFixed(2)}</span>
+            <div className="text-right px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <span className="text-[9px] text-emerald-600 uppercase tracking-wider block">Total</span>
+              <span className="font-mono font-bold text-emerald-600 text-sm">${totalConfirmed.toFixed(2)}</span>
             </div>
-          )}
-          {flow.vehiclePlate && (
-            <Badge variant="secondary" className="bg-muted/50 gap-1.5 py-1">
-              <Car className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="font-mono">{flow.vehiclePlate}</span>
-            </Badge>
           )}
           
           <div className="flex items-center gap-1">
-            <Link href={`/operacion-en-vivo/${flow.id}`} target="_blank">
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary">
+            <Link href={`/operacion-en-vivo/${flow.id}`} target="_blank" onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10">
                 <ExternalLink className="h-4 w-4" />
               </Button>
             </Link>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
-              {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </div>
         </div>
@@ -381,24 +403,24 @@ export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
 
       {/* TIMELINE BODY */}
       {expanded && (
-        <CardContent className="px-5 pb-5 pt-2 border-t border-border/50 bg-muted/5">
-          <div className={cn("relative pl-6 space-y-6 before:absolute before:inset-0 before:ml-[1.4rem] before:w-px before:-translate-x-px before:bg-gradient-to-b before:from-transparent before:via-border/50 before:to-transparent mt-6", viewMode === 'grid' ? "" : "md:before:mx-auto md:before:translate-x-0")}>
+        <CardContent className="px-5 pb-5 pt-2 border-t border-border/30">
+          <div className="relative pl-8 space-y-5 mt-4 before:absolute before:left-[1.1rem] before:top-0 before:bottom-0 before:w-px before:bg-gradient-to-b before:from-border/50 via-border/30 to-transparent">
             
-            {/* Inicio estático */}
-            <div className="relative flex items-center gap-4">
-              <div className="absolute left-[-1.5rem] mt-0.5 h-3 w-3 rounded-full ring-4 ring-background bg-emerald-500" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+            {/* Inicio del flujo */}
+            <div className="relative">
+              <div className="absolute left-[-1.75rem] h-3.5 w-3.5 rounded-full bg-emerald-500 ring-4 ring-background z-10" />
+              <div className="pl-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-mono text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md">
                     {formatTime(flow.checkInAt)}
                   </span>
                   {initiatorName && (
-                    <Badge variant="outline" className="text-[10px] h-5 bg-background font-normal border-amber-500/30 text-amber-600 max-w-[120px] truncate block" title={initiatorName}>
+                    <Badge variant="outline" className="text-[10px] h-5 font-normal border-amber-500/30 text-amber-600">
                       {formatEmployeeName(initiatorName)}
                     </Badge>
                   )}
                 </div>
-                <p className="text-sm font-medium mt-1">Inicio de Flujo (Asignación de Habitación)</p>
+                <p className="text-sm font-medium text-foreground">Inicio de Flujo — Asignación de Habitación</p>
               </div>
             </div>
 
