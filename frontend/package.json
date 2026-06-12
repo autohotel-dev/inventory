@@ -1,5 +1,9 @@
 {
   "private": true,
+  "packageManager": "pnpm@10.34.3",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:all": "concurrently \"npm run dev\" \"npm run print-server\"",
