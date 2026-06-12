@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export interface OperationAnomaly {
-  flow_id: string;
-  room_number: string;
+  flow_id?: string;
+  room_number?: string;
+  pair_key?: string;
   anomaly_type: string;
   severity: string;
   description: string;
@@ -15,24 +16,42 @@ export interface OperationAnomaly {
 
 export function useOperationAnomalies() {
   const [anomalies, setAnomalies] = useState<OperationAnomaly[]>([]);
+  const [collusionPatterns, setCollusionPatterns] = useState<OperationAnomaly[]>([]);
   const [loading, setLoading] = useState(true);
   const [criticalCount, setCriticalCount] = useState(0);
   const [highCount, setHighCount] = useState(0);
+  const [collusionCount, setCollusionCount] = useState(0);
 
   const fetchAnomalies = useCallback(async () => {
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.rpc("get_operation_anomalies");
 
-      if (error) {
-        console.error("[anomalies] Error fetching:", error.message);
-        return;
+      const [anomalyResult, collusionResult] = await Promise.all([
+        supabase.rpc("get_operation_anomalies"),
+        supabase.rpc("get_collusion_patterns"),
+      ]);
+
+      if (anomalyResult.error) {
+        console.error("[anomalies] Error fetching anomalies:", anomalyResult.error.message);
+      } else {
+        const list = (anomalyResult.data || []) as OperationAnomaly[];
+        setAnomalies(list);
       }
 
-      const list = (data || []) as OperationAnomaly[];
-      setAnomalies(list);
-      setCriticalCount(list.filter(a => a.severity === "CRITICAL").length);
-      setHighCount(list.filter(a => a.severity === "HIGH").length);
+      if (collusionResult.error) {
+        console.error("[anomalies] Error fetching collusion:", collusionResult.error.message);
+      } else {
+        const list = (collusionResult.data || []) as OperationAnomaly[];
+        setCollusionPatterns(list);
+        setCollusionCount(list.length);
+      }
+
+      const allAnomalies = [
+        ...((anomalyResult.data || []) as OperationAnomaly[]),
+        ...((collusionResult.data || []) as OperationAnomaly[]),
+      ];
+      setCriticalCount(allAnomalies.filter(a => a.severity === "CRITICAL").length);
+      setHighCount(allAnomalies.filter(a => a.severity === "HIGH").length);
     } catch (err) {
       console.error("[anomalies] Unexpected error:", err);
     } finally {
@@ -48,10 +67,12 @@ export function useOperationAnomalies() {
 
   return {
     anomalies,
+    collusionPatterns,
     loading,
     criticalCount,
     highCount,
-    totalAnomalies: anomalies.length,
+    collusionCount,
+    totalAnomalies: anomalies.length + collusionPatterns.length,
     refresh: fetchAnomalies,
   };
 }

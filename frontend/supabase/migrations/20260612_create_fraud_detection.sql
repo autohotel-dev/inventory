@@ -196,3 +196,168 @@ BEGIN
     RETURN QUERY SELECT * FROM detect_operation_anomalies();
 END;
 $$;
+
+-- ================================================================
+-- Collusion Detection
+-- Detects suspicious patterns between valet-receptionist pairs
+-- ================================================================
+
+CREATE OR REPLACE FUNCTION detect_collusion_patterns()
+RETURNS TABLE (
+    pair_key TEXT,
+    anomaly_type TEXT,
+    severity TEXT,
+    description TEXT,
+    details JSONB,
+    detected_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    pair_rec RECORD;
+    total_flows INT;
+    unregistered_count INT;
+    mismatch_count INT;
+    courtesy_count INT;
+    unregistered_pct NUMERIC;
+BEGIN
+    -- Find valet-receptionist pairs with multiple anomalies
+    FOR pair_rec IN
+        SELECT
+            valet_actor->>'actor_id' AS valet_id,
+            valet_actor->>'actor_name' AS valet_name,
+            reception_actor->>'actor_id' AS reception_id,
+            reception_actor->>'actor_name' AS reception_name,
+            COUNT(DISTINCT fe.flow_id) AS anomaly_count
+        FROM flow_events fe
+        JOIN flow_events valet_actor ON valet_actor.flow_id = fe.flow_id
+            AND valet_actor.event_type IN ('VALET_PAYMENT_COLLECTED', 'VALET_FORM_SUBMITTED')
+        JOIN flow_events reception_actor ON reception_actor.flow_id = fe.flow_id
+            AND reception_actor.event_type IN ('ROOM_ASSIGNED', 'PAYMENT_REGISTERED', 'PAYMENT_CONFIRMED')
+        WHERE fe.event_type IN ('PAYMENT_NOT_REGISTERED', 'PERSON_COUNT_MISMATCH', 'PAYMENT_AMOUNT_MISMATCH')
+        GROUP BY valet_actor->>'actor_id', valet_actor->>'actor_name',
+                 reception_actor->>'actor_id', reception_actor->>'actor_name'
+        HAVING COUNT(DISTINCT fe.flow_id) >= 2
+    LOOP
+        -- Check if this pair has repeated payment-not-registered
+        SELECT COUNT(DISTINCT fe.flow_id) INTO unregistered_count
+        FROM flow_events fe
+        WHERE fe.event_type = 'PAYMENT_NOT_REGISTERED'
+        AND fe.flow_id IN (
+            SELECT f2.id FROM operation_flows f2
+            WHERE f2.created_by::text = pair_rec.reception_id
+        )
+        AND fe.flow_id IN (
+            SELECT fe2.flow_id FROM flow_events fe2
+            WHERE fe2.actor_id::text = pair_rec.valet_id
+        );
+
+        -- Check repeated person count mismatches
+        SELECT COUNT(DISTINCT fe.flow_id) INTO mismatch_count
+        FROM flow_events fe
+        WHERE fe.event_type = 'PERSON_COUNT_MISMATCH'
+        AND fe.flow_id IN (
+            SELECT f2.id FROM operation_flows f2
+            WHERE f2.created_by::text = pair_rec.reception_id
+        )
+        AND fe.flow_id IN (
+            SELECT fe2.flow_id FROM flow_events fe2
+            WHERE fe2.actor_id::text = pair_rec.valet_id
+        );
+
+        -- ANOMALY: Repeated unregistered payments between same pair
+        IF unregistered_count >= 2 THEN
+            pair_key := pair_rec.valet_name || ' + ' || pair_rec.reception_name;
+            anomaly_type := 'REPEATED_UNREGISTERED_PAYMENTS';
+            severity := 'CRITICAL';
+            description := format('%s pagos no registrados entre mismo par cochero-recepcionista', unregistered_count);
+            details := jsonb_build_object(
+                'valet_id', pair_rec.valet_id,
+                'valet_name', pair_rec.valet_name,
+                'reception_id', pair_rec.reception_id,
+                'reception_name', pair_rec.reception_name,
+                'occurrences', unregistered_count
+            );
+            detected_at := NOW();
+            RETURN NEXT;
+        END IF;
+
+        -- ANOMALY: Repeated person count mismatches
+        IF mismatch_count >= 2 THEN
+            pair_key := pair_rec.valet_name || ' + ' || pair_rec.reception_name;
+            anomaly_type := 'REPEATED_PERSON_MISMATCH';
+            severity := 'HIGH';
+            description := format('%s discrepancias de personas entre mismo par', mismatch_count);
+            details := jsonb_build_object(
+                'valet_id', pair_rec.valet_id,
+                'valet_name', pair_rec.valet_name,
+                'reception_id', pair_rec.reception_id,
+                'reception_name', pair_rec.reception_name,
+                'occurrences', mismatch_count
+            );
+            detected_at := NOW();
+            RETURN NEXT;
+        END IF;
+
+    END LOOP;
+
+    -- Check for unusually high courtesy rate between specific pairs
+    FOR pair_rec IN
+        SELECT
+            ca.actor_name AS reception_name,
+            ca.actor_id AS reception_id,
+            COUNT(*) AS courtesy_count
+        FROM flow_events ca
+        WHERE ca.event_type = 'COURTESY_APPLIED'
+        GROUP BY ca.actor_name, ca.actor_id
+        HAVING COUNT(*) >= 3
+    LOOP
+        -- Check if same receptionist also has rooms where valet collected payment
+        SELECT COUNT(DISTINCT fe.flow_id) INTO unregistered_count
+        FROM flow_events fe
+        WHERE fe.event_type = 'VALET_PAYMENT_COLLECTED'
+        AND fe.flow_id IN (
+            SELECT f2.id FROM operation_flows f2
+            WHERE f2.created_by::text = pair_rec.reception_id
+        )
+        AND fe.flow_id NOT IN (
+            SELECT fe2.flow_id FROM flow_events fe2
+            WHERE fe2.event_type IN ('PAYMENT_REGISTERED', 'PAYMENT_CONFIRMED')
+        );
+
+        IF unregistered_count >= 2 THEN
+            pair_key := pair_rec.reception_name || ' (cortesias)';
+            anomaly_type := 'HIGH_COURTESY_WITH_UNREGISTERED';
+            severity := 'CRITICAL';
+            description := format('%s cortesias aplicadas con %s pagos sin registrar por misma recepcionista', pair_rec.courtesy_count, unregistered_count);
+            details := jsonb_build_object(
+                'reception_id', pair_rec.reception_id,
+                'reception_name', pair_rec.reception_name,
+                'courtesy_count', pair_rec.courtesy_count,
+                'unregistered_count', unregistered_count
+            );
+            detected_at := NOW();
+            RETURN NEXT;
+        END IF;
+    END LOOP;
+END;
+$$;
+
+-- RPC to get collusion patterns
+CREATE OR REPLACE FUNCTION get_collusion_patterns()
+RETURNS TABLE (
+    pair_key TEXT,
+    anomaly_type TEXT,
+    severity TEXT,
+    description TEXT,
+    details JSONB,
+    detected_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY SELECT * FROM detect_collusion_patterns();
+END;
+$$;
