@@ -23,6 +23,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   VEHICLE_REQUESTED: <Car className="h-4 w-4" />,
   PAYMENT_COLLECTED_BY_VALET: <Activity className="h-4 w-4" />,
   PAYMENT_CONFIRMED_BY_RECEPTION: <CheckCircle className="h-4 w-4" />,
+  PAYMENT_REGISTERED: <CheckCircle className="h-4 w-4" />,
   DELIVERY_ACCEPTED: <PlusCircle className="h-4 w-4" />,
   DELIVERY_COMPLETED: <CheckCircle className="h-4 w-4" />,
   SERVICE_ORDER: <ShoppingBag className="h-4 w-4" />,
@@ -80,6 +81,7 @@ const ACTION_LABELS: Record<string, string> = {
   VEHICLE_REQUESTED: "Vehículo Solicitado en Puerta",
   PAYMENT_COLLECTED_BY_VALET: "Datos de Cobro Capturados (Cochero)",
   PAYMENT_CONFIRMED_BY_RECEPTION: "Pago Confirmado e Ingresado (Caja)",
+  PAYMENT_REGISTERED: "Pago Registrado e Ingresado (Caja)",
   DELIVERY_ACCEPTED: "Cochero Asignado a Pedido",
   DELIVERY_COMPLETED: "Entrega de Pedido Completada",
   SERVICE_ORDER: "Orden de Servicio / Consumo",
@@ -157,15 +159,15 @@ export function ForensicDashboard({ flow }: ForensicDashboardProps) {
 
   // --- Financial Summary ---
   const totalConfirmed = flow.events
-    .filter(e => e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION')
+    .filter(e => e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' || e.action === 'PAYMENT_REGISTERED')
     .reduce((sum, e) => sum + (e.amount || 0), 0);
 
   const cashTotal = flow.events
-    .filter(e => e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' && e.metadata?.payment_method === 'EFECTIVO')
+    .filter(e => (e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' || e.action === 'PAYMENT_REGISTERED') && e.metadata?.payment_method === 'EFECTIVO')
     .reduce((sum, e) => sum + (e.amount || 0), 0);
 
   const cardTotal = flow.events
-    .filter(e => e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' && e.metadata?.payment_method === 'TARJETA')
+    .filter(e => (e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' || e.action === 'PAYMENT_REGISTERED') && e.metadata?.payment_method === 'TARJETA')
     .reduce((sum, e) => sum + (e.amount || 0), 0);
     
   const servicesCount = flow.events.filter(e => e.action === 'SERVICE_ORDER').length;

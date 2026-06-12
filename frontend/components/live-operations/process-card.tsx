@@ -31,6 +31,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   VEHICLE_REQUESTED: <Car className="h-4 w-4" />,
   PAYMENT_COLLECTED_BY_VALET: <Activity className="h-4 w-4" />,
   PAYMENT_CONFIRMED_BY_RECEPTION: <CheckCircle className="h-4 w-4" />,
+  PAYMENT_REGISTERED: <CheckCircle className="h-4 w-4" />,
   DELIVERY_ACCEPTED: <PlusCircle className="h-4 w-4" />,
   DELIVERY_COMPLETED: <CheckCircle className="h-4 w-4" />,
   SERVICE_ORDER: <ShoppingBag className="h-4 w-4" />,
@@ -92,6 +93,7 @@ const ACTION_LABELS: Record<string, string> = {
   VEHICLE_REQUESTED: "Vehículo Solicitado en Puerta",
   PAYMENT_COLLECTED_BY_VALET: "Datos de Cobro Capturados (Cochero)",
   PAYMENT_CONFIRMED_BY_RECEPTION: "Pago Confirmado e Ingresado (Caja)",
+  PAYMENT_REGISTERED: "Pago Registrado e Ingresado (Caja)",
   DELIVERY_ACCEPTED: "Cochero Asignado a Pedido",
   DELIVERY_COMPLETED: "Entrega de Pedido Completada",
   SERVICE_ORDER: "Orden de Servicio / Consumo",
@@ -196,7 +198,7 @@ export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
   const itemPayments: Record<string, LiveOperationEvent[]> = {};
 
   flow.events.forEach(event => {
-    if (event.action === 'PAYMENT_COLLECTED_BY_VALET' || event.action === 'PAYMENT_CONFIRMED_BY_RECEPTION') {
+    if (event.action === 'PAYMENT_COLLECTED_BY_VALET' || event.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' || event.action === 'PAYMENT_REGISTERED') {
       const ref = event.metadata?.reference;
       if (ref && typeof ref === 'string' && ref.startsWith('VALET_ITEM:')) {
         const itemId = ref.replace('VALET_ITEM:', '');
@@ -221,7 +223,7 @@ export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
   });
 
   const totalConfirmed = flow.events
-    .filter(e => e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' && e.amount)
+    .filter(e => (e.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' || e.action === 'PAYMENT_REGISTERED') && e.amount)
     .reduce((sum, e) => sum + (e.amount || 0), 0);
 
   const hasCheckoutReq = flow.events.some(e => e.action === 'VALET_CHECKOUT_REQUESTED');
@@ -603,7 +605,7 @@ export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
                 }
 
                 // Eventos regulares
-                const isPayment = event.action === 'PAYMENT_COLLECTED_BY_VALET' || event.action === 'PAYMENT_CONFIRMED_BY_RECEPTION';
+                const isPayment = event.action === 'PAYMENT_COLLECTED_BY_VALET' || event.action === 'PAYMENT_CONFIRMED_BY_RECEPTION' || event.action === 'PAYMENT_REGISTERED';
 
                 return (
                   <div key={event.id} className="relative flex items-start gap-4 group">

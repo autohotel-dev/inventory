@@ -128,22 +128,14 @@ export function usePaymentProcessing({
           findActiveFlow(stayForFlow.id).then(flowId => {
             if (flowId) {
               logFlowEvent(flowId, {
-                event_type: "PAYMENT_CONFIRMED",
-                description: `Pago procesado por recepción: $${selectedTotal.toFixed(2)} (${validPayments.map(p => p.method).join(', ')})`,
+                event_type: "PAYMENT_REGISTERED",
+                description: `Pago registrado por recepción: $${selectedTotal.toFixed(2)} (${validPayments.map(p => p.method).join(', ')})`,
                 metadata: {
                   amount: selectedTotal,
                   payment_count: validPayments.length,
                   methods: validPayments.map(p => ({ method: p.method, amount: p.amount })),
                   tip: tipAmount > 0 ? tipAmount : undefined,
-                },
-              });
-              logFlowEvent(flowId, {
-                event_type: "PAYMENT_REGISTERED",
-                description: `Pago registrado y confirmado por recepción`,
-                metadata: {
-                  amount: selectedTotal,
-                  employee_id: employee.id,
-                  methods: validPayments.map(p => p.method),
+                  adjusted: false,
                 },
               });
             }
