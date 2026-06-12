@@ -89,15 +89,20 @@ const CONCEPT_LABELS: Record<string, string> = {
 interface AccrualItem {
   id: string;
   concept_type: string;
-  unit_price: number;
-  qty: number;
+  unit_price?: number;
+  qty?: number;
+  amount?: number;
   is_cancelled?: boolean;
+  is_courtesy?: boolean;
+  courtesy_reason?: string;
+  products?: { name: string } | { name: string }[];
   sales_orders?: {
     room_stays?: {
       status: string;
-      rooms?: { number: string };
+      rooms?: { number: string; room_types?: { name: string } | { name: string }[] };
     };
   };
+  room_stays?: { room_id: string; rooms?: { number: string } };
 }
 
 function buildTicketBreakdowns(accrualItems: AccrualItem[]) {
