@@ -21,6 +21,7 @@ const STAGE_LABELS: Record<string, string> = {
   PAYMENT_COLLECTED_VALET: "Cobro Valet",
   PAYMENT_CORROBORATED: "Pago Corroborado",
   PAYMENT_CONFIRMED: "Pago Confirmado",
+  PAYMENT_REGISTERED: "Pago Registrado",
   PAYMENT_METHOD_CHANGED: "Método Cambiado",
   PAYMENT_CANCELLED: "Pago Cancelado",
   PAYMENT_REFUNDED: "Reembolso",
