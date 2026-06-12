@@ -54,11 +54,17 @@ export interface PaymentSummary {
   total_sales: number;
   total_transactions: number;
   payments: EnrichedPayment[];
-  salesOrders: any[];
+  salesOrders: Array<{ id: string; total: number; status: string }>;
   expenses?: ShiftExpense[];
   total_expenses?: number;
   total_accrual_sales: number;
-  accrual_items: any[];
+  accrual_items: Array<{
+    id: string;
+    concept_type: string;
+    amount: number;
+    room_stay_id?: string;
+    room_stays?: { room_id: string; rooms?: { number: string } };
+  }>;
   unassigned_card_payments: EnrichedPayment[];
   unhandled_payment_methods: Array<{payment: EnrichedPayment, method: string}>;
   // Employee Charges
@@ -79,22 +85,36 @@ const CONCEPT_LABELS: Record<string, string> = {
 };
 
 // ─── Build granular breakdowns from accrual items for thermal ticket ─────
-function buildTicketBreakdowns(accrualItems: any[]) {
+
+interface AccrualItem {
+  id: string;
+  concept_type: string;
+  unit_price: number;
+  qty: number;
+  is_cancelled?: boolean;
+  sales_orders?: {
+    room_stays?: {
+      status: string;
+      rooms?: { number: string };
+    };
+  };
+}
+
+function buildTicketBreakdowns(accrualItems: AccrualItem[]) {
   const roomBreakdown: Record<string, { count: number; total: number }> = {};
   const extraBreakdown: Record<string, { count: number; total: number }> = {};
   const consumptionBreakdown: Record<string, { count: number; total: number }> = {};
   const damageBreakdown: Record<string, { count: number; total: number }> = {};
 
   // Filter out items belonging to cancelled stays or items that are cancelled
-  const activeItems = (accrualItems || []).filter((item: any) => {
+  const activeItems = (accrualItems || []).filter((item) => {
     if (item.is_cancelled) return false;
     const order = item.sales_orders;
-    const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
-    const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
-    return !stay || stay.status !== 'CANCELADA';
+    const roomStay = order?.room_stays;
+    return !roomStay || roomStay.status !== 'CANCELADA';
   });
 
-  activeItems.forEach((item: any) => {
+  activeItems.forEach((item) => {
     const qty = item.qty || 1;
     const amount = (item.unit_price || 0) * qty;
     const conceptType = item.concept_type || "PRODUCT";
