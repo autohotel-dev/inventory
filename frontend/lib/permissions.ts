@@ -248,6 +248,7 @@ export function getAllMenuResources(): MenuResource[] {
         { id: 'auditoria.controles', label: 'Auditoría Controles TV', href: '/auditoria/controles', group: 'analytics', iconName: 'Activity', adminOnly: true },
         { id: 'logs', label: 'Registro de Actividad', href: '/logs', group: 'analytics', iconName: 'FileText', adminOnly: true },
         { id: 'auditoria.telemetria', label: 'Telemetría y Rendimiento', href: '/auditoria/telemetria', group: 'analytics', iconName: 'Activity', adminOnly: true },
+        { id: 'auditoria.empleados', label: 'Auditoría de Empleados', href: '/operacion-en-vivo/auditoria-empleados', group: 'analytics', iconName: 'Shield', adminOnly: true },
 
         // 👥 PERSONAL
         { id: 'employees', label: 'Empleados', href: '/employees', group: 'personal', groupLabel: 'Recursos Humanos', groupIcon: '👥', groupOrder: 8, groupDescription: 'Gestión de empleados y capacitación', iconName: 'Users', adminOnly: true },
