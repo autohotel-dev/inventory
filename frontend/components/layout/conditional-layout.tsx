@@ -37,19 +37,9 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("sidebar-compact-change", handleSidebarChange);
 
-    let lastValue = stored;
-    const interval = setInterval(() => {
-      const current = localStorage.getItem("sidebar-compact");
-      if (current !== lastValue) {
-        lastValue = current;
-        setSidebarCompact(current === "1");
-      }
-    }, 100);
-
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("sidebar-compact-change", handleSidebarChange);
-      clearInterval(interval);
     };
   }, []);
 
