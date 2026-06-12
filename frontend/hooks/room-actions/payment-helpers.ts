@@ -15,40 +15,20 @@ export async function updateSalesOrderTotals(
   salesOrderId: string,
   additionalAmount: number
 ): Promise<{ success: boolean; newRemaining?: number }> {
-  const { data: orderData, error: orderError } = await supabase
-    .from("sales_orders")
-    .select("subtotal, tax, paid_amount, remaining_amount")
-    .eq("id", salesOrderId)
+  // Use atomic RPC to prevent race conditions
+  const { data, error } = await supabase
+    .rpc('update_sales_order_totals', {
+      p_sales_order_id: salesOrderId,
+      p_additional_amount: additionalAmount
+    })
     .single();
 
-  if (orderError || !orderData) {
-    console.error("Error fetching sales order:", orderError);
+  if (error || !data?.success) {
+    logger.error("Error updating sales order totals:", error || data?.error);
     return { success: false };
   }
 
-  const subtotal = Number(orderData.subtotal) || 0;
-  const tax = Number(orderData.tax) || 0;
-  const currentRemaining = Number(orderData.remaining_amount) || 0;
-
-  const newSubtotal = subtotal + additionalAmount;
-  const newTotal = newSubtotal + tax;
-  const newRemaining = currentRemaining + additionalAmount;
-
-  const { error: updateError } = await supabase
-    .from("sales_orders")
-    .update({
-      subtotal: newSubtotal,
-      total: newTotal,
-      remaining_amount: newRemaining,
-    })
-    .eq("id", salesOrderId);
-
-  if (updateError) {
-    console.error("Error updating sales order:", updateError);
-    return { success: false };
-  }
-
-  return { success: true, newRemaining };
+  return { success: true, newRemaining: Number(data.new_remaining) };
 }
 
 // ─── Create Pending Charge ──────────────────────────────────────────
