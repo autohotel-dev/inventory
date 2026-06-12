@@ -5,6 +5,9 @@ import "./globals.css";
 import { ConditionalLayout } from "@/components/layout/conditional-layout";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { DataDebug } from "@/components/debug/data-debug";
+import dynamic from "next/dynamic";
+
+const DataDebugDev = process.env.NODE_ENV === 'development' ? DataDebug : () => null;
 import { PWAInstaller, PWAStatus } from "@/components/pwa/pwa-installer";
 import { TrainingProvider } from "@/contexts/training-context";
 import { InteractiveOverlay } from "@/components/training/interactive-overlay";
@@ -131,7 +134,7 @@ export default function RootLayout({
                     <AuthListener />
                     <PWAInstaller />
                     <PWAStatus />
-                    <DataDebug />
+                    <DataDebugDev />
                     <PrintCenterModal />
                     <AutoReloadListener />
                   </TelemetryProvider>
