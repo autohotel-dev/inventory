@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useLiveOperations, fetchRecentReceptionShifts, LiveOperationFilters } from "@/hooks/use-live-operations";
 import { ProcessCard } from "@/components/live-operations/process-card";
+import { AnomalyAlertsPanel } from "@/components/live-operations/anomaly-alerts-panel";
 import { useState, useEffect } from "react";
 import {
   Select,
@@ -138,6 +139,9 @@ export function LiveOperationsBoard() {
           </Button>
         </div>
       </div>
+
+      {/* Panel de Alertas de Anomalías */}
+      <AnomalyAlertsPanel />
 
       <div className={cn("pb-12", viewMode === 'grid' ? "grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4" : "space-y-4")}>
         {filteredFlows.length === 0 ? (
