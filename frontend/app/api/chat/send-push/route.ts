@@ -18,9 +18,8 @@ export async function POST(req: Request) {
             process.env.VAPID_PRIVATE_KEY!
         );
 
-        // Authenticate the webhook source (optional, via a shared secret header)
         const secret = req.headers.get('x-webhook-secret');
-        if (process.env.CHAT_WEBHOOK_SECRET && secret !== process.env.CHAT_WEBHOOK_SECRET) {
+        if (!process.env.CHAT_WEBHOOK_SECRET || secret !== process.env.CHAT_WEBHOOK_SECRET) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
