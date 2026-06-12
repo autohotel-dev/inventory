@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Room } from "@/components/sales/room-types";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 import {
   getActiveStay,
   withBoolAction,
@@ -46,6 +47,17 @@ export function createValetActions(ctx: RoomActionContext) {
           : `Recepción te recuerda registrar el vehículo de la Habitación ${roomNumber}`,
         { type: hasPlate ? 'VEHICLE_REQUEST' : 'system_alert', stay_id: stayId, room_number: roomNumber }
       );
+
+      // Log reminder event
+      findActiveFlow(stayId).then(flowId => {
+        if (flowId) {
+          logFlowEvent(flowId, {
+            event_type: 'REMINDER_SENT',
+            description: isResend ? `Recordatorio re-enviado a cochero` : `Recordatorio enviado a cochero para registro de vehículo`,
+            metadata: { is_resend: isResend, room_number: roomNumber, stay_id: stayId },
+          });
+        }
+      });
 
       toast.success(isResend ? "Recordatorio re-enviado al cochero 🔔" : "Solicitud enviada al cochero 🔔");
       return true;

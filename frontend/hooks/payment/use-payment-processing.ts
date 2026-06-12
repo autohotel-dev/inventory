@@ -137,6 +137,15 @@ export function usePaymentProcessing({
                   tip: tipAmount > 0 ? tipAmount : undefined,
                 },
               });
+              logFlowEvent(flowId, {
+                event_type: "PAYMENT_REGISTERED",
+                description: `Pago registrado y confirmado por recepción`,
+                metadata: {
+                  amount: selectedTotal,
+                  employee_id: employee.id,
+                  methods: validPayments.map(p => p.method),
+                },
+              });
             }
           });
         }

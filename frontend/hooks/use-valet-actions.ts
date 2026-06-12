@@ -212,6 +212,11 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                             description: `Cobro por cochero: ${payments.length} pago(s)`,
                             metadata: { payments: payments.map(p => ({ amount: p.amount, method: p.method })) },
                         });
+                        logFlowEvent(flowId, {
+                            event_type: 'VALET_FORM_SUBMITTED',
+                            description: `Cochero envió formulario desde app móvil`,
+                            metadata: { valet_id: valetId, person_count: personCount, total_paid: payments.reduce((sum, p) => sum + p.amount, 0) },
+                        });
                     }
                 });
             }

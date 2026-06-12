@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { logger } from "@/lib/utils/logger";
+import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 
 /**
  * Notifica a los empleados con rol 'valet' o 'cochero' que tengan un turno activo.
@@ -35,6 +36,19 @@ export async function notifyActiveValets(
                 activeSessionsFound: result.active_sessions,
                 fallback: result.fallback
             });
+
+            // Log flow event if room_stay_id is provided
+            if (data?.room_stay_id) {
+                findActiveFlow(data.room_stay_id).then(flowId => {
+                    if (flowId) {
+                        logFlowEvent(flowId, {
+                            event_type: 'VALET_NOTIFICATION_SENT',
+                            description: `Notificación enviada a ${result.sent} cochero(s): ${title}`,
+                            metadata: { title, valets_notified: result.sent, room_stay_id: data.room_stay_id },
+                        });
+                    }
+                });
+            }
         } else {
             logger.info("No valets found to notify", { title, result });
         }

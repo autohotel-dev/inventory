@@ -152,6 +152,17 @@ export function createTimeActions(ctx: RoomActionContext) {
           `Habitación ${room.number}: Cobrar ${hours} hora(s) extra ($${totalPrice.toFixed(2)} MXN).`,
           { type: 'NEW_EXTRA', consumptionId: rpc.item_id, roomNumber: room.number, stayId: activeStay.id }
         );
+
+        // Log extras requested event
+        findActiveFlow(activeStay.id).then(flowId => {
+          if (flowId) {
+            logFlowEvent(flowId, {
+              event_type: 'EXTRAS_REQUESTED',
+              description: `Extras solicitados: ${hours} hora(s) extra - $${totalPrice.toFixed(2)}`,
+              metadata: { hours, amount: totalPrice, room_number: room.number, type: 'EXTRA_HOUR' },
+            });
+          }
+        });
       }
     });
   };
