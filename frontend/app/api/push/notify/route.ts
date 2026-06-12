@@ -13,11 +13,9 @@ interface WebhookPayload {
 
 export async function POST(req: Request) {
     try {
-        // Simple authentication check - recommend using a secret header
         const authHeader = req.headers.get('Authorization');
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-            // Optional: return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-            // For now, let's just log and continue or add a safer check later
+        if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const payload: WebhookPayload = await req.json();
