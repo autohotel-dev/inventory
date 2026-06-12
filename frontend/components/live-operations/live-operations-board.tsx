@@ -2,13 +2,14 @@
 
 export type ViewMode = 'forensic' | 'compact' | 'alerts' | 'grid';
 
-import { RefreshCw, Activity, Search, LayoutGrid } from "lucide-react";
+import { RefreshCw, Activity, Search, LayoutGrid, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useLiveOperations, fetchRecentReceptionShifts, LiveOperationFilters } from "@/hooks/use-live-operations";
 import { ProcessCard } from "@/components/live-operations/process-card";
 import { AnomalyAlertsPanel } from "@/components/live-operations/anomaly-alerts-panel";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
   Select,
@@ -137,6 +138,12 @@ export function LiveOperationsBoard() {
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
             Sincronizar
           </Button>
+          <Link href="/operacion-en-vivo/auditoria-empleados">
+            <Button variant="outline" className="w-full sm:w-auto bg-background/50 backdrop-blur-sm">
+              <Shield className="h-4 w-4 mr-2" />
+              Auditoría Empleados
+            </Button>
+          </Link>
         </div>
       </div>
 
