@@ -1,6 +1,6 @@
 -- ================================================================
--- Simplified Employee Risk Overview
--- Works without requiring operation_flows/flow_events data
+-- Employee Risk Overview - Uses BOTH audit_logs AND flow_events
+-- Works with existing data from the older audit system
 -- ================================================================
 
 CREATE OR REPLACE FUNCTION get_all_employees_risk_overview()
@@ -35,15 +35,21 @@ DECLARE
     v_risk_score NUMERIC;
     v_risk_level TEXT;
     v_recent_incidents JSONB;
+    v_audit_count INT := 0;
 BEGIN
     FOR emp_rec IN
         SELECT e.id, e.first_name || ' ' || e.last_name AS name, e.role
         FROM employees e WHERE e.is_active = true
     LOOP
-        -- Count operations (safe even if table is empty)
+        -- Count operations from flow_events (new system)
         SELECT COUNT(*) INTO v_total_ops FROM operation_flows WHERE created_by = emp_rec.id;
 
-        -- Count anomalies
+        -- Count from audit_logs (old system) - include these in total
+        SELECT COUNT(*) INTO v_audit_count FROM audit_logs
+        WHERE employee_id = emp_rec.id;
+        v_total_ops := v_total_ops + v_audit_count;
+
+        -- Count anomalies from flow_events
         SELECT COUNT(*) INTO v_anomalies FROM flow_events
         WHERE actor_id = emp_rec.id
         AND event_type IN ('VALET_PAYMENT_COLLECTED', 'VALET_FORM_SUBMITTED');
@@ -52,25 +58,24 @@ BEGIN
         SELECT COUNT(*) INTO v_incidents FROM incident_reports
         WHERE target_employee_id = emp_rec.id AND status != 'DISMISSED';
 
-        -- Count payment discrepancies
+        -- Count payment discrepancies from flow_events
         SELECT COUNT(DISTINCT f.id) INTO v_payment_disc
         FROM operation_flows f
         JOIN flow_events vf ON vf.flow_id = f.id AND vf.event_type = 'VALET_PAYMENT_COLLECTED' AND vf.actor_id = emp_rec.id
         WHERE NOT EXISTS (SELECT 1 FROM flow_events rf WHERE rf.flow_id = f.id AND rf.event_type IN ('PAYMENT_REGISTERED', 'PAYMENT_CONFIRMED'));
 
-        -- Count person mismatches
-        SELECT COUNT(DISTINCT f.id) INTO v_person_mismatches
-        FROM operation_flows f
-        JOIN flow_events vf ON vf.flow_id = f.id AND vf.event_type = 'VALET_FORM_SUBMITTED' AND vf.actor_id = emp_rec.id
-        JOIN room_stays rs ON rs.id = f.room_stay_id
-        WHERE (vf.metadata->>'person_count')::INT != rs.current_people
-          AND (vf.metadata->>'person_count')::INT > 0 AND rs.current_people > 0;
+        -- Count from audit_logs: COURTESY actions
+        SELECT COUNT(*) INTO v_courtesy_abuse FROM audit_logs
+        WHERE employee_id = emp_rec.id AND action = 'COURTESY';
 
-        -- Count courtesy abuse
-        SELECT COUNT(*) INTO v_courtesy_abuse FROM flow_events
-        WHERE actor_id = emp_rec.id AND event_type = 'COURTESY_APPLIED';
+        -- Count from audit_logs: suspicious actions (CANCEL_CHARGE, DAMAGE_CHARGE)
+        v_payment_disc := v_payment_disc + (
+            SELECT COUNT(*) FROM audit_logs
+            WHERE employee_id = emp_rec.id
+            AND action IN ('CANCEL_CHARGE', 'DAMAGE_CHARGE')
+        );
 
-        -- Count fast checkouts
+        -- Count fast operations from flow_events
         SELECT COUNT(*) INTO v_fast_checkouts FROM operation_flows
         WHERE created_by = emp_rec.id
         AND completed_at IS NOT NULL
@@ -114,6 +119,8 @@ BEGIN
         fast_checkout_count := v_fast_checkouts;
         activity_summary := jsonb_build_object(
             'total_operations', v_total_ops,
+            'audit_log_entries', v_audit_count,
+            'flow_events_count', v_total_ops - v_audit_count,
             'anomalies', v_anomalies,
             'payment_discrepancies', v_payment_disc,
             'person_mismatches', v_person_mismatches,
@@ -125,3 +132,4 @@ BEGIN
     END LOOP;
 END;
 $$;
+
