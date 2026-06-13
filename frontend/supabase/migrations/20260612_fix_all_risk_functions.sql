@@ -70,8 +70,9 @@ BEGIN
         ELSE v_risk_level := 'LOW';
         END IF;
 
-        SELECT jsonb_agg(jsonb_build_object('title', ir.title, 'severity', ir.severity, 'status', ir.status, 'created_at', ir.created_at)) INTO v_recent_incidents
-        FROM incident_reports ir WHERE ir.target_employee_id = emp_rec.id ORDER BY ir.created_at DESC LIMIT 5;
+        SELECT jsonb_agg(sub.inc) INTO v_recent_incidents
+        FROM (SELECT jsonb_build_object('title', title, 'severity', severity, 'status', status, 'created_at', created_at) AS inc
+        FROM incident_reports WHERE target_employee_id = emp_rec.id ORDER BY created_at DESC LIMIT 5) sub;
 
         out_employee_id := emp_rec.id;
         out_employee_name := emp_rec.name;
