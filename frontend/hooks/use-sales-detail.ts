@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { escapeHtml } from "@/lib/utils/print-helper";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -414,14 +415,14 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
         <h1>Orden de Venta #${order.id.slice(0, 8)}</h1>
         <div class="info">
           <p><strong>Fecha:</strong> ${formatDate(order.created_at)}</p>
-          <p><strong>Cliente:</strong> ${order.customers?.name || 'Cliente general'}</p>
-          <p><strong>Almacén:</strong> ${order.warehouses?.code} - ${order.warehouses?.name}</p>
-          <p><strong>Estado:</strong> ${order.status}</p>
+          <p><strong>Cliente:</strong> ${escapeHtml(order.customers?.name || 'Cliente general')}</p>
+          <p><strong>Almacén:</strong> ${escapeHtml(order.warehouses?.code || '')} - ${escapeHtml(order.warehouses?.name || '')}</p>
+          <p><strong>Estado:</strong> ${escapeHtml(order.status)}</p>
         </div>
         <table><thead><tr><th>Producto</th><th>SKU</th><th>Cantidad</th><th>Precio Unit.</th><th>Total</th></tr></thead>
-        <tbody>${items.map(item => `<tr><td>${item.products?.name || '-'}</td><td>${item.products?.sku || '-'}</td><td>${item.qty}</td><td>${formatCurrency(item.unit_price, order.currency)}</td><td>${formatCurrency(item.total, order.currency)}</td></tr>`).join('')}</tbody></table>
+        <tbody>${items.map(item => `<tr><td>${escapeHtml(item.products?.name || '-')}</td><td>${escapeHtml(item.products?.sku || '-')}</td><td>${item.qty}</td><td>${formatCurrency(item.unit_price, order.currency)}</td><td>${formatCurrency(item.total, order.currency)}</td></tr>`).join('')}</tbody></table>
         <p class="total">Total: ${formatCurrency(order.total, order.currency)}</p>
-        ${order.notes ? `<p><strong>Notas:</strong> ${order.notes}</p>` : ''}
+        ${order.notes ? `<p><strong>Notas:</strong> ${escapeHtml(order.notes)}</p>` : ''}
       </body></html>`;
     const printWindow = window.open('', '_blank');
     if (printWindow) { printWindow.document.write(printContent); printWindow.document.close(); printWindow.print(); }
