@@ -133,7 +133,26 @@ export function useEmployeeRiskOverview() {
     try {
       const supabase = createClient();
       const { data, error } = await supabase.rpc("get_all_employees_risk_overview");
-      if (!error) setEmployees(data || []);
+      if (!error && data) {
+        // Map out_ prefixed columns to expected names
+        const mapped = data.map((row: any) => ({
+          employee_id: row.out_employee_id,
+          employee_name: row.out_employee_name,
+          employee_role: row.out_employee_role,
+          risk_score: Number(row.out_risk_score) || 0,
+          risk_level: row.out_risk_level || 'LOW',
+          total_operations: row.out_total_operations || 0,
+          anomalies_detected: row.out_anomalies_detected || 0,
+          incidents_reported: row.out_incidents_reported || 0,
+          payment_discrepancies: row.out_payment_discrepancies || 0,
+          person_mismatches: row.out_person_mismatches || 0,
+          courtesy_abuse_count: row.out_courtesy_abuse_count || 0,
+          fast_checkout_count: row.out_fast_checkout_count || 0,
+          activity_summary: row.out_activity_summary || {},
+          recent_incidents: row.out_recent_incidents || [],
+        }));
+        setEmployees(mapped);
+      }
     } catch (err) {
       console.error("[audit] Error:", err);
     } finally {
