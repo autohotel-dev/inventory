@@ -117,14 +117,45 @@ function EmployeeDetail({ employee, onClose }: { employee: EmployeeRiskSummary; 
               <p className="text-[10px] text-muted-foreground">Pagos Discrepantes</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-orange-500/10">
-              <p className="text-lg font-bold text-orange-500">{employee.person_mismatches}</p>
-              <p className="text-[10px] text-muted-foreground">Personas Diferentes</p>
-            </div>
-            <div className="text-center p-2 rounded-lg bg-red-600/10">
-              <p className="text-lg font-bold text-red-600">{employee.incidents_reported}</p>
+              <p className="text-lg font-bold text-orange-500">{employee.incidents_reported}</p>
               <p className="text-[10px] text-muted-foreground">Incidentes</p>
             </div>
+            <div className="text-center p-2 rounded-lg bg-amber-500/10">
+              <p className="text-lg font-bold text-amber-500">{employee.cash_payment_ratio}%</p>
+              <p className="text-[10px] text-muted-foreground">Efectivo</p>
+            </div>
           </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+            <div className="text-center p-2 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{employee.void_count}</p>
+              <p className="text-[10px] text-muted-foreground">Anulaciones</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{employee.refund_count}</p>
+              <p className="text-[10px] text-muted-foreground">Reembolsos</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{employee.courtesy_abuse_count}</p>
+              <p className="text-[10px] text-muted-foreground">Cortesías</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{employee.last_anomaly_days}d</p>
+              <p className="text-[10px] text-muted-foreground">Última Anomalía</p>
+            </div>
+          </div>
+
+          {/* Risk Factors */}
+          {employee.risk_factors && employee.risk_factors.length > 0 && (
+            <div className="mt-4 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Factores de Riesgo:</p>
+              {employee.risk_factors.map((f, i) => (
+                <div key={i} className="flex items-center justify-between text-xs p-2 rounded bg-red-500/5 border border-red-500/10">
+                  <span>{f.factor}</span>
+                  <span className="font-mono text-red-500">+{f.points}pts</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

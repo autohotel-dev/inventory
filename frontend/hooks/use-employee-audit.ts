@@ -45,6 +45,13 @@ export interface EmployeeRiskSummary {
   person_mismatches: number;
   courtesy_abuse_count: number;
   fast_checkout_count: number;
+  cash_payment_ratio: number;
+  void_count: number;
+  refund_count: number;
+  adjustment_count: number;
+  avg_processing_time_ms: number;
+  last_anomaly_days: number;
+  risk_factors: Array<{ factor: string; count?: number; points?: number; percentage?: number }>;
   activity_summary: Record<string, unknown>;
   recent_incidents: Array<{
     title: string;
@@ -148,6 +155,13 @@ export function useEmployeeRiskOverview() {
           person_mismatches: row.out_person_mismatches || 0,
           courtesy_abuse_count: row.out_courtesy_abuse_count || 0,
           fast_checkout_count: row.out_fast_checkout_count || 0,
+          cash_payment_ratio: Number(row.out_cash_payment_ratio) || 0,
+          void_count: row.out_void_count || 0,
+          refund_count: row.out_refund_count || 0,
+          adjustment_count: row.out_adjustment_count || 0,
+          avg_processing_time_ms: Number(row.out_avg_processing_time_ms) || 0,
+          last_anomaly_days: row.out_last_anomaly_days || 999,
+          risk_factors: row.out_risk_factors || [],
           activity_summary: row.out_activity_summary || {},
           recent_incidents: row.out_recent_incidents || [],
         }));
