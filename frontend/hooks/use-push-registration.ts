@@ -24,7 +24,7 @@ export function usePushRegistration(employeeId?: string) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        console.log('Push Hook: Checking support...', {
+        // Debug: Push support check
             sw: 'serviceWorker' in navigator,
             pm: 'PushManager' in window
         });
@@ -32,14 +32,14 @@ export function usePushRegistration(employeeId?: string) {
             setIsSupported(true);
             checkSubscription();
         } else {
-            console.log('Push Hook: Not supported');
+            // Debug: Push not supported
             setLoading(false);
         }
     }, []);
 
     const checkSubscription = async () => {
         try {
-            console.log('Push Hook: Checking registration...');
+            // Debug: Checking registration
             
             // Timeout to avoid infinite waiting if SW is broken/hanging
             const timeoutPromise = new Promise((_, reject) => 
@@ -47,13 +47,13 @@ export function usePushRegistration(employeeId?: string) {
             );
 
             // Just wait for the official registration to be ready
-            console.log('Push Hook: Waiting for .ready...');
+            // Debug: Waiting for ready
             const registration = await Promise.race([
                 navigator.serviceWorker.ready,
                 timeoutPromise
             ]) as ServiceWorkerRegistration;
             
-            console.log('Push Hook: Service Worker Ready', {
+            // Debug: Service worker ready
                 active: !!registration.active,
                 waiting: !!registration.waiting,
                 installing: !!registration.installing,
@@ -61,7 +61,7 @@ export function usePushRegistration(employeeId?: string) {
             });
 
             const subscription = await registration.pushManager.getSubscription();
-            console.log('Push Hook: Current Subscription:', !!subscription);
+            // Debug: Subscription status
             setIsSubscribed(!!subscription);
         } catch (error: any) {
             console.error('Push Hook: Registration/Ready Error:', error?.message || 'Unknown error');

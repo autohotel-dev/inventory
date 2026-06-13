@@ -103,7 +103,7 @@ export function useRoomRealtime(
           )
           .subscribe((status: string, err?: Error) => {
             if (status === "SUBSCRIBED") {
-              console.debug("✅ [Realtime] Conexión activada");
+              
             } else if (status === "CHANNEL_ERROR") {
               console.warn("⚠️ [Realtime] Error en canal:", err?.message || "");
             } else if (status === "TIMED_OUT") {
