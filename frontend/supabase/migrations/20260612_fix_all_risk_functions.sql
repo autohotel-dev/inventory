@@ -37,7 +37,7 @@ DECLARE
     v_audit_count INT;
     v_recent_incidents JSONB;
 BEGIN
-    FOR emp_rec IN SELECT e.id, e.first_name || ' ' || e.last_name AS name, e.role FROM employees e WHERE e.is_active = true LOOP
+    FOR emp_rec IN SELECT e.id, e.first_name || ' ' || e.last_name AS name, e.role FROM employees e WHERE e.is_active = true AND e.role IN ('cochero', 'receptionist') LOOP
         v_total_ops := 0; v_anomalies := 0; v_incidents := 0;
         v_payment_disc := 0; v_courtesy_abuse := 0; v_fast_checkouts := 0;
         v_audit_count := 0;
