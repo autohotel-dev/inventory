@@ -72,7 +72,7 @@ export async function createPendingCharge(
  * Returns the remaining amount after applying to pending payments.
  */
 export async function updatePendingPaymentsHelper(
-  supabase: any,
+  supabase: ReturnType<typeof createClient>,
   salesOrderId: string,
   payments: PaymentEntry[],
   totalPaid: number,
