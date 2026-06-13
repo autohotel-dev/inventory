@@ -96,19 +96,19 @@ export function PrintCenterModal() {
           {/* Tabs compactos */}
           <div className="px-4 shrink-0">
             <TabsList className="bg-zinc-900/50 border border-zinc-800/50 p-0.5 h-9">
-              <TabsTrigger value="recent" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-zinc-800">
+              <TabsTrigger value="recent" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:border data-[state=active]:border-blue-500/30">
                 <Clock className="w-3.5 h-3.5" />
                 Recientes
               </TabsTrigger>
-              <TabsTrigger value="quick" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-zinc-800">
+              <TabsTrigger value="quick" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 data-[state=active]:border data-[state=active]:border-emerald-500/30">
                 <Zap className="w-3.5 h-3.5" />
                 Rápido
               </TabsTrigger>
-              <TabsTrigger value="advanced" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-zinc-800">
+              <TabsTrigger value="advanced" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:border data-[state=active]:border-amber-500/30">
                 <Search className="w-3.5 h-3.5" />
                 Historial
               </TabsTrigger>
-              <TabsTrigger value="hardware" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-zinc-800">
+              <TabsTrigger value="hardware" className="gap-1.5 text-xs px-3 h-8 data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-400 data-[state=active]:border data-[state=active]:border-purple-500/30">
                 <Settings2 className="w-3.5 h-3.5" />
                 Hardware
               </TabsTrigger>
