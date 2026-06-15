@@ -25,9 +25,6 @@ export function usePushRegistration(employeeId?: string) {
 
     useEffect(() => {
         // Debug: Push support check
-            sw: 'serviceWorker' in navigator,
-            pm: 'PushManager' in window
-        });
         if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
             setIsSupported(true);
             checkSubscription();
@@ -54,11 +51,6 @@ export function usePushRegistration(employeeId?: string) {
             ]) as ServiceWorkerRegistration;
             
             // Debug: Service worker ready
-                active: !!registration.active,
-                waiting: !!registration.waiting,
-                installing: !!registration.installing,
-                scope: registration.scope
-            });
 
             const subscription = await registration.pushManager.getSubscription();
             // Debug: Subscription status
