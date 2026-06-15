@@ -316,7 +316,7 @@ export function AssignAssetModal({ isOpen, onClose, room, assetType = 'TV_REMOTE
             <div className="flex justify-center p-4">
               <div className="animate-spin h-6 w-6 border-2 border-primary rounded-full border-t-transparent"></div>
             </div>
-          ) : hasAssigned && !showChangeMode ? (
+          ) : hasAssigned && !showChangeMode && assignedCochero ? (
             /* ──── Vista de cochero asignado ──── */
             <div className="space-y-4">
               <div className="flex items-center gap-4 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 shadow-[0_0_15px_rgba(52,211,153,0.1)]">
