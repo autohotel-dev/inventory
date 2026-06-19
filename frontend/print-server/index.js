@@ -565,7 +565,8 @@ function buildClosingTicket(data) {
 
         // Helper to format transaction line with concept + room
         const fmtTxLine = (tx, i) => {
-            let line = `${i + 1}. ${tx.time}  ${formatMoney(tx.amount)}`;
+            const num = `${i + 1}. `;
+            let line = `${num}${tx.time}  ${formatMoney(tx.amount)}`;
             if (tx.concept && tx.roomNumber) {
                 line += ` (${tx.concept} Hab ${tx.roomNumber})`;
             } else if (tx.concept) {
@@ -573,7 +574,8 @@ function buildClosingTicket(data) {
             } else if (tx.roomNumber) {
                 line += ` (Hab ${tx.roomNumber})`;
             }
-            return line;
+            // Truncar a 42 cols para evitar wrap
+            return line.length > 42 ? line.substring(0, 41) + ')' : line;
         };
 
         if (cashTx.length > 0) {
@@ -640,10 +642,18 @@ function buildClosingTicket(data) {
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
     }
 
+    t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     t += CMD.ALIGN_CENTER;
+    t += CMD.NEW_LINE;
+    t += '________________________________' + CMD.NEW_LINE;
+    t += 'Firma del Empleado' + CMD.NEW_LINE;
+    t += CMD.NEW_LINE;
+    t += '________________________________' + CMD.NEW_LINE;
+    t += 'Firma del Supervisor' + CMD.NEW_LINE;
+    t += CMD.NEW_LINE;
     t += `Impreso: ${new Date().toLocaleString('es-MX')}` + CMD.NEW_LINE;
-    // Margen inferior
-    t += CMD.MARGIN + CMD.NEW_LINE + CMD.CUT;
+    // Margen inferior amplio para evitar corte
+    t += CMD.NEW_LINE + CMD.NEW_LINE + CMD.NEW_LINE + CMD.CUT;
 
     return t;
 }
