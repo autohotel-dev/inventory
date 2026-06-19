@@ -95,52 +95,56 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
         </Card>
       </div>
 
-      {/* Sensor metrics strip */}
-      {sensorStats && (
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-2.5">
-          <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-500 mr-1">Sensores</span>
+      {/* Sensor metrics strip — always rendered with fixed height to prevent layout shift */}
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-2.5 min-h-[40px]">
+        <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-500 mr-1">Sensores</span>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm">🚪</span>
-            <span className={`text-xs font-bold ${sensorStats.openInOccupied > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
-              {sensorStats.openInOccupied} {sensorStats.openInOccupied === 1 ? 'abierta' : 'abiertas'}
-            </span>
-          </div>
+        {sensorStats ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">🚪</span>
+              <span className={`text-xs font-bold ${sensorStats.openInOccupied > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
+                {sensorStats.openInOccupied} {sensorStats.openInOccupied === 1 ? 'abierta' : 'abiertas'}
+              </span>
+            </div>
 
-          <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 bg-white/10" />
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm">📡</span>
-            <span className={`text-xs font-bold ${sensorStats.online === sensorStats.total ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {sensorStats.online}/{sensorStats.total} online
-            </span>
-          </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">📡</span>
+              <span className={`text-xs font-bold ${sensorStats.online === sensorStats.total ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {sensorStats.online}/{sensorStats.total} online
+              </span>
+            </div>
 
-          {sensorStats.lowBattery > 0 && (
-            <>
-              <div className="w-px h-4 bg-white/10" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm">🔋</span>
-                <span className="text-xs font-bold text-amber-400">
-                  {sensorStats.lowBattery} baja
-                </span>
-              </div>
-            </>
-          )}
+            {sensorStats.lowBattery > 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🔋</span>
+                  <span className="text-xs font-bold text-amber-400">
+                    {sensorStats.lowBattery} baja
+                  </span>
+                </div>
+              </>
+            )}
 
-          {sensorStats.stale > 0 && (
-            <>
-              <div className="w-px h-4 bg-white/10" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm">⚠️</span>
-                <span className="text-xs font-bold text-zinc-400">
-                  {sensorStats.stale} sin señal
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+            {sensorStats.stale > 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">⚠️</span>
+                  <span className="text-xs font-bold text-zinc-400">
+                    {sensorStats.stale} sin señal
+                  </span>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <span className="text-xs text-zinc-600">Cargando...</span>
+        )}
+      </div>
 
       {/* Leyenda de estados y tipos - Responsive Fix */}
       <div className="bg-muted/30 p-3 rounded-lg border border-border/50 flex flex-wrap gap-x-8 gap-y-3 justify-center text-xs text-muted-foreground">

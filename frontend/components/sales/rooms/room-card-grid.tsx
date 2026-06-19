@@ -100,6 +100,15 @@ export const RoomCardGrid = memo(function RoomCardGrid({
 
       const tvRemote = room.room_assets?.find(a => a.asset_type === 'TV_REMOTE');
 
+      // Pre-compute sensor data to avoid inline closures that bypass React.memo
+      const matchedSensor = sensors.find(sen => sen.room_id === room.id);
+      const sensorStatus = matchedSensor
+        ? { isOpen: matchedSensor.is_open, batteryLevel: matchedSensor.battery_level, isOnline: matchedSensor.status === 'ONLINE', lastSeen: matchedSensor.last_seen }
+        : null;
+      const doorOpenMinutes = matchedSensor && matchedSensor.is_open
+        ? getDoorOpenMinutes(matchedSensor, doorOpenTimestamps)
+        : 0;
+
       return {
         room,
         status,
@@ -112,9 +121,11 @@ export const RoomCardGrid = memo(function RoomCardGrid({
         activeStay,
         tvRemoteStatus: tvRemote?.status || 'SIN_REGISTRO',
         tvAssignedName: tvRemote?.assigned_employee_name || null,
+        sensorStatus,
+        doorOpenMinutes,
       };
     });
-  }, [rooms, getRemainingTimeLabel]);
+  }, [rooms, getRemainingTimeLabel, sensors, doorOpenTimestamps]);
 
   return (
     <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 min-h-[50vh]">
@@ -129,7 +140,9 @@ export const RoomCardGrid = memo(function RoomCardGrid({
         valetPending,
         activeStay,
         tvRemoteStatus,
-        tvAssignedName
+        tvAssignedName,
+        sensorStatus,
+        doorOpenMinutes
       }) => {
 
 
@@ -152,16 +165,8 @@ export const RoomCardGrid = memo(function RoomCardGrid({
             isCriticalService={isCriticalService}
             roomTypeName={room.room_types?.name}
             notes={room.notes}
-            sensorStatus={(() => {
-              const s = sensors.find(sen => sen.room_id === room.id);
-              if (!s) return null;
-              return { isOpen: s.is_open, batteryLevel: s.battery_level, isOnline: s.status === 'ONLINE', lastSeen: s.last_seen };
-            })()}
-            doorOpenMinutes={(() => {
-              const s = sensors.find(sen => sen.room_id === room.id);
-              if (!s || !s.is_open) return 0;
-              return getDoorOpenMinutes(s, doorOpenTimestamps);
-            })()}
+            sensorStatus={sensorStatus}
+            doorOpenMinutes={doorOpenMinutes}
             vehicleStatus={(status === "OCUPADA" || status === "BLOQUEADA") ? (activeStay ? vehicleStatus : null) : null}
             onInfo={() => {
               setSelectedRoom(room);

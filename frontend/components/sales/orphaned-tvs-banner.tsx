@@ -116,7 +116,7 @@ export function OrphanedTVsBanner({ onRelease, className }: OrphanedTVsBannerPro
   }
 
   // ── Nothing to show ────────────────────────────────────────────────────────
-  if (!isLoading && orphanedCount === 0) return null;
+  if (!isLoading && orphanedCount === 0) return <div className="h-0 overflow-hidden" />;
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
   if (isLoading && orphanedCount === 0) {

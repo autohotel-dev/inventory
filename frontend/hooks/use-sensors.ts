@@ -86,7 +86,8 @@ export function useSensors() {
                             const newBattery = localSensor.battery !== null ? localSensor.battery : sensor.battery_level;
                             const newStatus: 'ONLINE' | 'OFFLINE' = localSensor.online ? 'ONLINE' : 'OFFLINE';
                             const newLastSeen = localSensor.lastSeen || sensor.last_seen;
-                            if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus || sensor.last_seen !== newLastSeen) {
+                            // Only trigger re-render for visually-relevant changes (not last_seen)
+                            if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus) {
                                 changed = true;
                                 return { ...sensor, is_open: newIsOpen, battery_level: newBattery, status: newStatus, last_seen: newLastSeen };
                             }
@@ -113,7 +114,8 @@ export function useSensors() {
                                 const newBattery = localSensor.battery !== null ? localSensor.battery : sensor.battery_level;
                                 const newStatus: 'ONLINE' | 'OFFLINE' = localSensor.online ? 'ONLINE' : 'OFFLINE';
                                 const newLastSeen = localSensor.lastSeen || sensor.last_seen;
-                                if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus || sensor.last_seen !== newLastSeen) {
+                                // Only trigger re-render for visually-relevant changes (not last_seen)
+                                if (sensor.is_open !== newIsOpen || sensor.battery_level !== newBattery || sensor.status !== newStatus) {
                                     changed = true;
                                     return { ...sensor, is_open: newIsOpen, battery_level: newBattery, status: newStatus, last_seen: newLastSeen };
                                 }
