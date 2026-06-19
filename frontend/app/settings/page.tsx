@@ -1,5 +1,7 @@
 "use client";
 
+import { PRINT_SERVER_URL } from '@/lib/print/constants';
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -312,8 +314,7 @@ export default function SettingsPage() {
 
             // Sync printer IPs to the print server
             try {
-                const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-                await fetch(`${printServerUrl}/config`, {
+                await fetch(`${PRINT_SERVER_URL}/config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

@@ -10,11 +10,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { ReprintableTicket, TicketType } from "@/hooks/use-reprint-center";
+import { formatCurrency as fmtCurrency } from "@/lib/utils/formatters";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 
 const fmtDate = (d: Date | string) => {
   const dt = typeof d === "string" ? new Date(d) : d;

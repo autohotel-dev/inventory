@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
+import { getTicketItemName } from "@/components/sales/payment/utils";
 
 interface ShiftClosingData {
     id: string;
@@ -206,16 +207,8 @@ function ThermalReceiptContent() {
 
                     items.forEach((item: any) => {
                         if (!item.is_cancelled && (roomStay ? (item.concept_type !== 'ROOM_BASE' && item.concept_type !== 'VEHICLE_REQUEST') : true)) {
-                            let itemName = item.products?.name;
-                            if (!itemName) {
-                                switch (item.concept_type) {
-                                    case 'EXTRA_PERSON': itemName = 'Persona Extra'; break;
-                                    case 'EXTRA_HOUR': itemName = 'Hora Extra'; break;
-                                    case 'DAMAGE_CHARGE': itemName = 'Cobro Daños'; break;
-                                    case 'LATE_CHECKOUT': itemName = 'Salida Tarde'; break;
-                                    default: itemName = item.concept_type || 'Extra';
-                                }
-                            }
+                            const roomNumber = roomStay?.rooms?.number;
+                            const itemName = getTicketItemName(item.concept_type || 'PRODUCT', null, item.products?.name, roomNumber);
                             
                             let description = itemName;
                             if (item.is_courtesy) {

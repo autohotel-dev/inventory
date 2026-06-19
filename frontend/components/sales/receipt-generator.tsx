@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Printer, Download, Loader2, X } from "lucide-react";
+import { getTicketItemName } from "@/components/sales/payment/utils";
 
 interface ReceiptItem {
   id: string;
@@ -39,15 +40,17 @@ interface ReceiptData {
   items: ReceiptItem[];
   payments: ReceiptPayment[];
   roomNumber?: string;
+  roomTypeName?: string;
 }
 
 interface ReceiptGeneratorProps {
   orderId: string;
   roomNumber?: string;
+  roomTypeName?: string;
   onClose?: () => void;
 }
 
-export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGeneratorProps) {
+export function ReceiptGenerator({ orderId, roomNumber, roomTypeName, onClose }: ReceiptGeneratorProps) {
   const [loading, setLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
@@ -91,6 +94,7 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
         })),
         payments: payments || [],
         roomNumber,
+        roomTypeName,
       });
       setShowPreview(true);
     } catch (error) {
@@ -105,13 +109,8 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
     const printWindow = window.open("", "_blank");
     if (!printWindow || !receiptData) return;
 
-    const conceptLabels: Record<string, string> = {
-      ROOM_BASE: "Habitación",
-      EXTRA_HOUR: "Hora Extra",
-      EXTRA_PERSON: "Persona Extra",
-      CONSUMPTION: "Consumo",
-      PRODUCT: "Producto",
-    };
+    const getItemName = (item: ReceiptItem) => 
+      getTicketItemName(item.concept_type || 'PRODUCT', receiptData.roomTypeName, item.products?.name, receiptData.roomNumber);
 
     const formatCurrency = (amount: number) => {
       return new Intl.NumberFormat("es-MX", {
@@ -182,9 +181,7 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
           ${receiptData.items.map(item => `
             <div class="item">
               <div class="item-name">
-                ${item.concept_type && item.concept_type !== 'PRODUCT'
-        ? conceptLabels[item.concept_type]
-        : item.products?.name || 'Producto'}
+                ${getItemName(item)}
               </div>
               <div class="item-details">
                 <span>${item.qty} x ${formatCurrency(item.unit_price)}</span>
@@ -291,9 +288,7 @@ export function ReceiptGenerator({ orderId, roomNumber, onClose }: ReceiptGenera
                   {receiptData.items.map((item) => (
                     <div key={item.id}>
                       <p className="font-bold">
-                        {item.concept_type && item.concept_type !== 'PRODUCT'
-                          ? { ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra", CONSUMPTION: "Consumo" }[item.concept_type]
-                          : item.products?.name}
+                        {getTicketItemName(item.concept_type || 'PRODUCT', receiptData.roomTypeName, item.products?.name, receiptData.roomNumber)}
                       </p>
                       <div className="flex justify-between text-[10px] text-gray-600">
                         <span>{item.qty} x ${item.unit_price.toFixed(2)}</span>

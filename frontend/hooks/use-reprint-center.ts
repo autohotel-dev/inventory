@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import { usePrintClosing } from "@/hooks/use-print-closing";
+import { buildClosingBreakdowns, buildClosingTransactions } from "@/lib/print";
+import { formatCurrency } from "@/lib/utils/formatters";
+import { getShiftExpenses, getEmployeeCharges } from "@/lib/services/shift-service";
+import { getConsumptionsByDateRange, getAccrualItemsBySession } from "@/lib/services/consumption-service";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -142,12 +146,8 @@ async function printHPIncomeReport(
   const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
 
   // 6. Fetch shift expenses
-  const { data: expenseData } = await supabase
-    .from('shift_expenses')
-    .select('*')
-    .eq('shift_session_id', shiftSessionId)
-    .neq('status', 'rejected')
-    .order('created_at', { ascending: true });
+  const expensesResult = await getShiftExpenses(shiftSessionId);
+  const expenseData = expensesResult.success ? expensesResult.data : [];
 
   const EXPENSE_LABELS: Record<string, string> = {
     UBER: '🚗 Uber / Transporte', MAINTENANCE: '🔧 Mantenimiento', REPAIR: '🛠️ Reparación',
@@ -210,16 +210,8 @@ async function printHPIncomeReport(
   ).join('') + `<tr><td colspan="2" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL GASTOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : '';
 
   // 9. Load employee charges for the shift
-  const { data: chargesData } = await supabase
-    .from('shift_employee_charges')
-    .select(`
-      id, charge_type, description, total, discount_amount,
-      payment_method, created_at,
-      charged_employee:charged_to(first_name, last_name)
-    `)
-    .eq('shift_session_id', shiftSessionId)
-    .neq('status', 'rejected')
-    .order('created_at', { ascending: true });
+  const chargesResult = await getEmployeeCharges(shiftSessionId);
+  const chargesData = chargesResult.success ? chargesResult.data : [];
 
   const CHARGE_TYPE_LABELS: Record<string, string> = {
     BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
@@ -499,13 +491,9 @@ export function useReprintCenter() {
 
       // 3. CONSUMPTIONS
       {
-        const { data, error } = await supabase
-          .from("sales_order_items")
-          .select("id, qty, unit_price, total, created_at, concept_type, is_courtesy, products(name), sales_orders!inner(id, room_stays(rooms(number)))")
-          .eq("concept_type", "CONSUMPTION")
-          .gte("created_at", fromISO)
-          .lte("created_at", toISO)
-          .order("created_at", { ascending: false });
+        const consumptionsResult = await getConsumptionsByDateRange(dateRange.from, dateRange.to);
+        const data = consumptionsResult.success ? consumptionsResult.data : [];
+        const error = consumptionsResult.success ? null : consumptionsResult.error;
 
         if (error) console.error("[Reprint] Error fetching consumptions:", error);
 
@@ -716,34 +704,7 @@ export function useReprintCenter() {
             .eq("shift_closing_id", closingId)
             .order("created_at", { ascending: true });
 
-          const CONCEPT_DISPLAY: Record<string, string> = {
-            ESTANCIA: "Estancia", CONSUMPTION: "Consumo", EXTRA_PERSON: "Pers. Extra",
-            EXTRA_HOUR: "Hora Extra", RENEWAL: "Renovación", CHECKOUT: "Salida",
-            ROOM_BASE: "Habitación", PROMO_4H: "Promo 4H",
-            ROOM_CHANGE_ADJUSTMENT: "Cambio de Hab.",
-          };
-
-          const transactions = (details || []).map((detail: any) => {
-            const payment = detail.payments;
-            if (!payment) return null;
-
-            const order = Array.isArray(payment.sales_orders) ? payment.sales_orders[0] : payment.sales_orders;
-            const roomStay = order?.room_stays?.[0] || (Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays);
-            const room = roomStay?.rooms;
-            const roomNumber = Array.isArray(room) ? room[0]?.number : room?.number;
-            const rawConcept = payment.concept || "";
-            const conceptLabel = CONCEPT_DISPLAY[rawConcept] || rawConcept || undefined;
-
-            return {
-              time: new Date(payment.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-              amount: payment.amount,
-              paymentMethod: detail.payment_method || payment.payment_method || "N/A",
-              terminalCode: detail.terminal_code || payment.payment_terminals?.code || payment.terminal_code,
-              reference: payment.reference || undefined,
-              concept: conceptLabel,
-              roomNumber: roomNumber || undefined,
-            };
-          }).filter(Boolean);
+          const transactions = buildClosingTransactions(details || []);
 
           // Load breakdowns
           let roomBreakdown: Record<string, { count: number; total: number }> = {};
@@ -752,78 +713,22 @@ export function useReprintCenter() {
           let damageBreakdown: Record<string, { count: number; total: number }> = {};
 
           if (shiftSessionId) {
-            const { data: accrualItems } = await supabase
-              .from("sales_order_items")
-              .select("id, qty, unit_price, concept_type, is_courtesy, courtesy_reason, is_cancelled, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
-              .eq("shift_session_id", shiftSessionId);
+            const accrualResult = await getAccrualItemsBySession(shiftSessionId);
+            const accrualItems = accrualResult.success ? accrualResult.data : [];
 
-            const CONCEPT_LABELS: Record<string, string> = {
-              EXTRA_PERSON: "Persona Extra",
-              EXTRA_HOUR: "Hora Extra",
-              RENEWAL: "Renovación",
-              PROMO_4H: "Promo 4H",
-              ROOM_CHANGE_ADJUSTMENT: "Cambio de Habitación",
-            };
-
-            // Filter out items belonging to cancelled stays or items that are cancelled
-            const activeItems = (accrualItems || []).filter((item: any) => {
-              if (item.is_cancelled) return false;
-              const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
-              const roomStay = order?.room_stays;
-              const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
-              return !stay || stay.status !== 'CANCELADA';
-            });
-
-            activeItems.forEach((item: any) => {
-              const qty = item.qty || 1;
-              const unitPrice = item.unit_price || 0;
-              const amount = qty * unitPrice;
-              const conceptType = item.concept_type;
-
-              if (conceptType === "ROOM_BASE") {
-                const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
-                const stay = order?.room_stays?.[0] || (Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays);
-                const room = stay?.rooms;
-                const roomType = Array.isArray(room) ? room[0]?.room_types : room?.room_types;
-                const typeName = Array.isArray(roomType) ? roomType[0]?.name : roomType?.name || "Habitación";
-
-                if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
-                roomBreakdown[typeName].count += qty;
-                roomBreakdown[typeName].total += amount;
-              } else if (conceptType === "EXTRA_PERSON" || conceptType === "EXTRA_HOUR" || conceptType === "RENEWAL" || conceptType === "PROMO_4H" || conceptType === "ROOM_CHANGE_ADJUSTMENT") {
-                const label = CONCEPT_LABELS[conceptType] || conceptType;
-                if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
-                extraBreakdown[label].count += qty;
-                extraBreakdown[label].total += amount;
-              } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
-                const product = Array.isArray(item.products) ? item.products[0] : item.products;
-                const productName = product?.name || "Producto";
-                let displayName = productName;
-                if (item.is_courtesy) {
-                  displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
-                }
-                if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
-                consumptionBreakdown[displayName].count += qty;
-                consumptionBreakdown[displayName].total += amount;
-              } else if (conceptType === "DAMAGE_CHARGE") {
-                const description = item.courtesy_reason || "Cargo por Daño";
-                if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
-                damageBreakdown[description].count += qty;
-                damageBreakdown[description].total += amount;
-              }
-            });
+            const breakdowns = buildClosingBreakdowns(accrualItems || []);
+            roomBreakdown = breakdowns.roomBreakdown;
+            extraBreakdown = breakdowns.extraBreakdown;
+            consumptionBreakdown = breakdowns.consumptionBreakdown;
+            damageBreakdown = breakdowns.damageBreakdown;
           }
 
           // Load expenses
           let expenses: any[] = [];
           let totalExpenses = 0;
           if (shiftSessionId) {
-            const { data: expenseData } = await supabase
-              .from("shift_expenses")
-              .select("*")
-              .eq("shift_session_id", shiftSessionId)
-              .neq("status", "rejected")
-              .order("created_at", { ascending: true });
+            const expensesResult2 = await getShiftExpenses(shiftSessionId);
+            const expenseData = expensesResult2.success ? expensesResult2.data : [];
 
             expenses = (expenseData || []).map((exp: any) => ({
               time: new Date(exp.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
@@ -839,16 +744,8 @@ export function useReprintCenter() {
           let employeeCharges: any[] = [];
           let totalEmployeeCharges = 0;
           if (shiftSessionId) {
-            const { data: chargesData } = await supabase
-              .from('shift_employee_charges')
-              .select(`
-                id, charge_type, description, total, discount_amount,
-                payment_method, created_at,
-                charged_employee:charged_to(first_name, last_name)
-              `)
-              .eq('shift_session_id', shiftSessionId)
-              .neq('status', 'rejected')
-              .order('created_at', { ascending: true });
+            const chargesResult2 = await getEmployeeCharges(shiftSessionId);
+            const chargesData = chargesResult2.success ? chargesResult2.data : [];
 
             employeeCharges = (chargesData || []).map((c: any) => ({
               time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
@@ -966,8 +863,7 @@ export function useReprintCenter() {
 
   // ─── Helpers ───────────────────────────────────────────────────────
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+
 
   const typeLabels: Record<TicketType, { label: string; emoji: string; color: string }> = {
     entry: { label: "Entrada", emoji: "🚪", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },

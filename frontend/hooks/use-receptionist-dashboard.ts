@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getActiveShiftDefinitions, getActiveSession, getAllActiveSessions, clockIn, clockOut, createShiftExpense } from "@/lib/services/shift-service";
+import { verifyEmployeePin } from "@/lib/services/employee-service";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ShiftSession, ShiftDefinition } from "@/components/employees/types";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +15,7 @@ import { useShiftExpenses } from "@/hooks/use-shift-expenses";
 import { useEmployeeCharges } from "@/hooks/use-employee-charges";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { invalidateReceptionCache } from "@/hooks/room-actions/shift-helpers";
+import { formatCurrency } from "@/lib/utils/formatters";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -41,8 +44,7 @@ const INITIAL_SUMMARY: ShiftSummary = {
 
 // ─── Formatters ──────────────────────────────────────────────────────
 
-export const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+export { formatCurrency };
 
 export const formatTime = (date: Date) =>
   date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -100,21 +102,20 @@ export function useReceptionistDashboard() {
   // ─── Shift Detection ──────────────────────────────────────────────
 
   const fetchCurrentShift = async () => {
-    const supabase = createClient();
-    const { data: shifts } = await supabase
-      .from("shift_definitions").select("*").eq("is_active", true).order("start_time");
-    if (!shifts?.length) return;
+    const result = await getActiveShiftDefinitions();
+    if (!result.success || !result.data.length) return;
+    const shifts = result.data;
 
     const now = new Date();
     const ct = now.toTimeString().slice(0, 8);
     // Filtrar comodin para que no sobreescriba los turnos principales
-    const mainShifts = shifts.filter((s: { code: string; crosses_midnight: boolean; start_time: string; end_time: string }) => s.code !== 'COMODIN');
+    const mainShifts = shifts.filter((s: any) => s.code !== 'COMODIN');
     
     for (const shift of mainShifts) {
-      if (shift.crosses_midnight) {
-        if (ct >= shift.start_time || ct < shift.end_time) { setCurrentShift(shift); return; }
+      if ((shift as any).crosses_midnight) {
+        if (ct >= shift.start_time || ct < shift.end_time) { setCurrentShift(shift as any); return; }
       } else {
-        if (ct >= shift.start_time && ct < shift.end_time) { setCurrentShift(shift); return; }
+        if (ct >= shift.start_time && ct < shift.end_time) { setCurrentShift(shift as any); return; }
       }
     }
   };
@@ -124,16 +125,12 @@ export function useReceptionistDashboard() {
     const supabase = createClient();
     const { data } = await supabase.from("employees").select("pin_code").eq("id", employeeId).single();
     setEmployeePin(data?.pin_code || null);
-  }, [employeeId]);
+  }, [employeeId]);  // Note: kept inline — verifyEmployeePin checks but doesn't return the pin value
 
   const fetchActiveSession = useCallback(async () => {
     if (!employeeId) return;
-    const supabase = createClient();
-    const { data: sessions } = await supabase
-      .from("shift_sessions").select("*, employees(*), shift_definitions(*)")
-      .eq("employee_id", employeeId).eq("status", "active")
-      .order("clock_in_at", { ascending: false }).limit(1);
-    setActiveSession(sessions?.[0] || null);
+    const result = await getActiveSession(employeeId);
+    if (result.success) setActiveSession(result.data as any);
   }, [employeeId]);
 
   const fetchActiveValetCount = useCallback(async () => {
@@ -146,12 +143,11 @@ export function useReceptionistDashboard() {
 
   const fetchSystemActiveSession = useCallback(async () => {
     if (!canAdjustCash) return;
-    const supabase = createClient();
-    const { data: sessions } = await supabase
-      .from("shift_sessions").select("*, employees(*), shift_definitions(*)")
-      .eq("status", "active").order("clock_in_at", { ascending: false }).limit(1);
-    const found = sessions?.[0];
-    if (found && found.employee_id !== employeeId) setSystemActiveSession(found);
+    const result = await getActiveSession();
+    if (result.success) {
+      const found = result.data;
+      if (found && found.employee_id !== employeeId) setSystemActiveSession(found as any);
+    }
   }, [canAdjustCash, employeeId]);
 
   // ─── Start Shift ──────────────────────────────────────────────────
@@ -194,14 +190,13 @@ export function useReceptionistDashboard() {
         }
       }
 
-      const { data, error } = await supabase.from("shift_sessions")
-        .insert({ employee_id: employeeId, shift_definition_id: currentShift.id, clock_in_at: new Date().toISOString(), status: "active" })
-        .select("*, employees(*), shift_definitions(*)").single();
-      if (error) throw error;
+      const clockResult = await clockIn(employeeId, currentShift.id);
+      if (!clockResult.success) throw new Error(clockResult.error);
+      const data = clockResult.data;
 
       success("¡Turno iniciado!", `Bienvenido al turno de ${currentShift.name}`);
       invalidateReceptionCache();
-      setActiveSession(data);
+      setActiveSession(data as any);
       setShowPinInput(false);
       setPinCode("");
     } catch (err: any) {
@@ -232,11 +227,8 @@ export function useReceptionistDashboard() {
     if (!activeSession || actionLoading) return;
     setActionLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from("shift_sessions")
-        .update({ clock_out_at: new Date().toISOString(), status: "pending_closing" })
-        .eq("id", activeSession.id);
-      if (error) throw error;
+      const result = await clockOut(activeSession.id);
+      if (!result.success) throw new Error(result.error);
 
       const updatedSession = { ...activeSession, clock_out_at: new Date().toISOString(), status: "pending_closing" as const };
       setSessionToClose(updatedSession);
@@ -253,11 +245,8 @@ export function useReceptionistDashboard() {
     if (!activeSession || actionLoading) return;
     setActionLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from("shift_sessions")
-        .update({ clock_out_at: new Date().toISOString(), status: "pending_closing" })
-        .eq("id", activeSession.id);
-      if (error) throw error;
+      const result = await clockOut(activeSession.id);
+      if (!result.success) throw new Error(result.error);
       success("Turno cerrado", "Puedes completar tu corte de caja cuando quieras desde cualquier dispositivo");
       invalidateReceptionCache();
       setActiveSession(null);
@@ -377,15 +366,13 @@ export function useReceptionistDashboard() {
     const amount = parseFloat(cashAdjustmentInput);
     if (isNaN(amount) || amount === 0) { showError("Error", "Ingresa un monto válido"); return; }
 
-    const supabase = createClient();
-    const { error } = await supabase.from("shift_expenses").insert({
-      shift_session_id: activeSession?.id, employee_id: employeeId,
+    const expenseResult = await createShiftExpense({
+      shift_session_id: activeSession?.id || '',
       expense_type: "CASH_ADJUSTMENT",
       description: amount > 0 ? "Ajuste: Ingreso de efectivo" : "Ajuste: Retiro de efectivo",
       amount: Math.abs(amount) * (amount > 0 ? -1 : 1),
-      status: "approved"
     });
-    if (error) { showError("Error", "No se pudo registrar el ajuste"); console.error(error); return; }
+    if (!expenseResult.success) { showError("Error", "No se pudo registrar el ajuste"); return; }
     success(amount > 0 ? "Efectivo agregado" : "Efectivo retirado",
       `Se ${amount > 0 ? "agregaron" : "retiraron"} ${formatCurrency(Math.abs(amount))}`);
     refetchExpenses();

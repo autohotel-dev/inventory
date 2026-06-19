@@ -12,9 +12,10 @@ interface UsePaymentSessionProps {
   onComplete?: () => void;
   employeeId?: string | null;
   roomNumber?: string;
+  roomTypeName?: string;
 }
 
-export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId, roomNumber }: UsePaymentSessionProps) {
+export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId, roomNumber, roomTypeName }: UsePaymentSessionProps) {
   const [step, setStep] = useState<'select' | 'pay'>('select');
   const [forcedUnlockedItems, setForcedUnlockedItems] = useState<Set<string>>(new Set());
   
@@ -41,7 +42,8 @@ export function usePaymentSession({ salesOrderId, isOpen, onComplete, employeeId
       onComplete?.();
     },
     onRefreshItems: itemDomain.fetchItems,
-    roomNumber
+    roomNumber,
+    roomTypeName
   });
 
   // Business Logic: Computed Blocks

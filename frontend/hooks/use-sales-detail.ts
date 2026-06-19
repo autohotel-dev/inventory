@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { createPayment, createMultiPayment, processPayment, generatePaymentReference } from "@/lib/services/payment-service";
 import { toast } from "sonner";
 import { escapeHtml } from "@/lib/utils/print-helper";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
@@ -62,11 +63,6 @@ export interface PaymentHistoryItem {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function generatePaymentReference(prefix: string = "PAY"): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefix}-${timestamp}-${random}`;
-}
 
 export const formatCurrency = (amount: number, currency: string = 'MXN') =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amount);
@@ -189,43 +185,29 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
       const isMultipago = validPayments.length > 1;
 
       if (isMultipago) {
-        const { data: mainPayment, error: mainError } = await supabase
-          .from("payments")
-          .insert({ sales_order_id: orderId, amount: totalAmount, payment_method: "PENDIENTE", reference: generatePaymentReference("ABN"), concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO" })
-          .select("id").single();
-
-        if (mainError) console.error("Error inserting main payment:", mainError);
-        else if (mainPayment) {
-          const subpayments = validPayments.map((p: any) => ({
-            sales_order_id: orderId, amount: p.amount, payment_method: p.method,
-            reference: p.reference || generatePaymentReference("SUB"),
-            concept: "ABONO", status: "PAGADO", payment_type: "PARCIAL", parent_payment_id: mainPayment.id,
-          }));
-          const { error: subError } = await supabase.from("payments").insert(subpayments);
-          if (subError) console.error("Error inserting subpayments:", subError);
-        }
+        const multiResult = await createMultiPayment(
+          orderId,
+          validPayments.map((p: any) => ({ amount: p.amount, method: p.method, reference: p.reference })),
+          'ABONO' as any
+        );
+        if (!multiResult.success) console.error("Error inserting multipago:", multiResult.error);
       } else if (validPayments.length === 1) {
         const p = validPayments[0];
-        const { error } = await supabase.from("payments").insert({
-          sales_order_id: orderId, amount: p.amount, payment_method: p.method,
+        const singleResult = await createPayment({
+          salesOrderId: orderId, amount: p.amount, paymentMethod: p.method,
           reference: p.reference || generatePaymentReference("ABN"),
-          concept: "ABONO", status: "PAGADO", payment_type: "COMPLETO",
+          concept: 'ABONO' as any, status: "PAGADO", paymentType: "COMPLETO",
         });
-        if (error) console.error("Error inserting payment:", error);
+        if (!singleResult.success) console.error("Error inserting payment:", singleResult.error);
       }
 
-      const { data, error } = await supabase.rpc("process_payment", { order_id: orderId, payment_amount: totalAmount });
-      if (error) { toast.error('Error al crear el pago'); return; }
+      const rpcResult = await processPayment(orderId, totalAmount);
+      if (!rpcResult.success) { toast.error('Error al crear el pago'); return; }
 
-      const result = data[0] as any;
-      if (result.success === true) {
-        const methodsSummary = payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ');
-        toast.success('Pago creado exitosamente', { description: `Total: $${totalAmount.toFixed(2)} MXN (${methodsSummary})` });
-        fetchOrderDetail();
-        resetPaymentForm();
-      } else {
-        toast.error(result.message);
-      }
+      const methodsSummary = payments.map(p => `${p.method}: $${p.amount.toFixed(2)}`).join(', ');
+      toast.success('Pago creado exitosamente', { description: `Total: $${totalAmount.toFixed(2)} MXN (${methodsSummary})` });
+      fetchOrderDetail();
+      resetPaymentForm();
     } catch (error) {
       console.error('Error creating payment:', error);
       toast.error('Error al crear el pago');
@@ -312,10 +294,10 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
         }
       }
 
-      await supabase.from("payments").insert({
-        sales_order_id: orderId, amount: newItemsTotal, payment_method: "PENDIENTE",
-        reference: generatePaymentReference("CON"), concept: "CONSUMO", status: "PENDIENTE",
-        payment_type: "COMPLETO", notes: productosNota,
+      await createPayment({
+        salesOrderId: orderId, amount: newItemsTotal, paymentMethod: "PENDIENTE",
+        reference: generatePaymentReference("CON"), concept: 'CONSUMO' as any, status: "PENDIENTE",
+        paymentType: "COMPLETO",
       });
 
       const currentSubtotal = Number(order.subtotal) || 0;

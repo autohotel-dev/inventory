@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveOperationFlow, LiveOperationEvent } from "@/hooks/use-live-operations";
 import { cn } from "@/lib/utils";
+import { CONCEPT_LABELS_VERBOSE } from "@/lib/print";
 
 import type { ViewMode } from "./live-operations-board";
 
@@ -437,20 +438,9 @@ export function ProcessCard({ flow, viewMode = 'compact' }: ProcessCardProps) {
                   const m = event.metadata || {};
                   const isSrvExpanded = expandedServices[event.id];
 
-                  const CONCEPT_LABELS: Record<string, string> = {
-                    PROMO_4H: "Promoción de 4 Horas",
-                    EXTRA_PERSON: "Persona Extra",
-                    EXTRA_HOUR: "Hora Extra",
-                    DAMAGE: "Cargo por Daño",
-                    LATE_CHECKOUT: "Salida Tardía",
-                    RENEWAL: "Renovación",
-                    PRODUCT: "Producto / Servicio",
-                    ROOM: "Habitación",
-                  };
-
                   const translatedConcept = m.concept?.startsWith('ROOM_BASE') 
                     ? m.concept.replace('ROOM_BASE', 'Renta de Habitación')
-                    : (CONCEPT_LABELS[m.concept] || m.concept);
+                    : (CONCEPT_LABELS_VERBOSE[m.concept] || m.concept);
 
                   return (
                     <div key={event.id} className="relative flex items-start gap-4 group">

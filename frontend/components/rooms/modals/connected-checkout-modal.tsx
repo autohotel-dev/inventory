@@ -10,6 +10,7 @@ import { RoomCheckoutModal } from "@/components/sales/room-checkout-modal";
 import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import type { ConsumptionTicketData } from "@/hooks/use-thermal-printer";
 import { summarizePendingItems, hasBlockingDeliveries } from "@/lib/utils/order-utils";
+import { buildCheckoutTicketItems } from "@/lib/print";
 
 interface ConnectedCheckoutModalProps {
   room: Room | null;
@@ -131,12 +132,7 @@ export function ConnectedCheckoutModal({
           folio: `${checkoutInfo.salesOrderId.slice(0, 8)}`,
           date: new Date(),
           items: checkoutInfo.pendingItems
-            ? checkoutInfo.pendingItems.map((item) => ({
-                name: `${item.concept_type} x${item.count}`,
-                qty: item.count,
-                price: item.total / item.count,
-                total: item.total,
-              }))
+            ? buildCheckoutTicketItems(checkoutInfo.pendingItems, room.room_types?.name, room.number)
             : [],
           subtotal: checkoutAmount,
           total: checkoutAmount,

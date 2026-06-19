@@ -159,3 +159,43 @@ export function formatRelativeTime(date: string | Date): string {
 
     return rtf.format(0, 'second');
 }
+
+/**
+ * Formatea fecha corta: "18/06" o "18/06/2024"
+ * Patrón más usado en tickets y tablas
+ */
+export function formatShortDate(date: string | Date, includeYear = false): string {
+    const dt = typeof date === 'string' ? new Date(date) : date;
+    return dt.toLocaleDateString('es-MX', {
+        day: '2-digit',
+        month: '2-digit',
+        ...(includeYear ? { year: 'numeric' } : {}),
+    });
+}
+
+/**
+ * Formatea hora corta: "14:30"
+ * Patrón más usado en tickets y tablas
+ */
+export function formatShortTime(date: string | Date): string {
+    const dt = typeof date === 'string' ? new Date(date) : date;
+    return dt.toLocaleTimeString('es-MX', {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+/**
+ * Formatea fecha + hora corta: "18/06/2024 14:30"
+ */
+export function formatShortDateTime(date: string | Date): string {
+    return `${formatShortDate(date, true)} ${formatShortTime(date)}`;
+}
+
+/**
+ * Formatea rango de fechas: "18/06 14:30 — 19/06 08:00"
+ */
+export function formatDateRange(from: string | Date, to: string | Date): string {
+    return `${formatShortDate(from)} ${formatShortTime(from)} — ${formatShortDate(to)} ${formatShortTime(to)}`;
+}
+

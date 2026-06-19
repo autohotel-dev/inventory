@@ -407,13 +407,14 @@ export default function PracticePage() {
                             baseCapacity={selectedRoom.room_types.base_capacity ?? 2}
                             hasActiveTolerance={(selectedRoom.room_stays?.[0] as any)?.hasActiveTolerance || false}
                             toleranceMinutesLeft={(selectedRoom.room_stays?.[0] as any)?.toleranceMinutesLeft}
+                            tolerancePeopleOut={(selectedRoom.room_stays?.[0] as any)?.tolerance_people_out || 0}
                             extraPersonPrice={selectedRoom.room_types.extra_person_price || 0}
                             isHotelRoom={false}
                             actionLoading={actionLoading}
                             onClose={() => setIsManagePeopleOpen(false)}
-                            onAddPersonNew={handleAddPersonNew}
-                            onAddPersonReturning={handleAddPersonReturning}
-                            onRemovePerson={handleRemovePerson}
+                            onAddPersonNew={(count: number) => handleAddPersonNew()}
+                            onAddPersonReturning={(count: number) => handleAddPersonReturning()}
+                            onRemovePerson={(count: number, willReturn: boolean) => handleRemovePerson(willReturn)}
                         />
 
                         <ChangeRoomModal

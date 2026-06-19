@@ -31,6 +31,7 @@ interface GranularPaymentModalProps {
   onClose: () => void;
   onComplete?: () => void;
   roomNumber?: string;
+  roomTypeName?: string;
 }
 
 export function GranularPaymentModal({
@@ -38,7 +39,8 @@ export function GranularPaymentModal({
   isOpen,
   onClose,
   onComplete,
-  roomNumber
+  roomNumber,
+  roomTypeName
 }: GranularPaymentModalProps) {
   const { employeeId } = useUserRole();
   const session = usePaymentSession({
@@ -49,7 +51,8 @@ export function GranularPaymentModal({
       onClose();
     },
     employeeId,
-    roomNumber
+    roomNumber,
+    roomTypeName
   });
 
   const {

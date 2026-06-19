@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { PRINT_SERVER_URL } from '@/lib/print/constants';
 
 export interface Sensor {
     id: string;
@@ -98,9 +99,8 @@ export function useSensors() {
         } catch (err: any) {
             console.debug("Local LAN sensor poll skipped/failed, trying configured domain fallback:", err.message);
             try {
-                const printServerUrl = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-                if (printServerUrl === 'http://localhost:3001') return;
-                const res = await fetch(`${printServerUrl}/sensors/status`);
+                if (PRINT_SERVER_URL === 'http://localhost:3001') return;
+                const res = await fetch(`${PRINT_SERVER_URL}/sensors/status`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data && data.success && data.sensors) {

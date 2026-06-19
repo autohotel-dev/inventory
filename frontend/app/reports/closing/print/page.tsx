@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
+import { getTicketItemName } from "@/components/sales/payment/utils";
+import { CONCEPT_LABELS_DETAILED } from "@/lib/print";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -88,12 +90,7 @@ const formatDate = (dateStr: string) =>
 const formatTime = (dateStr: string) =>
     new Date(dateStr).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
-const CONCEPT_LABELS: Record<string, string> = {
-    ROOM_BASE: "Renta de Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
-    CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
-    DAMAGE_CHARGE: "Cobro por Daños", LATE_CHECKOUT: "Salida Tarde",
-    ROOM_CHANGE_ADJUSTMENT: "Ajuste Cambio de Habitación",
-};
+// CONCEPT_LABELS_DETAILED imported from @/lib/print
 
 // ─── Main Content ────────────────────────────────────────────────────
 
@@ -231,7 +228,8 @@ function PrintClosingContent() {
                 const stayItems: AdditionalItem[] = items
                     .filter((item: any) => !item.is_cancelled && (roomStay ? (item.concept_type !== "ROOM_BASE" && item.concept_type !== "VEHICLE_REQUEST") : true))
                     .map((item: any) => {
-                        const productName = item.products?.name || CONCEPT_LABELS[item.concept_type] || item.concept_type || "Extra";
+                        const roomNumber = roomStay?.rooms?.number;
+                        const productName = getTicketItemName(item.concept_type || 'PRODUCT', null, item.products?.name, roomNumber);
                         let description = productName;
                         if (item.is_courtesy) {
                             description = `${productName} (${item.courtesy_reason || "Cortesía"})`;

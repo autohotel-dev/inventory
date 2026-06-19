@@ -74,6 +74,7 @@ export interface RoomStay {
   // Campos para tolerancia de salida (solo motel, no torre/hotel)
   tolerance_started_at?: string | null; // Cuando inició la tolerancia de 1 hora
   tolerance_type?: 'PERSON_LEFT' | 'ROOM_EMPTY' | null; // Tipo de tolerancia activa
+  tolerance_people_out?: number | null; // Cuántas personas salieron con tolerancia activa
   // Datos del vehículo
   vehicle_plate?: string | null;
   vehicle_brand?: string | null;

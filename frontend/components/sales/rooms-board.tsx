@@ -881,6 +881,7 @@ function RoomsBoardInternal() {
         isOpen={modals.isOpen("granularPayment") && !!modals.granularPaymentOrderId}
         salesOrderId={modals.granularPaymentOrderId || ""}
         roomNumber={modals.selectedRoom?.number}
+        roomTypeName={modals.selectedRoom?.room_types?.name}
         onClose={() => { modals.closeModal("granularPayment"); modals.setGranularPaymentOrderId(null); }}
         onComplete={() => { modals.closeModal("granularPayment"); modals.setGranularPaymentOrderId(null); fetchRooms(true); }}
       />

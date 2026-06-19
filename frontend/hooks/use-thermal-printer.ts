@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { sendPrintJob, sendTestPrint } from '@/lib/print';
 
-// URL del print-server - configurable via variable de entorno
-// Para producción: apuntar a la IP de la PC donde corre el print-server
-const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
+// ─── Ticket Data Types ──────────────────────────────────────────────
 
 interface ConsumptionTicketData {
     roomNumber: string;
@@ -67,6 +65,8 @@ interface ToleranceTicketData {
     toleranceType: 'ROOM_EMPTY' | 'PERSON_LEFT';
 }
 
+// ─── Hook Return Type ────────────────────────────────────────────────
+
 interface UseThermalPrinterReturn {
     isPrinting: boolean;
     printStatus: 'idle' | 'printing_reception' | 'printing_client' | 'success' | 'error';
@@ -80,323 +80,102 @@ interface UseThermalPrinterReturn {
     error: string | null;
 }
 
+// ─── Hook ────────────────────────────────────────────────────────────
+
 export function useThermalPrinter(): UseThermalPrinterReturn {
     const [isPrinting, setIsPrinting] = useState(false);
     const [printStatus, setPrintStatus] = useState<'idle' | 'printing_reception' | 'printing_client' | 'success' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
 
-    const printConsumptionTickets = useCallback(async (data: ConsumptionTicketData): Promise<boolean> => {
+    // Helper to wrap print calls with state management
+    const withPrintState = useCallback(async (
+        fn: () => Promise<boolean>,
+        statusDuring: typeof printStatus = 'printing_reception',
+    ): Promise<boolean> => {
         setIsPrinting(true);
         setError(null);
+        setPrintStatus(statusDuring);
 
         try {
-            // Imprimir comanda de recepción via print-server local
+            const result = await fn();
+            setPrintStatus(result ? 'success' : 'error');
+            return result;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
+            setError(errorMessage);
+            setPrintStatus('error');
+            return false;
+        } finally {
+            setIsPrinting(false);
+        }
+    }, []);
+
+    // Consumo: imprime comanda de recepción + ticket de cliente (2 impresiones)
+    const printConsumptionTickets = useCallback(async (data: ConsumptionTicketData): Promise<boolean> => {
+        return withPrintState(async () => {
             setPrintStatus('printing_reception');
-
-            const receptionResponse = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'reception', data })
-            });
-
-            if (!receptionResponse.ok) {
-                const errorData = await receptionResponse.json();
-                throw new Error(errorData.error || 'Error al imprimir comanda de recepción');
-            }
+            const receptionOk = await sendPrintJob('reception', data);
+            if (!receptionOk) return false;
 
             // Esperar entre impresiones
             await new Promise(resolve => setTimeout(resolve, 1500));
 
-            // Imprimir ticket de cliente
             setPrintStatus('printing_client');
-
-            const clientResponse = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'client', data })
+            const clientOk = await sendPrintJob('client', data, {
+                successMsg: 'Tickets impresos',
+                successDesc: '✓ Comanda de recepción y ticket de cliente',
             });
-
-            if (!clientResponse.ok) {
-                const errorData = await clientResponse.json();
-                throw new Error(errorData.error || 'Error al imprimir ticket de cliente');
-            }
-
-            setPrintStatus('success');
-            toast.success('Tickets impresos', {
-                description: '✓ Comanda de recepción y ticket de cliente'
-            });
-
-            return true;
-
-        } catch (err) {
-            console.error('Print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
-            setError(errorMessage);
-            setPrintStatus('error');
-
-            // Verificar si es error de conexión al print-server
-            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-                toast.error('Print-server no disponible', {
-                    description: 'Verifica que el print-server esté corriendo en localhost:3001',
-                    duration: 8000
-                });
-            } else {
-                toast.error('Error al imprimir', {
-                    description: errorMessage,
-                    duration: 5000
-                });
-            }
-
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
+            return clientOk;
+        });
+    }, [withPrintState]);
 
     // Checkout: imprime 1 solo ticket de SALIDA (solo para recepción)
     const printCheckoutTicket = useCallback(async (data: ConsumptionTicketData): Promise<boolean> => {
-        setIsPrinting(true);
-        setError(null);
-        setPrintStatus('printing_reception');
-
-        try {
-            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'checkout', data })
+        return withPrintState(async () => {
+            return sendPrintJob('checkout', data, {
+                successMsg: 'Ticket de salida impreso',
+                successDesc: `✓ Hab. ${data.roomNumber}`,
             });
+        });
+    }, [withPrintState]);
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al imprimir ticket de salida');
-            }
-
-            setPrintStatus('success');
-            toast.success('Ticket de salida impreso', {
-                description: `✓ Hab. ${data.roomNumber}`
-            });
-            return true;
-        } catch (err) {
-            console.error('Checkout print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
-            setError(errorMessage);
-            setPrintStatus('error');
-
-            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-                toast.error('Print-server no disponible', {
-                    description: 'Verifica que el print-server esté corriendo',
-                    duration: 8000
-                });
-            } else {
-                toast.error('Error al imprimir salida', {
-                    description: errorMessage,
-                    duration: 5000
-                });
-            }
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
-
+    // Entrada: ticket de check-in
     const printEntryTicket = useCallback(async (data: EntryTicketData): Promise<boolean> => {
-        setIsPrinting(true);
-        setError(null);
-        setPrintStatus('printing_reception');
-
-        try {
-            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'entry', data })
+        return withPrintState(async () => {
+            return sendPrintJob('entry', data, {
+                successMsg: 'Ticket de entrada impreso',
+                successDesc: `✓ Hab. ${data.roomNumber}`,
             });
+        });
+    }, [withPrintState]);
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al imprimir ticket de entrada');
-            }
-
-            setPrintStatus('success');
-            toast.success('Ticket de entrada impreso', {
-                description: `✓ Hab. ${data.roomNumber}`
-            });
-
-            return true;
-        } catch (err) {
-            console.error('Entry print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
-            setError(errorMessage);
-            setPrintStatus('error');
-
-            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-                toast.error('Print-server no disponible', {
-                    description: 'Verifica que el print-server esté corriendo',
-                    duration: 8000
-                });
-            } else {
-                toast.error('Error al imprimir entrada', {
-                    description: errorMessage,
-                    duration: 5000
-                });
-            }
-
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
-
+    // Pago: comprobante de pago (fire-and-forget, sin toast)
     const printPaymentTicket = useCallback(async (data: PaymentTicketData): Promise<boolean> => {
-        setIsPrinting(true);
-        setError(null);
-        setPrintStatus('printing_reception');
-
-        try {
-            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'payment', data })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al imprimir comprobante de pago');
-            }
-
-            setPrintStatus('success');
-            return true;
-        } catch (err) {
-            console.error('Payment print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
-            setError(errorMessage);
-            setPrintStatus('error');
-            // No mostrar toast para pagos - es fire-and-forget
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
-
-    const printTestTicket = useCallback(async (): Promise<boolean> => {
-        setIsPrinting(true);
-        setError(null);
-        setPrintStatus('printing_reception');
-
-        try {
-            const response = await fetch(`${PRINT_SERVER_URL}/print/test`, {
-                method: 'POST',
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error en prueba de impresión');
-            }
-
-            setPrintStatus('success');
-            toast.success('Prueba de impresión completada', {
-                description: 'La impresora está configurada correctamente'
-            });
-
-            return true;
-
-        } catch (err) {
-            console.error('Test print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-            setError(errorMessage);
-            setPrintStatus('error');
-
-            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-                toast.error('Print-server no disponible', {
-                    description: 'Asegúrate de que el print-server esté corriendo',
-                    duration: 8000
-                });
-            } else {
-                toast.error('Error en prueba de impresión', {
-                    description: errorMessage
-                });
-            }
-
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
+        return withPrintState(async () => {
+            return sendPrintJob('payment', data, { silent: true });
+        });
+    }, [withPrintState]);
 
     // QR: imprime ticket con QR nativo ESC/POS
     const printQRTicket = useCallback(async (data: QRTicketData): Promise<boolean> => {
-        setIsPrinting(true);
-        setError(null);
-        setPrintStatus('printing_reception');
+        return withPrintState(async () => {
+            return sendPrintJob('qr', data);
+        });
+    }, [withPrintState]);
 
-        try {
-            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'qr', data })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al imprimir QR');
-            }
-
-            setPrintStatus('success');
-            return true;
-        } catch (err) {
-            console.error('QR print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
-            setError(errorMessage);
-            setPrintStatus('error');
-
-            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-                toast.error('Print-server no disponible', {
-                    description: 'Verifica que el print-server esté corriendo',
-                    duration: 8000
-                });
-            }
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
-
-    // Tolerance: ticket de salida temporal con hora de regreso
+    // Tolerancia: ticket de salida temporal con hora de regreso
     const printToleranceTicket = useCallback(async (data: ToleranceTicketData): Promise<boolean> => {
-        setIsPrinting(true);
-        setError(null);
-        setPrintStatus('printing_reception');
+        return withPrintState(async () => {
+            return sendPrintJob('tolerance', data);
+        });
+    }, [withPrintState]);
 
-        try {
-            const response = await fetch(`${PRINT_SERVER_URL}/print`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'tolerance', data })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al imprimir ticket de tolerancia');
-            }
-
-            setPrintStatus('success');
-            return true;
-        } catch (err) {
-            console.error('Tolerance print error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Error desconocido al imprimir';
-            setError(errorMessage);
-            setPrintStatus('error');
-
-            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-                toast.error('Print-server no disponible', {
-                    description: 'Verifica que el print-server esté corriendo',
-                    duration: 8000
-                });
-            }
-            return false;
-        } finally {
-            setIsPrinting(false);
-        }
-    }, []);
+    // Test: prueba de impresión
+    const printTestTicket = useCallback(async (): Promise<boolean> => {
+        return withPrintState(async () => {
+            return sendTestPrint();
+        });
+    }, [withPrintState]);
 
     return {
         isPrinting,
@@ -414,4 +193,3 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
 
 // Re-exportar los tipos para uso en otros lugares
 export type { ConsumptionTicketData, EntryTicketData, PaymentTicketData, QRTicketData, ToleranceTicketData };
-

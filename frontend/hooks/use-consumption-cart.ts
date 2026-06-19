@@ -13,6 +13,9 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { usePOSConfigRead } from "@/hooks/use-pos-config";
 import { useSoundFeedback } from "@/hooks/use-sound-feedback";
 import { notifyActiveValets } from "@/lib/services/valet-notification-service";
+import { getEmployeeByAuthUserId } from "@/lib/services/employee-service";
+import { getActiveSession } from "@/lib/services/shift-service";
+import { formatCurrency } from "@/lib/utils/formatters";
 import { validatePromotionConditions } from "@/lib/promo-conditions";
 import { logFinancialAction } from "@/lib/audit-logger";
 import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
@@ -496,8 +499,7 @@ export function useConsumptionCart({
     return { totalAmount: amount, totalItems: items, totalSaved: saved };
   }, [cartItems, calcItemPromoTotal]);
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+
 
   // ─── Submit ───────────────────────────────────────────────────────
 
@@ -541,14 +543,11 @@ export function useConsumptionCart({
       const { data: { user } } = await supabase.auth.getUser();
       let currentSessionId = null;
       if (user) {
-        const { data: employee } = await supabase
-          .from('employees').select('id').eq('auth_user_id', user.id).single();
-        if (employee) {
-          const { data: activeSession } = await supabase
-            .from('shift_sessions').select('id')
-            .eq('employee_id', employee.id)
-            .in('status', ['active', 'open'])
-            .maybeSingle();
+        const employeeResult = await getEmployeeByAuthUserId(user.id);
+        const employeeData = employeeResult.success ? employeeResult.data : null;
+        if (employeeData) {
+          const sessionResult = await getActiveSession(employeeData.id);
+          const activeSession = sessionResult.success ? sessionResult.data : null;
           currentSessionId = activeSession?.id || null;
 
           // Fallback: if current user has no active shift, find any active reception shift.

@@ -6,11 +6,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getShiftClosingSummary, getEmployeeCharges, closeSessionWithoutClosing, getExistingClosing, createClosing, insertClosingDetails, closeSession } from '@/lib/services/shift-service';
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 import { ShiftSession } from "@/components/employees/types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense } from "@/types/expenses";
+import { buildClosingBreakdowns, buildClosingTransactionsWithItems } from "@/lib/print";
+import { formatCurrency } from "@/lib/utils/formatters";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -75,91 +78,9 @@ export interface PaymentSummary {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-export const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+export { formatCurrency };
 
-const CONCEPT_LABELS: Record<string, string> = {
-  ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
-  CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
-  ROOM_CHANGE_ADJUSTMENT: "Cambio de Habitación",
-};
-
-// ─── Build granular breakdowns from accrual items for thermal ticket ─────
-
-interface AccrualItem {
-  id: string;
-  concept_type: string;
-  unit_price?: number;
-  qty?: number;
-  amount?: number;
-  is_cancelled?: boolean;
-  is_courtesy?: boolean;
-  courtesy_reason?: string;
-  products?: { name: string } | { name: string }[];
-  sales_orders?: {
-    room_stays?: {
-      status: string;
-      rooms?: { number: string; room_types?: { name: string } | { name: string }[] };
-    };
-  };
-  room_stays?: { room_id: string; rooms?: { number: string } };
-}
-
-function buildTicketBreakdowns(accrualItems: AccrualItem[]) {
-  const roomBreakdown: Record<string, { count: number; total: number }> = {};
-  const extraBreakdown: Record<string, { count: number; total: number }> = {};
-  const consumptionBreakdown: Record<string, { count: number; total: number }> = {};
-  const damageBreakdown: Record<string, { count: number; total: number }> = {};
-
-  // Filter out items belonging to cancelled stays or items that are cancelled
-  const activeItems = (accrualItems || []).filter((item) => {
-    if (item.is_cancelled) return false;
-    const order = item.sales_orders;
-    const roomStay = order?.room_stays;
-    return !roomStay || roomStay.status !== 'CANCELADA';
-  });
-
-  activeItems.forEach((item) => {
-    const qty = item.qty || 1;
-    const amount = (item.unit_price || 0) * qty;
-    const conceptType = item.concept_type || "PRODUCT";
-
-    if (conceptType === "ROOM_BASE") {
-      // Get room type name from the nested join
-      const order = item.sales_orders;
-      const roomStay = Array.isArray(order) ? order[0]?.room_stays : order?.room_stays;
-      const room = Array.isArray(roomStay) ? roomStay[0]?.rooms : roomStay?.rooms;
-      const roomType = room?.room_types;
-      const typeName = (Array.isArray(roomType) ? roomType[0]?.name : roomType?.name) || "Sin tipo";
-
-      if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
-      roomBreakdown[typeName].count += qty;
-      roomBreakdown[typeName].total += amount;
-    } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(conceptType)) {
-      const label = CONCEPT_LABELS[conceptType] || conceptType;
-      if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
-      extraBreakdown[label].count += qty;
-      extraBreakdown[label].total += amount;
-    } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
-      const product = Array.isArray(item.products) ? item.products[0] : item.products;
-      const productName = product?.name || "Producto";
-      let displayName = productName;
-      if (item.is_courtesy) {
-        displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
-      }
-      if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
-      consumptionBreakdown[displayName].count += qty;
-      consumptionBreakdown[displayName].total += amount;
-    } else if (conceptType === "DAMAGE_CHARGE") {
-      const description = item.courtesy_reason || "Cargo por Daño";
-      if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
-      damageBreakdown[description].count += qty;
-      damageBreakdown[description].total += amount;
-    }
-  });
-
-  return { roomBreakdown, extraBreakdown, consumptionBreakdown, damageBreakdown };
-}
+// buildClosingBreakdowns and buildClosingTransactionsWithItems are imported from @/lib/print
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
@@ -188,26 +109,13 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       const employeeUuid = (session as any).employee_id || (session as any).employees?.id || (session as any).employeeId;
 
       // ─── Single RPC call replaces 6 queries + JS enrichment ────────
-      const { data: rpcResult, error } = await supabase.rpc('get_shift_closing_summary', {
-        p_session_id: session.id,
-        p_employee_id: employeeUuid,
-      });
-
-      if (error) throw error;
-      if (rpcResult?.error) throw new Error(rpcResult.error);
+      const summaryResult = await getShiftClosingSummary(session.id, employeeUuid);
+      if (!summaryResult.success) throw new Error(summaryResult.error);
+      const rpcResult = summaryResult.data;
 
       // Fetch employee charges for this shift
-      const { data: chargesData } = await supabase
-        .from('shift_employee_charges')
-        .select(`
-          id, charge_type, description, unit_price, quantity, subtotal,
-          discount_type, discount_value, discount_amount, total,
-          payment_method, notes, created_at,
-          charged_employee:charged_to(first_name, last_name, role)
-        `)
-        .eq('shift_session_id', session.id)
-        .neq('status', 'rejected')
-        .order('created_at', { ascending: true });
+      const chargesResult = await getEmployeeCharges(session.id);
+      const chargesData = chargesResult.success ? chargesResult.data : [];
 
       const employeeCharges: EmployeeChargeEntry[] = (chargesData || []) as any[];
       const totalEmployeeCharges = employeeCharges.reduce((sum, c) => sum + Number(c.total), 0);
@@ -261,15 +169,8 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
     if (summary.total_transactions === 0) {
       setSaving(true);
       try {
-        const { error: sessionError } = await supabase
-          .from("shift_sessions")
-          .update({ 
-            status: "closed", 
-            notes: (session.notes ? session.notes + '\n' : '') + "Turno cerrado sin transacciones." 
-          })
-          .eq("id", session.id);
-        
-        if (sessionError) throw sessionError;
+        const closeResult = await closeSessionWithoutClosing(session.id, 'Turno cerrado sin transacciones.');
+        if (!closeResult.success) throw new Error(closeResult.error);
 
         success("Turno cerrado", "El turno vacío se ha cerrado correctamente sin generar corte.");
         onComplete();
@@ -286,12 +187,11 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
 
     setSaving(true);
     try {
-      const { data: existingClosing } = await supabase.from("shift_closings").select("id")
-        .eq("shift_session_id", session.id).maybeSingle();
-      if (existingClosing) { showError("Error", "Ya existe un corte registrado para este turno"); setSaving(false); savingLockRef.current = false; return; }
+      const existingResult = await getExistingClosing(session.id);
+      if (existingResult.success && existingResult.data) { showError("Error", "Ya existe un corte registrado para este turno"); setSaving(false); savingLockRef.current = false; return; }
+      if (!existingResult.success) throw new Error(existingResult.error);
 
-      const { data: closing, error: closingError } = await supabase.from("shift_closings")
-        .insert({
+      const closingResult = await createClosing({
           shift_session_id: session.id, employee_id: session.employee_id,
           shift_definition_id: session.shift_definition_id,
           period_start: session.clock_in_at, period_end: session.clock_out_at || new Date().toISOString(),
@@ -302,8 +202,9 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           cash_difference: 0, declared_card_bbva: summary.total_card_bbva,
           declared_card_getnet: summary.total_card_getnet, card_difference_bbva: 0,
           card_difference_getnet: 0, cash_breakdown: null, notes: notes.trim() || null, status: "pending",
-        }).select().single();
-      if (closingError) throw closingError;
+      });
+      if (!closingResult.success) throw new Error(closingResult.error);
+      const closing = closingResult.data;
 
       if (summary.payments.length > 0) {
         const details = summary.payments.map((payment: any) => ({
@@ -311,12 +212,12 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           amount: payment.amount, payment_method: payment.payment_method,
           terminal_code: payment.payment_terminals?.code || null,
         }));
-        const { error: detailsError } = await supabase.from("shift_closing_details").insert(details);
-        if (detailsError) throw detailsError;
+        const detailsResult = await insertClosingDetails(details);
+        if (!detailsResult.success) throw new Error(detailsResult.error);
       }
 
-      const { error: sessionError } = await supabase.from("shift_sessions").update({ status: "closed" }).eq("id", session.id);
-      if (sessionError) throw sessionError;
+      const sessionCloseResult = await closeSession(session.id);
+      if (!sessionCloseResult.success) throw new Error(sessionCloseResult.error);
 
       success("Corte completado", "El corte de caja se ha registrado correctamente");
 
@@ -342,12 +243,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
   const handlePrintClosing = async () => {
     if (!summary) return;
     try {
-      const CONCEPT_DISPLAY: Record<string, string> = {
-        ESTANCIA: "Estancia", CONSUMPTION: "Consumo", EXTRA_PERSON: "Pers. Extra",
-        EXTRA_HOUR: "Hora Extra", RENEWAL: "Renovación", CHECKOUT: "Salida",
-        ROOM_BASE: "Habitación", PROMO_4H: "Promo 4H",
-        ROOM_CHANGE_ADJUSTMENT: "Cambio de Hab.",
-      };
+      // CONCEPT_DISPLAY imported from @/lib/print
 
       // Reuse expenses from summary (already loaded by loadPaymentSummary)
       const expenses = (summary.expenses || []).map((exp: any) => ({
@@ -379,52 +275,9 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
           paymentMethod: c.payment_method,
         })),
         totalEmployeeCharges: summary.total_employee_charges || 0,
-        transactions: await Promise.all(summary.payments.map(async (payment: any) => {
-          let items: any[] = [];
-          if (payment.sales_order_id && payment.itemsCount && payment.itemsCount > 0) {
-            const { data: orderItems } = await supabase
-              .from("sales_order_items")
-              .select("id, qty, unit_price, total, concept_type, is_paid, paid_at, products(name, sku)")
-              .eq("sales_order_id", payment.sales_order_id).eq("is_paid", true).not("paid_at", "is", null);
-            const paymentTime = new Date(payment.created_at).getTime();
-            const relatedItems = (orderItems || []).filter((item: any) => {
-              if (!item.paid_at) return false;
-              return Math.abs(paymentTime - new Date(item.paid_at).getTime()) / 1000 / 60 <= 5;
-            });
-            items = relatedItems.map((item: any) => {
-              const product = Array.isArray(item.products) ? item.products[0] : item.products;
-              return { name: product?.name || CONCEPT_LABELS[item.concept_type || "PRODUCT"] || "Item", qty: item.qty, unitPrice: item.unit_price, total: item.qty * item.unit_price };
-            });
-          }
-
-          // Get room number from sales_order -> room_stays
-          let roomNumber: string | undefined;
-          if (payment.sales_order_id) {
-            const { data: stayData } = await supabase
-              .from("room_stays")
-              .select("rooms(number)")
-              .eq("sales_order_id", payment.sales_order_id)
-              .limit(1)
-              .maybeSingle();
-            const rooms = stayData?.rooms;
-            roomNumber = Array.isArray(rooms) ? rooms[0]?.number : rooms?.number;
-          }
-
-          const rawConcept = payment.concept || "";
-          const conceptLabel = CONCEPT_DISPLAY[rawConcept] || payment.itemsDescription || rawConcept || undefined;
-
-          return {
-            time: new Date(payment.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-            amount: payment.amount, paymentMethod: payment.payment_method || 'N/A',
-            terminalCode: payment.payment_terminals?.code || payment.terminal_code,
-            reference: payment.reference || undefined,
-            concept: conceptLabel,
-            roomNumber,
-            items: items.length > 0 ? items : undefined
-          };
-        })),
+        transactions: await buildClosingTransactionsWithItems(summary.payments, supabase),
         // ─── Granular breakdowns for thermal ticket ───
-        ...buildTicketBreakdowns(summary.accrual_items),
+        ...buildClosingBreakdowns(summary.accrual_items),
       };
       await printClosing(printData);
     } catch (error) {

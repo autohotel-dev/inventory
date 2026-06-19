@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { OrderItem } from "@/components/sales/payment/payment-constants";
 import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
+import { getTicketItemName } from "@/components/sales/payment/utils";
+import { sendPrintJobSilent } from "@/lib/print";
 import { logger } from "@/lib/utils/logger";
 
 interface UsePaymentProcessingProps {
@@ -16,6 +18,7 @@ interface UsePaymentProcessingProps {
   onComplete?: () => void;
   onRefreshItems: () => void;
   roomNumber?: string;
+  roomTypeName?: string;
 }
 
 export function usePaymentProcessing({
@@ -25,7 +28,8 @@ export function usePaymentProcessing({
   discounts,
   onComplete,
   onRefreshItems,
-  roomNumber
+  roomNumber,
+  roomTypeName
 }: UsePaymentProcessingProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>(createInitialPayment(0));
   const [tipAmount, setTipAmount] = useState(0);
@@ -147,15 +151,10 @@ export function usePaymentProcessing({
 
       // ─── Print receipt (fire-and-forget) ───────────────────────────
       try {
-        const PRINT_SERVER_URL = process.env.NEXT_PUBLIC_PRINT_SERVER_URL || 'http://localhost:3001';
-        const conceptLabels: Record<string, string> = {
-          ROOM_BASE: 'Habitación', EXTRA_HOUR: 'Hora Extra', EXTRA_PERSON: 'Persona Extra',
-          CONSUMPTION: 'Consumo', PRODUCT: 'Producto', RENEWAL: 'Renovación',
-        };
         const paidItems = items
           .filter(i => selectedItems.has(i.id) && !i.is_paid)
           .map(i => ({
-            name: i.products?.name || conceptLabels[i.concept_type] || i.concept_type,
+            name: getTicketItemName(i.concept_type, roomTypeName, i.products?.name, roomNumber),
             qty: i.qty || 1,
             total: i.total - (discounts[i.id] || 0)
           }));
@@ -170,23 +169,16 @@ export function usePaymentProcessing({
           reference: p.reference || undefined,
         }));
 
-        fetch(`${PRINT_SERVER_URL}/print`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'payment',
-            data: {
-              roomNumber: roomNumber || undefined,
-              date: new Date(),
-              items: paidItems,
-              total: selectedTotal,
-              paymentMethod: methodsSummary,
-              paymentDetails,
-              tipAmount: tipAmount > 0 ? tipAmount : undefined,
-              remainingAmount: rpcResult.new_remaining
-            }
-          })
-        }).catch(err => console.error('Print payment ticket error (non-blocking):', err));
+        sendPrintJobSilent('payment', {
+          roomNumber: roomNumber || undefined,
+          date: new Date(),
+          items: paidItems,
+          total: selectedTotal,
+          paymentMethod: methodsSummary,
+          paymentDetails,
+          tipAmount: tipAmount > 0 ? tipAmount : undefined,
+          remainingAmount: rpcResult.new_remaining
+        });
       } catch (printErr) {
         console.error('Error preparing payment print:', printErr);
       }

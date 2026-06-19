@@ -10,6 +10,7 @@ import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog } 
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
+import { getTicketItemName } from "@/components/sales/payment/utils";
 
 interface PendingItem {
   concept_type: string;
@@ -57,16 +58,8 @@ export function RoomCheckoutModal({
   const [checkoutValetId, setCheckoutValetId] = useState<string>("none");
   const [valets, setValets] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
 
-  const conceptLabels: Record<string, string> = {
-    ROOM_BASE: "Habitación",
-    EXTRA_HOUR: "Horas Extra",
-    EXTRA_PERSON: "Personas Extra",
-    CONSUMPTION: "Consumos",
-    PRODUCT: "Productos",
-    OTHER: "Otros",
-    DAMAGE_CHARGE: "Cargos por Daños",
-    TOLERANCE_EXPIRED: "Tolerancia Expirada",
-  };
+  const getConceptLabel = (conceptType: string) =>
+    getTicketItemName(conceptType, roomTypeName, null, roomNumber);
 
   const conceptIcons: Record<string, React.ReactNode> = {
     ROOM_BASE: <Bed className="h-3 w-3" />,
@@ -163,7 +156,7 @@ export function RoomCheckoutModal({
                   <div key={idx} className="flex items-center justify-between bg-background/50 p-2 rounded border border-amber-200/50">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       {conceptIcons[item.concept_type]}
-                      <span>{conceptLabels[item.concept_type] || item.concept_type}</span>
+                      <span>{getConceptLabel(item.concept_type)}</span>
                     </div>
                     <span className="font-bold text-sm text-amber-600">${item.total.toFixed(0)}</span>
                   </div>

@@ -22,7 +22,8 @@ export function ConnectedManagePeopleModal({
   const { 
     actionLoading,
     handleAddPerson, 
-    handlePersonLeftReturning, 
+    handlePersonLeaveWithTolerance,
+    handlePersonReturn,
     handleRemovePerson 
   } = useRoomActions(async () => {
     onSuccess();
@@ -34,10 +35,11 @@ export function ConnectedManagePeopleModal({
 
   const activeStay = getActiveStay(room);
   
-  const currentPeople = activeStay?.current_people || 2;
-  const totalPeople = activeStay?.total_people || 2;
-  const maxPeople = room.room_types?.max_people || 4;
+  const currentPeople = activeStay?.current_people ?? 2;
+  const totalPeople = activeStay?.total_people ?? 2;
+  const maxPeople = room.room_types?.max_people ?? 4;
   const hasActiveTolerance = !!activeStay?.tolerance_started_at;
+  const tolerancePeopleOut = activeStay?.tolerance_people_out ?? 0;
   
   const toleranceMinutesLeft = (() => {
     if (!activeStay?.tolerance_started_at) return 0;
@@ -46,33 +48,34 @@ export function ConnectedManagePeopleModal({
     return Math.max(0, 60 - elapsed);
   })();
 
-  const extraPersonPrice = room.room_types?.extra_person_price || 0;
-  const isHotelRoom = room.room_types?.is_hotel || false;
+  const extraPersonPrice = room.room_types?.extra_person_price ?? 0;
+  const isHotelRoom = room.room_types?.is_hotel ?? false;
 
-  const handleAddPersonNewWrapper = async () => {
+  // ── Agregar persona(s) nueva(s) ──
+  const handleAddPersonNewWrapper = async (count: number) => {
     setLocalLoading(true);
-    await handleAddPerson(room);
+    await handleAddPerson(room, count);
     setLocalLoading(false);
     onSuccess();
     onClose();
   };
 
-  const handleAddPersonReturningWrapper = async () => {
+  // ── Persona(s) regresan de tolerancia ──
+  const handleAddPersonReturningWrapper = async (count: number) => {
     setLocalLoading(true);
-    await handlePersonLeftReturning(room);
+    await handlePersonReturn(room, count);
     setLocalLoading(false);
     onSuccess();
     onClose();
   };
 
-  const handleRemovePersonWrapper = async (willReturn: boolean) => {
+  // ── Persona(s) salen ──
+  const handleRemovePersonWrapper = async (count: number, willReturn: boolean) => {
     setLocalLoading(true);
     if (willReturn) {
-      await handlePersonLeftReturning(room); // Wait, if the person leaves and will return, logic in use-room-actions might be handlePersonLeftReturning? Wait, the hook handles "leave and return"?
-      // Let me reproduce exactly how rooms-board did it:
-      // if (willReturn) { handlePersonLeftReturning(selectedRoom); } else { handleRemovePerson(selectedRoom); }
+      await handlePersonLeaveWithTolerance(room, count);
     } else {
-      await handleRemovePerson(room);
+      await handleRemovePerson(room, count);
     }
     setLocalLoading(false);
     onSuccess();
@@ -89,6 +92,7 @@ export function ConnectedManagePeopleModal({
       baseCapacity={room.room_types?.base_capacity ?? 2}
       hasActiveTolerance={hasActiveTolerance}
       toleranceMinutesLeft={toleranceMinutesLeft}
+      tolerancePeopleOut={tolerancePeopleOut}
       extraPersonPrice={extraPersonPrice}
       isHotelRoom={isHotelRoom}
       actionLoading={localLoading}

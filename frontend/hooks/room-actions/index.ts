@@ -3,7 +3,7 @@
  * Composes all domain-specific action modules into a single hook.
  * 
  * Architecture:
- * - people-actions.ts   → handleAddPerson, handleRemovePerson, handlePersonLeftReturning
+ * - people-actions.ts   → handleAddPerson, handleRemovePerson, handlePersonLeftReturning, handlePersonLeaveWithTolerance, handlePersonReturn
  * - time-actions.ts     → handleAddDamageCharge, handleAddCustomHours, handleRenewRoom, handleAdd4HourPromo
  * - checkout-actions.ts → prepareCheckout, processCheckout, updateRoomStatus
  * - cancel-actions.ts   → handleCancelPendingCharge, handleCancelItem
@@ -38,9 +38,11 @@ export {
 
 export interface UseRoomActionsReturn {
   actionLoading: boolean;
-  handleAddPerson: (room: Room) => Promise<void>;
-  handleRemovePerson: (room: Room) => Promise<void>;
+  handleAddPerson: (room: Room, count?: number) => Promise<void>;
+  handleRemovePerson: (room: Room, count?: number) => Promise<void>;
   handlePersonLeftReturning: (room: Room) => Promise<void>;
+  handlePersonLeaveWithTolerance: (room: Room, count?: number) => Promise<void>;
+  handlePersonReturn: (room: Room, count?: number) => Promise<void>;
   handleAddDamageCharge: (room: Room, amount: number, description: string) => Promise<void>;
   handleAddCustomHours: (room: Room, hours: number, isCourtesy?: boolean, courtesyReason?: string) => Promise<void>;
   handleRenewRoom: (room: Room) => Promise<void>;

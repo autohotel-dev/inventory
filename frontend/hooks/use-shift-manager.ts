@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSystemConfigRead } from "@/hooks/use-system-config";
 import { Employee, ShiftDefinition, ShiftSession, EMPLOYEE_ROLES } from "@/components/employees/types";
+import { getActiveShiftDefinitions, getActiveSession, getAllActiveSessions, clockIn } from "@/lib/services/shift-service";
+import { getActiveEmployees, getEmployeeRole, SHIFT_ROLES } from "@/lib/services/employee-service";
 
 export type ShiftStatus = 'normal' | 'expired' | 'auto_closed';
 
@@ -54,32 +56,32 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
   const loadData = useCallback(async () => {
     const supabase = createClient();
     try {
-      const [shiftsRes, employeesRes, sessionRes] = await Promise.all([
-        supabase.from("shift_definitions").select("*").eq("is_active", true).order("start_time"),
-        supabase.from("employees").select("*").eq("is_active", true).in("role", ["receptionist", "manager", "cochero", "camarista", "mantenimiento"]).order("first_name"),
-        supabase.from("shift_sessions").select("*, employees(*), shift_definitions(*)").eq("status", "active").is("clock_out_at", null).order("clock_in_at", { ascending: false }).limit(1),
+      const [shiftsResult, employeesResult, sessionResult] = await Promise.all([
+        getActiveShiftDefinitions(),
+        getActiveEmployees(SHIFT_ROLES),
+        getActiveSession(),
       ]);
 
-      if (shiftsRes.error) throw shiftsRes.error;
-      if (employeesRes.error) throw employeesRes.error;
-      if (sessionRes.error) throw sessionRes.error;
+      if (!shiftsResult.success) throw new Error(shiftsResult.error);
+      if (!employeesResult.success) throw new Error(employeesResult.error);
+      if (!sessionResult.success) throw new Error(sessionResult.error);
 
       const { data: { user } } = await supabase.auth.getUser();
       let allActiveSessions: ShiftSession[] = [];
 
       if (user) {
-        const { data: roleData } = await supabase.from("employees").select("role").eq("auth_user_id", user.id).single();
-        const role = roleData?.role;
+        const roleResult = await getEmployeeRole(user.id);
+        const role = roleResult.success ? roleResult.data : null;
         const isAdminOrManager = role === 'admin' || role === 'manager' || role === 'supervisor';
 
         if (isAdminOrManager) {
-          const { data: allSessions } = await supabase.from("shift_sessions").select("*, employees(*), shift_definitions(*)").eq("status", "active").is("clock_out_at", null).order("clock_in_at", { ascending: false });
-          if (allSessions) allActiveSessions = allSessions;
+          const allSessionsResult = await getAllActiveSessions();
+          if (allSessionsResult.success && allSessionsResult.data) allActiveSessions = allSessionsResult.data as ShiftSession[];
         }
       }
 
-      const allShifts = shiftsRes.data || [];
-      setEmployees(employeesRes.data || []);
+      const allShifts = (shiftsResult.data || []) as ShiftDefinition[];
+      setEmployees((employeesResult.data || []) as Employee[]);
 
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 8);
@@ -112,7 +114,7 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
       setCurrentShift(current);
       setNextShift(next);
 
-      const session = sessionRes.data?.[0] || null;
+      const session = (sessionResult.data as ShiftSession) || null;
 
       // ─── Auto-close check for receptionist sessions past shift end ──────
       if (session && session.shift_definitions && session.employees?.role === 'receptionist') {
@@ -291,21 +293,12 @@ export function useShiftManager(onShiftChange?: (session: ShiftSession | null) =
         }
       }
 
-      const { data, error } = await supabase
-        .from("shift_sessions")
-        .insert({
-          employee_id: selectedEmployeeId,
-          shift_definition_id: currentShift.id,
-          clock_in_at: new Date().toISOString(),
-          status: "active",
-        })
-        .select("*, employees(*), shift_definitions(*)")
-        .single();
+      const clockInResult = await clockIn(selectedEmployeeId, currentShift.id);
 
-      if (error) throw error;
+      if (!clockInResult.success) throw new Error(clockInResult.error);
 
       success("Entrada registrada", "Se ha registrado tu entrada al turno");
-      setActiveSession(data);
+      setActiveSession(clockInResult.data as ShiftSession);
       setIsClockInModalOpen(false);
       setSelectedEmployeeId("");
       await loadData();

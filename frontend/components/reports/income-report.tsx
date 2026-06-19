@@ -8,6 +8,7 @@ import { IncomeReportHeader } from "./income-report/income-report-header";
 import { IncomeReportKpi } from "./income-report/income-report-kpi";
 import { IncomeReportTable } from "./income-report/income-report-table";
 import { IncomeReportProps } from "./income-report/types";
+import { formatCurrency } from "@/lib/utils/formatters";
 
 export function IncomeReport(props: IncomeReportProps) {
     const { reportType, startDate, endDate } = props;
@@ -173,7 +174,7 @@ export function IncomeReport(props: IncomeReportProps) {
                                             <td className="border-r border-border p-2 text-center print:border-r print:border-black">{dmg.time}</td>
                                             <td className="border-r border-border p-2 text-center font-medium print:border-r print:border-black">{dmg.room_number || "—"}</td>
                                             <td className="border-r border-border p-2 text-left print:border-r print:border-black">{dmg.reason || "Cargo por Daño"}</td>
-                                            <td className="p-2 text-right font-mono font-semibold">{new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(dmg.amount)}</td>
+                                            <td className="p-2 text-right font-mono font-semibold">{formatCurrency(dmg.amount)}</td>
                                         </tr>
                                     ))}
                                     <tr className="border-t-2 border-border font-bold bg-muted print:border-t-2 print:border-black">
@@ -181,7 +182,7 @@ export function IncomeReport(props: IncomeReportProps) {
                                             TOTAL COBROS POR DAÑO
                                         </td>
                                         <td className="p-3 text-right font-mono text-orange-600 print:text-black">
-                                            {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(totals.damages || 0)}
+                                            {formatCurrency(totals.damages || 0)}
                                         </td>
                                     </tr>
                                 </tbody>

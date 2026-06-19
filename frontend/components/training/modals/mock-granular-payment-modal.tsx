@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
 import { Input } from "@/components/ui/input";
+import { CONCEPT_LABELS } from "@/lib/print";
 import {
     Bed,
     Clock,
@@ -32,14 +33,7 @@ const CONCEPT_ICONS: Record<string, React.ReactNode> = {
     OTHER: <MoreHorizontal className="h-4 w-4" />,
 };
 
-const CONCEPT_LABELS: Record<string, string> = {
-    ROOM_BASE: "Habitación",
-    EXTRA_HOUR: "Hora Extra",
-    EXTRA_PERSON: "Persona Extra",
-    CONSUMPTION: "Consumo",
-    PRODUCT: "Producto",
-    OTHER: "Otro",
-};
+
 
 const CONCEPT_COLORS: Record<string, string> = {
     ROOM_BASE: "bg-blue-500/20 text-blue-400 border-blue-500/30",

@@ -125,3 +125,32 @@ export function logError(context: string, error: any) {
     const { title, description } = getErrorMessage(error);
     console.error(`User-facing: ${title} - ${description}`);
 }
+
+/**
+ * Unified error handler for services and hooks.
+ * Logs the error AND shows a toast notification.
+ * 
+ * @param context - Where the error happened (e.g., "ShiftClosing", "PaymentService")
+ * @param error - The caught error
+ * @param silent - If true, only logs without showing toast (for background operations)
+ * 
+ * @example
+ * try { await doSomething(); }
+ * catch (error) { handleServiceError("PaymentService", error); }
+ */
+export function handleServiceError(context: string, error: unknown, silent = false): ErrorInfo {
+    const info = getErrorMessage(error);
+    console.error(`[${context}]`, error);
+
+    if (!silent) {
+        // Dynamic import to avoid circular deps in non-UI contexts
+        import('sonner').then(({ toast }) => {
+            toast.error(info.title, { description: info.description });
+        }).catch(() => {
+            // toast not available (SSR or test environment)
+        });
+    }
+
+    return info;
+}
+

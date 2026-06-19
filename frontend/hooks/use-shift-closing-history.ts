@@ -6,14 +6,17 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getEmployeeCharges, getShiftExpenses } from "@/lib/services/shift-service";
+import { getEmployeeByAuthUserId } from "@/lib/services/employee-service";
 import { useToast } from "@/hooks/use-toast";
 import { ShiftClosing } from "@/components/employees/types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
+import { buildClosingBreakdowns, CONCEPT_LABELS } from "@/lib/print";
+import { formatCurrency } from "@/lib/utils/formatters";
 
 // ─── Formatters ──────────────────────────────────────────────────────
 
-export const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+export { formatCurrency };
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
@@ -54,11 +57,11 @@ export function useShiftClosingHistory() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    const { data: employee } = await supabase.from("employees").select("id, role").eq("auth_user_id", user.id).limit(1);
-    const employeeData = employee?.[0];
+    const empResult = await getEmployeeByAuthUserId(user.id);
+    const employeeData = empResult.success ? empResult.data : null;
     const employeeId = employeeData?.id;
     const userIsAdmin = employeeData?.role === "admin" || employeeData?.role === "manager";
-    setCurrentEmployeeId(employeeId);
+    setCurrentEmployeeId(employeeId || null);
     setIsAdmin(userIsAdmin);
 
     let countQuery = supabase.from("shift_closings").select("id", { count: 'exact', head: true });
@@ -110,18 +113,8 @@ export function useShiftClosingHistory() {
   };
 
   const loadEmployeeCharges = async (shiftSessionId: string) => {
-    const { data } = await supabase
-      .from('shift_employee_charges')
-      .select(`
-        id, charge_type, description, unit_price, quantity, subtotal,
-        discount_type, discount_value, discount_amount, total,
-        payment_method, notes, created_at, status,
-        charged_employee:charged_to(first_name, last_name, role)
-      `)
-      .eq('shift_session_id', shiftSessionId)
-      .neq('status', 'rejected')
-      .order('created_at', { ascending: true });
-    setEmployeeCharges(data || []);
+    const chargesResult = await getEmployeeCharges(shiftSessionId);
+    setEmployeeCharges(chargesResult.success ? chargesResult.data : []);
   };
 
   const openDetail = async (closing: ShiftClosing) => {
@@ -202,14 +195,12 @@ export function useShiftClosingHistory() {
       let totalExpenses = 0;
       let totalChargesCash = 0;
       if (correctionClosing.shift_session_id) {
-        const [{ data: expData }, { data: chargesData }] = await Promise.all([
-          supabase.from('shift_expenses').select('amount')
-            .eq('shift_session_id', correctionClosing.shift_session_id)
-            .neq('status', 'rejected'),
-          supabase.from('shift_employee_charges').select('total, payment_method')
-            .eq('shift_session_id', correctionClosing.shift_session_id)
-            .neq('status', 'rejected'),
+        const [expResult, chargesResult] = await Promise.all([
+          getShiftExpenses(correctionClosing.shift_session_id),
+          getEmployeeCharges(correctionClosing.shift_session_id),
         ]);
+        const expData = expResult.success ? expResult.data : [];
+        const chargesData = chargesResult.success ? chargesResult.data : [];
         totalExpenses = (expData || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
         totalChargesCash = (chargesData || [])
           .filter((c: any) => c.payment_method === 'CASH')
@@ -242,21 +233,13 @@ export function useShiftClosingHistory() {
 
   // ─── Print/Export (via print-server API, silencioso) ───────────────
 
-  const CONCEPT_LABELS: Record<string, string> = {
-    ROOM_BASE: "Habitación", EXTRA_HOUR: "Hora Extra", EXTRA_PERSON: "Persona Extra",
-    CONSUMPTION: "Consumo", PRODUCT: "Producto", RENEWAL: "Renovación", PROMO_4H: "Promo 4H",
-    ROOM_CHANGE_ADJUSTMENT: "Cambio de Habitación",
-  };
+
 
   const exportClosing = async (closing: ShiftClosing) => {
     try {
       // 1. Cargar gastos del turno
-      const { data: expenseData } = await supabase
-        .from('shift_expenses')
-        .select('*')
-        .eq('shift_session_id', closing.shift_session_id)
-        .neq('status', 'rejected')
-        .order('created_at', { ascending: true });
+      const expensesResult = await getShiftExpenses(closing.shift_session_id!);
+      const expenseData = expensesResult.success ? expensesResult.data : [];
 
       const expenses = (expenseData || []).map((exp: any) => ({
         time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
@@ -348,68 +331,15 @@ export function useShiftClosingHistory() {
           .select("id, qty, unit_price, concept_type, is_courtesy, courtesy_reason, is_cancelled, products(name), sales_orders(id, room_stays(status, rooms(number, room_types(name))))")
           .eq("shift_session_id", closing.shift_session_id);
 
-        const activeItems = (accrualItems || []).filter((item: any) => {
-          if (item.is_cancelled) return false;
-          const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
-          const roomStay = order?.room_stays;
-          const stay = Array.isArray(roomStay) ? roomStay[0] : roomStay;
-          return !stay || stay.status !== 'CANCELADA';
-        });
-
-        activeItems.forEach((item: any) => {
-          const qty = item.qty || 1;
-          const unitPrice = item.unit_price || 0;
-          const amount = qty * unitPrice;
-          const conceptType = item.concept_type;
-
-          if (conceptType === "ROOM_BASE") {
-            const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
-            const stay = order?.room_stays?.[0] || (Array.isArray(order?.room_stays) ? order.room_stays[0] : order?.room_stays);
-            const room = stay?.rooms;
-            const roomType = Array.isArray(room) ? room[0]?.room_types : room?.room_types;
-            const typeName = Array.isArray(roomType) ? roomType[0]?.name : roomType?.name || "Habitación";
-
-            if (!roomBreakdown[typeName]) roomBreakdown[typeName] = { count: 0, total: 0 };
-            roomBreakdown[typeName].count += qty;
-            roomBreakdown[typeName].total += amount;
-          } else if (["EXTRA_PERSON", "EXTRA_HOUR", "RENEWAL", "PROMO_4H", "ROOM_CHANGE_ADJUSTMENT"].includes(conceptType)) {
-            const label = CONCEPT_LABELS[conceptType] || conceptType;
-            if (!extraBreakdown[label]) extraBreakdown[label] = { count: 0, total: 0 };
-            extraBreakdown[label].count += qty;
-            extraBreakdown[label].total += amount;
-          } else if (["CONSUMPTION", "PRODUCT", "RESTAURANT"].includes(conceptType)) {
-            const product = Array.isArray(item.products) ? item.products[0] : item.products;
-            const productName = product?.name || "Producto";
-            let displayName = productName;
-            if (item.is_courtesy) {
-              displayName = `${productName} (${item.courtesy_reason || "Cortesía"})`;
-            }
-            if (!consumptionBreakdown[displayName]) consumptionBreakdown[displayName] = { count: 0, total: 0 };
-            consumptionBreakdown[displayName].count += qty;
-            consumptionBreakdown[displayName].total += amount;
-          } else if (conceptType === "DAMAGE_CHARGE") {
-            const description = item.courtesy_reason || "Cargo por Daño";
-            if (!damageBreakdown[description]) damageBreakdown[description] = { count: 0, total: 0 };
-            damageBreakdown[description].count += qty;
-            damageBreakdown[description].total += amount;
-          }
-        });
+        ({ roomBreakdown, extraBreakdown, consumptionBreakdown, damageBreakdown } = buildClosingBreakdowns(accrualItems || []));
       }
 
       // 4. Cargar cargos a empleados del turno
       let employeeCharges: any[] = [];
       let totalEmployeeCharges = 0;
       if (closing.shift_session_id) {
-        const { data: chargesData } = await supabase
-          .from('shift_employee_charges')
-          .select(`
-            id, charge_type, description, total, discount_amount,
-            payment_method, created_at,
-            charged_employee:charged_to(first_name, last_name)
-          `)
-          .eq('shift_session_id', closing.shift_session_id)
-          .neq('status', 'rejected')
-          .order('created_at', { ascending: true });
+        const printChargesResult = await getEmployeeCharges(closing.shift_session_id);
+        const chargesData = printChargesResult.success ? printChargesResult.data : [];
 
         employeeCharges = (chargesData || []).map((c: any) => ({
           time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
