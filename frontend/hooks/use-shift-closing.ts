@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ShiftSession } from "@/components/employees/types";
 import { usePrintClosing } from "@/hooks/use-print-closing";
 import { ShiftExpense } from "@/types/expenses";
-import { buildClosingBreakdowns, buildClosingTransactionsWithItems } from "@/lib/print";
+import { buildClosingBreakdowns, buildClosingTransactionsWithItems, sendPrintJob } from "@/lib/print";
 import { formatCurrency } from "@/lib/utils/formatters";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
     }
   };
 
-  // ─── Print HP (letter-size income report via browser print dialog) ──────────
+  // ─── Print HP (direct PCL via print server — no browser prompt) ──────────
 
   const handlePrintHP = async () => {
     if (!summary) return;
@@ -294,321 +294,59 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
       const periodStart = session.clock_in_at;
       const periodEnd = session.clock_out_at || new Date().toISOString();
 
-      // 1. Call RPC to get income report entries
-      const { data: rpcResult, error } = await supabase.rpc('get_income_report', {
-        p_report_type: 'shift',
-        p_shift_id: session.id,
-        p_payment_method_filter: 'all',
-        p_room_filter: 'all',
-        p_status_filter: 'all'
-      });
-
-      if (error) throw error;
-
-      const entriesRaw = rpcResult?.entries || [];
-
-      if (entriesRaw.length === 0) {
-        console.debug('[HP] No sales orders/entries for this shift — skipping income report');
-        toast.warning('Sin registros para hoja de ingresos', {
-          description: 'No hay registros de ingreso en este turno para generar el reporte',
-          duration: 6000
-        });
-        return;
-      }
-
-      // 2. Map raw entries to structured layout
-      const entries = entriesRaw.map((e: any) => {
-        const buildCardLabel = (p: any) => {
-          let label = 'TARJETA';
-          if (p.terminal_code) label += ` ${p.terminal_code}`;
-          if (p.card_type) {
-            const ct = p.card_type.toUpperCase();
-            label += ct === 'CREDITO' ? ' CRÉD' : ct === 'DEBITO' ? ' DÉB' : ` ${ct}`;
-          }
-          if (p.card_last_4) label += ` ****${p.card_last_4}`;
-          return label;
-        };
-
-        let paymentMethod = e.payment_method || "PENDIENTE";
-        if (e.payments && e.payments.length === 1) {
-          const p = e.payments[0];
-          paymentMethod = p.payment_method === "TARJETA" ? buildCardLabel(p) : p.payment_method;
-        } else if (e.payments && e.payments.length > 1) {
-          paymentMethod = e.payments.map((p: any) =>
-            p.payment_method === "TARJETA" ? buildCardLabel(p) : p.payment_method
-          ).join(' / ');
-        }
-
-        return {
-          no: Number(e.no),
-          time: e.time || '',
-          vehicle_plate: e.vehicle_plate || '',
-          room_number: e.room_number || '',
-          checkout_valet_name: e.checkout_valet_name || '—',
-          room_price: Number(e.room_price) || 0,
-          extra: Number(e.extra) || 0,
-          consumption: Number(e.consumption) || 0,
-          damage: Number(e.damage) || 0,
-          total: Number(e.total) || 0,
-          payment_method: paymentMethod,
-          stay_status: e.stay_status,
-          isOwnRoom: Number(e.room_price) > 0,
-        };
-      });
-
-      // Split entries: rooms checked-in THIS shift vs services for rooms from OTHER shifts
-      const ownEntries = entries.filter((e: any) => e.isOwnRoom).map((e: any, i: number) => ({ ...e, no: i + 1 }));
-      const otherEntries = entries.filter((e: any) => !e.isOwnRoom).map((e: any, i: number) => ({ ...e, no: i + 1 }));
-
-      // 3. Build payment breakdown from all payments in the shift
-      const paymentBreakdown: Record<string, number> = {};
-      entriesRaw.forEach((e: any) => {
-        (e.payments || []).forEach((p: any) => {
-          let key = p.payment_method;
-          if (p.payment_method === "TARJETA") {
-            key = 'TARJETA';
-            if (p.terminal_code) key += ` ${p.terminal_code}`;
-            if (p.card_type) {
-              const ct = p.card_type.toUpperCase();
-              key += ct === 'CREDITO' ? ' CRÉD' : ct === 'DEBITO' ? ' DÉB' : ` ${ct}`;
-            }
-            if (p.card_last_4) key += ` ****${p.card_last_4}`;
-          }
-          paymentBreakdown[key] = (paymentBreakdown[key] || 0) + Number(p.amount);
-        });
-      });
-
-      // 4. Calculate totals (all, own, other)
-      const calcTotals = (list: any[]) => list.reduce((acc: any, e: any) => ({
-        roomPrice: acc.roomPrice + e.room_price,
-        extra: acc.extra + e.extra,
-        consumption: acc.consumption + e.consumption,
-        damage: acc.damage + e.damage,
-        total: acc.total + e.total,
-      }), { roomPrice: 0, extra: 0, consumption: 0, damage: 0, total: 0 });
-      const totals = calcTotals(entries);
-      const ownTotals = calcTotals(ownEntries);
-      const otherTotals = calcTotals(otherEntries);
-
-      // 5. Format period
-      const { dateStr: startDate, timeStr: startTime } = (() => {
-        const d = new Date(periodStart);
-        return {
-          dateStr: d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-          timeStr: d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-        };
-      })();
-      const { dateStr: endDate, timeStr: endTime } = (() => {
-        const d = new Date(periodEnd);
-        return {
-          dateStr: d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-          timeStr: d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-        };
-      })();
-      const periodLabel = `${startDate} ${startTime} — ${endDate} ${endTime}`;
-
-      // 6. Reuse expenses from summary (already loaded by loadPaymentSummary)
-      const EXPENSE_LABELS: Record<string, string> = {
-        UBER: '🚗 Uber / Transporte', MAINTENANCE: '🔧 Mantenimiento', REPAIR: '🛠️ Reparación',
-        SUPPLIES: '📦 Insumos', PETTY_CASH: '💵 Caja Chica', OTHER: '📝 Otro Gasto',
-      };
-
+      // Build closing data with all breakdowns for HP PCL report
       const expenses = (summary.expenses || []).map((exp: any) => ({
         time: new Date(exp.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         type: exp.expense_type,
-        typeLabel: EXPENSE_LABELS[exp.expense_type] || exp.expense_type,
         description: exp.description,
         amount: Number(exp.amount),
         recipient: exp.recipient,
+        created_at: exp.created_at,
+        createdAt: exp.created_at,
       }));
       const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
-
-      // 6b. Reuse employee charges from summary (already loaded by loadPaymentSummary)
-      const CHARGE_TYPE_LABELS: Record<string, string> = {
-        BREAKFAST: 'Desayuno', LUNCH: 'Comida', CONSUMPTION: 'Consumo',
-        PRODUCT: 'Producto', OTHER: 'Otro',
-      };
-      const CHARGE_PAYMENT_LABELS: Record<string, string> = {
-        CASH: 'Efectivo', DEDUCCION_NOMINA: 'Desc. Nómina', COURTESY: 'Cortesía',
-      };
 
       const employeeCharges = (summary.employee_charges || []).map((c: any) => ({
         time: new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         employeeName: c.charged_employee ? `${c.charged_employee.first_name} ${c.charged_employee.last_name}` : '—',
-        chargeType: CHARGE_TYPE_LABELS[c.charge_type] || c.charge_type,
+        chargeType: c.charge_type,
         description: c.description,
-        quantity: c.quantity,
-        unitPrice: Number(c.unit_price),
-        discountAmount: Number(c.discount_amount),
         total: Number(c.total),
-        paymentMethod: CHARGE_PAYMENT_LABELS[c.payment_method] || c.payment_method,
+        paymentMethod: c.payment_method,
       }));
       const totalEmployeeCharges = employeeCharges.reduce((s: number, c: any) => s + c.total, 0);
-      const totalEmployeeChargesCash = (summary.employee_charges || []).filter((c: any) => c.payment_method === 'CASH').reduce((s: number, c: any) => s + Number(c.total), 0);
 
-      // 7. Build HTML table rows helper
-      const buildRow = (e: any) => {
-        const isCancelled = e.stay_status === 'CANCELADA';
-        const rowStyle = isCancelled ? 'color:#dc2626;text-decoration:line-through;' : '';
-        const cancelTag = isCancelled ? ' <span style="color:#dc2626;font-size:7px;font-weight:700;text-decoration:none;display:inline-block;">(CANCELADO)</span>' : '';
-        const activeTag = !isCancelled && e.stay_status === 'ACTIVA' ? ' <span style="color:#d97706;font-size:7px;">(A)</span>' : '';
-        const formatAmt = (val: number) => {
-          if (val === 0) return '—';
-          if (val < 0) return `<span style="color:#dc2626;text-decoration:none;display:inline-block;">-$${Math.abs(val).toFixed(2)}</span>`;
-          return `$${val.toFixed(2)}`;
-        };
-        return `<tr style="${rowStyle}">
-            <td style="text-align:center;font-weight:600;">${e.no}</td>
-            <td style="text-align:center;">${e.time}</td>
-            <td style="text-align:center;text-transform:uppercase;">${e.vehicle_plate || '—'}</td>
-            <td style="text-align:center;font-weight:600;text-decoration:none;">${e.room_number}${cancelTag}${activeTag}</td>
-            <td style="text-align:right;font-family:monospace;">${formatAmt(e.room_price)}</td>
-            <td style="text-align:right;font-family:monospace;">${e.extra !== 0 ? formatAmt(e.extra) : '—'}</td>
-            <td style="text-align:right;font-family:monospace;">${e.consumption !== 0 ? formatAmt(e.consumption) : '—'}</td>
-            <td style="text-align:right;font-family:monospace;">${e.damage !== 0 ? formatAmt(e.damage) : '—'}</td>
-            <td style="text-align:right;font-weight:700;font-family:monospace;">${formatAmt(e.total)}</td>
-            <td style="text-align:center;${isCancelled ? 'text-decoration:none;color:#dc2626;font-weight:700;' : ''}">${e.payment_method}</td>
-        </tr>`;
+      const closingData = {
+        employeeName,
+        shiftName: session.shift_definitions?.name || 'Turno',
+        periodStart,
+        periodEnd,
+        totalCash: summary.total_cash,
+        totalCardBBVA: summary.total_card_bbva,
+        totalCardGetnet: summary.total_card_getnet,
+        totalSales: summary.total_sales,
+        totalTransactions: summary.total_transactions,
+        countedCash: netCash,
+        cashDifference: 0,
+        notes: notes.trim() || undefined,
+        transactions: await buildClosingTransactionsWithItems(summary.payments, supabase),
+        ...buildClosingBreakdowns(summary.accrual_items),
+        expenses,
+        totalExpenses,
+        employeeCharges,
+        totalEmployeeCharges,
       };
-      const ownRows = ownEntries.map(buildRow).join('');
-      const otherRows = otherEntries.map(buildRow).join('');
 
-      const breakdownRows = Object.entries(paymentBreakdown).map(([method, amount]) =>
-        `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;">${method}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;">$${Number(amount).toFixed(2)}</td></tr>`
-      ).join('');
-
-      const expenseRows = expenses.length > 0 ? expenses.map((exp: any) =>
-        `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${exp.time} — ${exp.typeLabel}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${exp.description}${exp.recipient ? ' (' + exp.recipient + ')' : ''}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;color:#dc2626;">-$${exp.amount.toFixed(2)}</td></tr>`
-      ).join('') + `<tr><td colspan="2" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL GASTOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : '';
-
-      const printHtml = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Corte de Caja — Luxor Auto Hotel</title>
-<style>
-    @page { size: landscape; margin: 5mm; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; background: #fff; line-height: 1.2; }
-    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 4px; }
-    .header h1 { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
-    .header .meta { font-size: 7px; color: #333; text-align: right; line-height: 1.4; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-    th { background: #222; color: #fff; padding: 2px 3px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border: 1px solid #222; white-space: nowrap; }
-    td { padding: 1px 3px; border: 1px solid #bbb; font-size: 8px; white-space: nowrap; }
-    tbody tr:nth-child(odd) { background: #f5f5f5; }
-    .totals-row td { background: #e5e5e5; font-weight: 700; border-top: 2px solid #111; font-size: 9px; }
-    .footer { display: flex; gap: 10px; margin-top: 6px; }
-    .footer-box { flex: 1; border: 1px solid #999; padding: 4px 6px; }
-    .footer-box h4 { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
-    .footer-box td { font-size: 8px; padding: 1px 4px; border: none; border-bottom: 1px solid #eee; }
-    .signature { margin-top: 20px; display: flex; justify-content: space-around; }
-    .sig-line { text-align: center; width: 180px; }
-    .sig-line .line { border-top: 1px solid #111; margin-bottom: 2px; }
-    .sig-line span { font-size: 7px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
-</style>
-</head>
-<body onload="setTimeout(()=>window.print(),300)">
-<div class="header">
-    <h1>Luxor Auto Hotel &mdash; Corte de Caja</h1>
-    <div class="meta">
-        <b>${employeeName}</b> &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; ${entries.length} registros &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString('es-MX')}
-    </div>
-</div>
-<h2 style="font-size:10px;margin:6px 0 2px;padding:2px 4px;background:#1a5276;color:#fff;text-transform:uppercase;letter-spacing:1px;">&#x1F3E8; Habitaciones del Turno (${ownEntries.length})</h2>
-<table>
-    <thead>
-        <tr>
-            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Daños</th><th>Total</th><th>Forma de Pago</th>
-        </tr>
-    </thead>
-    <tbody>
-        ${ownRows || '<tr><td colspan="10" style="text-align:center;color:#999;padding:4px;">Sin habitaciones en este turno</td></tr>'}
-        <tr class="totals-row">
-            <td colspan="4" style="text-align:right;letter-spacing:1px;">SUBTOTAL</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.roomPrice).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.extra).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.consumption).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(ownTotals.damage).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(ownTotals.total).toFixed(2)}</td>
-            <td></td>
-        </tr>
-    </tbody>
-</table>
-${otherEntries.length > 0 ? `
-<h2 style="font-size:10px;margin:6px 0 2px;padding:2px 4px;background:#7d3c98;color:#fff;text-transform:uppercase;letter-spacing:1px;">&#x1F504; Servicios de Otros Turnos (${otherEntries.length}) &mdash; Renovaciones, Extras, Consumos</h2>
-<table>
-    <thead>
-        <tr>
-            <th>#</th><th>Hora</th><th>Placas</th><th>Hab</th><th>Precio</th><th>Extra</th><th>Consumo</th><th>Daños</th><th>Total</th><th>Forma de Pago</th>
-        </tr>
-    </thead>
-    <tbody>
-        ${otherRows}
-        <tr class="totals-row">
-            <td colspan="4" style="text-align:right;letter-spacing:1px;">SUBTOTAL</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.roomPrice).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.extra).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.consumption).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;">$${Number(otherTotals.damage).toFixed(2)}</td>
-            <td style="text-align:right;font-family:monospace;font-size:10px;">$${Number(otherTotals.total).toFixed(2)}</td>
-            <td></td>
-        </tr>
-    </tbody>
-</table>
-` : ''}
-<div style="margin-top:4px;padding:3px 6px;background:#222;color:#fff;font-size:9px;font-weight:700;display:flex;justify-content:space-between;">
-    <span>TOTAL GENERAL (${entries.length} registros)</span>
-    <span style="font-family:monospace;font-size:11px;">$${Number(totals.total).toFixed(2)}</span>
-</div>
-<div class="footer">
-    <div class="footer-box">
-        <h4>Desglose por M&eacute;todo de Pago</h4>
-        <table style="margin:0;"><tbody>${breakdownRows}</tbody></table>
-    </div>
-    <div class="footer-box">
-        <h4>Resumen</h4>
-        <table style="margin:0;"><tbody>
-            <tr><td>Habitaciones</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.roomPrice).toFixed(2)}</td></tr>
-            <tr><td>Extras</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.extra).toFixed(2)}</td></tr>
-            <tr><td>Consumo</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.consumption).toFixed(2)}</td></tr>
-            <tr><td>Daños</td><td style="text-align:right;font-family:monospace;font-weight:600;">$${Number(totals.damage).toFixed(2)}</td></tr>
-            <tr><td style="font-weight:700;border-top:2px solid #111;">TOTAL VENTAS</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${Number(totals.total).toFixed(2)}</td></tr>
-            ${totalExpenses > 0 ? `<tr><td style="color:#dc2626;">Gastos del turno</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#dc2626;">-$${totalExpenses.toFixed(2)}</td></tr>` : ''}
-            ${totalEmployeeChargesCash > 0 ? `<tr><td style="color:#0891b2;">Cargos empleados (efectivo)</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#0891b2;">+$${totalEmployeeChargesCash.toFixed(2)}</td></tr>` : ''}
-            ${(totalExpenses > 0 || totalEmployeeChargesCash > 0) ? `<tr><td style="font-weight:700;border-top:2px solid #111;">EFECTIVO NETO</td><td style="text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;">$${(summary!.total_cash - totalExpenses + totalEmployeeChargesCash).toFixed(2)}</td></tr>` : ''}
-        </tbody></table>
-    </div>
-</div>
-${expenses.length > 0 ? `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Gastos del Turno</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Descripci&oacute;n</th><th style="background:#dc2626;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ''}
-${employeeCharges.length > 0 ? (() => {
-  const chargeRows = employeeCharges.map((c: any) =>
-    `<tr><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${c.time} — ${c.chargeType}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${c.employeeName}: ${c.description}</td><td style="padding:1px 4px;border:none;border-bottom:1px solid #eee;font-size:7px;">${c.paymentMethod}</td><td style="padding:1px 4px;text-align:right;font-weight:600;font-family:monospace;border:none;border-bottom:1px solid #eee;color:#0891b2;">$${c.total.toFixed(2)}</td></tr>`
-  ).join('');
-  return `<div style="margin-top:6px;border:1px solid #999;padding:4px 6px;"><h4 style="font-size:7px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px;border-bottom:1px solid #ccc;padding-bottom:2px;">Cargos a Empleados</h4><table style="margin:0;width:100%;border-collapse:collapse;"><thead><tr><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Hora — Tipo</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Empleado / Desc.</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:left;">Pago</th><th style="background:#0891b2;color:#fff;padding:2px 3px;font-size:7px;text-align:right;">Monto</th></tr></thead><tbody>${chargeRows}<tr><td colspan="3" style="padding:1px 4px;font-weight:700;border-top:2px solid #111;border:none;">TOTAL CARGOS</td><td style="padding:1px 4px;text-align:right;font-family:monospace;font-weight:700;font-size:10px;border-top:2px solid #111;border:none;color:#0891b2;">$${totalEmployeeCharges.toFixed(2)}</td></tr></tbody></table></div>`;
-})() : ''}
-<div class="signature">
-    <div class="sig-line"><div class="line"></div><span>Recepcionista</span></div>
-    <div class="sig-line"><div class="line"></div><span>Supervisor / Gerente</span></div>
-</div>
-</body>
-</html>`;
-
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(printHtml);
-        printWindow.document.close();
-      } else {
-        toast.error('No se pudo abrir ventana de impresión', {
-          description: 'Permite las ventanas emergentes para este sitio',
-          duration: 6000
-        });
-      }
+      await sendPrintJob('closing', closingData, {
+        endpoint: '/print/hp',
+        successMsg: 'Reporte HP impreso',
+        successDesc: 'Enviado directo a impresora HP',
+      });
     } catch (error) {
-      console.error('Error preparing HP income report:', error);
-      toast.error('Error al preparar reporte de ingresos', {
-        description: 'No se pudieron cargar los datos del turno',
-        duration: 6000
+      console.error('Error preparing HP closing report:', error);
+      toast.error('Error al imprimir reporte HP', {
+        description: 'No se pudieron enviar los datos a la impresora HP',
+        duration: 6000,
       });
     }
   };
