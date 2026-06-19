@@ -465,14 +465,51 @@ function buildClosingTicket(data) {
     const diffSign = cashDiff >= 0 ? '+' : '';
     t += `  Diferencia:       ${diffSign}${formatMoney(cashDiff)}` + CMD.NEW_LINE + CMD.NEW_LINE;
 
+    // Desglose granular de tarjetas por terminal
     if (data.totalCardBBVA > 0) {
-        t += CMD.BOLD_ON + 'TARJETA BBVA' + CMD.NEW_LINE + CMD.BOLD_OFF;
-        t += `  Total: ${formatMoney(data.totalCardBBVA)}` + CMD.NEW_LINE + CMD.NEW_LINE;
+        const bbvaTx = (data.transactions || []).filter(tx => tx.paymentMethod === 'TARJETA_BBVA' || (tx.paymentMethod === 'TARJETA' && tx.terminalCode === 'BBVA'));
+        t += CMD.BOLD_ON + `TARJETA BBVA (${bbvaTx.length} txn)` + CMD.NEW_LINE + CMD.BOLD_OFF;
+        if (bbvaTx.length > 0) {
+            const creditTx = bbvaTx.filter(tx => (tx.cardType || '').toUpperCase().includes('CRED'));
+            const debitTx = bbvaTx.filter(tx => (tx.cardType || '').toUpperCase().includes('DEB'));
+            const otherTx = bbvaTx.length - creditTx.length - debitTx.length;
+            if (creditTx.length > 0) {
+                const creditTotal = creditTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+                t += formatLine(`  Credito: ${String(creditTx.length).padStart(2)}`, formatMoney(creditTotal)) + CMD.NEW_LINE;
+            }
+            if (debitTx.length > 0) {
+                const debitTotal = debitTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+                t += formatLine(`  Debito:  ${String(debitTx.length).padStart(2)}`, formatMoney(debitTotal)) + CMD.NEW_LINE;
+            }
+            if (otherTx > 0) {
+                const otherTotal = data.totalCardBBVA - (creditTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0)) - (debitTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0));
+                t += formatLine(`  Otros:   ${String(otherTx).padStart(2)}`, formatMoney(otherTotal)) + CMD.NEW_LINE;
+            }
+        }
+        t += formatLine('  Total:', formatMoney(data.totalCardBBVA)) + CMD.NEW_LINE + CMD.NEW_LINE;
     }
 
     if (data.totalCardGetnet > 0) {
-        t += CMD.BOLD_ON + 'TARJETA GETNET' + CMD.NEW_LINE + CMD.BOLD_OFF;
-        t += `  Total: ${formatMoney(data.totalCardGetnet)}` + CMD.NEW_LINE + CMD.NEW_LINE;
+        const getnetTx = (data.transactions || []).filter(tx => tx.paymentMethod === 'TARJETA_GETNET' || (tx.paymentMethod === 'TARJETA' && tx.terminalCode === 'GETNET'));
+        t += CMD.BOLD_ON + `TARJETA GETNET (${getnetTx.length} txn)` + CMD.NEW_LINE + CMD.BOLD_OFF;
+        if (getnetTx.length > 0) {
+            const creditTx = getnetTx.filter(tx => (tx.cardType || '').toUpperCase().includes('CRED'));
+            const debitTx = getnetTx.filter(tx => (tx.cardType || '').toUpperCase().includes('DEB'));
+            const otherTx = getnetTx.length - creditTx.length - debitTx.length;
+            if (creditTx.length > 0) {
+                const creditTotal = creditTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+                t += formatLine(`  Credito: ${String(creditTx.length).padStart(2)}`, formatMoney(creditTotal)) + CMD.NEW_LINE;
+            }
+            if (debitTx.length > 0) {
+                const debitTotal = debitTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+                t += formatLine(`  Debito:  ${String(debitTx.length).padStart(2)}`, formatMoney(debitTotal)) + CMD.NEW_LINE;
+            }
+            if (otherTx > 0) {
+                const otherTotal = data.totalCardGetnet - (creditTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0)) - (debitTx.reduce((s, tx) => s + (Number(tx.amount) || 0), 0));
+                t += formatLine(`  Otros:   ${String(otherTx).padStart(2)}`, formatMoney(otherTotal)) + CMD.NEW_LINE;
+            }
+        }
+        t += formatLine('  Total:', formatMoney(data.totalCardGetnet)) + CMD.NEW_LINE + CMD.NEW_LINE;
     }
 
     t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
@@ -636,10 +673,91 @@ function buildClosingTicket(data) {
         t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     }
 
+    // ═══ CARGOS A EMPLEADOS ═══
+    if (data.employeeCharges && data.employeeCharges.length > 0) {
+        const CHARGE_LABELS = {
+            DISCOUNT: 'Descuento', SHORTAGE: 'Faltante', DAMAGE: 'Dano',
+            PURCHASE: 'Compra', LOAN: 'Prestamo', OTHER: 'Otro'
+        };
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CARGOS A EMPLEADOS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        data.employeeCharges.forEach((charge, i) => {
+            const label = CHARGE_LABELS[charge.chargeType] || charge.chargeType || 'Cargo';
+            const empName = (charge.employeeName || '').length > 20
+                ? charge.employeeName.substring(0, 19) + '.'
+                : charge.employeeName || '—';
+            t += `${i + 1}. ${charge.time}  -${formatMoney(charge.total)}` + CMD.NEW_LINE;
+            t += `   ${empName} - ${label}` + CMD.NEW_LINE;
+            if (charge.description) {
+                const desc = charge.description.length > 30 ? charge.description.substring(0, 29) + '.' : charge.description;
+                t += `   ${desc}` + CMD.NEW_LINE;
+            }
+        });
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        const totalCharges = data.totalEmployeeCharges || data.employeeCharges.reduce((s, c) => s + (Number(c.total) || 0), 0);
+        t += CMD.BOLD_ON + formatLine('TOTAL CARGOS:', `-${formatMoney(totalCharges)}`) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    }
+
     if (data.notes && data.notes.trim()) {
         t += CMD.BOLD_ON + 'NOTAS:' + CMD.NEW_LINE + CMD.BOLD_OFF;
         t += data.notes.trim() + CMD.NEW_LINE;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+    }
+
+    // ═══ ESTADÍSTICAS DEL TURNO ═══
+    {
+        const txCount = data.totalTransactions || 0;
+        const ownRooms = data.roomBreakdown ? Object.values(data.roomBreakdown).reduce((s, v) => s + (v.count || 0), 0) : 0;
+        const otherServices = (data.consumptionBreakdown ? Object.values(data.consumptionBreakdown).reduce((s, v) => s + (v.count || 0), 0) : 0)
+            + (data.extraBreakdown ? Object.values(data.extraBreakdown).reduce((s, v) => s + (v.count || 0), 0) : 0);
+        const avgPerRoom = ownRooms > 0 ? data.totalSales / ownRooms : 0;
+
+        // Calcular duración del turno
+        let duracionStr = '—';
+        if (data.periodStart && data.periodEnd) {
+            const msStart = new Date(data.periodStart).getTime();
+            const msEnd = new Date(data.periodEnd).getTime();
+            if (!isNaN(msStart) && !isNaN(msEnd)) {
+                const diffMs = msEnd - msStart;
+                const hours = Math.floor(diffMs / 3600000);
+                const mins = Math.floor((diffMs % 3600000) / 60000);
+                duracionStr = `${hours}h ${String(mins).padStart(2, '0')}m`;
+            }
+        }
+
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'ESTADISTICAS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        if (ownRooms > 0) t += formatLine('Habitaciones:', String(ownRooms)) + CMD.NEW_LINE;
+        if (otherServices > 0) t += formatLine('Consumos/Extras:', String(otherServices)) + CMD.NEW_LINE;
+        t += formatLine('Transacciones:', String(txCount)) + CMD.NEW_LINE;
+        if (ownRooms > 0) t += formatLine('Promedio por hab:', formatMoney(avgPerRoom)) + CMD.NEW_LINE;
+        t += formatLine('Duracion turno:', duracionStr) + CMD.NEW_LINE;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
+    }
+
+    // ═══ RESUMEN FINAL ═══
+    {
+        const totalCharges = data.totalEmployeeCharges || 0;
+        const neto = (data.totalSales || 0) - totalGastos - totalCharges;
+
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'RESUMEN FINAL' + CMD.NEW_LINE;
+        t += CMD.NORMAL_SIZE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_LEFT;
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + formatLine('(+) Ventas Total:', formatMoney(data.totalSales || 0)) + CMD.NEW_LINE + CMD.BOLD_OFF;
+        if (totalGastos !== 0) {
+            t += formatLine('(-) Gastos:', `-${formatMoney(Math.abs(totalGastos))}`) + CMD.NEW_LINE;
+        }
+        if (totalCharges > 0) {
+            t += formatLine('(-) Cargos Emp:', `-${formatMoney(totalCharges)}`) + CMD.NEW_LINE;
+        }
+        t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
+        t += CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + formatLine('NETO:', formatMoney(neto)) + CMD.NEW_LINE;
+        t += CMD.NORMAL_SIZE + CMD.BOLD_OFF;
+        t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
     }
 
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
