@@ -55,6 +55,11 @@ export interface PaymentSummary {
   total_card_bbva: number;
   total_card_getnet: number;
   total_sales: number;
+  total_payment_sales: number;  // suma de pagos (referencia de auditoría)
+  total_room_price: number;
+  total_extra: number;
+  total_consumption: number;
+  total_damage: number;
   total_transactions: number;
   payments: EnrichedPayment[];
   salesOrders: Array<{ id: string; total: number; status: string }>;
@@ -128,6 +133,11 @@ export function useShiftClosing({ session, onComplete }: UseShiftClosingProps) {
         total_card_bbva: Number(rpcResult.total_card_bbva) || 0,
         total_card_getnet: Number(rpcResult.total_card_getnet) || 0,
         total_sales: Number(rpcResult.total_sales) || 0,
+        total_payment_sales: Number(rpcResult.total_payment_sales) || 0,
+        total_room_price: Number(rpcResult.total_room_price) || 0,
+        total_extra: Number(rpcResult.total_extra) || 0,
+        total_consumption: Number(rpcResult.total_consumption) || 0,
+        total_damage: Number(rpcResult.total_damage) || 0,
         total_transactions: Number(rpcResult.total_transactions) || 0,
         payments: rpcResult.payments || [],
         salesOrders: rpcResult.salesOrders || [],
