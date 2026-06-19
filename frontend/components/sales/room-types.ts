@@ -84,6 +84,8 @@ export interface RoomStay {
   checkout_valet_employee_id?: string | null; // Cochero de salida
   vehicle_requested_at?: string | null; // Hora de solicitud de vehículo
   valet_checkout_requested_at?: string | null; // Hora de propuesta de salida por el cochero
+  valet_claimed_at?: string | null; // Hora en que el cochero aceptó la entrada
+  valet_data_filled_at?: string | null; // Hora en que el cochero terminó de llenar datos del vehículo
   guest_access_token?: string | null; // Token de acceso al portal de huéspedes
   sales_orders?: {
     id?: string;

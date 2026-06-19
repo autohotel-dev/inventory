@@ -6,6 +6,7 @@ import { ValetCheckInModal } from "./valet-checkin-modal";
 import { ValetCheckoutModal } from "./valet-checkout-modal";
 import { ValetDeliveryConfirmModal } from "./valet-delivery-confirm-modal";
 import { ValetExtraChargeModal } from "./valet-extra-charge-modal";
+import { ValetInspectionCard } from "@/components/inspections/valet-inspection-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -296,6 +297,9 @@ export function ValetDashboard({ employeeId }: ValetDashboardProps) {
                                 </div>
                             </section>
                         )}
+
+                        {/* 1.5 Inspecciones Pendientes (TV, Daños, etc.) */}
+                        <ValetInspectionCard valetId={employeeId} onRefresh={() => fetchRooms()} />
 
                         {/* 2. Entradas (Nueva + Mías) */}
                         {(entriesToAccept.length > 0 || myPendingEntries.length > 0) && (

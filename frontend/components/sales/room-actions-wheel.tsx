@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter, Loader2, Printer } from "lucide-react";
+import { DollarSign, DoorOpen, Sparkles, Lock, FileText, Clock, UserPlus, UserMinus, CreditCard, UserCheck, Receipt, ListChecks, ShoppingBag, Zap, Car, ArrowRightLeft, XCircle, Users, UserCog, QrCode, BellRing, AlertTriangle, Check, Truck, ConciergeBell, Info, MoreVertical, AlertCircle, HandPlatter, Loader2, Printer, Tv } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Room } from "@/components/sales/room-types";
 
@@ -46,10 +46,11 @@ export interface RoomActionsWheelProps {
   hasValetCheckoutRequest?: boolean; // Si el valet propuso salida
   onCancelValetCheckout?: () => void; // Cancelar/Rechazar solicitud de salida
   onOpenPrintCenter: () => void; // Abrir centro de impresión
+  onAssignInspection?: () => void; // Asignar inspección de TV/daños
 }
 
 // Tipo para las acciones
-type ActionKey = 'onStartStay' | 'onCheckout' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onCancelValetCheckout' | 'onOpenPrintCenter';
+type ActionKey = 'onStartStay' | 'onCheckout' | 'onViewSale' | 'onViewDetails' | 'onGranularPayment' | 'onAddPerson' | 'onRemovePerson' | 'onPersonLeftReturning' | 'onAddHour' | 'onMarkClean' | 'onBlock' | 'onUnblock' | 'onQuickCheckin' | 'onEditVehicle' | 'onChangeRoom' | 'onCancelStay' | 'onManagePeople' | 'onMarkDirty' | 'onEditValet' | 'onShowGuestPortal' | 'onRequestVehicle' | 'onAddDamageCharge' | 'onNotifyCheckout' | 'onAuthorizeValetCheckout' | 'onCancelValetCheckout' | 'onOpenPrintCenter' | 'onAssignInspection';
 
 interface ActionConfig {
   id: string;
@@ -95,6 +96,7 @@ const ACTIONS_BY_STATUS: Record<string, ActionConfig[]> = {
   ],
   SUCIA: [
     { id: "tour-mark-clean-action", label: "Limpiar", icon: <Sparkles className="h-5 w-5" />, color: "text-emerald-400", hoverBg: "hover:bg-emerald-500/30", action: "onMarkClean" },
+    { id: "assign_inspection", label: "Inspección TV", icon: <Tv className="h-5 w-5" />, color: "text-cyan-400", hoverBg: "hover:bg-cyan-500/30", action: "onAssignInspection" },
     { id: "block", label: "Mantenimiento", icon: <Lock className="h-5 w-5" />, color: "text-yellow-400", hoverBg: "hover:bg-yellow-500/30", action: "onBlock" },
   ],
   BLOQUEADA: [

@@ -76,6 +76,9 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     vehicle_brand: vehicleData.brand.trim(),
                     vehicle_model: vehicleData.model.trim(),
                     valet_employee_id: valetId,
+                    valet_data_filled_at: new Date().toISOString(),
+                    // Si no fue aceptada previamente, registrar claimed_at también
+                    ...(!currentStay.valet_employee_id ? { valet_claimed_at: new Date().toISOString() } : {}),
                     current_people: personCount,
                     total_people: Math.max(personCount, activeStay.total_people || 0),
                     vehicle_requested_at: null,
@@ -319,7 +322,10 @@ export function useValetActions(onRefresh: () => Promise<void>) {
         try {
             const { error } = await supabase
                 .from('room_stays')
-                .update({ valet_employee_id: valetId })
+                .update({
+                    valet_employee_id: valetId,
+                    valet_claimed_at: new Date().toISOString()
+                })
                 .eq('id', stayId);
 
             if (error) throw error;

@@ -36,6 +36,7 @@ import { useRoomModals } from "@/hooks/rooms/use-room-modals";
 import { usePrintCenter } from "@/contexts/print-center-context";
 import { useLowPowerMode } from "@/hooks/use-low-power-mode";
 import { Zap, ZapOff } from "lucide-react";
+import { AssignInspectionDialog } from "@/components/inspections/assign-inspection-dialog";
 
 // Dynamic imports para modales (reducción de bundle)
 const ConnectedStartStayModal = dynamic(() => import("@/components/rooms/modals/connected-start-stay-modal").then(m => ({ default: m.ConnectedStartStayModal })), { ssr: false });
@@ -97,6 +98,7 @@ function RoomsBoardInternal() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [assignRemoteRoom, setAssignRemoteRoom] = useState<Room | null>(null);
   const [plateSearch, setPlateSearch] = useState("");
+  const [inspectionRoom, setInspectionRoom] = useState<{stayId: string; roomId: string; roomNumber: string} | null>(null);
 
   // Sensores y Realtime
   const { sensors, doorOpenTimestamps } = useSensors();
@@ -849,7 +851,38 @@ function RoomsBoardInternal() {
           modals.closeActionsDock();
           openPrintCenter("recent");
         }}
+        onAssignInspection={() => {
+          if (modals.selectedRoom) {
+            const activeStay = getActiveStay(modals.selectedRoom);
+            // For SUCIA rooms, use the last stay (most recent)
+            const stay = activeStay || modals.selectedRoom.room_stays?.[0];
+            if (stay) {
+              setInspectionRoom({
+                stayId: stay.id,
+                roomId: modals.selectedRoom.id,
+                roomNumber: modals.selectedRoom.number,
+              });
+            }
+            modals.closeModal("actions");
+          }
+        }}
       />
+
+      {/* Diálogo de asignación de inspección TV */}
+      {inspectionRoom && (
+        <AssignInspectionDialog
+          roomStayId={inspectionRoom.stayId}
+          roomId={inspectionRoom.roomId}
+          roomNumber={inspectionRoom.roomNumber}
+          assignedBy={employeeId || ''}
+          isOpen={!!inspectionRoom}
+          onClose={() => setInspectionRoom(null)}
+          onAssigned={() => {
+            setInspectionRoom(null);
+            fetchRooms(true);
+          }}
+        />
+      )}
       <RoomReminderAlert
         isOpen={!!reminderAlert}
         roomNumber={reminderAlert?.roomNumber || ""}
