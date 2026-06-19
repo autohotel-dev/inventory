@@ -519,7 +519,7 @@ function buildClosingTicket(data) {
 
     // ═══ DESGLOSE POR TIPO DE HABITACIÓN ═══
     if (data.roomBreakdown && Object.keys(data.roomBreakdown).length > 0) {
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'HABITACIONES POR TIPO' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'HABITACIONES' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         let totalRooms = 0, totalRoomAmount = 0;
@@ -537,7 +537,7 @@ function buildClosingTicket(data) {
 
     // ═══ DESGLOSE DE EXTRAS ═══
     if (data.extraBreakdown && Object.keys(data.extraBreakdown).length > 0) {
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'EXTRAS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'EXTRAS' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         let totalExtras = 0, totalExtraAmount = 0;
@@ -555,7 +555,7 @@ function buildClosingTicket(data) {
 
     // ═══ DESGLOSE DE CONSUMOS ═══
     if (data.consumptionBreakdown && Object.keys(data.consumptionBreakdown).length > 0) {
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CONSUMOS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'CONSUMOS' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         let totalConsumptions = 0, totalConsumptionAmount = 0;
@@ -574,7 +574,7 @@ function buildClosingTicket(data) {
 
     // ═══ DESGLOSE DE DAÑOS ═══
     if (data.damageBreakdown && Object.keys(data.damageBreakdown).length > 0) {
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'DAÑOS COBRADOS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'DANOS COBRADOS' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         let totalDamagesCount = 0, totalDamageAmount = 0;
@@ -593,7 +593,7 @@ function buildClosingTicket(data) {
 
     // Detalle de transacciones (si hay)
     if (data.transactions && data.transactions.length > 0) {
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'DETALLE' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'DETALLE' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
 
         const cashTx = data.transactions.filter(tx => tx.paymentMethod === 'EFECTIVO');
@@ -654,7 +654,7 @@ function buildClosingTicket(data) {
             SUPPLIES: 'Insumos', PETTY_CASH: 'Caja Chica', OTHER: 'Otro Gasto',
             CASH_ADJUSTMENT: 'Ajuste de Caja'
         };
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'GASTOS DEL TURNO' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'GASTOS DEL TURNO' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         data.expenses.forEach((exp, i) => {
@@ -679,7 +679,7 @@ function buildClosingTicket(data) {
             DISCOUNT: 'Descuento', SHORTAGE: 'Faltante', DAMAGE: 'Dano',
             PURCHASE: 'Compra', LOAN: 'Prestamo', OTHER: 'Otro'
         };
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'CARGOS A EMPLEADOS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'CARGOS EMPLEADOS' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         data.employeeCharges.forEach((charge, i) => {
@@ -727,7 +727,7 @@ function buildClosingTicket(data) {
             }
         }
 
-        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + 'ESTADISTICAS' + CMD.NEW_LINE + CMD.BOLD_OFF;
+        t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'ESTADISTICAS' + CMD.NEW_LINE + CMD.NORMAL_SIZE + CMD.BOLD_OFF;
         t += CMD.ALIGN_LEFT;
         t += CMD.DIVIDER_DASH + CMD.NEW_LINE;
         if (ownRooms > 0) t += formatLine('Habitaciones:', String(ownRooms)) + CMD.NEW_LINE;
@@ -1314,12 +1314,150 @@ function buildHPClosingReport(data) {
         doc += NL;
     }
 
+    // ═══ DESGLOSE POR TIPO DE HABITACIÓN ═══
+    if (data.roomBreakdown && Object.keys(data.roomBreakdown).length > 0) {
+        doc += '  HABITACIONES POR TIPO' + NL;
+        doc += DASH + NL;
+        let totalRooms = 0, totalRoomAmount = 0;
+        Object.entries(data.roomBreakdown).forEach(([typeName, info]) => {
+            const { count, total } = info;
+            totalRooms += count;
+            totalRoomAmount += total;
+            doc += formatLinePCL(`    ${String(count).padStart(2)}  ${typeName}`, formatMoney(total), 72) + NL;
+        });
+        doc += DASH + NL;
+        doc += formatLinePCL(`    ${String(totalRooms).padStart(2)}  TOTAL HABITACIONES`, formatMoney(totalRoomAmount), 72) + NL;
+        doc += NL;
+    }
+
+    // ═══ DESGLOSE DE EXTRAS ═══
+    if (data.extraBreakdown && Object.keys(data.extraBreakdown).length > 0) {
+        doc += '  EXTRAS' + NL;
+        doc += DASH + NL;
+        let totalExtras = 0, totalExtraAmount = 0;
+        Object.entries(data.extraBreakdown).forEach(([label, info]) => {
+            const { count, total } = info;
+            totalExtras += count;
+            totalExtraAmount += total;
+            doc += formatLinePCL(`    ${String(count).padStart(2)}  ${label}`, formatMoney(total), 72) + NL;
+        });
+        doc += DASH + NL;
+        doc += formatLinePCL(`    ${String(totalExtras).padStart(2)}  TOTAL EXTRAS`, formatMoney(totalExtraAmount), 72) + NL;
+        doc += NL;
+    }
+
+    // ═══ DESGLOSE DE CONSUMOS ═══
+    if (data.consumptionBreakdown && Object.keys(data.consumptionBreakdown).length > 0) {
+        doc += '  CONSUMOS' + NL;
+        doc += DASH + NL;
+        let totalConsumptions = 0, totalConsumptionAmount = 0;
+        Object.entries(data.consumptionBreakdown).forEach(([productName, info]) => {
+            const { count, total } = info;
+            totalConsumptions += count;
+            totalConsumptionAmount += total;
+            const name = productName.length > 45 ? productName.substring(0, 44) + '.' : productName;
+            doc += formatLinePCL(`    ${String(count).padStart(2)}  ${name}`, formatMoney(total), 72) + NL;
+        });
+        doc += DASH + NL;
+        doc += formatLinePCL(`    ${String(totalConsumptions).padStart(2)}  TOTAL CONSUMOS`, formatMoney(totalConsumptionAmount), 72) + NL;
+        doc += NL;
+    }
+
+    // ═══ DESGLOSE DE DAÑOS ═══
+    if (data.damageBreakdown && Object.keys(data.damageBreakdown).length > 0) {
+        doc += '  DANOS COBRADOS' + NL;
+        doc += DASH + NL;
+        let totalDamagesCount = 0, totalDamageAmount = 0;
+        Object.entries(data.damageBreakdown).forEach(([desc, info]) => {
+            const { count, total } = info;
+            totalDamagesCount += count;
+            totalDamageAmount += total;
+            const name = desc.length > 45 ? desc.substring(0, 44) + '.' : desc;
+            doc += formatLinePCL(`    ${String(count).padStart(2)}  ${name}`, formatMoney(total), 72) + NL;
+        });
+        doc += DASH + NL;
+        doc += formatLinePCL(`    ${String(totalDamagesCount).padStart(2)}  TOTAL DANOS`, formatMoney(totalDamageAmount), 72) + NL;
+        doc += NL;
+    }
+
+    // ═══ CARGOS A EMPLEADOS ═══
+    if (data.employeeCharges && data.employeeCharges.length > 0) {
+        const CHARGE_LABELS = {
+            DISCOUNT: 'Descuento', SHORTAGE: 'Faltante', DAMAGE: 'Dano',
+            PURCHASE: 'Compra', LOAN: 'Prestamo', OTHER: 'Otro'
+        };
+        doc += '  CARGOS A EMPLEADOS' + NL;
+        doc += DASH + NL;
+        data.employeeCharges.forEach((charge, i) => {
+            const label = CHARGE_LABELS[charge.chargeType] || charge.chargeType || 'Cargo';
+            const empName = (charge.employeeName || '').substring(0, 25);
+            const desc = (charge.description || '').substring(0, 35);
+            doc += formatLinePCL(`    ${i + 1}. ${charge.time}  ${empName} - ${label}`, `-${formatMoney(charge.total)}`, 72) + NL;
+            if (desc) doc += `       ${desc}` + NL;
+        });
+        const totalCharges = data.totalEmployeeCharges || data.employeeCharges.reduce((s, c) => s + (Number(c.total) || 0), 0);
+        doc += DASH + NL;
+        doc += formatLinePCL('    TOTAL CARGOS:', `-${formatMoney(totalCharges)}`, 72) + NL;
+        doc += NL;
+    }
+
     // ═══ NOTAS ═══
     if (data.notes && data.notes.trim()) {
         doc += '  OBSERVACIONES' + NL;
         doc += DASH + NL;
         doc += `    ${data.notes.trim()}` + NL;
         doc += NL;
+    }
+
+    // ═══ ESTADÍSTICAS DEL TURNO ═══
+    {
+        const txCount = data.totalTransactions || 0;
+        const ownRooms = data.roomBreakdown ? Object.values(data.roomBreakdown).reduce((s, v) => s + (v.count || 0), 0) : 0;
+        const otherServices = (data.consumptionBreakdown ? Object.values(data.consumptionBreakdown).reduce((s, v) => s + (v.count || 0), 0) : 0)
+            + (data.extraBreakdown ? Object.values(data.extraBreakdown).reduce((s, v) => s + (v.count || 0), 0) : 0);
+        const avgPerRoom = ownRooms > 0 ? data.totalSales / ownRooms : 0;
+
+        let duracionStr = '--';
+        if (data.periodStart && data.periodEnd) {
+            const msStart = new Date(data.periodStart).getTime();
+            const msEnd = new Date(data.periodEnd).getTime();
+            if (!isNaN(msStart) && !isNaN(msEnd)) {
+                const diffMs = msEnd - msStart;
+                const hours = Math.floor(diffMs / 3600000);
+                const mins = Math.floor((diffMs % 3600000) / 60000);
+                duracionStr = `${hours}h ${String(mins).padStart(2, '0')}m`;
+            }
+        }
+
+        doc += '  ESTADISTICAS DEL TURNO' + NL;
+        doc += DASH + NL;
+        if (ownRooms > 0) doc += formatLinePCL('    Habitaciones:', String(ownRooms), 72) + NL;
+        if (otherServices > 0) doc += formatLinePCL('    Consumos/Extras:', String(otherServices), 72) + NL;
+        doc += formatLinePCL('    Transacciones:', String(txCount), 72) + NL;
+        if (ownRooms > 0) doc += formatLinePCL('    Promedio por hab:', formatMoney(avgPerRoom), 72) + NL;
+        doc += formatLinePCL('    Duracion turno:', duracionStr, 72) + NL;
+        doc += NL;
+    }
+
+    // ═══ RESUMEN FINAL ═══
+    {
+        const totalExpenses = data.totalExpenses || 0;
+        const totalCharges = data.totalEmployeeCharges || 0;
+        const neto = (data.totalSales || 0) - totalExpenses - totalCharges;
+
+        doc += LINE + NL;
+        doc += '                        RESUMEN FINAL' + NL;
+        doc += LINE + NL;
+        doc += formatLinePCL('    (+) Ventas Total:', formatMoney(data.totalSales || 0), 72) + NL;
+        if (totalExpenses !== 0) {
+            doc += formatLinePCL('    (-) Gastos:', `-${formatMoney(Math.abs(totalExpenses))}`, 72) + NL;
+        }
+        if (totalCharges > 0) {
+            doc += formatLinePCL('    (-) Cargos Emp:', `-${formatMoney(totalCharges)}`, 72) + NL;
+        }
+        doc += DASH + NL;
+        doc += formatLinePCL('    NETO:', formatMoney(neto), 72) + NL;
+        doc += LINE + NL;
     }
 
     // ═══ FIRMAS ═══
