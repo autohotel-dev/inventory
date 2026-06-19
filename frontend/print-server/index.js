@@ -437,8 +437,8 @@ function buildClosingTicket(data) {
     t += CMD.MARGIN;
     t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE + 'CORTE DE CAJA' + CMD.NEW_LINE;
     t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
-    t += CMD.BOLD_ON + data.shiftName + CMD.NEW_LINE + CMD.BOLD_OFF;
-    t += data.employeeName + CMD.NEW_LINE;
+    t += CMD.BOLD_ON + (data.shiftName || 'Turno') + CMD.NEW_LINE + CMD.BOLD_OFF;
+    t += (data.employeeName || '—') + CMD.NEW_LINE;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
 
     t += CMD.ALIGN_LEFT;
@@ -1539,23 +1539,29 @@ app.post('/print-closing', async (req, res) => {
     try {
         const data = req.body;
 
-        // Mapear datos del formato legacy al nuevo formato
+        // Mapear datos — acepta tanto formato nuevo (camelCase) como legacy (snake_case)
         const closingData = {
-            employeeName: data.employee_name,
-            shiftName: data.shift_type,
-            periodStart: data.clock_in_at,
-            periodEnd: data.clock_out_at || new Date(),
-            totalCash: data.total_cash || 0,
-            totalCardBBVA: data.total_card_bbva || 0,
-            totalCardGetnet: data.total_card_getnet || 0,
-            totalSales: data.total_amount || 0,
-            totalTransactions: data.total_transactions || 0,
-            countedCash: data.counted_cash || data.total_cash || 0,
-            cashDifference: (data.counted_cash || data.total_cash || 0) - (data.total_cash || 0),
+            employeeName: data.employeeName || data.employee_name || '—',
+            shiftName: data.shiftName || data.shift_type || 'Turno',
+            periodStart: data.periodStart || data.clock_in_at,
+            periodEnd: data.periodEnd || data.clock_out_at || new Date(),
+            totalCash: data.totalCash || data.total_cash || 0,
+            totalCardBBVA: data.totalCardBBVA || data.total_card_bbva || 0,
+            totalCardGetnet: data.totalCardGetnet || data.total_card_getnet || 0,
+            totalSales: data.totalSales || data.total_amount || 0,
+            totalTransactions: data.totalTransactions || data.total_transactions || 0,
+            countedCash: data.countedCash || data.counted_cash || data.totalCash || data.total_cash || 0,
+            cashDifference: data.cashDifference != null ? data.cashDifference : ((data.counted_cash || data.total_cash || 0) - (data.total_cash || 0)),
             notes: data.notes || '',
             transactions: data.transactions || [],
+            roomBreakdown: data.roomBreakdown || {},
+            extraBreakdown: data.extraBreakdown || {},
+            consumptionBreakdown: data.consumptionBreakdown || {},
+            damageBreakdown: data.damageBreakdown || {},
             expenses: data.expenses || [],
-            totalExpenses: data.total_expenses || 0
+            totalExpenses: data.totalExpenses || data.total_expenses || 0,
+            employeeCharges: data.employeeCharges || [],
+            totalEmployeeCharges: data.totalEmployeeCharges || 0,
         };
 
         const ticket = buildClosingTicket(closingData);
