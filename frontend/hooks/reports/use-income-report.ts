@@ -76,6 +76,11 @@ export function useIncomeReport({
     const [reportNumber, setReportNumber] = useState("0001");
     const [shiftInfo, setShiftInfo] = useState<any>(null);
     const [currentShift, setCurrentShift] = useState<any>(null);
+    const [expenses, setExpenses] = useState<any[]>([]);
+    const [totalExpenses, setTotalExpenses] = useState(0);
+    const [employeeCharges, setEmployeeCharges] = useState<any[]>([]);
+    const [totalEmployeeCharges, setTotalEmployeeCharges] = useState(0);
+    const [totalEmployeeChargesCash, setTotalEmployeeChargesCash] = useState(0);
 
     const fetchIncomeData = useCallback(async () => {
         setLoading(true);
@@ -108,13 +113,19 @@ export function useIncomeReport({
                     roomPrice: Number(rpcResult.totals.roomPrice) || 0,
                     extra: Number(rpcResult.totals.extra) || 0,
                     consumption: Number(rpcResult.totals.consumption) || 0,
-                    damages: Number(rpcResult.totals.damages) || 0,
+                    damages: Number(rpcResult.totals.damage) || 0,
                     total: Number(rpcResult.totals.total) || 0,
                 });
             }
             if (rpcResult?.damage_items) {
                 setDamageItems(rpcResult.damage_items || []);
             }
+            // Expenses and employee charges (added for pre-corte)
+            setExpenses(rpcResult?.expenses || []);
+            setTotalExpenses(Number(rpcResult?.totalExpenses) || 0);
+            setEmployeeCharges(rpcResult?.employeeCharges || []);
+            setTotalEmployeeCharges(Number(rpcResult?.totalEmployeeCharges) || 0);
+            setTotalEmployeeChargesCash(Number(rpcResult?.totalEmployeeChargesCash) || 0);
             if (rpcResult?.totalCount !== undefined) {
                 setTotalCount(rpcResult.totalCount);
             }
@@ -147,7 +158,7 @@ export function useIncomeReport({
         
         if (error) {
             console.error("Error fetching all entries:", error);
-            return { entries: [], totals: { roomPrice: 0, extra: 0, consumption: 0, damages: 0, total: 0 }, damageItems: [] };
+            return { entries: [], totals: { roomPrice: 0, extra: 0, consumption: 0, damage: 0, total: 0 }, damageItems: [] };
         }
 
         const processedEntries: IncomeEntry[] = (rpcResult?.entries || []).map(mapEntry);
@@ -156,9 +167,9 @@ export function useIncomeReport({
             roomPrice: Number(rpcResult.totals.roomPrice) || 0,
             extra: Number(rpcResult.totals.extra) || 0,
             consumption: Number(rpcResult.totals.consumption) || 0,
-            damages: Number(rpcResult.totals.damages) || 0,
+            damages: Number(rpcResult.totals.damage) || 0,
             total: Number(rpcResult.totals.total) || 0,
-        } : { roomPrice: 0, extra: 0, consumption: 0, damages: 0, total: 0 };
+        } : { roomPrice: 0, extra: 0, consumption: 0, damage: 0, total: 0 };
 
         return { 
             entries: processedEntries, 
@@ -176,6 +187,11 @@ export function useIncomeReport({
         shiftInfo,
         currentShift,
         damageItems,
+        expenses,
+        totalExpenses,
+        employeeCharges,
+        totalEmployeeCharges,
+        totalEmployeeChargesCash,
         fetchAllForPrint
     };
 }
