@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const PdfPrinter = require('pdfmake');
+const iconv = require('iconv-lite');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,12 +52,13 @@ saveConfig({ printerIP: PRINTER_IP, printerPort: PRINTER_PORT, hpPrinterIP: HP_P
 const ESC = '\x1B';
 const GS = '\x1D';
 const CMD = {
-    INIT: `${ESC}@`,
+    INIT: `${ESC}@${ESC}t\x10`,   // Init + select Code Page WPC1252 (supports ñáéíóú)
     ALIGN_LEFT: `${ESC}a\x00`,
     ALIGN_CENTER: `${ESC}a\x01`,
     BOLD_ON: `${ESC}E\x01`,
     BOLD_OFF: `${ESC}E\x00`,
     DOUBLE_HEIGHT: `${GS}!\x10`,
+    DOUBLE_WIDTH: `${GS}!\x20`,
     DOUBLE_SIZE: `${GS}!\x30`,
     NORMAL_SIZE: `${GS}!\x00`,
     NEW_LINE: '\n',
@@ -240,7 +242,8 @@ function sendToPrinter(data, isRetry = false) {
 
         socket.on('connect', () => {
             console.log(`[PRINTER] Conectado a ${PRINTER_IP}:${PRINTER_PORT}`);
-            const writeData = Buffer.isBuffer(data) ? data : Buffer.from(data, 'binary');
+            // Encode text to CP1252 for proper Spanish character support (ñ, á, é, etc.)
+            const writeData = Buffer.isBuffer(data) ? data : iconv.encode(data, 'CP1252');
             socket.write(writeData, (err) => {
                 if (err) {
                     console.error('[PRINTER] Error al escribir:', err);
@@ -435,8 +438,8 @@ function buildClosingTicket(data) {
     let t = CMD.INIT;
     // Margen superior
     t += CMD.MARGIN;
-    t += CMD.ALIGN_CENTER + CMD.DOUBLE_SIZE + 'CORTE DE CAJA' + CMD.NEW_LINE;
-    t += CMD.NORMAL_SIZE + CMD.NEW_LINE;
+    t += CMD.ALIGN_CENTER + CMD.BOLD_ON + CMD.DOUBLE_HEIGHT + 'CORTE DE CAJA' + CMD.NEW_LINE;
+    t += CMD.NORMAL_SIZE + CMD.BOLD_OFF + CMD.NEW_LINE;
     t += CMD.BOLD_ON + (data.shiftName || 'Turno') + CMD.NEW_LINE + CMD.BOLD_OFF;
     t += (data.employeeName || '—') + CMD.NEW_LINE;
     t += CMD.DIVIDER_DOUBLE + CMD.NEW_LINE;
