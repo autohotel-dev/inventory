@@ -32,6 +32,7 @@ export default function ServicesScreen() {
     const [notes, setNotes] = useState('');
     const [tipAmount, setTipAmount] = useState(0);
     const [tipEnabled, setTipEnabled] = useState(false);
+    const [tipMethod, setTipMethod] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
 
     const fetchData = useCallback(async () => {
         if (!employeeId) {
@@ -200,6 +201,9 @@ export default function ServicesScreen() {
             method: 'EFECTIVO'
         }]);
         setNotes('');
+        setTipEnabled(false);
+        setTipAmount(0);
+        setTipMethod('EFECTIVO');
         setShowDeliveryModal(true);
     };
 
@@ -219,6 +223,16 @@ export default function ServicesScreen() {
             return;
         }
 
+        // Validar que si hay propina, el método esté seleccionado
+        if (tipEnabled && tipAmount > 0 && !tipMethod) {
+            showFeedback(
+                "Método de propina",
+                "Selecciona si la propina es en efectivo o tarjeta.",
+                "warning"
+            );
+            return;
+        }
+
         const roomNum = selectedItems[0].sales_orders?.room_stays[0]?.rooms?.number || '??';
 
         let success = false;
@@ -230,7 +244,7 @@ export default function ServicesScreen() {
                 notes,
                 employeeId,
                 tip,
-                tipEnabled ? 'EFECTIVO' : undefined
+                tipEnabled ? tipMethod : undefined
             );
         } else {
             success = await handleConfirmAllDeliveries(
@@ -240,7 +254,7 @@ export default function ServicesScreen() {
                 notes,
                 employeeId,
                 tip,
-                tipEnabled ? 'EFECTIVO' : undefined
+                tipEnabled ? tipMethod : undefined
             );
         }
 
@@ -514,14 +528,17 @@ export default function ServicesScreen() {
                             <View className={`mt-4 p-4 rounded-2xl border-2 ${tipEnabled ? (isDark ? 'bg-amber-950/30 border-amber-800' : 'bg-amber-50 border-amber-200') : (isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}`}>
                                 <View className="flex-row items-center justify-between mb-3">
                                     <View className="flex-row items-center gap-2">
-                                        <Text className={`text-lg ${tipEnabled ? '' : ''}`}>💰</Text>
+                                        <Text className="text-lg">💰</Text>
                                         <Text className={`font-black text-sm ${tipEnabled ? (isDark ? 'text-amber-400' : 'text-amber-700') : (isDark ? 'text-zinc-400' : 'text-zinc-500')}`}>Propina</Text>
                                     </View>
                                     <Switch
                                         value={tipEnabled}
                                         onValueChange={(v) => {
                                             setTipEnabled(v);
-                                            if (!v) setTipAmount(0);
+                                            if (!v) {
+                                                setTipAmount(0);
+                                                setTipMethod('EFECTIVO');
+                                            }
                                         }}
                                         trackColor={{ false: isDark ? '#27272a' : '#e4e4e7', true: '#f59e0b' }}
                                         thumbColor={tipEnabled ? '#fff' : (isDark ? '#71717a' : '#a1a1aa')}
@@ -529,13 +546,21 @@ export default function ServicesScreen() {
                                 </View>
                                 {tipEnabled && (
                                     <View>
-                                        <Text className={`text-xs font-bold mb-2 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>Monto de propina</Text>
+                                        {/* Monto de propina */}
+                                        <Text className={`text-xs font-bold mb-2 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>Monto</Text>
                                         <View className="flex-row gap-2">
                                             {[20, 30, 50, 100].map(amount => (
                                                 <TouchableOpacity
                                                     key={amount}
-                                                    onPress={() => setTipAmount(amount)}
-                                                    className={`flex-1 py-2 rounded-xl items-center ${tipAmount === amount ? 'bg-amber-500' : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')}`}
+                                                    onPress={() => {
+                                                        Haptics.selectionAsync();
+                                                        setTipAmount(amount);
+                                                    }}
+                                                    className={`flex-1 py-2.5 rounded-xl items-center border-2 ${
+                                                        tipAmount === amount 
+                                                            ? 'bg-amber-500 border-amber-400' 
+                                                            : (isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200')
+                                                    }`}
                                                 >
                                                     <Text className={`font-black text-sm ${tipAmount === amount ? 'text-white' : (isDark ? 'text-zinc-300' : 'text-zinc-700')}`}>${amount}</Text>
                                                 </TouchableOpacity>
@@ -544,11 +569,63 @@ export default function ServicesScreen() {
                                         <TextInput
                                             placeholder="Otro monto..."
                                             placeholderTextColor={isDark ? '#3f3f46' : '#d4d4d8'}
-                                            value={tipAmount > 0 ? tipAmount.toString() : ''}
-                                            onChangeText={(v) => setTipAmount(parseFloat(v) || 0)}
+                                            value={tipAmount > 0 && ![20, 30, 50, 100].includes(tipAmount) ? tipAmount.toString() : ''}
+                                            onChangeText={(v) => {
+                                                const num = parseFloat(v) || 0;
+                                                setTipAmount(num);
+                                            }}
                                             keyboardType="numeric"
                                             className={`mt-2 p-3 rounded-xl border-2 font-bold text-center ${isDark ? 'bg-black border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}
                                         />
+
+                                        {/* Método de pago de propina */}
+                                        <Text className={`text-xs font-bold mt-4 mb-2 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>Método de cobro</Text>
+                                        <View className="flex-row gap-2">
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    Haptics.selectionAsync();
+                                                    setTipMethod('EFECTIVO');
+                                                }}
+                                                className={`flex-1 py-3 rounded-xl flex-row items-center justify-center gap-2 border-2 ${
+                                                    tipMethod === 'EFECTIVO'
+                                                        ? 'bg-emerald-600 border-emerald-500'
+                                                        : (isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200')
+                                                }`}
+                                            >
+                                                <Text className="text-lg">💵</Text>
+                                                <Text className={`font-black text-sm ${tipMethod === 'EFECTIVO' ? 'text-white' : (isDark ? 'text-zinc-300' : 'text-zinc-700')}`}>Efectivo</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    Haptics.selectionAsync();
+                                                    setTipMethod('TARJETA');
+                                                }}
+                                                className={`flex-1 py-3 rounded-xl flex-row items-center justify-center gap-2 border-2 ${
+                                                    tipMethod === 'TARJETA'
+                                                        ? 'bg-blue-600 border-blue-500'
+                                                        : (isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200')
+                                                }`}
+                                            >
+                                                <Text className="text-lg">💳</Text>
+                                                <Text className={`font-black text-sm ${tipMethod === 'TARJETA' ? 'text-white' : (isDark ? 'text-zinc-300' : 'text-zinc-700')}`}>Tarjeta</Text>
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        {/* Resumen de propina */}
+                                        {tipAmount > 0 && (
+                                            <View className={`mt-3 p-3 rounded-xl ${isDark ? 'bg-zinc-800/50' : 'bg-amber-100/50'}`}>
+                                                <View className="flex-row items-center justify-between">
+                                                    <Text className={`text-xs font-bold ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>Propina a registrar:</Text>
+                                                    <Text className={`font-black text-lg ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>${tipAmount.toFixed(2)}</Text>
+                                                </View>
+                                                <View className="flex-row items-center justify-between mt-1">
+                                                    <Text className={`text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>Cobro en:</Text>
+                                                    <Text className={`text-xs font-bold ${tipMethod === 'EFECTIVO' ? 'text-emerald-500' : 'text-blue-500'}`}>
+                                                        {tipMethod === 'EFECTIVO' ? '💵 Efectivo' : '💳 Tarjeta'}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        )}
                                     </View>
                                 )}
                             </View>
