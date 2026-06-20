@@ -54,6 +54,7 @@ export class SyncQueue {
             if (queue.length === 0) return 0;
 
             console.log(`[SyncQueue] Procesando ${queue.length} tareas pendientes...`);
+            const failedTasks: SyncTask[] = [];
             let successCount = 0;
 
             for (const task of queue) {
@@ -61,7 +62,6 @@ export class SyncQueue {
                     let result;
                     if (task.type === 'UPDATE' && task.table && task.matchCriteria) {
                         let query = supabase.from(task.table).update(task.payload);
-                        // Aplicar todos los criterios match
                         for (const [key, value] of Object.entries(task.matchCriteria)) {
                             query = query.eq(key, value);
                         }
@@ -74,19 +74,19 @@ export class SyncQueue {
 
                     if (result?.error) {
                         console.error(`[SyncQueue] Fallo ejecutando tarea ${task.id}`, result.error);
-                        // Depende de la estrategia: podríamos detener el ciclo o reintentar
+                        failedTasks.push(task);
                     } else {
                         successCount++;
                     }
                 } catch (err) {
-                    console.error(`[SyncQueue] Excepción crítica ejecutando tarea ${task.id}`, err);
+                    console.error(`[SyncQueue] Excepción ejecutando tarea ${task.id}`, err);
+                    failedTasks.push(task);
                 }
             }
 
-            // Una vez todas procesadas, vaciamos la cola (asumiendo que las que fallaron fueron por datos corruptos)
-            // Para un app robusta, solo se quitarían las procesadas exitosamente
-            await AsyncStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify([]));
-            console.log(`[SyncQueue] Cola procesada con ${successCount} éxitos.`);
+            // Solo mantener las tareas que fallaron (para reintento futuro)
+            await AsyncStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(failedTasks));
+            console.log(`[SyncQueue] Cola procesada: ${successCount} éxitos, ${failedTasks.length} fallidas.`);
             
             return successCount;
 

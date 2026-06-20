@@ -222,7 +222,14 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                     .eq('status', 'PENDIENTE');
             } else {
                 // No hay extras de recepción — generar si el cochero registra más personas
-                const baseCapacity = 2; // Fallback; la Entrada Rápida ya maneja base_capacity
+                // Obtener base_capacity real del tipo de habitación
+                const { data: stayData } = await supabase
+                    .from('room_stays')
+                    .select('room:rooms(room_types(base_capacity))')
+                    .eq('id', stayId)
+                    .single();
+                
+                const baseCapacity = (stayData as any)?.room?.room_types?.base_capacity ?? 2;
                 const extraCount = Math.max(0, personCount - baseCapacity);
                 if (extraCount > 0 && extraPersonPrice && extraPersonPrice > 0) {
                     console.log(`📦 Generando ${extraCount} conceptos EXTRA_PERSON a $${extraPersonPrice} c/u`);

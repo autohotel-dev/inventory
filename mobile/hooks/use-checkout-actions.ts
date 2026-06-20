@@ -130,32 +130,36 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 if (emp?.first_name) valetName = emp.first_name;
             } catch { /* fallback */ }
 
-            // Notificar a recepcionistas activos
-            const { data: receptionSessions } = await supabase
-                .from('shift_sessions')
-                .select('employees!inner(auth_user_id, role)')
-                .eq('status', 'active')
-                .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
+            // Notificar a recepcionistas activos (no bloquear si falla)
+            try {
+                const { data: receptionSessions } = await supabase
+                    .from('shift_sessions')
+                    .select('employees!inner(auth_user_id, role)')
+                    .eq('status', 'active')
+                    .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
 
-            if (receptionSessions && receptionSessions.length > 0) {
-                const uniqueUserIds = new Set<string>();
-                receptionSessions.forEach((session: any) => {
-                    if (session.employees?.auth_user_id) {
-                        uniqueUserIds.add(session.employees.auth_user_id);
+                if (receptionSessions && receptionSessions.length > 0) {
+                    const uniqueUserIds = new Set<string>();
+                    receptionSessions.forEach((session: any) => {
+                        if (session.employees?.auth_user_id) {
+                            uniqueUserIds.add(session.employees.auth_user_id);
+                        }
+                    });
+
+                    if (uniqueUserIds.size > 0) {
+                        const notifications = Array.from(uniqueUserIds).map(userId => ({
+                            user_id: userId,
+                            type: 'system_alert',
+                            title: '🚗 Solicitud de Salida',
+                            message: `${valetName} solicita salida de Hab. ${roomNumber}, puedes darle salida.`,
+                            data: { type: 'CHECKOUT_REQUESTED', roomNumber, stayId },
+                            is_read: false,
+                        }));
+                        await supabase.from('notifications').insert(notifications);
                     }
-                });
-
-                if (uniqueUserIds.size > 0) {
-                    const notifications = Array.from(uniqueUserIds).map(userId => ({
-                        user_id: userId,
-                        type: 'system_alert',
-                        title: '🚗 Solicitud de Salida',
-                        message: `${valetName} solicita salida de Hab. ${roomNumber}, puedes darle salida.`,
-                        data: { type: 'CHECKOUT_REQUESTED', roomNumber, stayId },
-                        is_read: false,
-                    }));
-                    await supabase.from('notifications').insert(notifications);
                 }
+            } catch (notifError) {
+                console.warn('Error sending checkout notification (non-blocking):', notifError);
             }
 
             showFeedback('¡Éxito!', `Hab. ${roomNumber}: Salida notificada correctamente.`);

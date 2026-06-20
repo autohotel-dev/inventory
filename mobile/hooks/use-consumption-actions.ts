@@ -11,27 +11,26 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
     const handleAcceptConsumption = useCallback(async (consumptionId: string, roomNumber: string, valetId: string) => {
         setLoading(true);
         try {
-            const { data: item } = await supabase
-                .from('sales_order_items')
-                .select('delivery_accepted_by')
-                .eq('id', consumptionId)
-                .single();
-
-            if (item?.delivery_accepted_by && item.delivery_accepted_by !== valetId) {
-                showFeedback('Ya asignada', 'Este servicio ya fue aceptado por otro cochero', 'error');
-                return false;
-            }
-
-            const { error } = await supabase
+            // Usar actualización atómica con condición para evitar race condition
+            const { data, error } = await supabase
                 .from('sales_order_items')
                 .update({
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
                 })
-                .eq('id', consumptionId);
+                .eq('id', consumptionId)
+                .is('delivery_accepted_by', null)
+                .select();
 
             if (error) throw error;
+
+            // Si no se actualizó ningún registro, otro cochero ya lo aceptó
+            if (!data || data.length === 0) {
+                showFeedback('Ya asignada', 'Este servicio ya fue aceptado por otro cochero', 'error');
+                return false;
+            }
+
             showFeedback('¡Éxito!', `Entrega asignada para Hab. ${roomNumber}`);
             await onRefresh();
             return true;
@@ -50,28 +49,32 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         try {
             const itemIds = items.map(item => item.id);
 
-            const { data: existingItems } = await supabase
-                .from('sales_order_items')
-                .select('id, delivery_accepted_by')
-                .in('id', itemIds);
-
-            const alreadyAccepted = existingItems?.find(item => item.delivery_accepted_by && item.delivery_accepted_by !== valetId);
-            if (alreadyAccepted) {
-                showFeedback('Ya asignada', 'Uno o más servicios ya fueron aceptados por otro cochero', 'error');
-                return false;
-            }
-
-            const { error } = await supabase
+            // Usar actualización atómica con condición para evitar race condition
+            const { data, error } = await supabase
                 .from('sales_order_items')
                 .update({
                     delivery_accepted_by: valetId,
                     delivery_accepted_at: new Date().toISOString(),
                     delivery_status: 'ACCEPTED'
                 })
-                .in('id', itemIds);
+                .in('id', itemIds)
+                .is('delivery_accepted_by', null)
+                .select();
 
             if (error) throw error;
-            showFeedback('¡Éxito!', `${items.length} entregas asignadas para Hab. ${roomNumber}`);
+
+            const acceptedCount = data?.length || 0;
+            if (acceptedCount === 0) {
+                showFeedback('Ya asignada', 'Uno o más servicios ya fueron aceptados por otro cochero', 'error');
+                return false;
+            }
+
+            if (acceptedCount < items.length) {
+                showFeedback('Parcial', `${acceptedCount} de ${items.length} asignados. Algunos ya fueron tomados.`, 'warning');
+            } else {
+                showFeedback('¡Éxito!', `${acceptedCount} entregas asignadas para Hab. ${roomNumber}`);
+            }
+            
             await onRefresh();
             return true;
         } catch (error: any) {

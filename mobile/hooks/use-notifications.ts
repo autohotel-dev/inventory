@@ -16,6 +16,19 @@ const processedNotificationsMap: { [key: string]: number } = {};
 let globalSystemNotifChannel: any = null;
 let currentSubscribedUserId: string | null = null;
 
+// Limpiar entradas antiguas del cache cada 5 minutos
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutos
+const MAX_CACHE_AGE = 60 * 1000; // 1 minuto (más conservador que la ventana de 20s)
+
+setInterval(() => {
+    const now = Date.now();
+    for (const key in processedNotificationsMap) {
+        if (now - processedNotificationsMap[key] > MAX_CACHE_AGE) {
+            delete processedNotificationsMap[key];
+        }
+    }
+}, CLEANUP_INTERVAL);
+
 /**
  * Normaliza los IDs de negocio para de-duplicar correctamente.
  * Prioriza IDs de estancia, orden o consumo sobre el ID técnico de la notificación.

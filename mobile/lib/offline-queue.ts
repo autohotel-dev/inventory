@@ -63,6 +63,7 @@ export const syncOfflineQueue = async (): Promise<number> => {
 
   console.log(`[OfflineQueue] Sincronizando ${queue.length} acciones pendientes...`);
   
+  const failedActions: OfflineAction[] = [];
   let successCount = 0;
   
   for (const action of queue) {
@@ -83,21 +84,24 @@ export const syncOfflineQueue = async (): Promise<number> => {
 
         if (error) {
           console.error(`[OfflineQueue] Falló sync de acción ${action.id}:`, error);
-          // Opcional: Podríamos dejar la acción en la cola si falla por razones no relacionadas con red,
-          // pero si falla por validación (RLS, estado inválido), es mejor descartarla para no bloquear la cola.
+          failedActions.push(action);
         } else {
           successCount++;
         }
       }
     } catch (e) {
       console.error(`[OfflineQueue] Excepción en sync de acción ${action.id}:`, e);
+      failedActions.push(action);
     }
   }
 
-  // Una vez procesada, limpiamos la cola. En una implementación más robusta,
-  // solo removeríamos las acciones exitosas, pero para este caso de uso priorizamos limpiar.
-  await clearOfflineQueue();
-  console.log(`[OfflineQueue] Sincronización completa. Exitosas: ${successCount}/${queue.length}`);
+  // Solo mantener las acciones que fallaron (para reintento futuro)
+  if (failedActions.length > 0) {
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failedActions));
+  } else {
+    await clearOfflineQueue();
+  }
+  console.log(`[OfflineQueue] Sincronización completa: ${successCount} éxitos, ${failedActions.length} fallidas.`);
   
   return successCount;
 };

@@ -46,9 +46,9 @@ export default function LoginScreen() {
                 setIsBiometricSupported(true);
             }
             
-            const savedEmail = await SecureStore.getItemAsync('luxor_valet_email');
-            const savedPwd = await SecureStore.getItemAsync('luxor_valet_password');
-            if (savedEmail && savedPwd) {
+            // Solo verificar si hay sesión válida (no guardar password)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
                 setHasCredentials(true);
             }
         }
@@ -62,14 +62,15 @@ export default function LoginScreen() {
         let authPwd = password;
 
         if (useSaved) {
-            const savedEmail = await SecureStore.getItemAsync('luxor_valet_email');
-            const savedPwd = await SecureStore.getItemAsync('luxor_valet_password');
-            if (!savedEmail || !savedPwd) {
-                showFeedback('Error', 'Credenciales no encontradas', 'error');
+            // Para login biométrico, usar sesión existente de Supabase
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                // Ya hay sesión válida, la navegación se maneja en _layout.tsx
                 return;
             }
-            authEmail = savedEmail;
-            authPwd = savedPwd;
+            // Si no hay sesión, pedir credenciales
+            showFeedback('Sesión expirada', 'Por favor ingresa tus credenciales nuevamente', 'warning');
+            return;
         }
 
         if (!authEmail || !authPwd) {
@@ -87,12 +88,10 @@ export default function LoginScreen() {
             if (error) {
                 showFeedback('Error de acceso', error.message, 'error');
             } else {
-                if (!useSaved) {
-                    await SecureStore.setItemAsync('luxor_valet_email', authEmail);
-                    await SecureStore.setItemAsync('luxor_valet_password', authPwd);
-                    setHasCredentials(true);
-                }
-                // Delegamos la navegación al RootLayoutNav que checa el role.
+                // Solo guardar email para conveniencia (NO password)
+                await SecureStore.setItemAsync('luxor_valet_email', authEmail);
+                setHasCredentials(true);
+                // La sesión se persiste automáticamente por Supabase
             }
         } catch (err: any) {
             showFeedback('Error', 'Ocurrió un error inesperado al intentar entrar.', 'error');

@@ -12,12 +12,9 @@ import { searchVehicles, VehicleSearchResult } from '../../lib/vehicle-catalog';
 import { AlertCircle, AlertTriangle, Zap } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../components/MultiPaymentInput';
 import { PaymentEntry } from '../../lib/payment-types';
-import { FlashList } from "@shopify/flash-list";
 import * as Haptics from 'expo-haptics';
 import { Skeleton, RoomCardSkeleton } from '../../components/Skeleton';
 import { Room, SalesOrder, SalesOrderItem } from '../../lib/types';
-
-const AnyFlashList = FlashList as any;
 
 
 
