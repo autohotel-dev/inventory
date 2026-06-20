@@ -116,6 +116,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 .update({
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
+                    delivery_accepted_at: new Date().toISOString(),
                     delivery_notes: notes || null,
                     is_paid: false
                 })
@@ -215,6 +216,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 .update({
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
+                    delivery_accepted_at: new Date().toISOString(),
                     delivery_notes: notes || null,
                     is_paid: false
                 })

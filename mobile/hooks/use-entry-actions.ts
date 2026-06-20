@@ -77,6 +77,13 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
         console.log('  - payments:', payments);
 
         try {
+            // --- 0. Verificar si ya tiene valet_claimed_at ---
+            const { data: currentStay } = await supabase
+                .from('room_stays')
+                .select('valet_claimed_at')
+                .eq('id', stayId)
+                .single();
+
             // --- 1. Actualizar room_stay con datos del vehículo ---
             const { error: stayError } = await supabase
                 .from('room_stays')
@@ -85,6 +92,9 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                     vehicle_brand: vehicleData.brand.trim(),
                     vehicle_model: vehicleData.model.trim(),
                     valet_employee_id: valetId,
+                    valet_data_filled_at: new Date().toISOString(),
+                    // Siempre registrar claimed_at si no fue seteado previamente
+                    ...(!currentStay?.valet_claimed_at ? { valet_claimed_at: new Date().toISOString() } : {}),
                     current_people: personCount,
                     total_people: Math.max(personCount, totalPeople || 0),
                     vehicle_requested_at: null,
