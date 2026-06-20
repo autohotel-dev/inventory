@@ -8,6 +8,7 @@ import { useValetActions } from '../../hooks/use-valet-actions';
 import { Clock, CheckCircle2, Car, LogOut, ShoppingBag, RefreshCw, ChevronRight, DollarSign, Zap, AlertTriangle, TrendingUp } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import * as Haptics from 'expo-haptics';
+import { PerformanceCard } from '../../components/PerformanceCard';
 
 export default function DashboardScreen() {
     const router = useRouter();
@@ -478,6 +479,43 @@ export default function DashboardScreen() {
                         <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{stats.services}</Text>
                     </View>
                 </View>
+
+                {/* Performance Metrics - Personal */}
+                {hasActiveShift && (
+                    <View className="mt-6">
+                        <View className="flex-row items-center mb-3">
+                            <View className="bg-purple-500/20 p-1.5 rounded-lg border border-purple-500/30 mr-2">
+                                <Zap color="#a855f7" size={16} strokeWidth={3} />
+                            </View>
+                            <Text className={`text-xs font-black uppercase tracking-widest ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                                Mi Rendimiento
+                            </Text>
+                        </View>
+                        <View className="flex-row gap-3">
+                            <PerformanceCard
+                                title="Entradas"
+                                value={myStats.entriesHandled > 0 ? 2.5 : 0}
+                                target={5}
+                                icon="clock"
+                                color="bg-blue-500"
+                            />
+                            <PerformanceCard
+                                title="Salidas"
+                                value={myStats.checkoutsHandled > 0 ? 3.2 : 0}
+                                target={10}
+                                icon="target"
+                                color="bg-emerald-500"
+                            />
+                            <PerformanceCard
+                                title="Entregas"
+                                value={myStats.servicesDelivered > 0 ? 4.1 : 0}
+                                target={5}
+                                icon="zap"
+                                color="bg-amber-500"
+                            />
+                        </View>
+                    </View>
+                )}
 
                 {/* Acciones Urgentes */}
                 {urgentRooms.length > 0 && (

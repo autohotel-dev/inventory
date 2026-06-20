@@ -103,7 +103,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         roomNumber: string,
         payments: PaymentEntry[],
         notes?: string,
-        valetId?: string
+        valetId?: string,
+        tipAmount?: number,
+        tipMethod?: 'EFECTIVO' | 'TARJETA'
     ) => {
         setLoading(true);
         try {
@@ -114,15 +116,22 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 .eq('status', 'active')
                 .maybeSingle();
 
+            const updateData: any = {
+                delivery_status: 'DELIVERED',
+                delivery_completed_at: new Date().toISOString(),
+                delivery_accepted_at: new Date().toISOString(),
+                delivery_notes: notes || null,
+                is_paid: false
+            };
+
+            if (tipAmount && tipAmount > 0) {
+                updateData.tip_amount = tipAmount;
+                updateData.tip_method = tipMethod;
+            }
+
             const { error: updateError } = await supabase
                 .from('sales_order_items')
-                .update({
-                    delivery_status: 'DELIVERED',
-                    delivery_completed_at: new Date().toISOString(),
-                    delivery_accepted_at: new Date().toISOString(),
-                    delivery_notes: notes || null,
-                    is_paid: false
-                })
+                .update(updateData)
                 .eq('id', consumptionId);
 
             if (updateError) throw updateError;
@@ -199,7 +208,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         roomNumber: string,
         payments: PaymentEntry[],
         notes?: string,
-        valetId?: string
+        valetId?: string,
+        tipAmount?: number,
+        tipMethod?: 'EFECTIVO' | 'TARJETA'
     ) => {
         if (items.length === 0) return false;
         setLoading(true);
@@ -214,15 +225,22 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
             const itemIds = items.map(item => item.id);
             const salesOrderIds = [...new Set(items.map(i => i.sales_order_id))];
 
+            const updateData: any = {
+                delivery_status: 'DELIVERED',
+                delivery_completed_at: new Date().toISOString(),
+                delivery_accepted_at: new Date().toISOString(),
+                delivery_notes: notes || null,
+                is_paid: false
+            };
+
+            if (tipAmount && tipAmount > 0) {
+                updateData.tip_amount = tipAmount;
+                updateData.tip_method = tipMethod;
+            }
+
             const { error } = await supabase
                 .from('sales_order_items')
-                .update({
-                    delivery_status: 'DELIVERED',
-                    delivery_completed_at: new Date().toISOString(),
-                    delivery_accepted_at: new Date().toISOString(),
-                    delivery_notes: notes || null,
-                    is_paid: false
-                })
+                .update(updateData)
                 .in('id', itemIds);
 
             if (error) throw error;
