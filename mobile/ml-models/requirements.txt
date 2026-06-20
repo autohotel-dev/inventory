@@ -1,0 +1,39 @@
+# ML Training Dependencies
+# Install: pip install -r requirements.txt
+
+# Core ML
+torch>=2.0.0
+torchvision>=0.15.0
+tensorflow>=2.12.0
+
+# YOLO
+ultralytics>=8.0.0
+
+# Image processing
+opencv-python>=4.7.0
+Pillow>=9.5.0
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.2.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Model export
+onnx>=1.14.0
+onnxruntime>=1.15.0
+tf2onnx>=1.14.0
+
+# HuggingFace
+datasets>=2.12.0
+huggingface-hub>=0.14.0
+
+# Progress
+tqdm>=4.65.0
+rich>=13.0.0
+
+# ML Kit (for testing)
+ml-kit-text-recognition>=0.1.0
