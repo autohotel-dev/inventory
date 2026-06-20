@@ -281,7 +281,7 @@ def train_mobilenet(
 
 def main():
     parser = argparse.ArgumentParser(description="Train MobileNet for vehicle classification")
-    parser.add_argument("--dataset", choices=["compcar", "stanford"], default="compcar",
+    parser.add_argument("--dataset", choices=["compcar", "stanford", "synthetic"], default="compcar",
                        help="Dataset to use")
     parser.add_argument("--data-dir", type=str, default="datasets/prepared",
                        help="Prepared dataset directory")
@@ -299,7 +299,16 @@ def main():
     
     console.print("[bold]MobileNet Vehicle Classification Training[/bold]\n")
     
-    data_dir = Path(args.data_dir) / args.dataset
+    data_dir = Path(args.data_dir)
+    
+    # Handle different dataset structures
+    if args.dataset == "synthetic":
+        # Synthetic dataset is directly in data_dir
+        pass
+    else:
+        # Other datasets are in subdirectories
+        data_dir = data_dir / args.dataset
+    
     output_dir = Path(args.output_dir)
     
     train_mobilenet(

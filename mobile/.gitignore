@@ -43,3 +43,9 @@ yarn-error.*
 
 # Supabase CLI temp files
 supabase/.temp/
+# ML Datasets (too large for git)
+ml-models/datasets/
+ml-models/training/
+ml-models/exported/
+ml-models/venv/
+ml-models/*.log
