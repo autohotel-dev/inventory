@@ -77,8 +77,8 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                     vehicle_model: vehicleData.model.trim(),
                     valet_employee_id: valetId,
                     valet_data_filled_at: new Date().toISOString(),
-                    // Si no fue aceptada previamente, registrar claimed_at también
-                    ...(!currentStay.valet_employee_id ? { valet_claimed_at: new Date().toISOString() } : {}),
+                    // Siempre registrar claimed_at si no fue seteado previamente
+                    ...(!currentStay.valet_claimed_at ? { valet_claimed_at: new Date().toISOString() } : {}),
                     current_people: personCount,
                     total_people: Math.max(personCount, activeStay.total_people || 0),
                     vehicle_requested_at: null,
@@ -451,7 +451,9 @@ export function useValetActions(onRefresh: () => Promise<void>) {
                 delivery_status: 'DELIVERED',
                 delivery_completed_at: new Date().toISOString(),
                 delivery_notes: notes || null,
-                is_paid: false // Reception will mark as paid when confirming valet payment
+                is_paid: false, // Reception will mark as paid when confirming valet payment
+                // Siempre registrar accepted_at si no fue seteado previamente
+                ...(!itemData.delivery_accepted_at ? { delivery_accepted_at: new Date().toISOString() } : {}),
             };
 
             if (tipAmount && tipAmount > 0) {
@@ -538,6 +540,7 @@ export function useValetActions(onRefresh: () => Promise<void>) {
             const batchResult = await updateItemsDeliveryBatch(itemIds, {
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
+                    delivery_accepted_at: new Date().toISOString(),
                     delivery_notes: notes || null,
                     is_paid: false // Reception will mark as paid when confirming valet payment
                 });

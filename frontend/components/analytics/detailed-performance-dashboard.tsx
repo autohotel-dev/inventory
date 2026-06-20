@@ -172,6 +172,7 @@ export function DetailedPerformanceDashboard() {
   const [rankings, setRankings] = useState<EmployeeRanking[]>([]);
   const [cocheroActions, setCocheroActions] = useState<CocheroActionMetrics[]>([]);
   const [receptionistActions, setReceptionistActions] = useState<ReceptionistActionMetrics[]>([]);
+  const [camaristaActions, setCamaristaActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
   const [selectedEmployee, setSelectedEmployee] = useState<{
@@ -358,6 +359,17 @@ export function DetailedPerformanceDashboard() {
               if (recActionsRes.data) setReceptionistActions(recActionsRes.data);
             } catch {
               console.warn("get_receptionist_action_metrics not available yet");
+            }
+
+            // Fetch camarista action metrics (separate call, graceful fallback)
+            try {
+              const camActionsRes = await supabase.rpc("get_camarista_action_metrics", {
+                p_start_date: dateRange.start,
+                p_end_date: dateRange.end,
+              });
+              if (camActionsRes.data) setCamaristaActions(camActionsRes.data);
+            } catch {
+              console.warn("get_camarista_action_metrics not available yet");
             }
           }
         } else {

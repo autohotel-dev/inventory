@@ -16,6 +16,7 @@ interface IncomeReportTableProps {
     pageSize?: number;
     totalCount?: number;
     onPageChange?: (page: number) => void;
+    paymentMethodFilter?: string;
 }
 
 function formatTime(isoString: string | undefined): string {
@@ -43,7 +44,8 @@ export function IncomeReportTable({
     page = 1,
     pageSize = 50,
     totalCount = 0,
-    onPageChange
+    onPageChange,
+    paymentMethodFilter = "all"
 }: IncomeReportTableProps) {
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
 
@@ -165,7 +167,16 @@ export function IncomeReportTable({
                                             {entry.consumption > 0 ? <span className="font-mono text-amber-600 print:text-black">{formatCurrency(entry.consumption)}</span> : "—"}
                                         </td>
                                         <td className="border-r border-border p-2 text-right font-semibold print:border-r print:border-black">
-                                            <span className="font-mono">{formatCurrency(entry.total)}</span>
+                                            <div className="flex flex-col items-end">
+                                                {entry.payment_method === "MIXTO" && paymentMethodFilter !== "all" && entry.filtered_payment_amount ? (
+                                                    <>
+                                                        <span className="font-mono text-emerald-600">{formatCurrency(entry.filtered_payment_amount)}</span>
+                                                        <span className="text-[10px] text-muted-foreground font-normal">de {formatCurrency(entry.total)}</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="font-mono">{formatCurrency(entry.total)}</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-2 text-center">
                                             {entry.payment_method === "PENDIENTE" ? (

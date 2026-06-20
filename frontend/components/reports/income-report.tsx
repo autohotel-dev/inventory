@@ -146,6 +146,7 @@ export function IncomeReport(props: IncomeReportProps) {
                 pageSize={pageSize}
                 totalCount={totalCount}
                 onPageChange={setPage}
+                paymentMethodFilter={props.paymentMethodFilter}
             />
 
             {damageItems && damageItems.length > 0 && (

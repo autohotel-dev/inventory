@@ -24,6 +24,7 @@ function mapEntry(e: any): IncomeEntry {
         shift_name: e.shift_name || '—',
         original_checkin_employee: e.original_checkin_employee || '—',
         is_from_previous_shift: e.is_from_previous_shift || false,
+        filtered_payment_amount: e.filtered_payment_amount ? Number(e.filtered_payment_amount) : undefined,
         payments: (e.payments || []).map((p: any) => ({
             payment_method: p.payment_method,
             amount: Number(p.amount) || 0,

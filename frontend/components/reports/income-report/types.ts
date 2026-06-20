@@ -64,6 +64,7 @@ export interface IncomeEntry {
     extra_details?: ExtraDetail[];
     original_checkin_employee?: string;
     is_from_previous_shift?: boolean;
+    filtered_payment_amount?: number;
 }
 
 export interface IncomeReportProps {

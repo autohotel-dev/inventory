@@ -23,6 +23,7 @@ export interface ConsumptionItem {
     courtesy_reason?: string | null;
     is_cancelled: boolean;
     delivery_status: string | null;
+    delivery_accepted_at: string | null;
     delivery_completed_at: string | null;
     delivery_accepted_by: string | null;
     delivery_notes: string | null;
@@ -34,6 +35,7 @@ export interface ConsumptionItem {
 
 export interface DeliveryUpdate {
     delivery_status: string;
+    delivery_accepted_at?: string;
     delivery_completed_at?: string;
     delivery_notes?: string | null;
     delivery_accepted_by?: string;
@@ -160,6 +162,7 @@ export async function markExtrasAsPaid(
                 is_paid: true,
                 delivery_status: "DELIVERED",
                 delivery_completed_at: new Date().toISOString(),
+                delivery_accepted_at: new Date().toISOString(),
                 delivery_accepted_by: valetId,
             })
             .in("id", itemIds);

@@ -63,6 +63,7 @@ export function CurrentShiftIndicator({
     showClockOutOptions, setShowClockOutOptions,
     showClosingModal, setShowClosingModal,
     sessionToClose, setSessionToClose, setActiveSession,
+    shiftStatus, minutesPastEnd,
     handleClockIn, handleClockOutClick, handleClockOutWithClosing,
     handleClockOutDeferred, handleClosingComplete
   } = useShiftManager(onShiftChange);
@@ -103,7 +104,9 @@ export function CurrentShiftIndicator({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3 backdrop-blur-md bg-white/5 border border-white/10 rounded-full px-3 py-1 shadow-sm">
+      <div className={`flex items-center gap-3 backdrop-blur-md bg-white/5 border rounded-full px-3 py-1 shadow-sm ${
+        shiftStatus === 'expired' ? 'border-amber-500/50 animate-pulse' : 'border-white/10'
+      }`}>
         {currentShift && (
           <Badge className={`${SHIFT_COLORS[currentShift.code]} text-white shadow-sm border-white/20`}>
             {SHIFT_ICONS[currentShift.code]}
@@ -116,6 +119,12 @@ export function CurrentShiftIndicator({
             {activeSession.employees.first_name}
           </span>
         )}
+        {shiftStatus === 'expired' && (
+          <span className="flex items-center gap-1 text-amber-500">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-bold">VENCIDO</span>
+          </span>
+        )}
       </div>
     );
   }
@@ -124,6 +133,33 @@ export function CurrentShiftIndicator({
     <div className="relative overflow-hidden bg-white/5 dark:bg-[#0a0a0a]/60 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-5 space-y-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.16)] dark:hover:border-white/20">
       {/* Decorative gradient blob */}
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 rounded-full blur-[60px] pointer-events-none" />
+
+      {/* Expired shift warning */}
+      {shiftStatus === 'expired' && activeSession && (
+        <div className="relative z-10 flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/30 animate-pulse">
+          <div className="p-2 rounded-lg bg-amber-500/20">
+            <AlertCircle className="h-5 w-5 text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+              Turno vencido hace {minutesPastEnd} min
+            </p>
+            <p className="text-xs text-amber-600/70 dark:text-amber-400/70">
+              Tu turno terminó. Por favor, cierra tu caja cuando puedas.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClockOutClick}
+            disabled={actionLoading}
+            className="text-amber-600 border-amber-500/50 hover:bg-amber-500 hover:text-white transition-all rounded-lg shrink-0"
+          >
+            <LogOut className="h-4 w-4 mr-1.5" />
+            Cerrar Caja
+          </Button>
+        </div>
+      )}
 
       {/* Turno actual */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">

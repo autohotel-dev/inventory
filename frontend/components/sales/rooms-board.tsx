@@ -587,7 +587,7 @@ function RoomsBoardInternal() {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 text-sm">🚗</span>
             <input
               type="text"
-              placeholder="Buscar placa del vehículo..."
+              placeholder="Buscar placa, marca, modelo o color..."
               value={plateSearch}
               onChange={(e) => setPlateSearch(e.target.value.toUpperCase())}
               className="w-full h-9 pl-9 pr-3 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40 transition-all"
@@ -601,15 +601,21 @@ function RoomsBoardInternal() {
           </div>
         </div>
         {plateSearch.length >= 2 && (() => {
+          const search = plateSearch.toUpperCase();
           const matches = rooms.filter((r) => {
             const stay = (r.room_stays || []).find((s: any) => s.status === "ACTIVA");
-            if (!stay?.vehicle_plate) return false;
-            return stay.vehicle_plate.toUpperCase().includes(plateSearch);
+            if (!stay) return false;
+            return (
+              stay.vehicle_plate?.toUpperCase().includes(search) ||
+              stay.vehicle_brand?.toUpperCase().includes(search) ||
+              stay.vehicle_model?.toUpperCase().includes(search) ||
+              stay.vehicle_color?.toUpperCase().includes(search)
+            );
           });
           if (matches.length === 0) {
             return (
               <div className="mt-2 px-3 py-2 rounded-lg border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
-                No se encontró ningún vehículo con placa &quot;{plateSearch}&quot;
+                No se encontró ningún vehículo con &quot;{plateSearch}&quot;
               </div>
             );
           }
@@ -632,7 +638,7 @@ function RoomsBoardInternal() {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground/60 truncate">
-                        {[stay.vehicle_brand, stay.vehicle_model].filter(Boolean).join(" ") || "Sin marca/modelo"}
+                        {[stay.vehicle_brand, stay.vehicle_model, stay.vehicle_color].filter(Boolean).join(" ") || "Sin marca/modelo"}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground/30 group-hover:text-foreground/50 transition-colors">
@@ -656,7 +662,14 @@ function RoomsBoardInternal() {
             highlightedRoomIds={plateSearch.length >= 2 ? new Set(
               rooms.filter((r) => {
                 const stay = (r.room_stays || []).find((s: any) => s.status === "ACTIVA");
-                return stay?.vehicle_plate?.toUpperCase().includes(plateSearch);
+                if (!stay) return false;
+                const search = plateSearch.toUpperCase();
+                return (
+                  stay.vehicle_plate?.toUpperCase().includes(search) ||
+                  stay.vehicle_brand?.toUpperCase().includes(search) ||
+                  stay.vehicle_model?.toUpperCase().includes(search) ||
+                  stay.vehicle_color?.toUpperCase().includes(search)
+                );
               }).map(r => r.id)
             ) : undefined}
             isLowPowerMode={isLowPowerMode}
