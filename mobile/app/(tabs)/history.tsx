@@ -204,29 +204,34 @@ export default function HistoryScreen() {
             </View>
 
             {/* Filters */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 pb-3">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 pb-4" contentContainerStyle={{ gap: 10 }}>
                 {[
-                    { key: 'all', label: 'Todos', icon: Clock },
-                    { key: 'entry', label: 'Entradas', icon: Car },
-                    { key: 'checkout', label: 'Salidas', icon: CheckCircle2 },
-                    { key: 'delivery', label: 'Entregas', icon: Package },
-                ].map(({ key, label, icon: Icon }) => (
-                    <TouchableOpacity
-                        key={key}
-                        onPress={() => {
-                            Haptics.selectionAsync();
-                            setFilter(key as any);
-                        }}
-                        className={`mr-2 px-4 py-2 rounded-full flex-row items-center gap-2 ${
-                            filter === key
-                                ? 'bg-blue-600'
-                                : (isDark ? 'bg-zinc-900' : 'bg-zinc-200')
-                        }`}
-                    >
-                        <Icon size={14} color={filter === key ? '#fff' : (isDark ? '#a1a1aa' : '#52525b')} />
-                        <Text className={`font-bold text-xs ${filter === key ? 'text-white' : (isDark ? 'text-zinc-400' : 'text-zinc-600')}`}>{label}</Text>
-                    </TouchableOpacity>
-                ))}
+                    { key: 'all', label: 'Todos', icon: Clock, activeColor: 'bg-violet-600', activeBorder: 'border-violet-500' },
+                    { key: 'entry', label: 'Entradas', icon: Car, activeColor: 'bg-blue-600', activeBorder: 'border-blue-500' },
+                    { key: 'checkout', label: 'Salidas', icon: CheckCircle2, activeColor: 'bg-emerald-600', activeBorder: 'border-emerald-500' },
+                    { key: 'delivery', label: 'Entregas', icon: Package, activeColor: 'bg-amber-600', activeBorder: 'border-amber-500' },
+                ].map(({ key, label, icon: Icon, activeColor, activeBorder }) => {
+                    const isActive = filter === key;
+                    return (
+                        <TouchableOpacity
+                            key={key}
+                            onPress={() => {
+                                Haptics.selectionAsync();
+                                setFilter(key as any);
+                            }}
+                            activeOpacity={0.7}
+                            className={`px-5 py-3 rounded-2xl flex-row items-center gap-2.5 border-2 ${
+                                isActive
+                                    ? `${activeColor} ${activeBorder}`
+                                    : (isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200')
+                            }`}
+                            style={isActive ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3 } : {}}
+                        >
+                            <Icon size={18} color={isActive ? '#fff' : (isDark ? '#a1a1aa' : '#71717a')} />
+                            <Text className={`font-extrabold text-sm ${isActive ? 'text-white' : (isDark ? 'text-zinc-300' : 'text-zinc-700')}`}>{label}</Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </ScrollView>
 
             {/* History List */}
