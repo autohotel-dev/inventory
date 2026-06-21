@@ -1,14 +1,17 @@
-import React, { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { X, Camera as CameraIcon, RotateCcw } from 'lucide-react-native';
+import { X, Camera as CameraIcon, RotateCcw, Zap, Wifi, WifiOff } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
 import { useConfirm } from '../../contexts/confirm-context';
+import { detectVehicle, loadLabels, checkModelStatus, formatMexicanPlate, isValidMexicanPlate } from '../../lib/ml-detection';
 
 export interface VehicleScanResult {
     plate: string | null;
     brand: string | null;
     model: string | null;
+    confidence?: number;
+    source: 'local' | 'gemini' | 'both';
 }
 
 interface PlateScannerProps {
@@ -25,19 +28,68 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
     const [isProcessing, setIsProcessing] = useState(false);
     const [statusText, setStatusText] = useState('');
     const [zoomIndex, setZoomIndex] = useState(0);
+    const [localModelReady, setLocalModelReady] = useState(false);
+    const [detectionMode, setDetectionMode] = useState<'auto' | 'local' | 'cloud'>('auto');
     const zoomLevels = [0, 0.03, 0.08];
     const zoomLabels = ['1x', '2x', '3x'];
     const cameraRef = useRef<CameraView>(null);
+
+    // Check local model on mount
+    useEffect(() => {
+        checkLocalModel();
+    }, []);
+
+    const checkLocalModel = async () => {
+        try {
+            await loadLabels();
+            const status = await checkModelStatus();
+            setLocalModelReady(status.ready);
+            console.log('[Scanner] Local model status:', status);
+        } catch (e) {
+            console.log('[Scanner] Local model not available:', e);
+            setLocalModelReady(false);
+        }
+    };
 
     const toggleZoom = () => {
         setZoomIndex((prev) => (prev + 1) % zoomLevels.length);
     };
 
-    const processImageOCR = async (base64String: string) => {
-        setIsProcessing(true);
-        setStatusText('Analizando vehículo...');
+    const toggleMode = () => {
+        setDetectionMode(prev => {
+            if (prev === 'auto') return 'local';
+            if (prev === 'local') return 'cloud';
+            return 'auto';
+        });
+    };
+
+    // Local ML detection (fast, offline)
+    const processLocal = async (base64String: string): Promise<VehicleScanResult | null> => {
         try {
-            // Usar fetch directo para mejor control de errores
+            setStatusText('Analizando localmente...');
+            const tempUri = `data:image/jpeg;base64,${base64String}`;
+            const result = await detectVehicle(tempUri);
+            
+            if (result.confidence > 0.5) {
+                return {
+                    plate: null, // Local model doesn't do plate OCR
+                    brand: result.brand,
+                    model: null,
+                    confidence: result.confidence,
+                    source: 'local',
+                };
+            }
+            return null;
+        } catch (e) {
+            console.log('[Scanner] Local detection failed:', e);
+            return null;
+        }
+    };
+
+    // Cloud Gemini detection (slower, needs network, does plate OCR)
+    const processCloud = async (base64String: string): Promise<VehicleScanResult | null> => {
+        try {
+            setStatusText('Analizando con Gemini...');
             const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
             
@@ -51,50 +103,90 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
             });
 
             const data = await response.json();
-            console.log('[OCR] Response status:', response.status, 'Data:', JSON.stringify(data).substring(0, 200));
 
-            if (!response.ok) {
-                console.error('[OCR] Function error:', data);
-                setStatusText('Error en el servicio');
-                showConfirm(
-                    'Error de OCR',
-                    data?.error || 'El servicio de reconocimiento no está disponible.',
-                    () => { setIsProcessing(false); setStatusText(''); },
-                    { type: 'danger', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
-                );
-                return;
+            if (response.ok && (data?.plate || data?.brand || data?.model)) {
+                return {
+                    plate: data.plate || null,
+                    brand: data.brand || null,
+                    model: data.model || null,
+                    source: 'gemini',
+                };
+            }
+            return null;
+        } catch (e) {
+            console.log('[Scanner] Cloud detection failed:', e);
+            return null;
+        }
+    };
+
+    const processImage = async (base64String: string) => {
+        setIsProcessing(true);
+        setStatusText('Capturando imagen...');
+        
+        try {
+            let result: VehicleScanResult | null = null;
+
+            if (detectionMode === 'local' && localModelReady) {
+                // Local only
+                result = await processLocal(base64String);
+            } else if (detectionMode === 'cloud') {
+                // Cloud only
+                result = await processCloud(base64String);
+            } else {
+                // Auto: try local first, then cloud
+                if (localModelReady) {
+                    result = await processLocal(base64String);
+                    if (result) {
+                        // Got local result, also try cloud for plate
+                        setStatusText('Detectando placa...');
+                        const cloudResult = await processCloud(base64String);
+                        if (cloudResult?.plate) {
+                            result.plate = cloudResult.plate;
+                            result.source = 'both';
+                        }
+                    }
+                }
+                
+                // If local failed or not available, try cloud
+                if (!result) {
+                    result = await processCloud(base64String);
+                }
             }
 
-            if (data?.plate || data?.brand || data?.model) {
+            if (result) {
                 const parts = [];
-                if (data.plate) parts.push(`Placa: ${data.plate}`);
-                if (data.brand) parts.push(data.brand);
-                if (data.model) parts.push(data.model);
-                console.log('[OCR] Vehículo detectado:', parts.join(' | '));
-                setStatusText(`✅ ${parts.join(' • ')}`);
+                if (result.plate) parts.push(`Placa: ${formatMexicanPlate(result.plate)}`);
+                if (result.brand) parts.push(result.brand);
+                if (result.model) parts.push(result.model);
+                
+                const sourceIcon = result.source === 'local' ? '⚡' : result.source === 'both' ? '🔄' : '☁️';
+                const confText = result.confidence ? ` (${(result.confidence * 100).toFixed(0)}%)` : '';
+                
+                console.log(`[Scanner] ${sourceIcon} Detectado:`, parts.join(' | '));
+                setStatusText(`✅ ${parts.join(' • ')}${confText}`);
+                
                 setTimeout(() => {
                     if (onVehicleScanned) {
-                        onVehicleScanned({ plate: data.plate, brand: data.brand, model: data.model });
-                    } else if (data.plate) {
-                        onPlateScanned(data.plate);
+                        onVehicleScanned(result!);
+                    } else if (result?.plate) {
+                        onPlateScanned(result.plate);
                     }
                 }, 800);
             } else {
-                console.log('[OCR] No se detectó placa:', data);
-                setStatusText('No se detectó placa');
+                setStatusText('No se detectó vehículo');
                 showConfirm(
-                    'Placa no detectada',
-                    data?.message || 'Intenta de nuevo acercándote más o con mejor iluminación.',
+                    'No detectado',
+                    'Intenta de nuevo acercándote más o con mejor iluminación.',
                     () => { setIsProcessing(false); setStatusText(''); },
                     { type: 'warning', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
                 );
             }
         } catch (err: any) {
-            console.error('[OCR] Exception:', err?.message || err);
-            setStatusText('Error de conexión');
+            console.error('[Scanner] Error:', err?.message || err);
+            setStatusText('Error de procesamiento');
             showConfirm(
-                'Error de conexión', 
-                'No se pudo conectar con el servicio OCR. Verifica tu conexión a internet.', 
+                'Error',
+                'No se pudo procesar la imagen. Intenta de nuevo.',
                 () => { setIsProcessing(false); setStatusText(''); },
                 { type: 'danger', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
             );
@@ -107,14 +199,13 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
         if (!cameraRef.current) return;
         try {
             setStatusText('Capturando...');
-            // Buena calidad para máxima precisión OCR
             const photo = await cameraRef.current.takePictureAsync({ 
                 base64: true, 
                 quality: 0.7,
                 exif: false,
             });
             if (photo?.base64) {
-                await processImageOCR(photo.base64);
+                await processImage(photo.base64);
             }
         } catch (e) {
             console.error("Camera failed:", e);
@@ -139,6 +230,18 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
         );
     }
 
+    const getModeIcon = () => {
+        if (detectionMode === 'local') return <Zap size={14} color="#10b981" />;
+        if (detectionMode === 'cloud') return <Wifi size={14} color="#3b82f6" />;
+        return localModelReady ? <Zap size={14} color="#eab308" /> : <Wifi size={14} color="#3b82f6" />;
+    };
+
+    const getModeLabel = () => {
+        if (detectionMode === 'local') return 'Local';
+        if (detectionMode === 'cloud') return 'Nube';
+        return localModelReady ? 'Auto' : 'Nube';
+    };
+
     return (
         <View style={styles.container}>
             <CameraView 
@@ -156,20 +259,25 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                         <View style={styles.titleContainer}>
                             <Text style={styles.headerTitle}>Enfoca la placa del vehículo</Text>
                         </View>
-                        <View style={styles.iconButtonSpacer} />
+                        <TouchableOpacity onPress={toggleMode} style={styles.modeButton}>
+                            {getModeIcon()}
+                            <Text style={styles.modeButtonText}>{getModeLabel()}</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {/* Target Box Indicator */}
                     <View style={styles.aimBoxContainer}>
                         <View style={styles.aimBox}>
-                            {/* Corner markers */}
                             <View style={[styles.corner, styles.cornerTL]} />
                             <View style={[styles.corner, styles.cornerTR]} />
                             <View style={[styles.corner, styles.cornerBL]} />
                             <View style={[styles.corner, styles.cornerBR]} />
                         </View>
                         <Text style={styles.aimHint}>
-                            Centra la placa dentro del recuadro
+                            {localModelReady 
+                                ? '⚡ IA local activa • Toca para escanear'
+                                : '☁️ Conectado a Gemini • Toca para escanear'
+                            }
                         </Text>
                     </View>
 
@@ -182,7 +290,9 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                         {isProcessing ? (
                             <View style={styles.processingIndicator}>
                                 <ActivityIndicator size="large" color="#eab308" />
-                                <Text style={styles.processingText}>Procesando con IA...</Text>
+                                <Text style={styles.processingText}>
+                                    {detectionMode === 'local' ? 'Procesando localmente...' : 'Procesando con IA...'}
+                                </Text>
                             </View>
                         ) : (
                             <View style={styles.captureContainer}>
@@ -214,7 +324,7 @@ const styles = StyleSheet.create({
     },
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.3)', // Slight tint to make aim box pop
+        backgroundColor: 'rgba(0,0,0,0.3)',
         justifyContent: 'space-between',
     },
     header: {
@@ -244,6 +354,20 @@ const styles = StyleSheet.create({
     headerTitle: {
         color: '#fff',
         fontSize: 16,
+        fontWeight: '600',
+    },
+    modeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 16,
+    },
+    modeButtonText: {
+        color: '#fff',
+        fontSize: 12,
         fontWeight: '600',
     },
     aimBoxContainer: {
