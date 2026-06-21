@@ -29,6 +29,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "assets": [
+      "./assets/models/"
+    ],
     "plugins": [
       "expo-router",
       [
