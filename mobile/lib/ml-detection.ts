@@ -101,21 +101,34 @@ async function preprocessImage(imageUri: string): Promise<Float32Array> {
 }
 
 /**
- * Run inference using ONNX Runtime
- * Note: In production, use onnxruntime-react-native
+ * Run inference using Supabase Edge Function
+ * This calls our trained model hosted on Supabase
  */
-async function runInference(inputData: Float32Array): Promise<number[]> {
-    // Placeholder for actual inference
-    // In production, this would use:
-    // - onnxruntime-react-native for ONNX models
-    // - react-native-fast-tflite for TFLite models
+async function runInference(base64Image: string): Promise<DetectionResult> {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
     
-    // Return random predictions for now
-    const predictions = new Array(MODEL_CONFIG.numClasses).fill(0);
-    const randomIdx = Math.floor(Math.random() * MODEL_CONFIG.numClasses);
-    predictions[randomIdx] = 0.95;
+    const response = await fetch(`${supabaseUrl}/functions/v1/vehicle-classifier`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ image: base64Image }),
+    });
     
-    return predictions;
+    if (!response.ok) {
+        throw new Error(`Classification failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    return {
+        brand: data.brand || 'Unknown',
+        confidence: data.confidence || 0,
+        topPredictions: data.top3 || [],
+        processingTime: data.processingTime || 0,
+    };
 }
 
 /**
@@ -139,31 +152,23 @@ function getTopPredictions(predictions: number[], n: number = 3): Array<{ brand:
 /**
  * Main detection function
  * Analyzes an image and returns vehicle brand prediction
+ * Uses Supabase Edge Function with our trained model
  */
 export async function detectVehicle(imageUri: string): Promise<DetectionResult> {
     const startTime = Date.now();
     
-    // Ensure labels are loaded
-    if (Object.keys(brandLabels).length === 0) {
-        await loadLabels();
+    // Extract base64 from data URI if needed
+    let base64Image = imageUri;
+    if (imageUri.startsWith('data:')) {
+        base64Image = imageUri.split(',')[1];
     }
     
-    // Preprocess image
-    const inputData = await preprocessImage(imageUri);
-    
-    // Run inference
-    const predictions = await runInference(inputData);
-    
-    // Get top predictions
-    const topPredictions = getTopPredictions(predictions, 3);
-    
-    const processingTime = Date.now() - startTime;
+    // Run inference via Edge Function
+    const result = await runInference(base64Image);
     
     return {
-        brand: topPredictions[0]?.brand || 'Unknown',
-        confidence: topPredictions[0]?.confidence || 0,
-        topPredictions,
-        processingTime,
+        ...result,
+        processingTime: Date.now() - startTime,
     };
 }
 

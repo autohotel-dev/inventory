@@ -63,19 +63,35 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
         });
     };
 
-    // Local ML detection (fast, offline)
+    // Local ML detection (fast, uses our trained model via Edge Function)
     const processLocal = async (base64String: string): Promise<VehicleScanResult | null> => {
         try {
-            setStatusText('Analizando localmente...');
-            const tempUri = `data:image/jpeg;base64,${base64String}`;
-            const result = await detectVehicle(tempUri);
+            setStatusText('Analizando con modelo local...');
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
             
-            if (result.confidence > 0.5) {
+            const response = await fetch(`${supabaseUrl}/functions/v1/vehicle-classifier`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`,
+                },
+                body: JSON.stringify({ image: base64String }),
+            });
+
+            if (!response.ok) {
+                console.log('[Scanner] Vehicle classifier failed:', response.status);
+                return null;
+            }
+
+            const data = await response.json();
+            
+            if (data.brand && data.confidence > 0.5) {
                 return {
-                    plate: null, // Local model doesn't do plate OCR
-                    brand: result.brand,
+                    plate: null,
+                    brand: data.brand,
                     model: null,
-                    confidence: result.confidence,
+                    confidence: data.confidence,
                     source: 'local',
                 };
             }
