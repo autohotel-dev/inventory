@@ -1,17 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { X, Camera as CameraIcon, RotateCcw, Zap, Wifi, WifiOff } from 'lucide-react-native';
+import { X, Camera as CameraIcon, RotateCcw, Zap, Wifi, WifiOff, CheckCircle } from 'lucide-react-native';
 import { useTheme } from '../../contexts/theme-context';
 import { useConfirm } from '../../contexts/confirm-context';
-import { detectVehicle, loadLabels, checkModelStatus, formatMexicanPlate, isValidMexicanPlate } from '../../lib/ml-detection';
+import { 
+    detectVehicleLocally, 
+    detectPlateLocally, 
+    formatPlate, 
+    isValidMexicanPlate,
+    isMLKitAvailable,
+    getDetectionCapabilities 
+} from '../../lib/local-detection';
 
 export interface VehicleScanResult {
     plate: string | null;
     brand: string | null;
     model: string | null;
     confidence?: number;
-    source: 'local' | 'gemini' | 'both';
+    source: 'local' | 'cloud' | 'both';
 }
 
 interface PlateScannerProps {
@@ -28,26 +35,27 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
     const [isProcessing, setIsProcessing] = useState(false);
     const [statusText, setStatusText] = useState('');
     const [zoomIndex, setZoomIndex] = useState(0);
-    const [localModelReady, setLocalModelReady] = useState(false);
-    const [detectionMode, setDetectionMode] = useState<'auto' | 'local' | 'cloud'>('auto');
+    const [capabilities, setCapabilities] = useState<{
+        ocr: boolean;
+        brandML: boolean;
+        fullyLocal: boolean;
+    } | null>(null);
     const zoomLevels = [0, 0.03, 0.08];
     const zoomLabels = ['1x', '2x', '3x'];
     const cameraRef = useRef<CameraView>(null);
 
-    // Check local model on mount
+    // Check capabilities on mount
     useEffect(() => {
-        checkLocalModel();
+        checkCapabilities();
     }, []);
 
-    const checkLocalModel = async () => {
+    const checkCapabilities = async () => {
         try {
-            await loadLabels();
-            const status = await checkModelStatus();
-            setLocalModelReady(status.ready);
-            console.log('[Scanner] Local model status:', status);
+            const caps = await getDetectionCapabilities();
+            setCapabilities(caps);
+            console.log('[Scanner] Capabilities:', caps);
         } catch (e) {
-            console.log('[Scanner] Local model not available:', e);
-            setLocalModelReady(false);
+            console.log('[Scanner] Error checking capabilities:', e);
         }
     };
 
@@ -55,136 +63,39 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
         setZoomIndex((prev) => (prev + 1) % zoomLevels.length);
     };
 
-    const toggleMode = () => {
-        setDetectionMode(prev => {
-            if (prev === 'auto') return 'local';
-            if (prev === 'local') return 'cloud';
-            return 'auto';
-        });
-    };
-
-    // Local ML detection (fast, uses our trained model via Edge Function)
-    const processLocal = async (base64String: string): Promise<VehicleScanResult | null> => {
-        try {
-            setStatusText('Analizando con modelo local...');
-            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-            const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-            
-            const response = await fetch(`${supabaseUrl}/functions/v1/vehicle-classifier`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseKey}`,
-                },
-                body: JSON.stringify({ image: base64String }),
-            });
-
-            if (!response.ok) {
-                console.log('[Scanner] Vehicle classifier failed:', response.status);
-                return null;
-            }
-
-            const data = await response.json();
-            
-            if (data.brand && data.confidence > 0.5) {
-                return {
-                    plate: null,
-                    brand: data.brand,
-                    model: null,
-                    confidence: data.confidence,
-                    source: 'local',
-                };
-            }
-            return null;
-        } catch (e) {
-            console.log('[Scanner] Local detection failed:', e);
-            return null;
-        }
-    };
-
-    // Cloud Gemini detection (slower, needs network, does plate OCR)
-    const processCloud = async (base64String: string): Promise<VehicleScanResult | null> => {
-        try {
-            setStatusText('Analizando con Gemini...');
-            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-            const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-            
-            const response = await fetch(`${supabaseUrl}/functions/v1/ocr-plate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseKey}`,
-                },
-                body: JSON.stringify({ image: base64String }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok && (data?.plate || data?.brand || data?.model)) {
-                return {
-                    plate: data.plate || null,
-                    brand: data.brand || null,
-                    model: data.model || null,
-                    source: 'gemini',
-                };
-            }
-            return null;
-        } catch (e) {
-            console.log('[Scanner] Cloud detection failed:', e);
-            return null;
-        }
-    };
-
-    const processImage = async (base64String: string) => {
+    // 100% Local detection
+    const processImageLocal = async (base64String: string) => {
         setIsProcessing(true);
-        setStatusText('Capturando imagen...');
+        setStatusText('Analizando vehículo...');
         
         try {
-            let result: VehicleScanResult | null = null;
-
-            if (detectionMode === 'local' && localModelReady) {
-                // Local only
-                result = await processLocal(base64String);
-            } else if (detectionMode === 'cloud') {
-                // Cloud only
-                result = await processCloud(base64String);
-            } else {
-                // Auto: try local first, then cloud
-                if (localModelReady) {
-                    result = await processLocal(base64String);
-                    if (result) {
-                        // Got local result, also try cloud for plate
-                        setStatusText('Detectando placa...');
-                        const cloudResult = await processCloud(base64String);
-                        if (cloudResult?.plate) {
-                            result.plate = cloudResult.plate;
-                            result.source = 'both';
-                        }
-                    }
-                }
-                
-                // If local failed or not available, try cloud
-                if (!result) {
-                    result = await processCloud(base64String);
-                }
-            }
-
-            if (result) {
+            // Create data URI for local processing
+            const imageUri = `data:image/jpeg;base64,${base64String}`;
+            
+            // Run local detection
+            const result = await detectVehicleLocally(imageUri);
+            
+            if (result.plate || result.brand) {
                 const parts = [];
-                if (result.plate) parts.push(`Placa: ${formatMexicanPlate(result.plate)}`);
+                if (result.plate) parts.push(`Placa: ${result.plate}`);
                 if (result.brand) parts.push(result.brand);
-                if (result.model) parts.push(result.model);
                 
-                const sourceIcon = result.source === 'local' ? '⚡' : result.source === 'both' ? '🔄' : '☁️';
                 const confText = result.confidence ? ` (${(result.confidence * 100).toFixed(0)}%)` : '';
+                const sourceIcon = result.source === 'local-both' ? '⚡' : result.source === 'local-ocr' ? '📝' : '🚗';
                 
                 console.log(`[Scanner] ${sourceIcon} Detectado:`, parts.join(' | '));
                 setStatusText(`✅ ${parts.join(' • ')}${confText}`);
                 
                 setTimeout(() => {
                     if (onVehicleScanned) {
-                        onVehicleScanned(result!);
-                    } else if (result?.plate) {
+                        onVehicleScanned({
+                            plate: result.plate,
+                            brand: result.brand,
+                            model: null,
+                            confidence: result.confidence,
+                            source: 'local',
+                        });
+                    } else if (result.plate) {
                         onPlateScanned(result.plate);
                     }
                 }, 800);
@@ -192,7 +103,7 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                 setStatusText('No se detectó vehículo');
                 showConfirm(
                     'No detectado',
-                    'Intenta de nuevo acercándote más o con mejor iluminación.',
+                    'Intenta de nuevo acercándote más o con mejor iluminación. Asegúrate de que la placa sea visible.',
                     () => { setIsProcessing(false); setStatusText(''); },
                     { type: 'warning', confirmText: 'Reintentar', cancelText: 'Manual', onCancel: () => onClose() }
                 );
@@ -217,11 +128,11 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
             setStatusText('Capturando...');
             const photo = await cameraRef.current.takePictureAsync({ 
                 base64: true, 
-                quality: 0.7,
+                quality: 0.8,
                 exif: false,
             });
             if (photo?.base64) {
-                await processImage(photo.base64);
+                await processImageLocal(photo.base64);
             }
         } catch (e) {
             console.error("Camera failed:", e);
@@ -246,18 +157,6 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
         );
     }
 
-    const getModeIcon = () => {
-        if (detectionMode === 'local') return <Zap size={14} color="#10b981" />;
-        if (detectionMode === 'cloud') return <Wifi size={14} color="#3b82f6" />;
-        return localModelReady ? <Zap size={14} color="#eab308" /> : <Wifi size={14} color="#3b82f6" />;
-    };
-
-    const getModeLabel = () => {
-        if (detectionMode === 'local') return 'Local';
-        if (detectionMode === 'cloud') return 'Nube';
-        return localModelReady ? 'Auto' : 'Nube';
-    };
-
     return (
         <View style={styles.container}>
             <CameraView 
@@ -275,10 +174,10 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                         <View style={styles.titleContainer}>
                             <Text style={styles.headerTitle}>Enfoca la placa del vehículo</Text>
                         </View>
-                        <TouchableOpacity onPress={toggleMode} style={styles.modeButton}>
-                            {getModeIcon()}
-                            <Text style={styles.modeButtonText}>{getModeLabel()}</Text>
-                        </TouchableOpacity>
+                        <View style={styles.statusBadge}>
+                            <Zap size={12} color="#10b981" />
+                            <Text style={styles.statusBadgeText}>LOCAL</Text>
+                        </View>
                     </View>
 
                     {/* Target Box Indicator */}
@@ -290,11 +189,18 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                             <View style={[styles.corner, styles.cornerBR]} />
                         </View>
                         <Text style={styles.aimHint}>
-                            {localModelReady 
-                                ? '⚡ IA local activa • Toca para escanear'
-                                : '☁️ Conectado a Gemini • Toca para escanear'
-                            }
+                            ⚡ 100% Local • Sin internet • Toca para escanear
                         </Text>
+                        {capabilities && (
+                            <View style={styles.capabilitiesRow}>
+                                <View style={[styles.capBadge, capabilities.ocr ? styles.capActive : styles.capInactive]}>
+                                    <Text style={styles.capText}>OCR</Text>
+                                </View>
+                                <View style={[styles.capBadge, capabilities.brandML ? styles.capActive : styles.capInactive]}>
+                                    <Text style={styles.capText}>Marca</Text>
+                                </View>
+                            </View>
+                        )}
                     </View>
 
                     {/* Footer Controls */}
@@ -306,9 +212,7 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                         {isProcessing ? (
                             <View style={styles.processingIndicator}>
                                 <ActivityIndicator size="large" color="#eab308" />
-                                <Text style={styles.processingText}>
-                                    {detectionMode === 'local' ? 'Procesando localmente...' : 'Procesando con IA...'}
-                                </Text>
+                                <Text style={styles.processingText}>Procesando localmente...</Text>
                             </View>
                         ) : (
                             <View style={styles.captureContainer}>
@@ -358,9 +262,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    iconButtonSpacer: {
-        width: 44,
-    },
     titleContainer: {
         backgroundColor: 'rgba(0,0,0,0.6)',
         paddingHorizontal: 16,
@@ -372,19 +273,22 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
     },
-    modeButton: {
+    statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
         paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingVertical: 6,
         borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.4)',
     },
-    modeButtonText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
+    statusBadgeText: {
+        color: '#10b981',
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1,
     },
     aimBoxContainer: {
         flex: 1,
@@ -395,7 +299,7 @@ const styles = StyleSheet.create({
         width: 300,
         height: 120,
         borderWidth: 2,
-        borderColor: 'rgba(234, 179, 8, 0.4)',
+        borderColor: 'rgba(16, 185, 129, 0.4)',
         borderRadius: 12,
         backgroundColor: 'transparent',
     },
@@ -403,7 +307,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: 30,
         height: 30,
-        borderColor: '#eab308',
+        borderColor: '#10b981',
     },
     cornerTL: {
         top: -2,
@@ -439,6 +343,30 @@ const styles = StyleSheet.create({
         marginTop: 16,
         fontWeight: '500',
     },
+    capabilitiesRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 12,
+    },
+    capBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    capActive: {
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        borderColor: 'rgba(16, 185, 129, 0.4)',
+    },
+    capInactive: {
+        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+        borderColor: 'rgba(239, 68, 68, 0.4)',
+    },
+    capText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '600',
+    },
     footer: {
         height: 180,
         alignItems: 'center',
@@ -446,7 +374,7 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     statusText: {
-        color: '#eab308',
+        color: '#10b981',
         fontSize: 14,
         fontWeight: '700',
         marginBottom: 12,
@@ -483,7 +411,9 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(255,255,255,0.3)',
+        backgroundColor: 'rgba(16, 185, 129, 0.3)',
+        borderWidth: 2,
+        borderColor: 'rgba(16, 185, 129, 0.5)',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -499,13 +429,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     processingText: {
-        color: '#eab308',
+        color: '#10b981',
         marginTop: 12,
         fontWeight: 'bold',
         fontSize: 16,
     },
     permissionButton: {
-        backgroundColor: '#eab308',
+        backgroundColor: '#10b981',
         padding: 16,
         borderRadius: 12,
         marginHorizontal: 40,
