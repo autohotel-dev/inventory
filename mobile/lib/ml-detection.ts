@@ -1,10 +1,12 @@
 /**
  * Vehicle Detection ML Module - 100% Local
- * Uses ML Kit for OCR + MobileNetV3 for brand classification
+ * Uses ML Kit for OCR + ONNX Runtime for brand/model classification
  * No internet required for plate detection
  */
 
 import { Platform } from 'react-native';
+import { analyzeImageColor, ColorResult } from './color-detection';
+import { loadONNXModel, loadBrandLabels, runLocalInference, isLocalInferenceAvailable } from './onnx-inference';
 
 // Brand labels from training (32 Mexican market brands)
 const BRAND_LABELS: Record<string, string> = {
@@ -81,19 +83,47 @@ export async function checkModelStatus(): Promise<ModelStatus> {
 }
 
 /**
- * Load labels (no-op for local detection)
+ * Load labels (initialize ONNX model and labels)
  */
 export async function loadLabels(): Promise<boolean> {
-    return true;
+    try {
+        await loadONNXModel();
+        await loadBrandLabels();
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
- * Detect vehicle brand, model, type using Edge Function
+ * Detect vehicle brand, model, type
+ * Uses local ONNX inference when available, falls back to Edge Function
  */
 export async function detectVehicle(imageUri: string): Promise<DetectionResult> {
     const startTime = Date.now();
     
     try {
+        // Try local ONNX inference first (100% offline)
+        const localAvailable = await isLocalInferenceAvailable();
+        if (localAvailable) {
+            const localResult = await runLocalInference(imageUri);
+            if (localResult) {
+                return {
+                    brand: localResult.brand,
+                    model: localResult.model,
+                    car_type: localResult.car_type,
+                    doors: 0,
+                    seats: 0,
+                    displacement: 0,
+                    max_speed: 0,
+                    confidence: localResult.confidence,
+                    topPredictions: [],
+                    processingTime: Date.now() - startTime,
+                };
+            }
+        }
+        
+        // Fallback to Edge Function
         const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
         const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
         
