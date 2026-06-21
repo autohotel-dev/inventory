@@ -27,8 +27,14 @@ const PLATE_PATTERNS = [
 
 export interface DetectionResult {
     brand: string;
+    model: string;
+    car_type: string;
+    doors: number;
+    seats: number;
+    displacement: number;
+    max_speed: number;
     confidence: number;
-    topPredictions: Array<{ brand: string; confidence: number }>;
+    topPredictions: Array<{ brand: string; model: string; car_type: string; confidence: number }>;
     processingTime: number;
 }
 
@@ -82,7 +88,7 @@ export async function loadLabels(): Promise<boolean> {
 }
 
 /**
- * Detect vehicle brand using Edge Function
+ * Detect vehicle brand, model, type using Edge Function
  */
 export async function detectVehicle(imageUri: string): Promise<DetectionResult> {
     const startTime = Date.now();
@@ -114,6 +120,12 @@ export async function detectVehicle(imageUri: string): Promise<DetectionResult> 
         
         return {
             brand: data.brand || 'Unknown',
+            model: data.model || 'Unknown',
+            car_type: data.car_type || 'Unknown',
+            doors: data.doors || 0,
+            seats: data.seats || 0,
+            displacement: data.displacement || 0,
+            max_speed: data.max_speed || 0,
             confidence: data.confidence || 0,
             topPredictions: data.top3 || [],
             processingTime: Date.now() - startTime,
@@ -122,6 +134,12 @@ export async function detectVehicle(imageUri: string): Promise<DetectionResult> 
         console.error('[ML] Detection error:', error);
         return {
             brand: 'Unknown',
+            model: 'Unknown',
+            car_type: 'Unknown',
+            doors: 0,
+            seats: 0,
+            displacement: 0,
+            max_speed: 0,
             confidence: 0,
             topPredictions: [],
             processingTime: Date.now() - startTime,
