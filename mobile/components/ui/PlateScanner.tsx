@@ -17,6 +17,7 @@ export interface VehicleScanResult {
     plate: string | null;
     brand: string | null;
     model: string | null;
+    color: string | null;
     confidence?: number;
     source: 'local' | 'cloud' | 'both';
 }
@@ -72,18 +73,18 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
             // Create data URI for local processing
             const imageUri = `data:image/jpeg;base64,${base64String}`;
             
-            // Run local detection
+            // Run local detection (plate + brand + color)
             const result = await detectVehicleLocally(imageUri);
             
-            if (result.plate || result.brand) {
+            if (result.plate || result.brand || result.color) {
                 const parts = [];
                 if (result.plate) parts.push(`Placa: ${result.plate}`);
                 if (result.brand) parts.push(result.brand);
+                if (result.color) parts.push(result.color);
                 
                 const confText = result.confidence ? ` (${(result.confidence * 100).toFixed(0)}%)` : '';
-                const sourceIcon = result.source === 'local-both' ? '⚡' : result.source === 'local-ocr' ? '📝' : '🚗';
                 
-                console.log(`[Scanner] ${sourceIcon} Detectado:`, parts.join(' | '));
+                console.log(`[Scanner] Detectado:`, parts.join(' | '));
                 setStatusText(`✅ ${parts.join(' • ')}${confText}`);
                 
                 setTimeout(() => {
@@ -92,6 +93,7 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                             plate: result.plate,
                             brand: result.brand,
                             model: null,
+                            color: result.color,
                             confidence: result.confidence,
                             source: 'local',
                         });
@@ -198,6 +200,9 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                                 </View>
                                 <View style={[styles.capBadge, capabilities.brandML ? styles.capActive : styles.capInactive]}>
                                     <Text style={styles.capText}>Marca</Text>
+                                </View>
+                                <View style={[styles.capBadge, capabilities.fullyLocal ? styles.capActive : styles.capInactive]}>
+                                    <Text style={styles.capText}>Color</Text>
                                 </View>
                             </View>
                         )}

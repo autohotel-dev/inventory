@@ -5,10 +5,12 @@
  * Components:
  * - ML Kit Text Recognition: Plate OCR
  * - MobileNetV3 (via Edge Function): Brand classification
+ * - Image Analysis: Color detection
  * - Regex: Mexican plate validation
  */
 
 import { Platform } from 'react-native';
+import { analyzeImageColor, ColorResult } from './color-detection';
 
 // Mexican plate patterns
 const PLATE_PATTERNS = [
@@ -23,9 +25,10 @@ const PLATE_PATTERNS = [
 export interface LocalDetectionResult {
     plate: string | null;
     brand: string | null;
+    color: string | null;
     confidence: number;
     processingTime: number;
-    source: 'local-ocr' | 'local-ml' | 'local-both';
+    source: 'local-ocr' | 'local-ml' | 'local-color' | 'local-all';
 }
 
 export interface PlateOCRResult {
@@ -158,30 +161,40 @@ export async function detectPlateLocally(imageUri: string): Promise<PlateOCRResu
 }
 
 /**
- * Combined local detection: OCR for plate + ML for brand
+ * Combined local detection: OCR for plate + ML for brand + Color analysis
  */
 export async function detectVehicleLocally(imageUri: string): Promise<LocalDetectionResult> {
     const startTime = Date.now();
     
-    // Run plate OCR and brand detection in parallel
-    const [plateResult, brandResult] = await Promise.allSettled([
+    // Run plate OCR, brand detection, and color analysis in parallel
+    const [plateResult, brandResult, colorResult] = await Promise.allSettled([
         detectPlateLocally(imageUri),
         detectBrandLocally(imageUri),
+        detectColorLocally(imageUri),
     ]);
     
     const plate = plateResult.status === 'fulfilled' ? plateResult.value : null;
     const brand = brandResult.status === 'fulfilled' ? brandResult.value : null;
+    const color = colorResult.status === 'fulfilled' ? colorResult.value : null;
     
     const processingTime = Date.now() - startTime;
     
     // Determine source
-    let source: LocalDetectionResult['source'] = 'local-both';
-    if (plate && !brand) source = 'local-ocr';
-    if (!plate && brand) source = 'local-ml';
+    let source: LocalDetectionResult['source'] = 'local-all';
+    const hasPlate = !!plate;
+    const hasBrand = !!brand;
+    const hasColor = !!color;
+    
+    if (hasPlate && hasBrand && hasColor) source = 'local-all';
+    else if (hasPlate && hasBrand) source = 'local-both';
+    else if (hasPlate) source = 'local-ocr';
+    else if (hasBrand) source = 'local-ml';
+    else if (hasColor) source = 'local-color';
     
     return {
         plate: plate?.text || null,
         brand: brand?.brand || null,
+        color: color?.color || null,
         confidence: brand?.confidence || 0,
         processingTime,
         source,
@@ -240,6 +253,25 @@ async function detectBrandLocally(imageUri: string): Promise<{ brand: string; co
         return null;
     } catch (error) {
         console.error('[ML] Brand detection error:', error);
+        return null;
+    }
+}
+
+/**
+ * Color detection using image analysis
+ */
+async function detectColorLocally(imageUri: string): Promise<ColorResult | null> {
+    try {
+        // For React Native, we need to use a canvas or image manipulation library
+        // For now, return a placeholder that indicates color detection needs canvas
+        
+        // TODO: Implement with expo-image-manipulator or react-native-canvas
+        // The analyzeImageColor function needs raw pixel data from a canvas
+        
+        console.log('[Color] Color detection requires canvas implementation');
+        return null;
+    } catch (error) {
+        console.error('[Color] Detection error:', error);
         return null;
     }
 }
