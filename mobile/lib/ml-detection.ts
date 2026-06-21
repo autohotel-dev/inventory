@@ -1,12 +1,12 @@
 /**
  * Vehicle Detection ML Module - 100% Local
- * Uses ML Kit for OCR + ONNX Runtime for brand/model classification
+ * Uses ML Kit for OCR + TensorFlow.js for brand/model classification
  * No internet required for plate detection
  */
 
 import { Platform } from 'react-native';
 import { analyzeImageColor, ColorResult } from './color-detection';
-import { loadONNXModel, loadBrandLabels, runLocalInference, isLocalInferenceAvailable } from './onnx-inference';
+import { loadModel, runLocalInference, isLocalInferenceAvailable } from './tf-inference';
 
 // Brand labels from training (32 Mexican market brands)
 const BRAND_LABELS: Record<string, string> = {
@@ -83,12 +83,11 @@ export async function checkModelStatus(): Promise<ModelStatus> {
 }
 
 /**
- * Load labels (initialize ONNX model and labels)
+ * Load labels (initialize TensorFlow.js model)
  */
 export async function loadLabels(): Promise<boolean> {
     try {
-        await loadONNXModel();
-        await loadBrandLabels();
+        await loadModel();
         return true;
     } catch {
         return false;
