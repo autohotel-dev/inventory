@@ -25,6 +25,7 @@ const PLATE_PATTERNS = [
 export interface LocalDetectionResult {
     plate: string | null;
     brand: string | null;
+    model: string | null;
     color: string | null;
     confidence: number;
     processingTime: number;
@@ -194,6 +195,7 @@ export async function detectVehicleLocally(imageUri: string): Promise<LocalDetec
     return {
         plate: plate?.text || null,
         brand: brand?.brand || null,
+        model: brand?.model || null,
         color: color?.color || null,
         confidence: brand?.confidence || 0,
         processingTime,
@@ -202,9 +204,9 @@ export async function detectVehicleLocally(imageUri: string): Promise<LocalDetec
 }
 
 /**
- * Brand detection using our trained model (via Edge Function)
+ * Brand detection using Edge Function with trained model
  */
-async function detectBrandLocally(imageUri: string): Promise<{ brand: string; confidence: number } | null> {
+async function detectBrandLocally(imageUri: string): Promise<{ brand: string; model: string; confidence: number } | null> {
     try {
         const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
         const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -219,7 +221,6 @@ async function detectBrandLocally(imageUri: string): Promise<{ brand: string; co
         if (imageUri.startsWith('data:')) {
             base64Image = imageUri.split(',')[1];
         } else if (imageUri.startsWith('file://')) {
-            // Read file and convert to base64
             const FileSystem = require('expo-file-system');
             const base64 = await FileSystem.readAsStringAsync(imageUri, {
                 encoding: FileSystem.EncodingType.Base64,
@@ -246,6 +247,7 @@ async function detectBrandLocally(imageUri: string): Promise<{ brand: string; co
         if (data.brand && data.confidence > 0.5) {
             return {
                 brand: data.brand,
+                model: data.model || 'Unknown',
                 confidence: data.confidence,
             };
         }

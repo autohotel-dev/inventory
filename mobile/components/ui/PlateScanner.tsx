@@ -80,6 +80,7 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                 const parts = [];
                 if (result.plate) parts.push(`Placa: ${result.plate}`);
                 if (result.brand) parts.push(result.brand);
+                if (result.model) parts.push(result.model);
                 if (result.color) parts.push(result.color);
                 
                 const confText = result.confidence ? ` (${(result.confidence * 100).toFixed(0)}%)` : '';
@@ -92,7 +93,7 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
                         onVehicleScanned({
                             plate: result.plate,
                             brand: result.brand,
-                            model: null,
+                            model: result.model,
                             color: result.color,
                             confidence: result.confidence,
                             source: 'local',
