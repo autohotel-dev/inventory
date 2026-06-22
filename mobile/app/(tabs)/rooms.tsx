@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { View, Text, TouchableOpacity, RefreshControl, Modal, KeyboardAvoidingView, Platform, Alert, ScrollView, Dimensions, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, RefreshControl, Modal, KeyboardAvoidingView, Platform, Alert, ScrollView, useWindowDimensions, TextInput } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useEntryActions } from '../../hooks/use-entry-actions';
@@ -25,11 +25,9 @@ import { VerifyExtraModal } from '../../components/rooms/modals/VerifyExtraModal
 import { VerifyRoomChangeModal } from '../../components/rooms/modals/VerifyRoomChangeModal';
 import { CheckoutModal } from '../../components/rooms/modals/CheckoutModal';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_GAP = 12;
 const PADDING = 16;
 const NUM_COLUMNS = 3;
-const CARD_SIZE = (SCREEN_WIDTH - (PADDING * 2) - (CARD_GAP * (NUM_COLUMNS - 1))) / NUM_COLUMNS;
 
 export const VALID_COCHERO_CONCEPTS = [
     'EXTRA_PERSON', 'EXTRA_HOUR', 'RENEWAL', 'PROMO_4H', 
@@ -39,6 +37,8 @@ export const VALID_COCHERO_CONCEPTS = [
 export default function RoomsScreen() {
     const { employeeId, hasActiveShift, isLoading: roleLoading } = useUserRole();
     const { isDark } = useTheme();
+    const { width: screenWidth } = useWindowDimensions();
+    const CARD_SIZE = Math.floor((screenWidth - (PADDING * 2) - (CARD_GAP * (NUM_COLUMNS - 1))) / NUM_COLUMNS);
     const [rooms, setRooms] = useState<Room[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -806,8 +806,10 @@ export default function RoomsScreen() {
                     />
                 }
             >
-                <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
-                    {filteredAndSortedRooms.map(room => renderRoom({ item: room }))}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP }}>
+                    {filteredAndSortedRooms.map(room => (
+                        <View key={room.id}>{renderRoom({ item: room })}</View>
+                    ))}
                 </View>
 
                 {filteredAndSortedRooms.length === 0 && (

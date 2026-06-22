@@ -33,6 +33,7 @@
       "./assets/models/"
     ],
     "plugins": [
+      "react-native-fast-tflite",
       "expo-router",
       [
         "expo-notifications",

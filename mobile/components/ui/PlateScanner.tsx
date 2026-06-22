@@ -12,6 +12,7 @@ import {
     isMLKitAvailable,
     getDetectionCapabilities 
 } from '../../lib/local-detection';
+import { initialize as initTFLite } from '../../lib/tflite-inference';
 
 export interface VehicleScanResult {
     plate: string | null;
@@ -52,6 +53,11 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
 
     const checkCapabilities = async () => {
         try {
+            // Pre-load TFLite model so it's ready for first photo
+            console.log('[Scanner] Pre-loading TFLite model...');
+            const tfliteOk = await initTFLite();
+            console.log('[Scanner] TFLite pre-load:', tfliteOk ? '✓' : '✗');
+
             const caps = await getDetectionCapabilities();
             setCapabilities(caps);
             console.log('[Scanner] Capabilities:', caps);
@@ -65,16 +71,25 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
     };
 
     // 100% Local detection
-    const processImageLocal = async (base64String: string) => {
+    const processImageLocal = async (photoUri: string) => {
         setIsProcessing(true);
         setStatusText('Analizando vehículo...');
         
         try {
-            // Create data URI for local processing
-            const imageUri = `data:image/jpeg;base64,${base64String}`;
+            // Use file URI directly from camera (more reliable than data URI)
+            console.log('[Scanner] Processing image:', photoUri.substring(0, 50) + '...');
             
             // Run local detection (plate + brand + color)
-            const result = await detectVehicleLocally(imageUri);
+            const result = await detectVehicleLocally(photoUri);
+            
+            console.log('[Scanner] Detection result:', JSON.stringify({
+                plate: result.plate,
+                brand: result.brand,
+                model: result.model,
+                color: result.color,
+                confidence: result.confidence,
+                source: result.source,
+            }));
             
             if (result.plate || result.brand || result.color) {
                 const parts = [];
@@ -130,12 +145,13 @@ export function PlateScanner({ onClose, onPlateScanned, onVehicleScanned }: Plat
         try {
             setStatusText('Capturando...');
             const photo = await cameraRef.current.takePictureAsync({ 
-                base64: true, 
+                base64: false, 
                 quality: 0.8,
                 exif: false,
             });
-            if (photo?.base64) {
-                await processImageLocal(photo.base64);
+            if (photo?.uri) {
+                // Use file URI directly — more reliable than data URI
+                await processImageLocal(photo.uri);
             }
         } catch (e) {
             console.error("Camera failed:", e);

@@ -16,24 +16,33 @@ export default function ProfileScreen() {
     const handleLogout = async () => {
         showConfirm(
             'Cerrar Sesión',
-            '¿Estás seguro que deseas salir?',
+            hasActiveShift 
+                ? '⚠️ Tu turno está activo y se cerrará automáticamente. ¿Deseas salir?'
+                : '¿Estás seguro que deseas salir?',
             async () => {
                 try {
-                    // Auto-close shift if active
-                    if (hasActiveShift && employeeId) {
-                        await supabase
+                    // Always try to close any open shifts for this employee
+                    // Don't rely on hasActiveShift state which could be stale
+                    if (employeeId) {
+                        const { error: shiftError, count } = await supabase
                             .from("shift_sessions")
                             .update({
                                 clock_out_at: new Date().toISOString(),
                                 status: "closed",
                             })
                             .eq("employee_id", employeeId)
-                            .in("status", ["active", "open"])
-                            .is("clock_out_at", null);
+                            .in("status", ["active", "open"]);
+
+                        if (shiftError) {
+                            console.error("Error closing shift on logout:", shiftError);
+                        } else {
+                            console.log(`[Logout] Closed ${count ?? 0} active shift(s)`);
+                        }
                     }
                 } catch (error) {
                     console.error("Error auto-closing shift:", error);
                 } finally {
+                    // Always sign out, even if shift closure fails
                     await supabase.auth.signOut();
                 }
             },

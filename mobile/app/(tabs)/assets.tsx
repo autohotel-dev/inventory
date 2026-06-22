@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, RefreshControl, ScrollView, Dimensions, Alert, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, RefreshControl, ScrollView, Alert, TextInput, useWindowDimensions } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/use-user-role';
 import { useTheme } from '../../contexts/theme-context';
@@ -10,11 +10,9 @@ import { useValetActions } from '../../hooks/use-valet-actions';
 import { FeedbackModal, FeedbackType } from '../../components/FeedbackModal';
 import { ConfirmModal } from '../../components/ConfirmModal';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_GAP = 12;
 const PADDING = 16;
 const NUM_COLUMNS = 3;
-const CARD_SIZE = (SCREEN_WIDTH - (PADDING * 2) - (CARD_GAP * (NUM_COLUMNS - 1))) / NUM_COLUMNS;
 
 interface RoomAssetData {
     id: string;
@@ -39,6 +37,8 @@ interface AuditLogEntry {
 export default function AssetsScreen() {
     const { employeeId, hasActiveShift, isLoading: roleLoading } = useUserRole();
     const { isDark } = useTheme();
+    const { width: screenWidth } = useWindowDimensions();
+    const CARD_SIZE = Math.floor((screenWidth - (PADDING * 2) - (CARD_GAP * (NUM_COLUMNS - 1))) / NUM_COLUMNS);
     const [rooms, setRooms] = useState<RoomAssetData[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -380,7 +380,7 @@ export default function AssetsScreen() {
                     </View>
                 ) : (
                     /* ─── ROOM CARDS GRID ─── */
-                    <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP }}>
                         {filteredRooms.map(room => {
                             const isMine = room.tvRemoteStatus === 'PENDIENTE_ENCENDIDO' && room.assignedEmployeeId === employeeId;
                             const canDrop = isMine && hasActiveShift;

@@ -204,7 +204,7 @@ export default function HistoryScreen() {
             </View>
 
             {/* Filters */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 pb-4" contentContainerStyle={{ gap: 10 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 pb-4" contentContainerStyle={{ gap: 10, alignItems: 'center' }} style={{ maxHeight: 44, flexGrow: 0 }}>
                 {[
                     { key: 'all', label: 'Todos', icon: Clock, activeColor: 'bg-violet-600', activeBorder: 'border-violet-500' },
                     { key: 'entry', label: 'Entradas', icon: Car, activeColor: 'bg-blue-600', activeBorder: 'border-blue-500' },
@@ -220,15 +220,14 @@ export default function HistoryScreen() {
                                 setFilter(key as any);
                             }}
                             activeOpacity={0.7}
-                            className={`px-5 py-3 rounded-2xl flex-row items-center gap-2.5 border-2 ${
+                            className={`px-3 py-2 rounded-xl flex-row items-center gap-1.5 border ${
                                 isActive
                                     ? `${activeColor} ${activeBorder}`
                                     : (isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200')
                             }`}
-                            style={isActive ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3 } : {}}
                         >
-                            <Icon size={18} color={isActive ? '#fff' : (isDark ? '#a1a1aa' : '#71717a')} />
-                            <Text className={`font-extrabold text-sm ${isActive ? 'text-white' : (isDark ? 'text-zinc-300' : 'text-zinc-700')}`}>{label}</Text>
+                            <Icon size={14} color={isActive ? '#fff' : (isDark ? '#a1a1aa' : '#71717a')} />
+                            <Text className={`font-bold text-xs ${isActive ? 'text-white' : (isDark ? 'text-zinc-300' : 'text-zinc-700')}`}>{label}</Text>
                         </TouchableOpacity>
                     );
                 })}
@@ -273,9 +272,9 @@ export default function HistoryScreen() {
                                             {entry.description}
                                         </Text>
                                     </View>
-                                    {entry.amount && entry.amount > 0 && (
+                                    {entry.amount && entry.amount > 0 ? (
                                         <Text className="font-black text-emerald-500">${entry.amount.toFixed(0)}</Text>
-                                    )}
+                                    ) : null}
                                     {expandedItems.has(entry.id) ? (
                                         <ChevronUp size={16} color={isDark ? '#71717a' : '#a1a1aa'} />
                                     ) : (

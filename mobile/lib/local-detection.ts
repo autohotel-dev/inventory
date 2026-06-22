@@ -11,6 +11,7 @@
 
 import { Platform } from 'react-native';
 import { analyzeImageColor, ColorResult } from './color-detection';
+import { runLocalInference, initialize as initTFLite } from './tflite-inference';
 
 // Mexican plate patterns
 const PLATE_PATTERNS = [
@@ -153,7 +154,6 @@ export async function detectPlateLocally(imageUri: string): Promise<PlateOCRResu
         return {
             text: plate,
             confidence: 0.85, // ML Kit doesn't provide confidence, use default
-            processingTime,
         };
     } catch (error) {
         console.error('[OCR] Detection error:', error);
@@ -187,7 +187,7 @@ export async function detectVehicleLocally(imageUri: string): Promise<LocalDetec
     const hasColor = !!color;
     
     if (hasPlate && hasBrand && hasColor) source = 'local-all';
-    else if (hasPlate && hasBrand) source = 'local-both';
+    else if (hasPlate && hasBrand) source = 'local-all';
     else if (hasPlate) source = 'local-ocr';
     else if (hasBrand) source = 'local-ml';
     else if (hasColor) source = 'local-color';
@@ -204,57 +204,22 @@ export async function detectVehicleLocally(imageUri: string): Promise<LocalDetec
 }
 
 /**
- * Brand detection using Edge Function with trained model
+ * Brand detection using on-device TFLite model
+ * 100% local, no internet required
  */
 async function detectBrandLocally(imageUri: string): Promise<{ brand: string; model: string; confidence: number } | null> {
     try {
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-        
-        if (!supabaseUrl || !supabaseKey) {
-            console.log('[ML] Supabase not configured');
-            return null;
-        }
-        
-        // Extract base64 from URI
-        let base64Image = imageUri;
-        if (imageUri.startsWith('data:')) {
-            base64Image = imageUri.split(',')[1];
-        } else if (imageUri.startsWith('file://')) {
-            const FileSystem = require('expo-file-system');
-            const base64 = await FileSystem.readAsStringAsync(imageUri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            base64Image = base64;
-        }
-        
-        const response = await fetch(`${supabaseUrl}/functions/v1/vehicle-classifier`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseKey}`,
-            },
-            body: JSON.stringify({ image: base64Image }),
-        });
-        
-        if (!response.ok) {
-            console.log('[ML] Classifier failed:', response.status);
-            return null;
-        }
-        
-        const data = await response.json();
-        
-        if (data.brand && data.confidence > 0.5) {
+        const result = await runLocalInference(imageUri);
+        if (result && result.confidence > 0.35) {
             return {
-                brand: data.brand,
-                model: data.model || 'Unknown',
-                confidence: data.confidence,
+                brand: result.brand,
+                model: result.model,
+                confidence: result.confidence,
             };
         }
-        
         return null;
     } catch (error) {
-        console.error('[ML] Brand detection error:', error);
+        console.error('[ML] TFLite brand detection error:', error);
         return null;
     }
 }
@@ -299,10 +264,11 @@ export async function getDetectionCapabilities(): Promise<{
     fullyLocal: boolean;
 }> {
     const ocrAvailable = await isMLKitAvailable();
+    const tfliteReady = await initTFLite();
     
     return {
         ocr: ocrAvailable,
-        brandML: true, // Always available via Edge Function
-        fullyLocal: ocrAvailable,
+        brandML: tfliteReady, // Now truly local via TFLite
+        fullyLocal: ocrAvailable && tfliteReady,
     };
 }
