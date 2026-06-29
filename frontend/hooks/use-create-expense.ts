@@ -24,7 +24,7 @@ export function useCreateExpense() {
                 .select('*')
                 .eq('id', data.shift_session_id)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             if (sessionError) throw sessionError;
 

@@ -122,7 +122,7 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                 .select('id')
                 .eq('employee_id', valetId)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             // --- 3. Buscar pago pendiente de ESTANCIA ---
             const { data: pendingMain, error: pendingMainError } = await supabase

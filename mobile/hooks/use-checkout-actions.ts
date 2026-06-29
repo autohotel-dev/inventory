@@ -190,7 +190,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .select('id')
                 .eq('employee_id', valetId)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             // Obtener product_id del item base de la orden
             const { data: baseItem } = await supabase
@@ -276,7 +276,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .select('id')
                 .eq('employee_id', valetId)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             // Obtener product_id del item base de la orden
             const { data: baseItem } = await supabase
@@ -362,7 +362,7 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
                 .select('id')
                 .eq('employee_id', valetId)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             // Obtener product_id del item base de la orden
             const { data: baseItem } = await supabase

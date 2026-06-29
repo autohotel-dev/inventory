@@ -210,13 +210,23 @@ export async function detectVehicleLocally(imageUri: string): Promise<LocalDetec
 async function detectBrandLocally(imageUri: string): Promise<{ brand: string; model: string; confidence: number } | null> {
     try {
         const result = await runLocalInference(imageUri);
-        if (result && result.confidence > 0.35) {
+        
+        // Debug: always log what the model sees
+        if (result) {
+            console.log(`[ML] TFLite top prediction: ${result.brand} ${result.model} (${(result.confidence * 100).toFixed(1)}%)`);
+            console.log('[ML] Top 5:', result.topPredictions.map(p => `${p.brand} ${p.model}: ${(p.confidence * 100).toFixed(1)}%`).join(' | '));
+        } else {
+            console.log('[ML] TFLite returned null (model not loaded or preprocessing failed)');
+        }
+        
+        if (result && result.confidence > 0.15) {
             return {
                 brand: result.brand,
                 model: result.model,
                 confidence: result.confidence,
             };
         }
+        console.log('[ML] Confidence too low, skipping brand detection');
         return null;
     } catch (error) {
         console.error('[ML] TFLite brand detection error:', error);

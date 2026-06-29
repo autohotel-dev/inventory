@@ -114,7 +114,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 .select('id')
                 .eq('employee_id', valetId)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             const updateData: any = {
                 delivery_status: 'DELIVERED',
@@ -220,7 +220,7 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 .select('id')
                 .eq('employee_id', valetId)
                 .eq('status', 'active')
-                .maybeSingle();
+                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
 
             const itemIds = items.map(item => item.id);
             const salesOrderIds = [...new Set(items.map(i => i.sales_order_id))];

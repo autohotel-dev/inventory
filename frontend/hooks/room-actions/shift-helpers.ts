@@ -90,6 +90,8 @@ export async function getCurrentShiftId(supabase: any): Promise<string | null> {
       .select("id")
       .eq("employee_id", employee.id)
       .in("status", ["active", "open"])
+      .order("clock_in_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     return session?.id || null;

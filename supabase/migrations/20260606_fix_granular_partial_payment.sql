@@ -65,6 +65,7 @@ BEGIN
   WHERE ss.employee_id = p_employee_id
     AND ss.status IN ('active', 'open')
     AND e.role IN ('receptionist', 'admin', 'manager')
+  ORDER BY ss.clock_in_at DESC
   LIMIT 1;
 
   IF v_session_id IS NULL THEN
