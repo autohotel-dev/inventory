@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: "sensor-monitor",
-            script: "./scripts/tuya-sensor-monitor.js",
+            script: "./scripts/tuya-poll-local-multi.js",
             watch: false,
             autorestart: true,
             max_restarts: 10,

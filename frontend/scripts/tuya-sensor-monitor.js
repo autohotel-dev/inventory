@@ -145,6 +145,15 @@ async function fetchAllDeviceStatuses() {
             });
 
             if (!res.success) {
+                // 28841002: IoT Core subscription expired — retrying won't help
+                if (res.code === 28841002) {
+                    stats.consecutiveApiErrors++;
+                    stats.lastApiError = `${res.code}: ${res.msg}`;
+                    if (stats.consecutiveApiErrors === 1 || stats.consecutiveApiErrors % 100 === 0) {
+                        console.error(`[Tuya] ❌ ${res.msg} Renueva el servicio IoT Core en iot.tuya.com.`);
+                    }
+                    return null;
+                }
                 console.error(`[Tuya] Error: ${res.code} - ${res.msg} (attempt ${attempt}/${MAX_RETRIES})`);
                 stats.errorsCount++;
                 stats.consecutiveApiErrors++;
@@ -253,8 +262,7 @@ async function logSensorEvent(sensor, isOpen) {
     const eventData = {
         sensor_id: sensor.id,
         event_type: isOpen ? 'OPEN' : 'CLOSE',
-        new_state: isOpen,
-        payload: { source: 'local_cloud_monitor' },
+        payload: { source: 'local_cloud_monitor', new_state: isOpen },
         created_at: new Date().toISOString()
     };
 
@@ -594,7 +602,17 @@ async function start() {
     // Start polling loop
     console.log(`\n[RUNNING] Monitoring ${sensorDbMap.size} sensors every ${POLL_INTERVAL_MS / 1000}s...`);
     console.log(`[RUNNING] Using single API call per poll (efficient)\n`);
-    setInterval(pollAllSensors, POLL_INTERVAL_MS);
+    // Self-scheduling loop: a slow poll (retries/backoff) never overlaps the next one
+    const loop = async () => {
+        try {
+            await pollAllSensors();
+        } catch (e) {
+            console.error("[POLL] Unexpected error:", e.message);
+            stats.errorsCount++;
+        }
+        setTimeout(loop, POLL_INTERVAL_MS);
+    };
+    setTimeout(loop, POLL_INTERVAL_MS);
 
     // Refresh sensor list periodically
     setInterval(refreshSensorList, DB_REFRESH_INTERVAL_MS);
