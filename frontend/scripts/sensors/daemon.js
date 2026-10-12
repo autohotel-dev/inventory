@@ -328,6 +328,7 @@ function onGatewayData(gw, data, source = 'push') {
 
 // Query every sub-device of a gateway for its real current state
 async function syncGatewaySubdevices(gw, reason) {
+    const startedAt = now();
     let ok = 0;
     for (const s of gw.sensors) {
         if (!gw.connected) return;
@@ -343,6 +344,22 @@ async function syncGatewaySubdevices(gw, reason) {
         await sleep(SUBDEVICE_QUERY_GAP_MS);
     }
     console.log(`[${gw.name}] ${reason}: ${ok}/${gw.sensors.length} sensores respondieron`);
+
+    // The hub answers for every paired sensor (even asleep) from its cache, so a sensor
+    // that sent nothing during the sync is unpaired, dead or out of range -> OFFLINE.
+    // It comes back ONLINE by itself as soon as it reports anything.
+    await sleep(2000);
+    if (!gw.connected) return;
+    const silent = gw.sensors.filter(s => {
+        const c = stateCache.get(s.id);
+        return !c || (c.online && (!c.lastSeen || c.lastSeen < startedAt));
+    });
+    silent.forEach(s => {
+        const c = stateCache.get(s.id);
+        stateCache.set(s.id, { ...(c || { name: s.name, isOpen: null, battery: null, lastSeen: null }), online: false, gateway: gw.name });
+        dbWrite({ type: 'update', deviceId: s.id, data: { status: 'OFFLINE' } });
+    });
+    if (silent.length) console.warn(`[${gw.name}] ⚠️ Sin respuesta (OFFLINE): ${silent.map(s => s.name).join(', ')}`);
 }
 
 // --- GATEWAY CONNECTION (one client per gateway, self-healing) ---
