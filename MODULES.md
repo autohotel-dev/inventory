@@ -15,7 +15,7 @@ Aplicación web principal (Hub) de alto rendimiento para Recepción y Administra
 - **`components/`**: Componentes visuales (ui, rooms, live-operations). Aquí residen las interfaces modulares complejas.
 - **`lib/`**: Motor lógico y de telemetría forense (`audit-logger.ts`, `flow-logger.ts`).
 - **`print-server/`**: Servidor Express NodeJS anidado que traduce peticiones HTTP del frontend a comandos ESC/POS (`node-thermal-printer`) para tickets impresos localmente.
-- **`scripts/`**: Directorio crítico que contiene scripts de mantenimiento de base de datos (`setup-database.sql`, `clean-all-tables.sql`) y **daemons de polling IoT para sensores Tuya** (`tuya-poll.js`, `tuya-poll-local.py`).
+- **`scripts/`**: Directorio crítico que contiene scripts de mantenimiento de base de datos (`setup-database.sql`, `clean-all-tables.sql`) y **daemon IoT de sensores Tuya** (`scripts/sensors/daemon.js`, conexión LAN directa a los hubs).
 
 ### 2. Ecosistema Móvil (Expo / React Native)
 Existen dos aplicaciones móviles diferenciadas:
@@ -65,8 +65,8 @@ await AuditLogger.logEvent({
 
 ### Receta 5: Manejo de Sensores IoT
 Si requieres actualizar la lectura de las puertas o el sensor de movimiento:
-1. Revisa los scripts en `frontend/scripts/tuya-poll.js` o `tuya-poll-local.py`.
-2. Actualiza la lógica de webhook en las funciones correspondientes para mapear los nuevos IDs de los dispositivos de Tuya.
+1. El único daemon es `frontend/scripts/sensors/daemon.js` (PM2: `frontend/ecosystem.config.js`, o `scripts/sensors/start-sensors.bat`).
+2. Los IDs, local keys y node ids de los dispositivos viven en `frontend/tuya-devices.json`; se regeneran con `scripts/sensors/list-devices.js --save` y se sincronizan a Supabase con `scripts/sensors/sync-to-db.js`.
 
 ---
 

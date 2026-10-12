@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 function loadEnv() {
-    const envPath = path.resolve(__dirname, '../.env.local');
+    const envPath = path.resolve(__dirname, '../../.env.local');
     if (!fs.existsSync(envPath)) return {};
     const envConfig = {};
     fs.readFileSync(envPath, 'utf8').replace(/\r/g, '').split('\n').forEach(line => {
@@ -104,7 +104,7 @@ async function main() {
     if (allDevices.length === 0) {
         console.log("\n🔄 Fetching known devices individually from tuya-devices.json...\n");
         
-        const jsonPath = path.resolve(__dirname, '../tuya-devices.json');
+        const jsonPath = path.resolve(__dirname, '../../tuya-devices.json');
         if (fs.existsSync(jsonPath)) {
             const known = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
             
@@ -232,11 +232,11 @@ async function main() {
 
     // --- SAVE ---
     if (saveFlag) {
-        const outputPath = path.resolve(__dirname, '../tuya-devices.json');
+        const outputPath = path.resolve(__dirname, '../../tuya-devices.json');
         
         // Backup current file
         if (fs.existsSync(outputPath)) {
-            const backupPath = path.resolve(__dirname, `../tuya-devices.backup-${Date.now()}.json`);
+            const backupPath = path.resolve(__dirname, `../../tuya-devices.backup-${Date.now()}.json`);
             fs.copyFileSync(outputPath, backupPath);
             console.log(`\n📦 Backup saved: ${backupPath}`);
         }
@@ -257,7 +257,7 @@ async function main() {
         console.log(`✅ Updated tuya-devices.json with ${saveData.length} devices\n`);
     } else {
         console.log(`\n💡 Run with --save to update tuya-devices.json:`);
-        console.log(`   node scripts/tuya-list-devices.js --save\n`);
+        console.log(`   node scripts/sensors/list-devices.js --save\n`);
     }
 }
 

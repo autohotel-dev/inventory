@@ -4,7 +4,7 @@
  * Replaces ALL existing sensors in the database with the ones from tuya-devices.json.
  * Sensors are matched to rooms by name (e.g., "Sensor 101" → Room "101").
  * 
- * Usage: node scripts/tuya-sync-to-db.js
+ * Usage: node scripts/sensors/sync-to-db.js
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -13,7 +13,7 @@ const path = require('path');
 
 // --- ENV LOADING ---
 function loadEnv() {
-    const envPath = path.resolve(__dirname, '../.env.local');
+    const envPath = path.resolve(__dirname, '../../.env.local');
     if (!fs.existsSync(envPath)) return {};
     const envConfig = {};
     fs.readFileSync(envPath, 'utf8').replace(/\r/g, '').split('\n').forEach(line => {
@@ -41,9 +41,9 @@ async function main() {
     console.log("══════════════════════════════════════════════════════\n");
 
     // 1. Load devices from JSON
-    const jsonPath = path.resolve(__dirname, '../tuya-devices.json');
+    const jsonPath = path.resolve(__dirname, '../../tuya-devices.json');
     if (!fs.existsSync(jsonPath)) {
-        console.error("❌ tuya-devices.json not found. Run tuya-list-devices.js --save first.");
+        console.error("❌ tuya-devices.json not found. Run scripts/sensors/list-devices.js --save first.");
         process.exit(1);
     }
 

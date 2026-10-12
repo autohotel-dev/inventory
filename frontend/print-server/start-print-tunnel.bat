@@ -15,7 +15,8 @@ if not exist "%~dp0logs" mkdir "%~dp0logs"
 
 REM Matar procesos anteriores si existen
 echo [*] Limpiando procesos anteriores...
-taskkill /F /IM node.exe >nul 2>&1
+REM Solo el proceso del puerto 3001 (no matar todo node.exe: tambien corre el daemon de sensores)
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3001 " ^| findstr LISTENING') do taskkill /F /PID %%p >nul 2>&1
 taskkill /F /IM cloudflared.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
 
@@ -83,6 +84,7 @@ pause >nul
 REM Limpiar
 echo.
 echo Deteniendo servicios...
-taskkill /F /IM node.exe >nul 2>&1
+REM Solo el proceso del puerto 3001 (no matar todo node.exe: tambien corre el daemon de sensores)
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3001 " ^| findstr LISTENING') do taskkill /F /PID %%p >nul 2>&1
 taskkill /F /IM cloudflared.exe >nul 2>&1
 echo Servicios detenidos. Adios!

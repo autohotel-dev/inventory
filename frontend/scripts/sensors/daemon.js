@@ -16,9 +16,9 @@
  *   4. Every RESYNC_INTERVAL_MS re-query all sub-devices to catch anything missed.
  *   5. If a gateway stays disconnected > OFFLINE_GRACE_MS its sensors go OFFLINE.
  *
- * Run:  node scripts/tuya-poll-local-multi.js        (or pm2 start ecosystem.config.js)
- * Test without touching the DB:  SENSOR_DRY_RUN=1 node scripts/tuya-poll-local-multi.js
- * Debug raw gateway traffic:     SENSOR_DEBUG=1 node scripts/tuya-poll-local-multi.js
+ * Run:  node scripts/sensors/daemon.js        (or pm2 start ecosystem.config.js)
+ * Test without touching the DB:  SENSOR_DRY_RUN=1 node scripts/sensors/daemon.js
+ * Debug raw gateway traffic:     SENSOR_DEBUG=1 node scripts/sensors/daemon.js
  */
 
 const TuyAPI = require('tuyapi');
@@ -30,7 +30,7 @@ const http = require('http');
 // --- ENV LOADING ---
 function loadEnv() {
     try {
-        const envPath = path.resolve(__dirname, '../.env.local');
+        const envPath = path.resolve(__dirname, '../../.env.local');
         if (!fs.existsSync(envPath)) return {};
         const envConfig = {};
         fs.readFileSync(envPath, 'utf8').replace(/\r/g, '').split('\n').forEach(line => {
@@ -51,7 +51,7 @@ const getEnv = (k) => process.env[k] || env[k];
 const PORT = getEnv('SENSOR_PORT') || 5002;
 const DRY_RUN = getEnv('SENSOR_DRY_RUN') === '1';
 const DEBUG = getEnv('SENSOR_DEBUG') === '1';
-const PROTOCOL_VERSION = getEnv('TUYA_GATEWAY_VERSION') || '3.3';
+const PROTOCOL_VERSION = getEnv('TUYA_GATEWAY_VERSION') || '3.4';  // Hub firmware switched 3.3 -> 3.4 (3.3 gets ECONNRESET)
 
 const EVENT_CONFIRM_MS = 1500;          // State must hold this long before logging an OPEN/CLOSE event
 const GW_COOLDOWN_MS = 8000;            // After (re)connect, changes update state but don't log events
@@ -78,7 +78,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- LOAD DEVICES (tuya-devices.json holds local keys + Zigbee node ids) ---
-const jsonPath = path.resolve(__dirname, '../tuya-devices.json');
+const jsonPath = path.resolve(__dirname, '../../tuya-devices.json');
 if (!fs.existsSync(jsonPath)) {
     console.error(`❌ ${jsonPath} not found. Copy it from the hotel computer (it contains the local keys).`);
     process.exit(1);
@@ -88,15 +88,21 @@ const allDevices = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 const isGateway = d => d.model === 'SHGATEWAYZWB' || d.category === 'wg2' || /hub|gateway/i.test(d.product_name || '');
 const isSensor = d => !isGateway(d) && (d.model === 'SHSCZ100' || d.category === 'mcs' || /sensor/i.test(d.product_name || ''));
 
-// Optional fixed IPs (skips UDP discovery): TUYA_GATEWAY_IPS="HUB 139=172.16.1.99,HUB 141=172.16.1.100"
+// Optional fixed IPs (skips UDP discovery), with optional per-hub protocol version:
+// TUYA_GATEWAY_IPS="HUB 139=192.168.1.47,HUB 141=192.168.1.40@3.3"
 const fixedIps = new Map(
     (getEnv('TUYA_GATEWAY_IPS') || '').split(',').map(p => p.split('=').map(s => s.trim())).filter(p => p.length === 2 && p[1])
+        .map(([name, target]) => {
+            const [ip, version] = target.split('@').map(s => s.trim());
+            return [name, { ip, version: version || null }];
+        })
 );
 
 // Sub-devices share the local_key of their gateway
 const gateways = allDevices.filter(isGateway).map(gw => ({
     ...gw,
-    ip: fixedIps.get(gw.name) || fixedIps.get(gw.id) || gw.ip || null,
+    ip: (fixedIps.get(gw.name) || fixedIps.get(gw.id))?.ip || gw.ip || null,
+    version: (fixedIps.get(gw.name) || fixedIps.get(gw.id))?.version || PROTOCOL_VERSION,
     sensors: allDevices.filter(d => isSensor(d) && d.local_key === gw.local_key),
     client: null,
     connected: false,
@@ -352,7 +358,7 @@ function createClient_(gw) {
         id: gw.id,
         key: gw.local_key,
         ip: gw.ip || undefined,
-        version: PROTOCOL_VERSION,
+        version: gw.version,
         issueGetOnConnect: false,
         issueRefreshOnConnect: false,
     });
@@ -480,7 +486,7 @@ async function start() {
     console.log("   🏨 Luxor IoT — Local Gateway Daemon (sin nube, tiempo real)");
     console.log("══════════════════════════════════════════════════════════════");
     console.log(`  Gateways: ${gateways.length} | Sensores: ${sensorsByNode.size} | Protocolo: ${PROTOCOL_VERSION}`);
-    gateways.forEach(g => console.log(`   • ${g.name}: ${g.sensors.length} sensores${g.ip ? ` @ ${g.ip}` : ''}`));
+    gateways.forEach(g => console.log(`   • ${g.name}: ${g.sensors.length} sensores${g.ip ? ` @ ${g.ip}` : ''}${g.version !== PROTOCOL_VERSION ? ` (v${g.version})` : ''}`));
     if (orphanSensors.length) console.warn(`  ⚠️ Sensores sin gateway: ${orphanSensors.map(s => s.name).join(', ')}`);
     if (DRY_RUN) console.log("  🧪 DRY RUN: no se escribe nada en Supabase");
     console.log("");
