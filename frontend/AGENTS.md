@@ -32,7 +32,7 @@ ESLint is **disabled during `next build`** (`next.config.js` sets `ignoreDuringB
 - `types/` — Shared TypeScript types.
 - `supabase/migrations/` — Database migrations.
 - `print-server/` — Standalone Node.js server for USB thermal printing (separate process, port 3001).
-- `scripts/` — Utility scripts: DB checks, Tuya sensor polling, PWA icon generation.
+- `scripts/` — Utility scripts: DB checks, PWA icon generation. Door sensors live in `scripts/sensors/` (`daemon.js` is the only sensor daemon).
 
 ### Supabase clients (three, each for a different context)
 
@@ -70,8 +70,7 @@ Configured via `next-pwa` in `next.config.js`. **Disabled in development** (`NOD
 - **Room tolerance values** in `lib/constants/room-constants.ts` must match the `process_extra_hours_v2` RPC function in Supabase. If you change `EXIT_TOLERANCE_MINUTES`, update the DB function too.
 - The browser Supabase client is a **singleton on `window`** — do not create multiple instances in client code.
 - `vercel.json` sets `maxDuration: 30` for all API routes and has a cron at `/api/guest/check-reminders` running hourly.
-- `Dockerfile` is for the Tuya sensor polling worker only, not the main app.
-- `ecosystem.config.js` is for PM2 running the Tuya sensor monitor.
+- `ecosystem.config.js` is for PM2 running the Tuya sensor daemon (`scripts/sensors/daemon.js`) on the reception PC.
 - The `next.config.js` uses `@next/bundle-analyzer` (enabled via `ANALYZE=true` env var).
 - Deployment is to Vercel. Production URL: `manager.autohoteluxor.com`.
 

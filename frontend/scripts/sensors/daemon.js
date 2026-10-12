@@ -26,6 +26,8 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const net = require('net');
+const os = require('os');
 
 // --- ENV LOADING ---
 function loadEnv() {
@@ -60,6 +62,7 @@ const SUBDEVICE_QUERY_GAP_MS = 150;     // Gap between sub-device queries (don't
 const OFFLINE_GRACE_MS = 60000;         // Gateway down this long -> its sensors are OFFLINE
 const RECONNECT_MIN_MS = 5000;
 const RECONNECT_MAX_MS = 60000;
+const REDISCOVER_AFTER_FAILURES = 3;    // Connect failures in a row before looking for the hub at a new IP
 const DB_REFRESH_INTERVAL_MS = 60000;
 const DB_FLUSH_INTERVAL_MS = 15000;
 
@@ -114,6 +117,7 @@ const gateways = allDevices.filter(isGateway).map(gw => ({
     lastData: null,
     lastError: null,
     resolvedIp: null,
+    failures: 0,
 }));
 
 const sensorsByNode = new Map();  // node_id -> { device, gateway }
@@ -369,6 +373,7 @@ function createClient_(gw) {
         gw.cooldownUntil = Date.now() + GW_COOLDOWN_MS;
         gw.disconnectedSince = null;
         gw.lastError = null;
+        gw.failures = 0;
         console.log(`[${gw.name}] ✅ Conectado (${client.device.ip}) — ${gw.sensors.length} sensores`);
         syncGatewaySubdevices(gw, 'sync inicial');
     });
@@ -392,11 +397,70 @@ function createClient_(gw) {
     return client;
 }
 
+// --- IP RECOVERY (the router may hand a hub a new DHCP lease) ---
+// Hosts on the local /24 networks with the Tuya port open
+async function scanTuyaHosts() {
+    const prefixes = new Set();
+    for (const addrs of Object.values(os.networkInterfaces())) {
+        for (const a of addrs || []) {
+            if (a.family === 'IPv4' && !a.internal && a.netmask === '255.255.255.0' && !/^172\.(1[7-9]|2\d|3[01])\./.test(a.address)) {
+                prefixes.add(a.address.split('.').slice(0, 3).join('.'));
+            }
+        }
+    }
+    const probe = ip => new Promise(resolve => {
+        const sock = net.connect({ host: ip, port: 6668, timeout: 1000 });
+        sock.on('connect', () => { sock.destroy(); resolve(ip); });
+        sock.on('timeout', () => { sock.destroy(); resolve(null); });
+        sock.on('error', () => resolve(null));
+    });
+    const ips = [...prefixes].flatMap(p => Array.from({ length: 254 }, (_, i) => `${p}.${i + 1}`));
+    return (await Promise.all(ips.map(probe))).filter(Boolean);
+}
+
+// True if the device at `ip` accepts this hub's id + local key
+async function isGatewayAt(gw, ip) {
+    const probe = new TuyAPI({ id: gw.id, key: gw.local_key, ip, version: gw.version, issueGetOnConnect: false, issueRefreshOnConnect: false });
+    probe.on('error', () => { });
+    try {
+        await probe.connect();
+        const res = await Promise.race([probe.get({ schema: true }), sleep(5000).then(() => null)]);
+        return Boolean(res);
+    } catch {
+        return false;
+    } finally {
+        try { probe.disconnect(); } catch { /* ignore */ }
+    }
+}
+
+async function rediscoverGateway(gw) {
+    console.log(`[${gw.name}] 🔎 No responde en ${gw.client.device.ip || '?'}, buscándolo en la red...`);
+    try {
+        gw.client.device.ip = undefined;
+        await gw.client.find({ timeout: 10 });
+        if (gw.client.device.ip) return gw.client.device.ip;
+    } catch { /* UDP discovery is often blocked by firewalls/APs, fall back to a scan */ }
+
+    const taken = new Set(gateways.filter(g => g !== gw && g.connected).map(g => g.resolvedIp));
+    for (const ip of (await scanTuyaHosts()).filter(ip => !taken.has(ip))) {
+        if (await isGatewayAt(gw, ip)) return ip;
+    }
+    return null;
+}
+
 async function connectGateway(gw) {
     if (gw.connecting || gw.connected) return;
     gw.connecting = true;
     try {
         if (!gw.client) gw.client = createClient_(gw);
+        if (gw.failures >= REDISCOVER_AFTER_FAILURES) {
+            const lastIp = gw.client.device.ip;
+            const found = await rediscoverGateway(gw);
+            gw.client.device.ip = found || gw.ip || undefined;
+            if (found && found !== lastIp) {
+                console.warn(`[${gw.name}] ⚠️ Cambió de IP: ${lastIp || '?'} → ${found}. Actualiza TUYA_GATEWAY_IPS (o reserva la IP en el router).`);
+            }
+        }
         if (!gw.client.device.ip) {
             console.log(`[${gw.name}] Buscando en la red local...`);
             await gw.client.find({ timeout: 15 });
@@ -405,6 +469,7 @@ async function connectGateway(gw) {
         await gw.client.connect();
     } catch (e) {
         gw.lastError = e.message;
+        gw.failures++;
         console.error(`[${gw.name}] No se pudo conectar: ${e.message}`);
         gw.connecting = false;
         try { gw.client.disconnect(); } catch { /* ignore */ }
