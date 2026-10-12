@@ -118,12 +118,15 @@ const gateways = allDevices.filter(isGateway).map(gw => ({
     lastError: null,
     resolvedIp: null,
     failures: 0,
+    hubOffline: new Set(),   // node ids the hub itself reports as offline
+    lastStatusList: null,
 }));
 
 const sensorsByNode = new Map();  // node_id -> { device, gateway }
 gateways.forEach(gw => gw.sensors.forEach(s => sensorsByNode.set(s.node_id, { device: s, gateway: gw })));
 
 const orphanSensors = allDevices.filter(d => isSensor(d) && !sensorsByNode.has(d.node_id));
+const warnedUnknownNodes = new Set();
 
 // --- STATE ---
 let sensorDbMap = new Map();       // device_id -> { id (uuid), name, room_number }
@@ -248,6 +251,8 @@ function handleSubdeviceData(gw, cid, dps, source) {
         return;
     }
     const deviceId = entry.device.id;
+    if (source === 'push') gw.hubOffline.delete(cid);
+    const online = !gw.hubOffline.has(cid);
 
     if (!loggedRawDps.has(deviceId)) {
         loggedRawDps.add(deviceId);
@@ -263,18 +268,18 @@ function handleSubdeviceData(gw, cid, dps, source) {
         room: sensorDbMap.get(deviceId)?.room_number || null,
         isOpen: isOpen ?? prev?.isOpen ?? null,
         battery: battery ?? prev?.battery ?? null,
-        online: true,
-        lastSeen: now(),
+        online,
+        lastSeen: online ? now() : prev?.lastSeen ?? null,
         gateway: gw.name,
     };
     stateCache.set(deviceId, next);
 
     const doorChanged = isOpen !== null && (!known || prev.isOpen !== isOpen);
     const batteryChanged = battery !== null && prev?.battery !== battery;
-    const cameOnline = !prev || !prev.online;
+    const cameOnline = online && (!prev || !prev.online);
 
     if (doorChanged || batteryChanged || cameOnline) {
-        const fields = { status: 'ONLINE' };
+        const fields = online ? { status: 'ONLINE' } : {};
         if (next.isOpen !== null) fields.is_open = next.isOpen;
         if (next.battery !== null) fields.battery_level = next.battery;
         writeSensorState(deviceId, fields);
@@ -319,11 +324,69 @@ function onGatewayData(gw, data, source = 'push') {
     if (DEBUG) console.log(`[RAW] [${gw.name}]`, JSON.stringify(data));
     if (!data || typeof data !== 'object') return;
 
+    if (Array.isArray(data.online) || Array.isArray(data.offline)) {
+        applyHubStatusList(gw, data.online || [], data.offline || []);
+        return;
+    }
+
     const payload = data.dps ? data : data.result?.dps ? data.result : data.data?.dps ? data.data : null;
     if (!payload) return;
     const cid = payload.cid || data.cid || data.data?.cid;
     if (!cid) return;  // gateway's own DPs
     handleSubdeviceData(gw, cid, payload.dps, source);
+}
+
+function setSensorOnline(gw, s, online) {
+    const c = stateCache.get(s.id);
+    if (c && c.online === online) return;
+    stateCache.set(s.id, {
+        ...(c || { name: s.name, room: sensorDbMap.get(s.id)?.room_number || null, isOpen: null, battery: null, lastSeen: null }),
+        online,
+        lastSeen: online ? now() : c?.lastSeen ?? null,
+        gateway: gw.name,
+    });
+    dbWrite({ type: 'update', deviceId: s.id, data: { status: online ? 'ONLINE' : 'OFFLINE' } });
+}
+
+// The hub's own view of which sub-devices are reachable over Zigbee
+function applyHubStatusList(gw, onlineNodes, offlineNodes) {
+    gw.lastStatusList = now();
+    gw.hubOffline = new Set(offlineNodes);
+    const online = new Set(onlineNodes);
+    const went = { on: [], off: [] };
+    gw.sensors.forEach(s => {
+        const isOnline = online.has(s.node_id);
+        const was = stateCache.get(s.id)?.online;
+        setSensorOnline(gw, s, isOnline);
+        if (was !== isOnline) (isOnline ? went.on : went.off).push(s.name);
+    });
+    if (went.off.length) console.warn(`[${gw.name}] ⚠️ El hub reporta OFFLINE: ${went.off.join(', ')}`);
+    if (went.on.length && DEBUG) console.log(`[${gw.name}] El hub reporta ONLINE: ${went.on.join(', ')}`);
+
+    const unknown = [...onlineNodes, ...offlineNodes].filter(n => !sensorsByNode.has(n) && !warnedUnknownNodes.has(n));
+    unknown.forEach(n => warnedUnknownNodes.add(n));
+    if (unknown.length) console.warn(`[${gw.name}] ⚠️ Sub-dispositivos que no están en tuya-devices.json: ${unknown.join(', ')}`);
+}
+
+// Ask the hub which sub-devices are online (LAN_EXT_STREAM "subdev_online_stat_query").
+// tuyapi has no API for it (and its LAN_EXT_STREAM constant is wrong: the command is 0x40),
+// so encode it as a header-less 3.4 query, then patch the command byte and re-sign the HMAC.
+// The answer arrives as a 'data' event: {"online": [...node ids], "offline": [...]}.
+function requestHubStatusList(gw) {
+    if (!gw.connected || gw.version !== '3.4') return;
+    try {
+        const client = gw.client;
+        const buf = client.device.parser.encode({
+            data: JSON.stringify({ reqType: 'subdev_online_stat_query', data: {} }),
+            commandByte: 16,  // DP_QUERY_NEW: encoded without the 3.4 version header, like 0x40
+            sequenceN: ++client._currentSequenceN,
+        });
+        buf.writeUInt32BE(0x40, 8);
+        client.device.parser.cipher.hmac(buf.slice(0, buf.length - 36)).copy(buf, buf.length - 36);
+        client.client.write(buf);
+    } catch (e) {
+        if (DEBUG) console.log(`[${gw.name}] subdev_online_stat_query failed: ${e.message}`);
+    }
 }
 
 // Query every sub-device of a gateway for its real current state
@@ -345,11 +408,13 @@ async function syncGatewaySubdevices(gw, reason) {
     }
     console.log(`[${gw.name}] ${reason}: ${ok}/${gw.sensors.length} sensores respondieron`);
 
-    // The hub answers for every paired sensor (even asleep) from its cache, so a sensor
-    // that sent nothing during the sync is unpaired, dead or out of range -> OFFLINE.
+    // Online/offline comes from the hub's own list; wait a bit for its answer
+    requestHubStatusList(gw);
+    for (let i = 0; i < 10 && !(gw.lastStatusList >= startedAt); i++) await sleep(500);
+    if (!gw.connected || gw.lastStatusList >= startedAt) return;
+
+    // Fallback (no list): a sensor that sent nothing during the sync is treated as OFFLINE.
     // It comes back ONLINE by itself as soon as it reports anything.
-    await sleep(2000);
-    if (!gw.connected) return;
     const silent = gw.sensors.filter(s => {
         const c = stateCache.get(s.id);
         return !c || (c.online && (!c.lastSeen || c.lastSeen < startedAt));
