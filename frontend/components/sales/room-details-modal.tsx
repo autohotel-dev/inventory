@@ -15,6 +15,7 @@ import {
 import { AssignAssetModal } from "@/components/rooms/modals/assign-asset-modal";
 import { Tv } from "lucide-react";
 import { useRoomDetails } from "@/hooks/use-room-details";
+import { LoanedItemsPanel } from "@/components/sales/loaned-items-panel";
 
 export interface RoomDetailsModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export function RoomDetailsModal({
   onCancelItem,
 }: RoomDetailsModalProps) {
   const {
-    payments, items, salesOrder, tvRemoteAsset, loanedItems, loading, activeTab,
+    payments, items, salesOrder, tvRemoteAsset, loading, activeTab,
     cancellingItemId, cancelReason, cancellingLoading,
     bulkSelectMode, selectedForCancel, bulkCancelReason, bulkCancelLoading,
     isAssignAssetModalOpen,
@@ -49,7 +50,7 @@ export function RoomDetailsModal({
     setShowAuditTrail,
     handleCancelPayment, handleSingleCancel, handleBulkCancel,
     toggleBulkSelect, selectAllCancellable, deselectAllCancel,
-    fetchAssetDetails, fetchAssetAuditTrail,
+    fetchDetails, fetchAssetDetails, fetchAssetAuditTrail,
     getConceptLabel, formatDateTime, getAssetStatusColor, formatAssetStatus,
   } = useRoomDetails({ isOpen, room, activeStay, onCancelCharge, onCancelItem });
 
@@ -784,45 +785,11 @@ export function RoomDetailsModal({
             </div>
 
             {/* Préstamos y Loza */}
-            {loanedItems && loanedItems.length > 0 && (
-              <div className="space-y-4 pt-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.3em] text-zinc-500 px-2 flex justify-between items-center">
-                  <span>Préstamos y Loza</span>
-                </div>
-                <div className="bg-zinc-900/60 border border-white/10 rounded-3xl p-4 space-y-3">
-                  {loanedItems.map((loan) => {
-                    const isMissing = loan.status === 'PERDIDO';
-                    const isReturned = loan.status === 'RECUPERADO';
-                    return (
-                      <div key={loan.id} className={cn(
-                        "flex items-center gap-3 p-3 rounded-2xl border transition-all",
-                        isMissing ? "bg-red-500/10 border-red-500/30" :
-                        isReturned ? "bg-emerald-500/5 border-emerald-500/20 opacity-50" :
-                        "bg-white/5 border-white/5"
-                      )}>
-                        <div className="text-xl w-8 text-center">{loan.loan_item?.icon || '🍽️'}</div>
-                        <div className="flex-1">
-                          <p className={cn("text-xs font-bold", isMissing ? "text-red-400" : "text-white")}>
-                            {loan.loan_item?.name || 'Artículo Prestado'} x{loan.quantity}
-                          </p>
-                          <p className={cn(
-                            "text-[10px] font-black tracking-widest uppercase mt-1",
-                            isMissing ? "text-red-500" : isReturned ? "text-emerald-500" : "text-amber-500"
-                          )}>
-                            {loan.status}
-                          </p>
-                        </div>
-                        {isMissing && loan.loan_item?.damage_price > 0 && (
-                          <div className="text-right">
-                            <p className="text-[9px] text-red-400 uppercase font-bold tracking-widest">Cargo Daño</p>
-                            <p className="text-xs font-black text-red-500">${Number(loan.loan_item.damage_price * loan.quantity).toFixed(2)}</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            {activeStay?.id && (
+              <LoanedItemsPanel
+                stayId={activeStay.id}
+                onCharged={() => { if (activeStay.sales_order_id) fetchDetails(activeStay.sales_order_id); }}
+              />
             )}
 
             {/* Vehículo registrado */}

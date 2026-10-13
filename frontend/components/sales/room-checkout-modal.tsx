@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PaymentMethod } from "@/components/sales/room-types";
 import { MultiPaymentInput, PaymentEntry, createInitialPayment } from "@/components/sales/multi-payment-input";
-import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Bed, Users, ShoppingBag, UserCog, Utensils } from "lucide-react";
+import type { LoanSummary } from "@/lib/services/loaned-items-service";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
@@ -34,6 +35,8 @@ export interface RoomCheckoutModalProps {
   onRequestValet?: () => Promise<void>;
   checkoutPaymentData?: PaymentEntry[];
   hasUndeliveredItems?: boolean;
+  /** Loza/artículos prestados de la estancia: solo advierte, no bloquea */
+  loanSummary?: LoanSummary | null;
 }
 
 export function RoomCheckoutModal({
@@ -51,6 +54,7 @@ export function RoomCheckoutModal({
   vehiclePlate,
   onRequestValet,
   hasUndeliveredItems,
+  loanSummary,
   ...props
 }: RoomCheckoutModalProps) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -175,6 +179,28 @@ export function RoomCheckoutModal({
               <p className="text-sm text-orange-600/90 dark:text-orange-400/90">
                 No se puede realizar el cobro ni finalizar la estancia porque hay <strong>consumos o servicios que no han sido marcados como ENTREGADOS</strong> por el staff.
               </p>
+            </div>
+          )}
+
+          {/* Loza y artículos prestados: advertencia (no bloquea la salida) */}
+          {loanSummary && (loanSummary.unchecked > 0 || loanSummary.missingUndecided > 0) && (
+            <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 space-y-1.5">
+              <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
+                <Utensils className="h-4 w-4" />
+                <span>Loza y artículos prestados</span>
+              </div>
+              {loanSummary.unchecked > 0 && (
+                <p className="text-sm text-amber-700/90 dark:text-amber-400/90">
+                  {loanSummary.unchecked} {loanSummary.unchecked === 1 ? "artículo sin revisar" : "artículos sin revisar"}. Pide al cochero que los revise; si no, quedarán pendientes en <strong>Artículos en Préstamo</strong>.
+                </p>
+              )}
+              {loanSummary.missingUndecided > 0 && (
+                <p className="text-sm text-amber-700/90 dark:text-amber-400/90">
+                  {loanSummary.missingUndecided} {loanSummary.missingUndecided === 1 ? "faltante" : "faltantes"} sin decidir
+                  {loanSummary.missingSuggestedAmount > 0 && <> (sugerido ${loanSummary.missingSuggestedAmount.toFixed(2)})</>}.
+                  {" "}Si quieres cobrarlo, hazlo <strong>antes de confirmar la salida</strong> desde el detalle de la habitación: con la estancia cerrada ya no se puede cargar a la cuenta.
+                </p>
+              )}
             </div>
           )}
 

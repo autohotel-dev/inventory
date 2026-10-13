@@ -5,6 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 import { Search, Plus, Trash2, Utensils, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PendingLoansTab } from "@/components/loans/pending-loans-tab";
+import { LoanCatalogTab } from "@/components/loans/loan-catalog-tab";
+
+type Tab = "pendientes" | "vinculos" | "catalogo";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "pendientes", label: "Pendientes" },
+  { id: "vinculos", label: "Vínculos" },
+  { id: "catalogo", label: "Catálogo" },
+];
 
 interface Product {
   id: string;
@@ -34,6 +43,8 @@ export default function LoanMappingPage() {
   const [links, setLinks] = useState<ProductLoanLink[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("pendientes");
+  const [reloadKey, setReloadKey] = useState(0);
 
   // New Link State
   const [selectedProduct, setSelectedProduct] = useState<string>("");
@@ -77,7 +88,7 @@ export default function LoanMappingPage() {
       }
     };
     loadData();
-  }, [supabase]);
+  }, [supabase, reloadKey]);
 
   const handleAddLink = async () => {
     if (!selectedProduct || !selectedItem || quantity < 1) {
@@ -96,8 +107,11 @@ export default function LoanMappingPage() {
         .select("id, product_id, loan_item_id, quantity, loan_item:loan_item_catalog(id, name, icon)")
         .single();
 
-      if (error) throw error;
-      
+      if (error) {
+        if (error.code === "23505") throw new Error("Este producto ya tiene ese artículo vinculado. Elimina el vínculo actual si quieres cambiar la cantidad.");
+        throw error;
+      }
+
       setLinks([...links, data]);
       toast.success("Vínculo creado exitosamente");
       setSelectedItem("");
@@ -145,11 +159,22 @@ export default function LoanMappingPage() {
               Asigna artículos físicos (controles, loza, amenidades) a los productos para controlar su préstamo.
             </p>
           </div>
+          <div className="flex gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/10 self-start md:self-auto">
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`px-3 h-8 rounded-lg text-sm transition-colors ${tab === t.id ? "bg-amber-500/15 text-amber-300" : "text-white/50 hover:text-white/80"}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
       {/* CONTENT */}
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        {tab === "pendientes" && <PendingLoansTab />}
+        {tab === "catalogo" && <LoanCatalogTab onChanged={() => setReloadKey(k => k + 1)} />}
+        {tab === "vinculos" && (
         <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* COLUMNA IZQ: BUSCADOR Y LISTA DE PRODUCTOS */}
@@ -283,6 +308,7 @@ export default function LoanMappingPage() {
           </div>
 
         </div>
+        )}
       </div>
     </div>
   );

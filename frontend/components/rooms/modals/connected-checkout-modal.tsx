@@ -11,6 +11,7 @@ import { useThermalPrinter } from "@/hooks/use-thermal-printer";
 import type { ConsumptionTicketData } from "@/hooks/use-thermal-printer";
 import { summarizePendingItems, hasBlockingDeliveries } from "@/lib/utils/order-utils";
 import { buildCheckoutTicketItems } from "@/lib/print";
+import { fetchStayLoans, summarizeLoans, type LoanSummary } from "@/lib/services/loaned-items-service";
 
 interface ConnectedCheckoutModalProps {
   room: Room | null;
@@ -37,6 +38,8 @@ export function ConnectedCheckoutModal({
 
   // Estado local para reflejar la confirmación del cochero en tiempo real
   const [confirmedValetId, setConfirmedValetId] = useState<string | null>(null);
+  // Loza/artículos prestados sin revisar: solo advierte, no bloquea la salida
+  const [loanSummary, setLoanSummary] = useState<LoanSummary | null>(null);
 
   const hasLoadedRef = useRef(false);
 
@@ -52,6 +55,7 @@ export function ConnectedCheckoutModal({
       setCheckoutInfo(null);
       setCheckoutAmount(0);
       setConfirmedValetId(null);
+      setLoanSummary(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -108,6 +112,12 @@ export function ConnectedCheckoutModal({
 
     setCheckoutInfo({ ...info, pendingItems, hasUndeliveredItems });
     setCheckoutAmount(info.remainingAmount);
+
+    const activeStay = getActiveStay(selectedRoom);
+    if (activeStay) {
+      const loans = await fetchStayLoans(activeStay.id);
+      if (loans.success) setLoanSummary(summarizeLoans(loans.data));
+    }
   };
 
   const handleCheckout = async (data: {
@@ -178,6 +188,7 @@ export function ConnectedCheckoutModal({
       actionLoading={actionLoading}
       pendingItems={checkoutInfo?.pendingItems}
       hasUndeliveredItems={checkoutInfo?.hasUndeliveredItems}
+      loanSummary={loanSummary}
       onAmountChange={setCheckoutAmount}
       onClose={onClose}
       onRequestValet={RequestValetAction}
