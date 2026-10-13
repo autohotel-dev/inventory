@@ -62,7 +62,8 @@ const SUBDEVICE_QUERY_GAP_MS = 150;     // Gap between sub-device queries (don't
 const OFFLINE_GRACE_MS = 60000;         // Gateway down this long -> its sensors are OFFLINE
 const RECONNECT_MIN_MS = 5000;
 const RECONNECT_MAX_MS = 60000;
-const REDISCOVER_AFTER_FAILURES = 3;    // Connect failures in a row before looking for the hub at a new IP
+const REDISCOVER_AFTER_FAILURES = 3;
+const HEARTBEAT_INTERVAL_MS = 2 * 60000; // Refresh last_seen of sensors the hub reports online (dashboard: no signal after ~7 min)    // Connect failures in a row before looking for the hub at a new IP
 const DB_REFRESH_INTERVAL_MS = 60000;
 const DB_FLUSH_INTERVAL_MS = 15000;
 
@@ -133,7 +134,11 @@ const doorUnknownWritten = new Set();  // device ids whose door state was cleare
 let sensorDbMap = new Map();       // device_id -> { id (uuid), name, room_number }
 const stateCache = new Map();      // device_id -> { name, room, isOpen, battery, online, lastSeen, gateway }
 const pendingEvents = new Map();   // device_id -> { isOpen, timer }
-const pendingDbWrites = [];
+// Failed writes waiting for retry. Updates are merged per sensor so a retry can never
+// overwrite a newer value with an older one; event inserts keep their own created_at.
+const pendingUpdates = new Map();  // device_id -> { data, timestamp }
+const pendingInserts = [];         // [{ data, timestamp }]
+const pendingCount = () => pendingUpdates.size + pendingInserts.length;
 const loggedRawDps = new Set();
 const stats = {
     startTime: new Date().toISOString(),
@@ -162,39 +167,62 @@ async function refreshSensorList() {
 }
 
 async function runDbWrite(write) {
-    if (DRY_RUN) { if (DEBUG) console.log(`[DRY] ${write.type} ${write.deviceId || ""} ${JSON.stringify(write.data)}`); return; }
+    if (DRY_RUN) { if (DEBUG) console.log(`[DRY] ${write.type} ${write.deviceId || write.deviceIds?.length || ""} ${JSON.stringify(write.data)}`); return; }
+    let res;
     if (write.type === 'update') {
-        const { error } = await supabase.from('sensors').update(write.data).eq('device_id', write.deviceId);
-        if (error) throw error;
+        res = await supabase.from('sensors').update(write.data).eq('device_id', write.deviceId);
+    } else if (write.type === 'touch') {
+        res = await supabase.from('sensors').update(write.data).in('device_id', write.deviceIds);
     } else {
-        const { error } = await supabase.from('sensor_events').insert(write.data);
-        if (error) throw error;
+        res = await supabase.from('sensor_events').insert(write.data);
     }
+    if (res.error) throw res.error;
+    stats.lastDbWrite = now();
 }
 
 async function dbWrite(write) {
+    // A sensor with a queued update: merge into it so the newest values win on retry
+    if (write.type === 'update' && pendingUpdates.has(write.deviceId)) {
+        Object.assign(pendingUpdates.get(write.deviceId).data, write.data);
+        return;
+    }
     try {
         await runDbWrite(write);
     } catch (e) {
         stats.dbErrors++;
+        stats.lastDbError = `${now()} ${e.message}`;
+        if (write.type === 'touch') return;  // heartbeat: the next one will do
         console.error(`[DB] Write failed (${write.type} ${write.deviceId || ''}): ${e.message}. Queued.`);
-        pendingDbWrites.push({ ...write, timestamp: Date.now() });
+        if (write.type === 'update') {
+            const queued = pendingUpdates.get(write.deviceId);
+            if (queued) Object.assign(queued.data, write.data);
+            else pendingUpdates.set(write.deviceId, { data: { ...write.data }, timestamp: Date.now() });
+        } else {
+            pendingInserts.push({ data: write.data, timestamp: Date.now() });
+        }
     }
 }
 
 async function flushPendingDbWrites() {
-    if (pendingDbWrites.length === 0) return;
-    const toFlush = pendingDbWrites.splice(0);
+    if (pendingCount() === 0) return;
     let ok = 0;
-    for (const write of toFlush) {
+    for (const [deviceId, queued] of [...pendingUpdates]) {
         try {
-            await runDbWrite(write);
+            await runDbWrite({ type: 'update', deviceId, data: queued.data });
+            pendingUpdates.delete(deviceId);
             ok++;
-        } catch (e) {
-            if (Date.now() - write.timestamp < 3600000) pendingDbWrites.push(write);
+        } catch { /* keep it; merged updates never go stale */ }
+    }
+    const inserts = pendingInserts.splice(0);
+    for (const write of inserts) {
+        try {
+            await runDbWrite({ type: 'insert', data: write.data });
+            ok++;
+        } catch {
+            if (Date.now() - write.timestamp < 24 * 3600000) pendingInserts.push(write);
         }
     }
-    console.log(`[DB] Flush: ${ok} OK, ${pendingDbWrites.length} still queued`);
+    console.log(`[DB] Flush: ${ok} OK, ${pendingCount()} still queued`);
 }
 
 function writeSensorState(deviceId, fields) {
@@ -353,7 +381,7 @@ function setSensorOnline(gw, s, online) {
         lastSeen: online ? now() : c?.lastSeen ?? null,
         gateway: gw.name,
     });
-    dbWrite({ type: 'update', deviceId: s.id, data: { status: online ? 'ONLINE' : 'OFFLINE' } });
+    dbWrite({ type: 'update', deviceId: s.id, data: online ? { status: 'ONLINE', last_seen: now() } : { status: 'OFFLINE' } });
 }
 
 // The hub's own view of which sub-devices are reachable over Zigbee
@@ -620,7 +648,9 @@ const server = http.createServer((req, res) => {
                 sensorsKnown: stateCache.size,
                 sensorsOnline: [...stateCache.values()].filter(s => s.online).length,
                 doorsOpen: [...stateCache.values()].filter(s => s.isOpen).length,
-                pendingDbWrites: pendingDbWrites.length,
+                pendingDbWrites: pendingCount(),
+                lastDbWrite: stats.lastDbWrite || null,
+                lastDbError: stats.lastDbError || null,
             },
             gateways: gatewaysInfo,
             sensors,
@@ -628,12 +658,28 @@ const server = http.createServer((req, res) => {
     } else if (url === '/health' || url === '/sensors/health') {
         const healthy = gateways.every(g => g.connected);
         res.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: healthy ? 'ok' : 'degraded', gateways: gatewaysInfo, pendingDbWrites: pendingDbWrites.length }));
+        res.end(JSON.stringify({ status: healthy ? 'ok' : 'degraded', gateways: gatewaysInfo, pendingDbWrites: pendingCount() }));
     } else {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Endpoints: GET /status, GET /health');
     }
 });
+
+// --- HEARTBEAT ---
+// last_seen only changes with the door/battery, so a closed garage that nobody touches would look
+// dead. Every HEARTBEAT_INTERVAL_MS ask each hub which sensors it still sees and stamp them, so the
+// dashboard can tell "nothing happened" apart from "daemon/hub/sensor down".
+async function heartbeat() {
+    const connected = gateways.filter(g => g.connected);
+    connected.forEach(requestHubStatusList);
+    await sleep(3000);
+    const alive = connected.flatMap(g => g.sensors.filter(s => stateCache.get(s.id)?.online).map(s => s.id))
+        .filter(id => sensorDbMap.has(id));
+    const at = now();
+    alive.forEach(id => { const c = stateCache.get(id); if (c) c.lastSeen = at; });
+    if (alive.length) await dbWrite({ type: 'touch', deviceIds: alive, data: { last_seen: at } });
+    stats.lastHeartbeat = at;
+}
 
 // --- BOOTSTRAP ---
 async function start() {
@@ -650,6 +696,13 @@ async function start() {
     const notInDb = [...sensorsByNode.values()].filter(e => !sensorDbMap.has(e.device.id));
     if (notInDb.length) console.warn(`[DB] ⚠️ Sensores sin registro en Supabase: ${notInDb.map(e => e.device.name).join(', ')}`);
 
+    server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+            console.error(`❌ El puerto ${PORT} ya está en uso: ya hay otro daemon de sensores corriendo (¿PM2 y el .bat a la vez?). Cierra uno.`);
+            process.exit(1);
+        }
+        console.error('[SERVER] Error:', e.message);
+    });
     server.listen(PORT, () => console.log(`[SERVER] http://localhost:${PORT}/status\n`));
 
     gateways.forEach(connectGateway);
@@ -657,20 +710,30 @@ async function start() {
     setInterval(refreshSensorList, DB_REFRESH_INTERVAL_MS);
     setInterval(flushPendingDbWrites, DB_FLUSH_INTERVAL_MS);
     setInterval(checkOfflineGateways, 10000);
+    setInterval(heartbeat, HEARTBEAT_INTERVAL_MS);
     setInterval(() => {
         stats.resyncs++;
         gateways.filter(g => g.connected).forEach(g => syncGatewaySubdevices(g, 'resync'));
     }, RESYNC_INTERVAL_MS);
 }
 
-function shutdown() {
+async function shutdown() {
     console.log("\n[SHUTDOWN] Cerrando conexiones...");
     gateways.forEach(g => { try { g.client?.disconnect(); } catch { /* ignore */ } });
     server.close();
+    // Best effort: don't lose queued door states on a restart
+    await Promise.race([flushPendingDbWrites(), sleep(3000)]);
     process.exit(0);
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+// A bug in a handler must not silently kill the daemon: log it and let PM2 restart a clean process
+process.on('unhandledRejection', (err) => console.error('[ERROR] Promesa no manejada:', err?.stack || err));
+process.on('uncaughtException', (err) => {
+    console.error('[FATAL] Excepción no manejada:', err?.stack || err);
+    process.exit(1);
+});
 
 start().catch(err => {
     console.error("Fatal error:", err);

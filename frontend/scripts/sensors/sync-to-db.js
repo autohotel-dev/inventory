@@ -1,10 +1,15 @@
 /**
- * Tuya → Supabase Sync Script
- * 
- * Replaces ALL existing sensors in the database with the ones from tuya-devices.json.
- * Sensors are matched to rooms by name (e.g., "Sensor 101" → Room "101").
- * 
- * Usage: node scripts/sensors/sync-to-db.js
+ * Tuya → Supabase Sensor Sync (non-destructive)
+ *
+ * Adds the sensors of tuya-devices.json that are missing in the `sensors` table and
+ * refreshes the names of the existing ones (matched by device_id). It never deletes
+ * sensors or their event history, and never overwrites a room assigned by hand in
+ * "Gestión de Sensores": new sensors get a room by name ("Sensor 101" → room "101").
+ * Door/battery/status columns belong to the daemon and are not touched.
+ *
+ * Usage:
+ *   node scripts/sensors/sync-to-db.js           # shows what would change
+ *   node scripts/sensors/sync-to-db.js --apply   # applies it
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -63,123 +68,77 @@ async function main() {
     console.log(`     📡 ${sensors.length} sensors`);
     console.log(`     🏠 ${hubs.length} hubs\n`);
 
-    // 2. Fetch existing sensors from DB
+    const apply = process.argv.includes('--apply');
+
+    // 2. Existing sensors and rooms
     const { data: existingSensors, error: fetchError } = await supabase
         .from('sensors')
         .select('id, device_id, name, room_id');
-
     if (fetchError) {
         console.error("❌ Error fetching existing sensors:", fetchError.message);
         process.exit(1);
     }
-
-    console.log(`  📊 Current sensors in DB: ${existingSensors.length}\n`);
-
-    // 3. Fetch rooms for matching
-    const { data: rooms, error: roomsError } = await supabase
-        .from('rooms')
-        .select('id, number');
-
+    const { data: rooms, error: roomsError } = await supabase.from('rooms').select('id, number');
     if (roomsError) {
         console.error("❌ Error fetching rooms:", roomsError.message);
         process.exit(1);
     }
+    console.log(`  📊 Sensores en BD: ${existingSensors.length} | Habitaciones: ${rooms.length}\n`);
 
-    console.log(`  🏨 Rooms in DB: ${rooms.length}`);
-    
-    // Build room lookup by number
-    const roomLookup = {};
-    rooms.forEach(r => {
-        roomLookup[r.number] = r.id;
-    });
+    const roomLookup = Object.fromEntries(rooms.map(r => [r.number, r.id]));
+    const roomNumberOf = name => ((name || '').match(/\d+/) || [])[0] || null;
+    const byDeviceId = new Map(existingSensors.map(s => [s.device_id, s]));
 
-    // 4. Delete old sensor_events first (foreign key constraint)
-    if (existingSensors.length > 0) {
-        console.log("\n  🗑️  Clearing old sensor events...");
-        const oldIds = existingSensors.map(s => s.id);
-        
-        // Delete events in batches
-        for (let i = 0; i < oldIds.length; i += 50) {
-            const batch = oldIds.slice(i, i + 50);
-            const { error: evtError } = await supabase
-                .from('sensor_events')
-                .delete()
-                .in('sensor_id', batch);
-            
-            if (evtError) {
-                console.error(`  ⚠️  Error deleting events batch: ${evtError.message}`);
-            }
-        }
-        console.log("     ✅ Events cleared");
+    // Same name twice in the JSON usually means a replaced sensor still registered
+    const nameCount = {};
+    sensors.forEach(s => { nameCount[s.name] = (nameCount[s.name] || 0) + 1; });
+    Object.entries(nameCount).filter(([, n]) => n > 1)
+        .forEach(([name]) => console.warn(`  ⚠️  "${name}" aparece ${nameCount[name]} veces en tuya-devices.json (¿sensor reemplazado?)`));
 
-        // 5. Delete old sensors
-        console.log("  🗑️  Removing old sensors...");
-        const { error: delError } = await supabase
-            .from('sensors')
-            .delete()
-            .in('id', oldIds);
-
-        if (delError) {
-            console.error("  ❌ Error deleting old sensors:", delError.message);
-            process.exit(1);
-        }
-        console.log(`     ✅ Removed ${existingSensors.length} old sensors`);
-    }
-
-    // 6. Insert new sensors
-    console.log("\n  📥 Inserting new sensors...\n");
-
-    let inserted = 0;
-    let matched = 0;
-    let unmatched = 0;
-
+    // 3. Plan
+    const toInsert = [];
+    const toRename = [];
     for (const sensor of sensors) {
-        // Extract room number from sensor name (e.g., "Sensor 101" → "101")
-        const roomNumMatch = (sensor.name || '').match(/\d+/);
-        const roomNumber = roomNumMatch ? roomNumMatch[0] : null;
-        const roomId = roomNumber ? (roomLookup[roomNumber] || null) : null;
-
-        if (roomId) {
-            matched++;
-        } else {
-            unmatched++;
+        const existing = byDeviceId.get(sensor.id);
+        if (existing) {
+            if (sensor.name && existing.name !== sensor.name) toRename.push({ existing, name: sensor.name });
+            continue;
         }
-
-        const sensorData = {
+        const roomNumber = roomNumberOf(sensor.name);
+        toInsert.push({
             device_id: sensor.id,
-            name: sensor.name || `Sensor ${roomNumber || 'Unknown'}`,
-            room_id: roomId,
-            status: sensor.online ? 'ONLINE' : 'OFFLINE',
-            is_open: false,
-            battery_level: 100,
-            last_seen: new Date().toISOString(),
-        };
+            name: sensor.name || `Sensor ${roomNumber || sensor.id}`,
+            room_id: roomNumber ? (roomLookup[roomNumber] || null) : null,
+            status: 'OFFLINE',     // the daemon sets the real state on its next sync
+            is_open: null,
+            battery_level: null,
+            last_seen: null,
+        });
+    }
+    const jsonIds = new Set(sensors.map(s => s.id));
+    const notInJson = existingSensors.filter(s => !jsonIds.has(s.device_id));
 
-        const { error: insertError } = await supabase
-            .from('sensors')
-            .insert(sensorData);
+    toInsert.forEach(s => console.log(`  ➕ Nuevo: ${s.name} ${s.room_id ? `→ Hab ${roomNumberOf(s.name)}` : '(sin habitación: asígnala en Gestión de Sensores)'}`));
+    toRename.forEach(r => console.log(`  ✏️  Renombrar: "${r.existing.name}" → "${r.name}"`));
+    notInJson.forEach(s => console.log(`  ❔ En BD pero no en tuya-devices.json (no se borra): ${s.name} (${s.device_id})`));
+    if (!toInsert.length && !toRename.length) console.log("  ✅ Nada que cambiar.");
 
-        if (insertError) {
-            console.error(`  ❌ Error inserting ${sensor.name}: ${insertError.message}`);
-        } else {
-            const roomLabel = roomId ? `→ Room ${roomNumber}` : '(sin habitación)';
-            console.log(`  ✅ ${sensor.name} ${roomLabel}`);
-            inserted++;
-        }
+    if (!apply) {
+        if (toInsert.length || toRename.length) console.log("\n  (Vista previa. Ejecuta con --apply para aplicar.)");
+        return;
     }
 
-    // 7. Summary
-    console.log("\n" + "═".repeat(55));
-    console.log(`  📊 SYNC COMPLETE`);
-    console.log(`     ✅ Inserted:       ${inserted} sensors`);
-    console.log(`     🔗 Matched rooms:  ${matched}`);
-    console.log(`     ❓ No room match:  ${unmatched}`);
-    console.log("═".repeat(55));
-    
-    if (unmatched > 0) {
-        console.log("\n  💡 Sensors without room match can be assigned in the");
-        console.log("     Gestión de Sensores page in the admin dashboard.\n");
+    // 4. Apply
+    let ok = 0;
+    for (const row of toInsert) {
+        const { error } = await supabase.from('sensors').insert(row);
+        if (error) console.error(`  ❌ ${row.name}: ${error.message}`); else ok++;
     }
+    for (const { existing, name } of toRename) {
+        const { error } = await supabase.from('sensors').update({ name }).eq('id', existing.id);
+        if (error) console.error(`  ❌ ${existing.name}: ${error.message}`); else ok++;
+    }
+    console.log(`\n  ✅ ${ok}/${toInsert.length + toRename.length} cambios aplicados. Reinicia el daemon para que tome los sensores nuevos.`);
 }
 
 main().catch(err => {
