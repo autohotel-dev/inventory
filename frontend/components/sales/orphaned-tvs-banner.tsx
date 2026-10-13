@@ -116,19 +116,10 @@ export function OrphanedTVsBanner({ onRelease, className }: OrphanedTVsBannerPro
   }
 
   // ── Nothing to show ────────────────────────────────────────────────────────
-  if (!isLoading && orphanedCount === 0) return <div className="h-0 overflow-hidden" />;
-
-  // ── Loading skeleton ───────────────────────────────────────────────────────
-  if (isLoading && orphanedCount === 0) {
-    return (
-      <div
-        className={cn(
-          "h-10 rounded-xl bg-muted/30 border border-border animate-pulse",
-          className
-        )}
-      />
-    );
-  }
+  // No loading skeleton: the count is re-fetched every 30s and is almost always 0, so a
+  // 40px placeholder flashed in and out on every poll and shoved the whole room grid down.
+  // The banner only takes space once there really are TVs to release.
+  if (orphanedCount === 0) return <div className="h-0 overflow-hidden" />;
 
   // ── Alert banner ───────────────────────────────────────────────────────────
   return (
