@@ -1,145 +1,80 @@
-// @ts-nocheck
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Called only by the database webhook trigger `chat_push_notification` (AFTER INSERT ON notifications).
+// The function is deployed with verify_jwt = false, so it authenticates the trigger with a shared
+// secret (header x-push-secret = secret PUSH_WEBHOOK_SECRET). It never trusts the request body for
+// content or recipient: it re-reads the notification by id, so even a leaked secret can't forge messages.
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const pushSecret = Deno.env.get("PUSH_WEBHOOK_SECRET") ?? "";
 
-serve(async (req) => {
+const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+function safeEqual(a: string, b: string): boolean {
+    if (!a || a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return diff === 0;
+}
+
+Deno.serve(async (req) => {
+    if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+    // Fail closed: without the secret configured nobody can call it
+    if (!pushSecret || !safeEqual(req.headers.get("x-push-secret") ?? "", pushSecret)) {
+        console.warn("🔔 [PUSH] Rejected request without a valid x-push-secret");
+        return json({ error: "Unauthorized" }, 401);
+    }
+
     try {
         const payload = await req.json();
+        const notificationId = payload?.record?.id;
+        if (payload?.table !== "notifications" || payload?.type !== "INSERT" || !notificationId) {
+            return json({ message: "No notification needed" });
+        }
+
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        console.log("🔔 [PUSH] Payload received:", JSON.stringify(payload)); // DEBUG LOG
+        const { data: notification, error: errNotification } = await supabase
+            .from("notifications")
+            .select("user_id, title, message, data")
+            .eq("id", notificationId)
+            .maybeSingle();
+        if (errNotification) throw errNotification;
+        if (!notification?.user_id) return json({ message: "Notification not found or without recipient" });
 
-        let title = "";
-        let body = "";
-        let data = {};
-        let shouldNotify = false;
-
-        // =======================================================
-        // CASO 1: Tabla 'notifications' (NUEVO)
-        // =======================================================
-        if (payload.table === "notifications" && payload.type === "INSERT") {
-            const record = payload.record;
-            title = record.title;
-            body = record.message;
-            data = record.data || {};
-            shouldNotify = true;
-        }
-        
-        // =======================================================
-        // Legacy: sales_order_items - DESACTIVADO (manejado por tabla notifications)
-        // =======================================================
-        else if (payload.table === "sales_order_items") {
-            // SKIP: Las notificaciones de consumo se envían via RPC send_valet_notification
-            // que inserta en la tabla 'notifications'. Procesar aquí causaría duplicados.
-            console.log("🔔 [PUSH] Skipping sales_order_items (handled via notifications table)");
-            return new Response(JSON.stringify({ message: "Handled via notifications table" }), { status: 200 });
-        }
-
-        // =======================================================
-        // CASO 2: Legacy - room_stays
-        // =======================================================
-        else if (payload.table === "room_stays") {
-            if (payload.type === "INSERT" && payload.record.status === "ACTIVA" && !payload.record.vehicle_plate) {
-                // Esta notificación ahora se maneja desde la web App para evitar duplicados.
-            }
-        }
-
-        // =======================================================
-        // CASO 3: Legacy - sales_order_items (YA CUBIERTO POR EL NUEVO SISTEMA)
-        // =======================================================
-        /* 
-        // COMENTADO PARA EVITAR DUPLICADOS - Ya se envía vía tabla 'notifications'
-        else if (payload.table === "sales_order_items" && payload.type === "INSERT" && payload.record.delivery_status === "PENDING") {
-          title = "🛒 Nuevo Servicio";
-          body = "Hay un nuevo servicio pendiente de entrega";
-          shouldNotify = true;
-        }
-        */
-
-        console.log("🔔 [PUSH] Should Notify?", shouldNotify);
-
-        // Si no es un evento relevante, salir
-        if (!shouldNotify) {
-            console.log("🔔 [PUSH] No notification needed.");
-            return new Response(JSON.stringify({ message: "No notification needed" }), { status: 200 });
-        }
-
-        // =======================================================
-        // OBTENER TOKENS
-        // =======================================================
-        let tokens: string[] = [];
-
-        // CASO A: Notificación dirigida a un usuario específico (NUEVO ESTÁNDAR)
-        if (payload.table === "notifications" && payload.record.user_id) {
-            const userId = payload.record.user_id;
-            console.log(`🔔 [PUSH] Targeting specific user: ${userId}`);
-
-            // Buscar token del usuario específico en employees
-            const { data: employee, error: errEmployee } = await supabase
-                .from("employees")
-                .select("push_token")
-                .eq("auth_user_id", userId)
-                .single();
-
-            if (errEmployee) {
-                console.error("🔔 [PUSH] Error fetching user token:", errEmployee);
-            } else if (employee?.push_token) {
-                tokens = [employee.push_token];
-            }
-        }
-        // CASO B: Broadcast a rol (LEGACY - Solo si NO es tabla notifications o no tiene user_id)
-        else {
-            console.log("🔔 [PUSH] Broadcasting to all active cocheros (Legacy Flow)");
-            const { data: cocheros, error: errCocheros } = await supabase
-                .from("employees")
-                .select("push_token")
-                .eq("role", "cochero")
-                .eq("is_active", true)
-                .not("push_token", "is", null);
-
-            if (errCocheros) {
-                console.error("🔔 [PUSH] Error fetching tokens:", errCocheros);
-            } else {
-                tokens = cocheros?.map((e) => e.push_token) || [];
-            }
-        }
-
-        console.log(`🔔 [PUSH] Tokens found: ${tokens.length}`);
-
-        if (tokens.length === 0) {
-            return new Response(JSON.stringify({ message: "No tokens found" }), { status: 200 });
-        }
-
-        // =======================================================
-        // ENVIAR A EXPO
-        // =======================================================
-        const messages = tokens.map((token) => ({
-            to: token,
-            sound: "default",
-            title,
-            body,
-            data, // IMPORTANTE: Enviamos la data para que la App sepa a dónde navegar
-            priority: "high",
-            channelId: "default", // EXPLICITAMENTE requerimos el canal default para Android
-        }));
-
-        console.log("🔔 [PUSH] Sending to Expo...", JSON.stringify(messages));
+        const { data: employee, error: errEmployee } = await supabase
+            .from("employees")
+            .select("push_token")
+            .eq("auth_user_id", notification.user_id)
+            .not("push_token", "is", null)
+            .limit(1)
+            .maybeSingle();
+        if (errEmployee) throw errEmployee;
+        if (!employee?.push_token) return json({ message: "No tokens found" });
 
         const expoResponse = await fetch("https://exp.host/--/api/v2/push/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(messages),
+            body: JSON.stringify([{
+                to: employee.push_token,
+                sound: "default",
+                title: notification.title,
+                body: notification.message,
+                data: notification.data || {}, // the app uses it to know where to navigate
+                priority: "high",
+                channelId: "default", // Android requires the default channel explicitly
+            }]),
         });
-
         const expoResult = await expoResponse.json();
-        console.log("🔔 [PUSH] Expo Result:", JSON.stringify(expoResult));
+        if (!expoResponse.ok) console.error("🔔 [PUSH] Expo error:", JSON.stringify(expoResult));
 
-        return new Response(JSON.stringify({ success: true, sent: tokens.length, result: expoResult }), { status: 200 });
+        return json({ success: expoResponse.ok, sent: 1, result: expoResult }, expoResponse.ok ? 200 : 502);
     } catch (error) {
         console.error("🔔 [PUSH] Exception:", error);
-        return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
+        return json({ error: String(error) }, 500);
     }
 });
