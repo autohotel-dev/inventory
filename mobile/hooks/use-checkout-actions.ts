@@ -496,104 +496,42 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         }
     }, [showFeedback]);
 
+    // Recuperado / Faltante de loza y artículos prestados.
+    // La base registra al cochero de la sesión y, si falta, avisa a recepción; recepción decide
+    // si se cobra o se perdona (ya no hay cargo automático). Se conservan los parámetros que
+    // pasan las pantallas aunque la función de la base ya no los necesite.
     const handleUpdateLoanedItemStatus = useCallback(async (
         itemId: string,
         newStatus: 'RECUPERADO' | 'PERDIDO',
-        stayId: string,
-        salesOrderId: string,
-        employeeId: string,
-        damageAmount: number,
+        _stayId: string,
+        _salesOrderId: string,
+        _employeeId: string,
+        _damageAmount: number,
         itemName: string,
-        roomNumber: string
+        _roomNumber: string
     ) => {
         setLoading(true);
         try {
-            // Update the loaned item status
-            const { error: updateError } = await supabase
-                .from('stay_loaned_items')
-                .update({ status: newStatus })
-                .eq('id', itemId);
-
-            if (updateError) throw updateError;
-
-            // If missing and damageAmount > 0, create a damage charge
-            if (newStatus === 'PERDIDO' && damageAmount > 0) {
-                // Obtener product_id del item base de la orden
-                const { data: baseItem } = await supabase
-                    .from('sales_order_items')
-                    .select('product_id')
-                    .eq('sales_order_id', salesOrderId)
-                    .eq('concept_type', 'ROOM_BASE')
-                    .limit(1)
-                    .maybeSingle();
-
-                const { error: chargeError } = await supabase
-                    .from('sales_order_items')
-                    .insert({
-                        sales_order_id: salesOrderId,
-                        product_id: baseItem?.product_id || null,
-                        concept_type: 'DAMAGE_CHARGE',
-                        description: `DAÑO: Faltante de ${itemName}`,
-                        unit_price: damageAmount,
-                        qty: 1,
-                        total: damageAmount,
-                        is_paid: false
-                    });
-                
-                if (chargeError) throw chargeError;
-
-                // Actualizar totales de la orden
-                const { data: currentOrder } = await supabase
-                    .from('sales_orders')
-                    .select('total, remaining_amount')
-                    .eq('id', salesOrderId)
-                    .single();
-
-                if (currentOrder) {
-                    await supabase.from('sales_orders').update({
-                        total: (currentOrder.total || 0) + damageAmount,
-                        remaining_amount: (currentOrder.remaining_amount || 0) + damageAmount,
-                    }).eq('id', salesOrderId);
-                }
-
-                // Notify reception
-                const { data: receptionSessions } = await supabase
-                    .from('shift_sessions')
-                    .select('employees!inner(auth_user_id, role)')
-                    .eq('status', 'active')
-                    .in('employees.role', ['receptionist', 'admin', 'supervisor', 'gerente']);
-
-                if (receptionSessions && receptionSessions.length > 0) {
-                    const uniqueUserIds = new Set<string>();
-                    receptionSessions.forEach((session: any) => {
-                        if (session.employees?.auth_user_id) uniqueUserIds.add(session.employees.auth_user_id);
-                    });
-
-                    if (uniqueUserIds.size > 0) {
-                        const notifications = Array.from(uniqueUserIds).map(userId => ({
-                            user_id: userId,
-                            type: 'system_alert',
-                            title: '⚠️ Artículo Faltante',
-                            message: `Falta ${itemName} en Hab. ${roomNumber}. Cargo por daño generado automáticamente.`,
-                            data: { type: 'ASSET_MISSING', stayId },
-                            is_read: false,
-                        }));
-                        await supabase.from('notifications').insert(notifications);
-                    }
-                }
-            }
+            const { data, error } = await supabase.rpc('resolve_loaned_item', {
+                p_loan_id: itemId,
+                p_status: newStatus,
+            });
+            if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || 'No se pudo actualizar el artículo');
 
             showFeedback(
-                newStatus === 'RECUPERADO' ? 'Recuperado' : 'Faltante Reportado', 
-                newStatus === 'RECUPERADO' ? `${itemName} marcado como recuperado.` : `Cargo por ${itemName} generado.`, 
+                newStatus === 'RECUPERADO' ? 'Recuperado' : 'Faltante Reportado',
+                newStatus === 'RECUPERADO'
+                    ? `${itemName} marcado como recuperado.`
+                    : `${itemName} reportado a recepción. Ella decide si se cobra.`,
                 newStatus === 'RECUPERADO' ? 'success' : 'warning'
             );
-            
+
             await onRefresh();
             return true;
         } catch (error: any) {
             console.error('Error updating loaned item:', error);
-            showFeedback('Error', 'No se pudo actualizar el estado del artículo.', 'error');
+            showFeedback('Error', error?.message || 'No se pudo actualizar el estado del artículo.', 'error');
             return false;
         } finally {
             setLoading(false);

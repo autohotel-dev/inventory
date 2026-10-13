@@ -81,6 +81,12 @@ export const CheckoutModal = memo(({
     const computedRemainingAmount = Array.isArray(orders)
         ? orders.reduce((sum: number, o: any) => sum + (o.remaining_amount || 0), 0)
         : (orders?.remaining_amount || 0);
+
+    // Préstamos que aplican a esta salida (los anulados por cancelación y el histórico no se revisan)
+    const loans: any[] = (room?.stay?.stay_loaned_items || []).filter(
+        (l: any) => l.status === 'PRESTADO' || l.status === 'RECUPERADO' || l.status === 'PERDIDO'
+    );
+    const uncheckedLoans = loans.filter((l: any) => l.status === 'PRESTADO').length;
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
@@ -227,25 +233,25 @@ export const CheckoutModal = memo(({
                             )}
 
                             {/* Loaned Items Section */}
-                            {!showExtraHourForm && !showExtraPersonForm && !showDamageForm && room?.stay?.stay_loaned_items?.length > 0 && (
+                            {!showExtraHourForm && !showExtraPersonForm && !showDamageForm && loans.length > 0 && (
                                 <View className="mb-6 p-5 rounded-2xl border-2 border-zinc-100 bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800">
                                     <Text className="text-[10px] font-black uppercase tracking-widest mb-4 text-zinc-400 dark:text-zinc-500">Loza y Artículos Prestados</Text>
                                     
-                                    {room.stay.stay_loaned_items.map((loan: any, index: number) => {
+                                    {loans.map((loan: any, index: number) => {
                                         const isMissing = loan.status === 'PERDIDO';
                                         const isReturned = loan.status === 'RECUPERADO';
                                         
                                         return (
                                             <View 
                                                 key={loan.id}
-                                                className={`flex-row items-center justify-between py-3 ${index < room.stay.stay_loaned_items.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
+                                                className={`flex-row items-center justify-between py-3 ${index < loans.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
                                             >
                                                 <View className="flex-1">
                                                     <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'} ${isReturned ? 'opacity-50 line-through' : ''}`}>
                                                         {loan.loan_item?.icon || '🍽️'} {loan.loan_item?.name || 'Artículo Prestado'} x{loan.quantity}
                                                     </Text>
                                                     {isMissing && (
-                                                        <Text className="text-[10px] font-black tracking-widest uppercase text-red-500 mt-1">Cargo Generado</Text>
+                                                        <Text className="text-[10px] font-black tracking-widest uppercase text-red-500 mt-1">Reportado a recepción</Text>
                                                     )}
                                                 </View>
                                                 <View className="flex-row gap-2">
@@ -336,6 +342,15 @@ export const CheckoutModal = memo(({
                                     <TouchableOpacity onPress={handleReportDamageSubmit} disabled={actionLoading} className="mt-8 h-14 bg-red-600 rounded-xl items-center justify-center shadow-lg flex-row" style={{ opacity: actionLoading ? 0.5 : 1 }}>
                                         {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white font-black text-xs uppercase tracking-widest">Registrar Daño</Text>}
                                     </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {uncheckedLoans > 0 && (
+                                <View className="mb-3 p-4 rounded-2xl border-2 border-amber-500/50 bg-amber-500/10">
+                                    <Text className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1">Loza sin revisar</Text>
+                                    <Text className={`text-xs ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
+                                        {uncheckedLoans} {uncheckedLoans === 1 ? 'artículo prestado no se ha' : 'artículos prestados no se han'} marcado como Recuperado o Faltante. Si confirmas, quedará pendiente para recepción.
+                                    </Text>
                                 </View>
                             )}
 
