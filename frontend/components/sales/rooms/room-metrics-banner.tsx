@@ -98,8 +98,9 @@ export function RoomMetricsBanner({ rooms, sensors = [], now }: RoomMetricsBanne
         </Card>
       </div>
 
-      {/* Sensor metrics strip — always rendered with fixed height to prevent layout shift */}
-      <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-2.5 min-h-[40px]">
+      {/* Sensor metrics strip — FIXED height, never wraps: counters appearing/changing must not push the grid
+          down (layout shift). If it doesn't fit, it scrolls sideways. */}
+      <div className="flex flex-nowrap items-center gap-3 sm:gap-4 bg-zinc-900/50 border border-white/5 rounded-xl px-4 h-10 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&>*]:shrink-0">
         <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-500 mr-1">Sensores</span>
 
         {sensorStats?.serviceDown ? (
