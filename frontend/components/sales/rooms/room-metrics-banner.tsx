@@ -3,13 +3,17 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Room } from "@/components/sales/room-types";
+import { DoorOpen, DoorClosed, WifiOff, CircleHelp } from "lucide-react";
+import { type Sensor, getSensorsByRoom, getDoorState, getSignalState, isLowBattery, isSensorServiceDown } from "@/lib/sensors/sensor-state";
 
 interface RoomMetricsBannerProps {
   rooms: Room[];
-  sensors?: any[];
+  sensors?: Sensor[];
+  /** Reloj de useSensors() */
+  now: number;
 }
 
-export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProps) {
+export function RoomMetricsBanner({ rooms, sensors = [], now }: RoomMetricsBannerProps) {
   const counts = useMemo(() => {
     const init = { libre: 0, ocupada: 0, sucia: 0, bloqueada: 0, limpiando: 0 };
     rooms.forEach((r) => {
@@ -26,28 +30,27 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
 
   const sensorStats = useMemo(() => {
     if (!sensors.length) return null;
-    const occupiedRoomIds = new Set(
-      rooms.filter(r => r.status === "OCUPADA").map(r => r.id)
-    );
-    
-    const openInOccupied = sensors.filter(s => {
-      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 24 * 3600000);
-      const isOnline = s.status === 'ONLINE' && !isStale;
-      return s.is_open && isOnline && occupiedRoomIds.has(s.room_id);
-    }).length;
-
-    const online = sensors.filter(s => {
-      const isStale = !s.last_seen || (Date.now() - new Date(s.last_seen).getTime() > 24 * 3600000);
-      return s.status === 'ONLINE' && !isStale;
-    }).length;
-
-    const lowBattery = sensors.filter(s => s.battery_level !== undefined && s.battery_level < 20).length;
-    const stale = sensors.filter(s => {
-      if (!s.last_seen) return true;
-      return Date.now() - new Date(s.last_seen).getTime() > 24 * 3600000;
-    }).length;
-    return { openInOccupied, online, total: sensors.length, lowBattery, stale };
-  }, [sensors, rooms]);
+    const statusByRoom = new Map(rooms.map(r => [r.id, r.status]));
+    const roomSensors = [...getSensorsByRoom(sensors, now).values()].filter(s => statusByRoom.has(s.room_id!));
+    let openInOccupied = 0, online = 0, unknown = 0, noSignal = 0, lowBattery = 0;
+    for (const s of roomSensors) {
+      const signal = getSignalState(s, now);
+      const door = getDoorState(s);
+      if (signal === "ONLINE") {
+        online++;
+        if (door === "OPEN" && statusByRoom.get(s.room_id!) === "OCUPADA") openInOccupied++;
+        if (door === "UNKNOWN") unknown++;
+      } else {
+        noSignal++;
+      }
+      if (isLowBattery(s)) lowBattery++;
+    }
+    return {
+      openInOccupied, online, unknown, noSignal, lowBattery,
+      total: roomSensors.length,
+      serviceDown: isSensorServiceDown(sensors, now),
+    };
+  }, [sensors, rooms, now]);
 
   return (
     <div className="space-y-4">
@@ -99,12 +102,17 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
       <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-2.5 min-h-[40px]">
         <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-500 mr-1">Sensores</span>
 
-        {sensorStats ? (
+        {sensorStats?.serviceDown ? (
+          <div className="flex items-center gap-1.5 text-red-400">
+            <WifiOff className="h-3.5 w-3.5" />
+            <span className="text-xs font-bold">Servicio de sensores sin señal — las alertas de cochera están pausadas</span>
+          </div>
+        ) : sensorStats ? (
           <>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm">🚪</span>
+            <div className="flex items-center gap-1.5" title="Cocheras abiertas en habitaciones ocupadas">
+              <DoorOpen className={`h-3.5 w-3.5 ${sensorStats.openInOccupied > 0 ? 'text-red-400' : 'text-zinc-500'}`} />
               <span className={`text-xs font-bold ${sensorStats.openInOccupied > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
-                {sensorStats.openInOccupied} {sensorStats.openInOccupied === 1 ? 'abierta' : 'abiertas'}
+                {sensorStats.openInOccupied} {sensorStats.openInOccupied === 1 ? 'abierta' : 'abiertas'} en ocupadas
               </span>
             </div>
 
@@ -113,9 +121,29 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
             <div className="flex items-center gap-1.5">
               <span className="text-sm">📡</span>
               <span className={`text-xs font-bold ${sensorStats.online === sensorStats.total ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {sensorStats.online}/{sensorStats.total} online
+                {sensorStats.online}/{sensorStats.total} en línea
               </span>
             </div>
+
+            {sensorStats.noSignal > 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5" title="Sensores que su hub no ve o que dejaron de reportar">
+                  <WifiOff className="h-3.5 w-3.5 text-zinc-400" />
+                  <span className="text-xs font-bold text-zinc-400">{sensorStats.noSignal} sin señal</span>
+                </div>
+              </>
+            )}
+
+            {sensorStats.unknown > 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5" title="El hub aún no conoce su estado; se actualiza la próxima vez que la cochera se mueva">
+                  <CircleHelp className="h-3.5 w-3.5 text-zinc-500" />
+                  <span className="text-xs font-bold text-zinc-500">{sensorStats.unknown} sin dato</span>
+                </div>
+              </>
+            )}
 
             {sensorStats.lowBattery > 0 && (
               <>
@@ -124,18 +152,6 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
                   <span className="text-sm">🔋</span>
                   <span className="text-xs font-bold text-amber-400">
                     {sensorStats.lowBattery} baja
-                  </span>
-                </div>
-              </>
-            )}
-
-            {sensorStats.stale > 0 && (
-              <>
-                <div className="w-px h-4 bg-white/10" />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm">⚠️</span>
-                  <span className="text-xs font-bold text-zinc-400">
-                    {sensorStats.stale} sin señal
                   </span>
                 </div>
               </>
@@ -172,12 +188,33 @@ export function RoomMetricsBanner({ rooms, sensors = [] }: RoomMetricsBannerProp
             <span>Limpiando</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-indigo-600 border-l-2 border-l-indigo-400 shadow-sm" />
-            <span>Cochera Abierta</span>
-          </div>
-          <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-[#2c1a0a] ring-1 ring-yellow-800/50 shadow-sm" />
             <span>Saliendo</span>
+          </div>
+        </div>
+
+        {/* Cochera (pastilla en la esquina inferior izquierda de cada tarjeta) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-semibold text-foreground/80">Cochera:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full bg-sky-600 p-0.5 text-white"><DoorOpen className="h-2.5 w-2.5" /></span>
+            <span>Abierta</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full bg-red-600 p-0.5 text-white"><DoorOpen className="h-2.5 w-2.5" /></span>
+            <span>Abierta en ocupada</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full bg-zinc-900 p-0.5 text-emerald-400"><DoorClosed className="h-2.5 w-2.5" /></span>
+            <span>Cerrada</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full bg-zinc-800 p-0.5 text-zinc-400"><CircleHelp className="h-2.5 w-2.5" /></span>
+            <span>Sin dato</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full bg-zinc-700 p-0.5 text-zinc-300"><WifiOff className="h-2.5 w-2.5" /></span>
+            <span>Sin señal</span>
           </div>
         </div>
 

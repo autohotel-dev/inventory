@@ -5,23 +5,16 @@ import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { type Sensor, getSignalState, isLowBattery } from "@/lib/sensors/sensor-state";
 
 interface SensorEvent {
   id: string;
   sensor_id: string;
-  new_state: boolean;
+  event_type: "OPEN" | "CLOSE" | string;
   created_at: string;
 }
 
-interface SensorInfo {
-  id: string;
-  name: string;
-  room_id: string;
-  status: string;
-  battery_level: number;
-  is_open: boolean;
-  last_seen: string;
-}
+type SensorInfo = Sensor;
 
 interface RoomInfo {
   id: string;
@@ -81,9 +74,9 @@ export function SensorActivityReport() {
     const eventCounts = new Map<string, { opens: number; closes: number }>();
     events.forEach((evt) => {
       const c = eventCounts.get(evt.sensor_id) || { opens: 0, closes: 0 };
-      if (evt.new_state === true || evt.new_state === ("true" as any)) {
+      if (evt.event_type === "OPEN") {
         c.opens++;
-      } else {
+      } else if (evt.event_type === "CLOSE") {
         c.closes++;
       }
       eventCounts.set(evt.sensor_id, c);
@@ -101,19 +94,12 @@ export function SensorActivityReport() {
       .sort((a, b) => b.total - a.total);
 
     // Health
-    const lowBattery = sensors.filter(
-      (s) => s.battery_level !== undefined && s.battery_level < 20
-    );
-    const offline = sensors.filter((s) => {
-      if (!s.last_seen) return true;
-      return Date.now() - new Date(s.last_seen).getTime() > 3600000;
-    });
+    const lowBattery = sensors.filter((s) => isLowBattery(s));
+    const offline = sensors.filter((s) => getSignalState(s) !== "ONLINE");
 
     return {
       totalEvents: events.length,
-      totalOpens: events.filter(
-        (e) => e.new_state === true || e.new_state === ("true" as any)
-      ).length,
+      totalOpens: events.filter((e) => e.event_type === "OPEN").length,
       topRooms: sorted.slice(0, 5),
       lowBattery,
       offline,
@@ -278,7 +264,7 @@ export function SensorActivityReport() {
                 {report.offline.length > 0 && (
                   <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-3">
                     <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-2">
-                      ⚠️ Sensores Sin Señal (+1hr)
+                      ⚠️ Sensores sin señal
                     </h4>
                     <div className="flex flex-wrap gap-2">
                       {report.offline.map((s) => {

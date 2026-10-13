@@ -6,12 +6,13 @@ import { Room } from "@/components/sales/room-types";
 import { getActiveStay } from "@/hooks/room-actions";
 import { toast } from "sonner";
 import { ROOM_STATUS_BG, ROOM_STATUS_ACCENT } from "@/components/sales/room-types";
-import { getDoorOpenMinutes } from "@/hooks/use-sensors";
+import { type Sensor, getSensorsByRoom, getDoorState, getSignalState, getDoorOpenMinutes } from "@/lib/sensors/sensor-state";
 
 interface RoomCardGridProps {
   rooms: Room[];
-  sensors: any[];
-  doorOpenTimestamps?: Map<string, number>;
+  sensors: Sensor[];
+  /** Reloj de useSensors(): re-evalúa señal y minutos abiertos */
+  sensorsNow: number;
   highlightedRoomIds?: Set<string>;
   isLowPowerMode?: boolean;
   getRemainingTimeLabel: (room: Room) => any;
@@ -28,7 +29,7 @@ interface RoomCardGridProps {
 export const RoomCardGrid = memo(function RoomCardGrid({
   rooms,
   sensors,
-  doorOpenTimestamps,
+  sensorsNow,
   highlightedRoomIds,
   isLowPowerMode,
   getRemainingTimeLabel,
@@ -44,6 +45,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
   
   // Pre-calculate all heavy derived state for rooms to avoid O(N) calculations during render
   const processedRooms = useMemo(() => {
+    const sensorsByRoom = getSensorsByRoom(sensors, sensorsNow);
     return rooms.map(room => {
       const status = room.status || "OTRO";
       const timeInfo = getRemainingTimeLabel(room);
@@ -101,13 +103,16 @@ export const RoomCardGrid = memo(function RoomCardGrid({
       const tvRemote = room.room_assets?.find(a => a.asset_type === 'TV_REMOTE');
 
       // Pre-compute sensor data to avoid inline closures that bypass React.memo
-      const matchedSensor = sensors.find(sen => sen.room_id === room.id);
+      const matchedSensor = sensorsByRoom.get(room.id);
       const sensorStatus = matchedSensor
-        ? { isOpen: matchedSensor.is_open, batteryLevel: matchedSensor.battery_level, isOnline: matchedSensor.status === 'ONLINE', lastSeen: matchedSensor.last_seen }
+        ? {
+            door: getDoorState(matchedSensor),
+            signal: getSignalState(matchedSensor, sensorsNow),
+            batteryLevel: matchedSensor.battery_level,
+            lastSeen: matchedSensor.last_seen,
+          }
         : null;
-      const doorOpenMinutes = matchedSensor && matchedSensor.is_open
-        ? getDoorOpenMinutes(matchedSensor, doorOpenTimestamps)
-        : 0;
+      const doorOpenMinutes = matchedSensor ? getDoorOpenMinutes(matchedSensor, sensorsNow) : 0;
 
       return {
         room,
@@ -125,7 +130,7 @@ export const RoomCardGrid = memo(function RoomCardGrid({
         doorOpenMinutes,
       };
     });
-  }, [rooms, getRemainingTimeLabel, sensors, doorOpenTimestamps]);
+  }, [rooms, getRemainingTimeLabel, sensors, sensorsNow]);
 
   return (
     <div id="tour-room-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 min-h-[50vh]">

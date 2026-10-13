@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getSignalState } from "@/lib/sensors/sensor-state";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +16,12 @@ interface SensorWithRoom {
     id: string;
     name: string;
     device_id: string;
-    status: 'ONLINE' | 'OFFLINE';
-    is_open: boolean;
-    battery_level: number;
-    last_seen: string;
+    status: 'ONLINE' | 'OFFLINE' | null;
+    is_open: boolean | null;
+    battery_level: number | null;
+    last_seen: string | null;
+    room_id: string | null;
+    door_opened_at: string | null;
     room?: {
         id: string;
         number: string;
@@ -348,25 +351,29 @@ export function SensorsTable() {
                                         <div className="text-xs text-muted-foreground font-mono">{sensor.device_id}</div>
                                     </td>
                                     <td className="p-3 text-center">
-                                        {sensor.status === 'ONLINE' ? (
+                                        {getSignalState(sensor) === 'ONLINE' ? (
                                             <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-200">En Línea</Badge>
+                                        ) : getSignalState(sensor) === 'NO_SIGNAL' ? (
+                                            <Badge variant="outline" title={sensor.last_seen ? `Último reporte: ${new Date(sensor.last_seen).toLocaleString('es-MX')}` : undefined}>Sin señal</Badge>
                                         ) : (
                                             <Badge variant="destructive">Offline</Badge>
                                         )}
                                     </td>
                                     <td className="p-3 text-center">
-                                        {sensor.is_open ? (
-                                            <span className="inline-flex items-center text-red-600 font-bold animate-pulse">
+                                        {sensor.is_open === true ? (
+                                            <span className="inline-flex items-center text-red-600 font-bold">
                                                 ABIERTA 🔴
                                             </span>
-                                        ) : (
+                                        ) : sensor.is_open === false ? (
                                             <span className="text-green-600">Cerrada</span>
+                                        ) : (
+                                            <span className="text-muted-foreground" title="El hub aún no conoce el estado; se actualiza cuando la cochera se mueva">Sin dato</span>
                                         )}
                                     </td>
                                     <td className="p-3 text-center">
                                         <div className="flex items-center justify-center gap-1 text-xs">
                                             <Battery className="h-3 w-3" />
-                                            {sensor.battery_level}%
+                                            {typeof sensor.battery_level === 'number' ? `${sensor.battery_level}%` : '—'}
                                         </div>
                                     </td>
                                     <td className="p-3 text-right">

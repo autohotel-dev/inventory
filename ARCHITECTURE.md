@@ -32,7 +32,7 @@ Esta infraestructura está diseñada para ser altamente escalable, auditable (a 
 
 ### 5. Servicios Periféricos e IoT
 - **Print Server Local:** Servidor Express/NodeJS (`print-server/index.js`) que interactúa con la librería `node-thermal-printer` para enviar comandos ESC/POS directamente a impresoras de tickets (USB/Red) de manera silenciosa.
-- **Integración IoT (Tuya):** Webhooks (`/api/sensors/webhook`) que interpretan aperturas de puertas o señales de sensores de movimiento, detectando de forma automática ocupación no autorizada o midiendo tiempos exactos de permanencia/limpieza.
+- **Integración IoT (Tuya):** daemon local `frontend/scripts/sensors/daemon.js` (PM2 en la PC de recepción) conectado por LAN a los hubs Zigbee; escribe el estado de las cocheras en Supabase (`sensors`, `sensor_events`) y el tablero POS lo recibe por Realtime.
 
 ---
 

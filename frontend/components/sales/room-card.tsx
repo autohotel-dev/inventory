@@ -2,7 +2,8 @@
 
 import { ReactNode, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle, Tv, Flame, Wind, Lock, Sparkles, CheckCircle2, User, ScrollText } from "lucide-react";
+import { Info, MoreVertical, AlertCircle, Car, Check, HandPlatter, ShoppingBag, ConciergeBell, XCircle, Tv, Flame, Wind, Lock, Sparkles, CheckCircle2, User, ScrollText, DoorOpen, DoorClosed, WifiOff, BatteryLow, CircleHelp } from "lucide-react";
+import { type DoorState, type SignalState, DOOR_LABEL, SIGNAL_LABEL, LOW_BATTERY_PERCENT, DOOR_OPEN_WARNING_MIN, DOOR_OPEN_CRITICAL_MIN } from "@/lib/sensors/sensor-state";
 import { cn } from "@/lib/utils";
 
 export type RoomCardStatus = "LIBRE" | "OCUPADA" | "SUCIA" | "BLOQUEADA" | string;
@@ -56,8 +57,8 @@ export interface RoomCardProps {
   hasPendingPayment?: boolean; // Indica si tiene pago pendiente
   roomTypeName?: string; // Nombre del tipo de habitación (Sencilla, Jacuzzi, etc)
   notes?: string | null; // Notas de mantenimiento o bloqueo
-  sensorStatus?: { isOpen: boolean; batteryLevel?: number; isOnline: boolean; lastSeen?: string } | null;
-  doorOpenMinutes?: number; // How many minutes the door has been open
+  sensorStatus?: { door: DoorState; signal: SignalState; batteryLevel: number | null; lastSeen: string | null } | null;
+  doorOpenMinutes?: number; // How many minutes the garage door has been open
   vehicleStatus?: {
     hasVehicle: boolean;
     isReady: boolean;
@@ -109,14 +110,13 @@ export function RoomCardComponent({
   onAssignRemote,
   isLowPowerMode,
 }: RoomCardProps) {
-  /* FIX: Solo alertar si la puerta está abierta, la habitación está OCUPADA Y el sensor está ONLINE y no stale */
-  const isDoorOpen = sensorStatus?.isOpen;
-  const isSensorStale = sensorStatus && sensorStatus.lastSeen ? (Date.now() - new Date(sensorStatus.lastSeen).getTime() > 24 * 3600000) : false;
-  const isOnline = sensorStatus?.isOnline && !isSensorStale;
-  const showDoorAlert = isDoorOpen && isOnline && status === "OCUPADA";
-  const isBatteryLow = sensorStatus && sensorStatus.batteryLevel !== undefined && sensorStatus.batteryLevel < 20;
-  const isDoorCritical = showDoorAlert && doorOpenMinutes >= 10;
-  const isDoorWarning = showDoorAlert && doorOpenMinutes >= 5 && doorOpenMinutes < 10;
+  /* Alerta roja solo si la cochera está abierta, el sensor reporta y la habitación está OCUPADA.
+     En libres la cochera abierta es lo normal (esperando cliente). */
+  const sensorOnline = sensorStatus?.signal === "ONLINE";
+  const showDoorAlert = sensorOnline && sensorStatus?.door === "OPEN" && status === "OCUPADA";
+  const isBatteryLow = typeof sensorStatus?.batteryLevel === "number" && sensorStatus.batteryLevel < LOW_BATTERY_PERCENT;
+  const isDoorCritical = showDoorAlert && doorOpenMinutes >= DOOR_OPEN_CRITICAL_MIN;
+  const isDoorWarning = showDoorAlert && doorOpenMinutes >= DOOR_OPEN_WARNING_MIN && doorOpenMinutes < DOOR_OPEN_CRITICAL_MIN;
 
   // Vehicle tooltip state — uses fixed positioning to escape all stacking contexts
   const vehicleIconRef = useRef<HTMLDivElement>(null);
@@ -373,36 +373,16 @@ export function RoomCardComponent({
         </div>
       )}
 
-      {/* Indicador de Batería Baja */}
-      {isBatteryLow && (
-        <div
-          className="absolute -bottom-1.5 -left-1.5 bg-amber-600 text-white rounded-full p-0.5 z-50 shadow-md border border-amber-400"
-          title={`Batería baja: ${sensorStatus?.batteryLevel}%`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect width="16" height="10" x="2" y="7" rx="2" />
-            <line x1="22" x2="22" y1="11" y2="13" />
-            <line x1="6" x2="6" y1="11" y2="13" />
-          </svg>
-        </div>
-      )}
-
-      {/* Indicador de Sensor Offline Prolongado (>1hr) */}
-      {isSensorStale && !isBatteryLow && (
-        <div
-          className="absolute -bottom-1.5 -left-1.5 bg-zinc-600 text-zinc-300 rounded-full p-0.5 z-50 shadow-md border border-zinc-500"
-          title={`Sensor desconectado desde ${sensorStatus?.lastSeen ? new Date(sensorStatus.lastSeen).toLocaleTimeString('es-MX') : 'desconocido'}`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m2 2 20 20" />
-            <path d="M8.5 16.5a5 5 0 0 1 7 0" />
-            <path d="M2 8.82a15 15 0 0 1 4.17-2.65" />
-            <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76" />
-            <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68" />
-            <path d="M5 13a10 10 0 0 1 5.24-2.76" />
-            <line x1="12" x2="12.01" y1="20" y2="20" />
-          </svg>
-        </div>
+      {/* Estado de la cochera (todas las habitaciones con sensor) */}
+      {sensorStatus && (
+        <GarageBadge
+          door={sensorStatus.door}
+          signal={sensorStatus.signal}
+          occupied={status === "OCUPADA"}
+          batteryLevel={sensorStatus.batteryLevel}
+          isBatteryLow={isBatteryLow}
+          lastSeen={sensorStatus.lastSeen}
+        />
       )}
 
       {/* Indicador de Valet solicitando salida (Notificación del cochero) */}
@@ -654,11 +634,11 @@ function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
   const newSensor = newProps.sensorStatus;
   if (!!oldSensor !== !!newSensor) return false;
   if (oldProps.doorOpenMinutes !== newProps.doorOpenMinutes) return false;
+  // lastSeen solo alimenta el tooltip: ignorarlo evita re-render con cada latido (2 min)
   if (oldSensor && newSensor) {
-    if (oldSensor.isOpen !== newSensor.isOpen) return false;
+    if (oldSensor.door !== newSensor.door) return false;
+    if (oldSensor.signal !== newSensor.signal) return false;
     if (oldSensor.batteryLevel !== newSensor.batteryLevel) return false;
-    if (oldSensor.isOnline !== newSensor.isOnline) return false;
-    if (oldSensor.lastSeen !== newSensor.lastSeen) return false;
   }
 
   const oldVehicle = oldProps.vehicleStatus;
@@ -677,3 +657,40 @@ function arePropsEqual(oldProps: RoomCardProps, newProps: RoomCardProps) {
 }
 
 export const RoomCard = memo(RoomCardComponent, arePropsEqual);
+
+/** Pastilla de cochera, esquina inferior izquierda: abierta / cerrada / sin dato / sin señal (+ batería baja) */
+function GarageBadge({ door, signal, occupied, batteryLevel, isBatteryLow, lastSeen }: {
+  door: DoorState;
+  signal: SignalState;
+  occupied: boolean;
+  batteryLevel: number | null;
+  isBatteryLow: boolean;
+  lastSeen: string | null;
+}) {
+  const noSignal = signal !== "ONLINE";
+  const Icon = noSignal ? WifiOff : door === "OPEN" ? DoorOpen : door === "CLOSED" ? DoorClosed : CircleHelp;
+  const tone = noSignal
+    ? "bg-zinc-700 text-zinc-300 border-zinc-500"
+    : door === "OPEN"
+      ? occupied ? "bg-red-600 text-white border-red-400" : "bg-sky-600 text-white border-sky-400"
+      : door === "CLOSED"
+        ? "bg-zinc-900/90 text-emerald-400 border-emerald-700/60"
+        : "bg-zinc-800 text-zinc-400 border-zinc-600";
+
+  const lines = [
+    noSignal ? SIGNAL_LABEL[signal] : DOOR_LABEL[door],
+    noSignal && door !== "UNKNOWN" ? `Último estado: ${DOOR_LABEL[door].toLowerCase()}` : null,
+    typeof batteryLevel === "number" ? `Batería: ${batteryLevel}%` : null,
+    lastSeen ? `Último reporte: ${new Date(lastSeen).toLocaleString("es-MX", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div
+      className={cn("absolute -bottom-1.5 -left-1.5 z-50 flex items-center gap-0.5 rounded-full border px-1 py-0.5 shadow-md", tone)}
+      title={lines.join("\n")}
+    >
+      <Icon className="h-3 w-3" strokeWidth={2.5} />
+      {isBatteryLow && <BatteryLow className="h-3 w-3 text-amber-400" strokeWidth={2.5} />}
+    </div>
+  );
+}

@@ -2,28 +2,9 @@
 
 El proyecto utiliza **Next.js Route Handlers** (`frontend/app/api/...`). Todas las llamadas están protegidas mediante Supabase Auth o Server Roles.
 
-## 1. Webhooks Sensores IoT
+## 1. Sensores IoT (cocheras)
 
-### `POST /api/sensors/webhook`
-
-Recibe eventos desde la plataforma Tuya o IFTTT para actualizar el estado físico de los sensores en las habitaciones.
-
-**Request Body Example (Tuya / IFTTT):**
-```json
-{
-  "deviceId": "vdevoXXXXXX",
-  "status": "OPEN",
-  "isOpen": true
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "state": "OPEN"
-}
-```
+No hay endpoint HTTP para sensores. El daemon local `frontend/scripts/sensors/daemon.js` (PC de recepción) se conecta por LAN a los hubs Zigbee Tuya y escribe directamente en las tablas `sensors` / `sensor_events` de Supabase con la service role; el tablero las lee por Supabase Realtime. El antiguo webhook de Tuya Cloud (`/api/sensors/webhook`) se eliminó: no tenía autenticación obligatoria y permitía falsear el estado de las cocheras.
 
 ## 2. Notificaciones Push (Chat)
 

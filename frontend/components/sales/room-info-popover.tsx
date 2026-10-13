@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Room, RoomStay, STATUS_CONFIG } from "@/components/sales/room-types";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { type Sensor, getSensorsByRoom, getSignalState, getDoorState, DOOR_LABEL, SIGNAL_LABEL } from "@/lib/sensors/sensor-state";
 
 interface Payment {
   id: string;
@@ -50,6 +51,12 @@ export function RoomInfoPopover({
   const [showSensorHistory, setShowSensorHistory] = useState(false);
   const [sensorEvents, setSensorEvents] = useState<any[]>([]);
   const [loadingSensorEvents, setLoadingSensorEvents] = useState(false);
+
+  // El popover se reutiliza entre habitaciones: no mostrar el historial de la anterior
+  useEffect(() => {
+    setShowSensorHistory(false);
+    setSensorEvents([]);
+  }, [room?.id]);
 
   // Cargar resumen de conceptos al abrir
   useEffect(() => {
@@ -436,7 +443,7 @@ export function RoomInfoPopover({
             )}
             {/* Sensor Activity Section - Available for ALL room statuses */}
             {(() => {
-              const roomSensor = sensors.find(s => s.room_id === room.id);
+              const roomSensor = getSensorsByRoom(sensors as Sensor[]).get(room.id);
               if (!roomSensor) return null;
 
               const fetchSensorEvents = async () => {
@@ -452,10 +459,10 @@ export function RoomInfoPopover({
                 setLoadingSensorEvents(false);
               };
 
-              const batteryLevel = roomSensor.battery_level ?? 0;
-              const isOnline = roomSensor.status === 'ONLINE';
+              const batteryLevel = roomSensor.battery_level;
+              const signal = getSignalState(roomSensor);
+              const door = getDoorState(roomSensor);
               const lastSeen = roomSensor.last_seen ? new Date(roomSensor.last_seen) : null;
-              const isStale = lastSeen ? (Date.now() - lastSeen.getTime() > 3600000) : true;
 
               return (
                 <div className="pt-2 border-t border-white/5">
@@ -475,7 +482,7 @@ export function RoomInfoPopover({
                       <span>Sensor</span>
                       <span className={cn(
                         "w-1.5 h-1.5 rounded-full",
-                        isStale ? "bg-zinc-500" : isOnline ? "bg-emerald-400" : "bg-red-400"
+                        signal === "NO_SIGNAL" ? "bg-zinc-500" : signal === "ONLINE" ? "bg-emerald-400" : "bg-red-400"
                       )} />
                     </div>
                     {showSensorHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -488,19 +495,21 @@ export function RoomInfoPopover({
                         <div className="flex items-center gap-2">
                           <div className={cn(
                             "w-2 h-2 rounded-full",
-                            isStale ? "bg-zinc-500" : isOnline ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-400"
+                            signal === "NO_SIGNAL" ? "bg-zinc-500" : signal === "ONLINE" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-red-400"
                           )} />
                           <span className="text-[10px] font-bold text-zinc-400">
-                            {isStale ? "Sin señal" : isOnline ? "Online" : "Offline"}
+                            {signal === "ONLINE" ? DOOR_LABEL[door].split(" (")[0] : SIGNAL_LABEL[signal]}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className={cn(
-                            "text-[10px] font-bold",
-                            batteryLevel < 20 ? "text-red-400" : batteryLevel < 50 ? "text-amber-400" : "text-emerald-400"
-                          )}>
-                            🔋 {batteryLevel}%
-                          </span>
+                          {typeof batteryLevel === "number" && (
+                            <span className={cn(
+                              "text-[10px] font-bold",
+                              batteryLevel < 20 ? "text-red-400" : batteryLevel < 50 ? "text-amber-400" : "text-emerald-400"
+                            )}>
+                              🔋 {batteryLevel}%
+                            </span>
+                          )}
                           {lastSeen && (
                             <span className="text-[9px] text-zinc-600 font-mono">
                               {lastSeen.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
@@ -521,7 +530,7 @@ export function RoomInfoPopover({
                         <div className="space-y-1">
                           {sensorEvents.map((evt, i) => {
                             const evtDate = new Date(evt.created_at);
-                            const isOpen = evt.new_state === true || evt.new_state === 'true';
+                            const isOpen = evt.event_type === 'OPEN';
                             return (
                               <div key={evt.id || i} className="flex items-center gap-2 py-1 group">
                                 <div className={cn(
