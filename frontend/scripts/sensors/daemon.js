@@ -127,6 +127,7 @@ gateways.forEach(gw => gw.sensors.forEach(s => sensorsByNode.set(s.node_id, { de
 
 const orphanSensors = allDevices.filter(d => isSensor(d) && !sensorsByNode.has(d.node_id));
 const warnedUnknownNodes = new Set();
+const doorUnknownWritten = new Set();  // device ids whose door state was cleared in the DB
 
 // --- STATE ---
 let sensorDbMap = new Map();       // device_id -> { id (uuid), name, room_number }
@@ -161,7 +162,7 @@ async function refreshSensorList() {
 }
 
 async function runDbWrite(write) {
-    if (DRY_RUN) return;
+    if (DRY_RUN) { if (DEBUG) console.log(`[DRY] ${write.type} ${write.deviceId || ""} ${JSON.stringify(write.data)}`); return; }
     if (write.type === 'update') {
         const { error } = await supabase.from('sensors').update(write.data).eq('device_id', write.deviceId);
         if (error) throw error;
@@ -277,6 +278,13 @@ function handleSubdeviceData(gw, cid, dps, source) {
     const doorChanged = isOpen !== null && (!known || prev.isOpen !== isOpen);
     const batteryChanged = battery !== null && prev?.battery !== battery;
     const cameOnline = online && (!prev || !prev.online);
+
+    // The hub has no door state for this sensor (it hasn't reported since the hub restarted):
+    // clear the stale DB value instead of showing a months-old "open" door
+    if (next.isOpen === null && !doorUnknownWritten.has(deviceId)) {
+        doorUnknownWritten.add(deviceId);
+        writeSensorState(deviceId, { is_open: null, door_opened_at: null });
+    }
 
     if (doorChanged || batteryChanged || cameOnline) {
         const fields = online ? { status: 'ONLINE' } : {};
