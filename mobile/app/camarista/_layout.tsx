@@ -8,6 +8,7 @@ import { useUserRole } from '../../hooks/use-user-role';
 import { useConfirm } from '../../contexts/confirm-context';
 import { useFeedback } from '../../contexts/feedback-context';
 import * as Updates from 'expo-updates';
+import { closeMyOpenShifts } from '../../lib/shift-session';
 
 export default function CamaristaLayout() {
     const { isDark, themeMode, setThemeMode } = useTheme();
@@ -24,17 +25,8 @@ export default function CamaristaLayout() {
             "¿Estás seguro de que deseas salir?",
             async () => {
                 try {
-                    if (hasActiveShift && employeeId) {
-                        await supabase
-                            .from("shift_sessions")
-                            .update({
-                                clock_out_at: new Date().toISOString(),
-                                status: "closed",
-                            })
-                            .eq("employee_id", employeeId)
-                            .in("status", ["active", "open"])
-                            .is("clock_out_at", null);
-                    }
+                    // Cierra el turno por la sesión de la camarista (no depende de hasActiveShift, que puede estar desactualizado)
+                    await closeMyOpenShifts(employeeId);
                 } catch (error) {
                     console.error("Error auto-closing shift:", error);
                 } finally {

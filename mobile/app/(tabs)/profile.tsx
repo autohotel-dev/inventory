@@ -7,6 +7,7 @@ import { LogOut, User, Mail, Shield, Sun, Moon, Smartphone, RefreshCw, CheckCirc
 import { useConfirm } from '../../contexts/confirm-context';
 import { useFeedback } from '../../contexts/feedback-context';
 import * as Updates from 'expo-updates';
+import { closeMyOpenShifts } from '../../lib/shift-session';
 
 export default function ProfileScreen() {
     const { employeeName, userEmail, role, hasActiveShift, employeeId } = useUserRole();
@@ -21,26 +22,8 @@ export default function ProfileScreen() {
                 : '¿Estás seguro que deseas salir?',
             async () => {
                 try {
-                    // Always try to close any open shifts for this employee
-                    // Don't rely on hasActiveShift state which could be stale
-                    if (employeeId) {
-                        const { error: shiftError, count } = await supabase
-                            .from("shift_sessions")
-                            .update({
-                                clock_out_at: new Date().toISOString(),
-                                status: "closed",
-                            })
-                            .eq("employee_id", employeeId)
-                            .in("status", ["active", "open"]);
-
-                        if (shiftError) {
-                            console.error("Error closing shift on logout:", shiftError);
-                        } else {
-                            console.log(`[Logout] Closed ${count ?? 0} active shift(s)`);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error auto-closing shift:", error);
+                    // Cierra el turno por la sesión del empleado (no depende de hasActiveShift, que puede estar desactualizado)
+                    await closeMyOpenShifts(employeeId);
                 } finally {
                     // Always sign out, even if shift closure fails
                     await supabase.auth.signOut();
