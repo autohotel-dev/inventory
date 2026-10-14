@@ -220,14 +220,8 @@ export function ConsumptionTrackingModal({
         let isSubscribed = true;
 
         const setup = async () => {
-            // Asegurar auth token para realtime
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session?.access_token) {
-                    supabase.realtime.setAuth(session.access_token);
-                }
-            } catch { /* noop */ }
-
+            // Sin setAuth(token) manual: fijaría el token y Realtime dejaría de seguir
+            // las renovaciones de supabase-js (el tablero se quedaba sin eventos).
             const channel = supabase
                 .channel(`tracking-${salesOrderId}`)
                 .on(

@@ -28,6 +28,9 @@ export function useRoomsQuery() {
     queryFn: fetchRoomsData,
     staleTime: 1000 * 5, // 5 segundos, ya que la visibilidad depende de web sockets
     refetchOnWindowFocus: true,
+    // Red de seguridad: si Realtime pierde un evento (canal caído, PC suspendida),
+    // la recepción no se queda con el tablero atorado más de 30s.
+    refetchInterval: 30_000,
   });
 
   // Helper para forzar recarga (el equivalente a "silent" fetch o click a botón reload)

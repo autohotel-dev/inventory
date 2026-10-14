@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { invalidateReceptionCache } from "@/hooks/room-actions/shift-helpers";
+import { subscribeResilient } from "@/lib/supabase/resilient-channel";
 
 /**
  * Hook dedicado a la suscripción de eventos en tiempo real (Supabase WebSockets).
@@ -28,7 +29,6 @@ export function useRoomRealtime(
   useEffect(() => {
     const supabase = createClient();
     let isSubscribed = true;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     // Debounced fetch: coalesces multiple realtime events into 1 refetch
     // 600ms is enough to group checkout (touches 4+ tables) into a single refetch
@@ -39,90 +39,63 @@ export function useRoomRealtime(
       }, 600);
     };
 
-    const setupRealtimeChannel = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.access_token) {
-          supabase.realtime.setAuth(session.access_token);
-        } else {
-          console.warn("⚠️ [Realtime] No hay sesión activa");
-        }
-
-        // Remove any pre-existing channel with the same name to prevent
-        // "cannot add callbacks after subscribe()" during StrictMode/hot reload
-        const existingChannel = supabase.channel("rooms-board-realtime");
-        await supabase.removeChannel(existingChannel);
-
-        channel = supabase
-          .channel("rooms-board-realtime")
-          // Core tables that directly affect the room dashboard visuals
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "rooms" },
-            () => { if (isSubscribed) debouncedFetch(); }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "room_assets" },
-            () => { if (isSubscribed) debouncedFetch(); }
-          )
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "room_stays" },
-            () => { if (isSubscribed) debouncedFetch(); }
-          )
-          // sales_orders for remaining_amount changes
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "sales_orders" },
-            () => { if (isSubscribed) debouncedFetch(); }
-          )
-          // sales_order_items only for new CONSUMPTION items (sound alert)
-          .on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table: "sales_order_items" },
-            (payload: any) => {
-              if (!isSubscribed) return;
-              if (payload.new?.concept_type === "CONSUMPTION") {
-                playAlertRef.current();
-              }
-              debouncedFetch();
+    const unsubscribe = subscribeResilient(
+      supabase,
+      "rooms-board-realtime",
+      (channel) => channel
+        // Core tables that directly affect the room dashboard visuals
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "rooms" },
+          () => { if (isSubscribed) debouncedFetch(); }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "room_assets" },
+          () => { if (isSubscribed) debouncedFetch(); }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "room_stays" },
+          () => { if (isSubscribed) debouncedFetch(); }
+        )
+        // sales_orders for remaining_amount changes
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "sales_orders" },
+          () => { if (isSubscribed) debouncedFetch(); }
+        )
+        // sales_order_items only for new CONSUMPTION items (sound alert)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "sales_order_items" },
+          (payload: any) => {
+            if (!isSubscribed) return;
+            if (payload.new?.concept_type === "CONSUMPTION") {
+              playAlertRef.current();
             }
-          )
-          // Invalidate reception shift cache when shifts change
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "shift_sessions" },
-            () => {
-              if (!isSubscribed) return;
-              // Invalidate the cached reception context so next charge uses the correct shift
-              invalidateReceptionCache();
-              debouncedFetch();
-            }
-          )
-          .subscribe((status: string, err?: Error) => {
-            if (status === "SUBSCRIBED") {
-              
-            } else if (status === "CHANNEL_ERROR") {
-              console.warn("⚠️ [Realtime] Error en canal:", err?.message || "");
-            } else if (status === "TIMED_OUT") {
-              console.warn("⏱️ [Realtime] Timeout");
-            }
-          });
-      } catch (error) {
-        console.error("❌ [Realtime] Error configurando:", error);
-      }
-    };
-
-    setupRealtimeChannel();
+            debouncedFetch();
+          }
+        )
+        // Invalidate reception shift cache when shifts change
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "shift_sessions" },
+          () => {
+            if (!isSubscribed) return;
+            // Invalidate the cached reception context so next charge uses the correct shift
+            invalidateReceptionCache();
+            debouncedFetch();
+          }
+        ),
+      // (Re)conectado: los cambios ocurridos mientras el canal estaba caído no llegan, recargar
+      () => { if (isSubscribed) debouncedFetch(); }
+    );
 
     return () => {
       isSubscribed = false;
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      unsubscribe();
     };
   }, []); // Sin dependencias → se monta UNA sola vez
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { subscribeResilient } from '@/lib/supabase/resilient-channel';
 import { toast } from 'sonner';
 
 export type NotificationType = 'success' | 'alert' | 'info';
@@ -232,8 +233,7 @@ export function useSoundNotifications(
 
     useEffect(() => {
         const supabase = createClient();
-        const channel = supabase
-            .channel('room-notifications')
+        return subscribeResilient(supabase, 'room-notifications', (channel) => channel
             .on(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'room_stays' },
@@ -340,10 +340,7 @@ export function useSoundNotifications(
                         }
                     }
                 }
-            )
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
+            ));
     }, [role, soundEngine]);
 
     return soundEngine;

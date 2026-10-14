@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { subscribeResilient } from "@/lib/supabase/resilient-channel";
 
 export type UserRole = "admin" | "manager" | "supervisor" | "receptionist" | "cochero" | "camarista" | "mantenimiento" | null;
 
@@ -30,6 +31,40 @@ interface UserRoleData {
   linkEmployeeToUser: () => Promise<boolean>;
 }
 
+// useUserRole se monta en muchos componentes a la vez; abrir un canal por instancia
+// agotaba el límite de canales de Realtime y tiraba también los del tablero.
+// Un solo canal por empleado, compartido por todas las instancias.
+const shiftWatchers = new Map<string, { listeners: Set<() => void>; unsubscribe: () => void }>();
+
+function watchEmployeeShift(employeeId: string, onChange: () => void): () => void {
+  let watcher = shiftWatchers.get(employeeId);
+  if (!watcher) {
+    const listeners = new Set<() => void>();
+    const unsubscribe = subscribeResilient(
+      createClient(),
+      `web-shift-sync-${employeeId}`,
+      (channel) => channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shift_sessions", filter: `employee_id=eq.${employeeId}` },
+        () => listeners.forEach((listener) => listener())
+      )
+    );
+    watcher = { listeners, unsubscribe };
+    shiftWatchers.set(employeeId, watcher);
+  }
+  watcher.listeners.add(onChange);
+
+  return () => {
+    const current = shiftWatchers.get(employeeId);
+    if (!current) return;
+    current.listeners.delete(onChange);
+    if (current.listeners.size === 0) {
+      current.unsubscribe();
+      shiftWatchers.delete(employeeId);
+    }
+  };
+}
+
 export function useUserRole(): UserRoleData {
   const [role, setRole] = useState<UserRole>(null);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
@@ -38,7 +73,6 @@ export function useUserRole(): UserRoleData {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hasActiveShift, setHasActiveShift] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const instanceId = useRef(Math.random().toString(36).slice(2, 8));
 
   const fetchUserRole = useCallback(async () => {
     const supabase = createClient();
@@ -171,28 +205,7 @@ export function useUserRole(): UserRoleData {
   // Suscripción realtime para cambios en shift_sessions del empleado
   useEffect(() => {
     if (!employeeId) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`web-shift-sync-${employeeId}-${instanceId.current}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'shift_sessions',
-          filter: `employee_id=eq.${employeeId}`,
-        },
-        () => {
-          console.log('[WEB SHIFT SYNC] Shift change detected for employee:', employeeId);
-          fetchUserRole();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return watchEmployeeShift(employeeId, fetchUserRole);
   }, [employeeId, fetchUserRole]);
 
   const isAdmin = role === "admin";
