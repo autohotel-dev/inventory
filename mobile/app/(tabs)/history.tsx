@@ -41,7 +41,7 @@ export default function HistoryScreen() {
                 .select(`
                     id, check_in_at, vehicle_plate, status,
                     rooms(number),
-                    sales_orders(payments(amount, payment_method, status))
+                    sales_orders(payments(amount, payment_method, status, collected_by))
                 `)
                 .eq('valet_employee_id', employeeId)
                 .order('check_in_at', { ascending: false })
@@ -49,9 +49,13 @@ export default function HistoryScreen() {
 
             if (stays) {
                 stays.forEach(stay => {
-                    const totalPaid = stay.sales_orders?.payments
-                        ?.filter((p: any) => p.status === 'PAGADO' || p.status === 'COBRADO_POR_VALET')
-                        ?.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0) || 0;
+                    // Solo lo que cobró este cochero (no los pagos que hizo recepción en la misma cuenta).
+                    // La relación llega como objeto o como lista según cómo la infiera el cliente.
+                    const orders: any[] = ([] as any[]).concat((stay as any).sales_orders ?? []);
+                    const totalPaid = orders
+                        .flatMap((o: any) => o?.payments ?? [])
+                        .filter((p: any) => p.collected_by === employeeId && (p.status === 'PAGADO' || p.status === 'COBRADO_POR_VALET'))
+                        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
                     entries.push({
                         id: stay.id,
