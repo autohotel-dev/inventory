@@ -137,18 +137,18 @@ export function ConnectedChangeRoomModal({
           // Actualizar totales de la orden reflejando el cobro o la devolución
           const { data: currentOrder } = await supabase
             .from("sales_orders")
-            .select("subtotal, total, remaining_amount")
+            .select("subtotal, total")
             .eq("id", activeStay.sales_order_id)
             .single();
 
           if (currentOrder) {
             const amountToApply = isRefund ? -absAmount : absAmount;
+            // remaining_amount no se toca: el trigger de sales_order_items ya lo recalculó al insertar
             await supabase
               .from("sales_orders")
               .update({
                 subtotal: (currentOrder.subtotal || 0) + amountToApply,
                 total: (currentOrder.total || 0) + amountToApply,
-                remaining_amount: (currentOrder.remaining_amount || 0) + amountToApply
               })
               .eq("id", activeStay.sales_order_id);
           }

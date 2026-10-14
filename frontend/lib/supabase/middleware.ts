@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 
+const APP_ONLY_ROLES = ["cochero", "camarista"];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -87,6 +89,24 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);
+  }
+
+  // Cocheros y camaristas operan solo desde la app móvil
+  if (user && pathname !== "/" && !pathname.startsWith("/auth")) {
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("role")
+      .eq("auth_user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (employee && APP_ONLY_ROLES.includes(employee.role)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/app-only";
+      url.search = "";
+      const redirect = NextResponse.redirect(url);
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+      return redirect;
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

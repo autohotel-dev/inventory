@@ -302,10 +302,9 @@ export function useSalesDetail({ orderId }: UseSalesDetailProps) {
 
       const currentSubtotal = Number(order.subtotal) || 0;
       const currentTotal = Number(order.total) || 0;
-      const currentRemaining = Number(order.remaining_amount) || 0;
+      // remaining_amount no se toca: el trigger de sales_order_items ya lo recalculó al insertar
       await supabase.from("sales_orders").update({
         subtotal: currentSubtotal + newItemsTotal, total: currentTotal + newItemsTotal,
-        remaining_amount: currentRemaining + newItemsTotal,
       }).eq("id", orderId);
 
       await fetchOrderDetail();
