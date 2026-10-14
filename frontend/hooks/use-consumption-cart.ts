@@ -434,6 +434,10 @@ export function useConsumptionCart({
   };
 
   const confirmEditQty = () => {
+    if (editingItemId && editIsCourtesy && !editCourtesyReason.trim()) {
+      toast.error("Escribe el motivo de la cortesía");
+      return;
+    }
     if (editingItemId) {
       updateCartItem(editingItemId, { qty: editQty, is_courtesy: editIsCourtesy, courtesy_reason: editCourtesyReason });
       setEditingItemId(null);
@@ -656,7 +660,8 @@ export function useConsumptionCart({
     } catch (error) {
       console.error("Error adding consumption:", error);
       playError();
-      toast.error("Error al agregar consumo");
+      // La base valida precios y cortesías: su mensaje dice qué renglón y por qué
+      toast.error("Error al agregar consumo", { description: (error as { message?: string })?.message, duration: 10000 });
     } finally {
       setProcessing(false);
       processingLockRef.current = false;
