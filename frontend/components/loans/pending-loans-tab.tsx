@@ -3,19 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 import { LoanedItemsPanel } from "@/components/sales/loaned-items-panel";
+import { useLoanChanges } from "@/hooks/use-loan-changes";
 import { fetchPendingLoans, isMissingUndecided, type PendingLoan } from "@/lib/services/loaned-items-service";
 
-/**
- * Lo que recepción tiene que resolver, agrupado por estancia: artículos sin revisar
- * (normalmente de salidas que se cerraron sin revisión) y faltantes sin decidir.
- */
-export function PendingLoansTab() {
+/** Pendientes de préstamo, en vivo: se recargan cuando un cochero o recepción revisa algo */
+export function usePendingLoans() {
   const [pending, setPending] = useState<PendingLoan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const result = await fetchPendingLoans();
     if (result.success) {
       setPending(result.data);
@@ -26,8 +24,23 @@ export function PendingLoansTab() {
     setLoading(false);
   }, []);
 
+  const reload = useCallback(() => load(true), [load]);
   useEffect(() => { load(); }, [load]);
+  useLoanChanges(reload);
 
+  const totals = useMemo(() => ({
+    unchecked: pending.filter(l => l.status === "PRESTADO").length,
+    missing: pending.filter(isMissingUndecided).length,
+  }), [pending]);
+
+  return { pending, loading, error, reload, refresh: load, totals };
+}
+
+/**
+ * Lo que recepción tiene que resolver, agrupado por estancia: artículos sin revisar
+ * (normalmente de salidas que se cerraron sin revisión) y faltantes sin decidir.
+ */
+export function PendingLoansTab({ pending, loading, error, reload, refresh, totals }: ReturnType<typeof usePendingLoans>) {
   const stays = useMemo(() => {
     const byStay = new Map<string, { stayId: string; room: string; active: boolean; checkIn: string; unchecked: number; missing: number }>();
     for (const loan of pending) {
@@ -50,11 +63,6 @@ export function PendingLoansTab() {
       b.checkIn.localeCompare(a.checkIn));
   }, [pending]);
 
-  const totals = useMemo(() => ({
-    unchecked: pending.filter(l => l.status === "PRESTADO").length,
-    missing: pending.filter(isMissingUndecided).length,
-  }), [pending]);
-
   return (
     <div className="max-w-4xl mx-auto w-full space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -62,7 +70,7 @@ export function PendingLoansTab() {
           {loading ? "Cargando..." : stays.length === 0 ? "" :
             `${totals.missing} ${totals.missing === 1 ? "faltante" : "faltantes"} por decidir · ${totals.unchecked} sin revisar`}
         </p>
-        <button onClick={load} disabled={loading}
+        <button onClick={() => refresh()} disabled={loading}
           className="h-8 px-3 rounded-lg border border-white/10 text-xs text-white/70 hover:bg-white/5 flex items-center gap-1.5 disabled:opacity-50">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Actualizar
         </button>
@@ -83,7 +91,7 @@ export function PendingLoansTab() {
           key={stay.stayId}
           stayId={stay.stayId}
           canCharge={stay.active}
-          onChanged={load}
+          onChanged={reload}
           title={`Hab. ${stay.room} · ${new Date(stay.checkIn).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })} · ${stay.active ? "Ocupada" : "Salida cerrada"}`}
         />
       ))}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, X, Ban, HandCoins } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLoanChanges } from "@/hooks/use-loan-changes";
 import {
   type LoanedItem,
   LOAN_STATUS_LABEL,
@@ -41,6 +42,8 @@ export function LoanedItemsPanel({ stayId, title = "Préstamos y Loza", canCharg
   }, [stayId]);
 
   useEffect(() => { load(); }, [load]);
+  // El cochero revisa desde su app: reflejarlo sin recargar
+  useLoanChanges(load, stayId);
 
   const run = async (loanId: string, action: () => ReturnType<typeof resolveLoanedItem>, okMessage: string) => {
     setBusyId(loanId);
