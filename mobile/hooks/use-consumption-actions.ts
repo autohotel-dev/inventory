@@ -98,6 +98,19 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         }
     };
 
+    // Conceptos con los que recepción/la base crean el pago pendiente de cada tipo de renglón
+    const pendingPaymentConcepts = (itemConceptType: string | undefined): string[] => {
+        switch (itemConceptType) {
+            case 'EXTRA_HOUR': return ['HORA_EXTRA'];
+            case 'EXTRA_PERSON': return ['PERSONA_EXTRA'];
+            case 'RENEWAL': return ['RENEWAL', 'RENOVACION'];
+            case 'PROMO_4H': return ['PROMO_4H'];
+            case 'DAMAGE_CHARGE': return ['DAMAGE_CHARGE', 'CARGO_DANO'];
+            case 'TOLERANCE_EXPIRED': return ['TOLERANCIA_EXPIRADA'];
+            default: return ['CONSUMPTION', 'CONSUMO'];
+        }
+    };
+
     const handleConfirmDelivery = useCallback(async (
         consumptionId: string,
         roomNumber: string,
@@ -129,12 +142,20 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 updateData.tip_method = tipMethod;
             }
 
-            const { error: updateError } = await supabase
+            // Solo si aún no estaba entregado: un doble toque o reintento no registra el cobro dos veces
+            const { data: updatedRows, error: updateError } = await supabase
                 .from('sales_order_items')
                 .update(updateData)
-                .eq('id', consumptionId);
+                .eq('id', consumptionId)
+                .neq('delivery_status', 'DELIVERED')
+                .select('id');
 
             if (updateError) throw updateError;
+            if (!updatedRows || updatedRows.length === 0) {
+                showFeedback('Ya informada', `Hab. ${roomNumber}: esta entrega ya estaba registrada.`, 'info');
+                await onRefresh();
+                return true;
+            }
 
             const { data: itemData } = await supabase
                 .from('sales_order_items')
@@ -157,6 +178,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                     .eq('sales_order_id', salesOrderId)
                     .eq('status', 'PENDIENTE')
                     .eq('amount', p.amount)
+                    .in('concept', pendingPaymentConcepts(itemConceptType))
+                    .order('created_at', { ascending: true })
+                    .limit(1)
                     .maybeSingle();
 
                 if (existingPending) {
@@ -238,12 +262,20 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                 updateData.tip_method = tipMethod;
             }
 
-            const { error } = await supabase
+            // Solo los que aún no estaban entregados: un doble toque o reintento no cobra dos veces
+            const { data: updatedRows, error } = await supabase
                 .from('sales_order_items')
                 .update(updateData)
-                .in('id', itemIds);
+                .in('id', itemIds)
+                .neq('delivery_status', 'DELIVERED')
+                .select('id');
 
             if (error) throw error;
+            if (!updatedRows || updatedRows.length === 0) {
+                showFeedback('Ya informadas', `Hab. ${roomNumber}: estas entregas ya estaban registradas.`, 'info');
+                await onRefresh();
+                return true;
+            }
 
             const mainOrderId = salesOrderIds[0];
             const itemsRef = itemIds.length > 1 ? `VALET_BATCH:${itemIds.length}` : `VALET_ITEM:${itemIds[0]}`;
@@ -258,6 +290,9 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
                     .eq('sales_order_id', mainOrderId)
                     .eq('status', 'PENDIENTE')
                     .eq('amount', p.amount)
+                    .in('concept', pendingPaymentConcepts(items[0]?.concept_type))
+                    .order('created_at', { ascending: true })
+                    .limit(1)
                     .maybeSingle();
 
                 if (existingPending) {
@@ -304,37 +339,35 @@ export function useConsumptionActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
+    // El cochero no cancela ventas (eso es de recepción): "soltar" devuelve el servicio a la
+    // lista para que lo tome otro cochero. Solo los que él aceptó y aún no entrega.
     const handleCancelConsumption = useCallback(async (consumptionId: string, valetId?: string) => {
         setLoading(true);
         try {
-            // Verificar que el item le pertenece al cochero antes de cancelar
-            if (valetId) {
-                const { data: item } = await supabase
-                    .from('sales_order_items')
-                    .select('delivery_accepted_by')
-                    .eq('id', consumptionId)
-                    .single();
-
-                if (item?.delivery_accepted_by && item.delivery_accepted_by !== valetId) {
-                    showFeedback('No autorizado', 'Solo puedes cancelar servicios que tú aceptaste', 'error');
-                    return false;
-                }
-            }
-
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('sales_order_items')
                 .update({
-                    delivery_status: 'CANCELLED',
-                    cancellation_reason: 'Cancelado desde app móvil'
+                    delivery_status: 'PENDING_VALET',
+                    delivery_accepted_by: null,
+                    delivery_accepted_at: null,
                 })
-                .eq('id', consumptionId);
+                .eq('id', consumptionId)
+                .eq('delivery_accepted_by', valetId)
+                .in('delivery_status', ['ACCEPTED', 'IN_TRANSIT'])
+                .select('id');
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                showFeedback('No se pudo soltar', 'Solo puedes soltar servicios que tú aceptaste y aún no entregas.', 'warning');
+                await onRefresh();
+                return false;
+            }
+            showFeedback('Servicio liberado', 'Regresó a la lista para que otro cochero lo tome.', 'info');
             await onRefresh();
             return true;
         } catch (error: any) {
-            console.error("Error cancelling:", error);
-            showFeedback('Error', 'Error al cancelar', 'error');
+            console.error("Error releasing consumption:", error);
+            showFeedback('Error', 'No se pudo soltar el servicio', 'error');
             return false;
         } finally {
             setLoading(false);

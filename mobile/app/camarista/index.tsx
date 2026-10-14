@@ -11,6 +11,8 @@ import { addOfflineAction, syncOfflineQueue } from '../../lib/offline-queue';
 import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
 import { useFeedback } from '../../contexts/feedback-context';
+import { useUserRole } from '../../hooks/use-user-role';
+import { getCurrentShiftDefinition, startMyShift, type ShiftDefinition } from '../../lib/shift-session';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_GAP = 10;
@@ -597,6 +599,24 @@ export default function CamaristaPanel() {
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
     const { showFeedback } = useFeedback();
+    const { employeeId, hasActiveShift, isLoading: roleLoading, refresh: refreshRole } = useUserRole();
+    const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
+    const [startingShift, setStartingShift] = useState(false);
+
+    useEffect(() => { getCurrentShiftDefinition().then(setCurrentShift); }, []);
+
+    const handleStartShift = async () => {
+        if (!employeeId || !currentShift) return;
+        setStartingShift(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        const error = await startMyShift(employeeId, currentShift.id);
+        if (error) showFeedback('No se pudo iniciar el turno', error, 'warning');
+        else {
+            await refreshRole();
+            showFeedback('¡Bienvenida!', `Turno ${currentShift.name} iniciado`);
+        }
+        setStartingShift(false);
+    };
 
     const fetchRooms = useCallback(async (quiet = false) => {
         if (!quiet && rooms.length === 0) setLoading(true);
@@ -635,8 +655,11 @@ export default function CamaristaPanel() {
             
             // Si vuelve la conexión, sincronizar cola y recargar
             if (!offline) {
-                syncOfflineQueue().then(syncedCount => {
-                    if (syncedCount > 0) {
+                syncOfflineQueue().then(({ synced, conflicts }) => {
+                    if (conflicts.length > 0) {
+                        showFeedback('Cambios sin aplicar', `Mientras no había señal cambiaron: ${conflicts.join(', ')}. Revisa esas habitaciones.`, 'warning');
+                    }
+                    if (synced > 0 || conflicts.length > 0) {
                         fetchRoomsRef.current(true); // Refrescar para asegurar consistencia
                     }
                 });
@@ -670,13 +693,17 @@ export default function CamaristaPanel() {
 
     const updateRoomStatus = async (roomId: string, newStatus: string, notes?: string | null, maintenanceImageUrl?: string | null) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const room = rooms.find(r => r.id === roomId);
+        if (!room) return;
+        // El estado que la camarista vio: la base solo aplica el cambio si sigue igual
+        const expectedStatus = room.status;
 
         // Optimistic update
-        setRooms(prev => prev.map(r => r.id === roomId ? { 
-            ...r, 
-            status: newStatus, 
-            notes: notes !== undefined ? notes : r.notes,
-            maintenance_image_url: maintenanceImageUrl !== undefined ? maintenanceImageUrl : r.maintenance_image_url
+        setRooms(prev => prev.map(r => r.id === roomId ? {
+            ...r,
+            status: newStatus,
+            notes: newStatus === 'BLOQUEADA' ? (notes ?? r.notes) : null,
+            maintenance_image_url: newStatus === 'BLOQUEADA' ? (maintenanceImageUrl ?? r.maintenance_image_url) : null
         } : r));
 
         try {
@@ -687,25 +714,23 @@ export default function CamaristaPanel() {
                 console.log('[Offline] Guardando acción en cola...');
                 await addOfflineAction({
                     type: 'UPDATE_ROOM_STATUS',
-                    payload: { roomId, newStatus, notes, maintenanceImageUrl }
+                    payload: { roomId, roomNumber: room.number, expectedStatus, newStatus, notes, maintenanceImageUrl }
                 });
                 return; // Salir sin hacer la llamada a Supabase
             }
 
-            const updatePayload: any = { status: newStatus };
-            if (notes !== undefined) {
-                updatePayload.notes = notes;
-            }
-            if (maintenanceImageUrl !== undefined) {
-                updatePayload.maintenance_image_url = maintenanceImageUrl;
-            }
-
-            const { error } = await supabase
-                .from('rooms')
-                .update(updatePayload)
-                .eq('id', roomId);
-
+            const { data, error } = await supabase.rpc('housekeeping_set_room_status', {
+                p_room_id: roomId,
+                p_expected_status: expectedStatus,
+                p_new_status: newStatus,
+                p_notes: notes ?? null,
+                p_image_url: maintenanceImageUrl ?? null,
+            });
             if (error) throw error;
+            if (!data?.success) {
+                showFeedback(data?.conflict ? 'La habitación cambió' : 'No se pudo cambiar', data?.error || 'Intenta de nuevo.', 'warning');
+                fetchRooms(true);
+            }
         } catch (error) {
             console.error("Error updating room status:", error);
             showFeedback("Error", "No se pudo actualizar el estado de la habitación.", 'error');
@@ -714,6 +739,10 @@ export default function CamaristaPanel() {
     };
 
     const handleRoomPress = (room: Room) => {
+        if (!hasActiveShift) {
+            showFeedback('Inicia tu turno', 'Para cambiar habitaciones primero inicia tu turno.', 'warning');
+            return;
+        }
         Haptics.selectionAsync();
         setSelectedRoom(room);
         setModalVisible(true);
@@ -752,6 +781,22 @@ export default function CamaristaPanel() {
                     />
                 }
             >
+                {/* Turno: las acciones quedan a nombre de la camarista en su turno */}
+                {!roleLoading && !hasActiveShift && (
+                    <View style={{ padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1,
+                        borderColor: isDark ? 'rgba(245,158,11,0.4)' : '#fcd34d', backgroundColor: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb' }}>
+                        <Text style={{ fontWeight: '800', color: isDark ? '#fbbf24' : '#b45309', marginBottom: 4 }}>Sin turno activo</Text>
+                        <Text style={{ fontSize: 12, color: isDark ? '#a1a1aa' : '#52525b', marginBottom: 12 }}>
+                            {currentShift ? `Inicia el turno ${currentShift.name} para trabajar las habitaciones.` : 'No hay un turno disponible a esta hora.'}
+                        </Text>
+                        <TouchableOpacity onPress={handleStartShift} disabled={!currentShift || startingShift}
+                            style={{ height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: currentShift ? '#059669' : (isDark ? '#3f3f46' : '#d4d4d8'), opacity: startingShift ? 0.6 : 1 }}>
+                            <Text style={{ color: '#ffffff', fontWeight: '800', letterSpacing: 1 }}>{startingShift ? 'INICIANDO...' : 'INICIAR TURNO'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* Resumen de estados */}
                 <StatusSummary rooms={rooms} isDark={isDark} />
 

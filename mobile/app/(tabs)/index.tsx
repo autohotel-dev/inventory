@@ -8,14 +8,15 @@ import { useValetActions } from '../../hooks/use-valet-actions';
 import { Clock, CheckCircle2, Car, LogOut, ShoppingBag, RefreshCw, ChevronRight, DollarSign, Zap, AlertTriangle, TrendingUp } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import * as Haptics from 'expo-haptics';
-import { PerformanceCard } from '../../components/PerformanceCard';
+import { isEntryPending, isUrgentCheckout, countPendingServices } from '../../lib/valet-rules';
+import { getCurrentShiftDefinition, startMyShift, type ShiftDefinition } from '../../lib/shift-session';
 
 export default function DashboardScreen() {
     const router = useRouter();
     const { employeeName, employeeId, hasActiveShift, role, isLoading, refresh } = useUserRole();
     const { isDark } = useTheme();
     const { showFeedback } = useFeedback();
-    const [currentShift, setCurrentShift] = useState<any>(null);
+    const [currentShift, setCurrentShift] = useState<ShiftDefinition | null>(null);
     const [shiftStartTime, setShiftStartTime] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -87,34 +88,22 @@ export default function DashboardScreen() {
 
             const activeRooms = rooms || [];
 
-            const entries = activeRooms.filter(r => {
-                const stay = (r as any).room_stays?.[0];
-                return stay && !stay.vehicle_plate;
-            });
+            const entries = activeRooms.filter(r => isEntryPending((r as any).room_stays?.[0]));
 
             const inStay = activeRooms.filter(r => {
                 const stay = (r as any).room_stays?.[0];
                 return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id;
             }).length;
 
-            const urgents = activeRooms.filter(r => {
-                const stay = (r as any).room_stays?.[0];
-                return stay && stay.vehicle_plate && !stay.checkout_valet_employee_id &&
-                    (stay.vehicle_requested_at || stay.valet_checkout_requested_at);
-            });
+            const urgents = activeRooms.filter(r => isUrgentCheckout((r as any).room_stays?.[0]));
 
-            const { count: servicesCount } = await supabase
-                .from('sales_order_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('concept_type', 'CONSUMPTION')
-                .eq('is_paid', false)
-                .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
+            const servicesCount = await countPendingServices();
 
             setStats({
                 entries: entries.length,
                 inStay,
                 checkouts: urgents.length,
-                services: servicesCount || 0
+                services: servicesCount
             });
 
             // Build urgent rooms list for quick actions (entries + urgent checkouts)
@@ -126,7 +115,7 @@ export default function DashboardScreen() {
                     type: 'entry' as const,
                     label: 'Entrada pendiente'
                 })),
-                ...urgents.map(r => ({
+                ...urgents.filter(r => !entries.includes(r)).map(r => ({
                     id: r.id,
                     number: (r as any).number,
                     stayId: (r as any).room_stays?.[0]?.id,
@@ -224,32 +213,7 @@ export default function DashboardScreen() {
     }, []);
 
     const fetchCurrentShift = async () => {
-        const { data: shifts } = await supabase
-            .from("shift_definitions")
-            .select("*")
-            .eq("is_active", true);
-
-        if (!shifts?.length) return;
-
-        const now = new Date();
-        const currentTime = now.toTimeString().slice(0, 8);
-
-        for (const shift of shifts) {
-            const start = shift.start_time;
-            const end = shift.end_time;
-
-            if (shift.crosses_midnight) {
-                if (currentTime >= start || currentTime < end) {
-                    setCurrentShift(shift);
-                    return;
-                }
-            } else {
-                if (currentTime >= start && currentTime < end) {
-                    setCurrentShift(shift);
-                    return;
-                }
-            }
-        }
+        setCurrentShift(await getCurrentShiftDefinition());
     };
 
     const handleStartShift = async () => {
@@ -257,36 +221,14 @@ export default function DashboardScreen() {
 
         setLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        try {
-            const { error } = await supabase
-                .from("shift_sessions")
-                .insert({
-                    employee_id: employeeId,
-                    shift_definition_id: currentShift.id,
-                    clock_in_at: new Date().toISOString(),
-                    status: "active",
-                });
-
-            if (error) throw error;
+        const error = await startMyShift(employeeId, currentShift.id);
+        if (error) {
+            showFeedback('No se pudo iniciar el turno', error, 'warning');
+        } else {
             await refresh();
             showFeedback('¡Bienvenido!', 'Tu turno ha iniciado correctamente');
-        } catch (err: any) {
-            const errorMessage = err.message || '';
-            if (errorMessage.includes("ROLE_SHIFT_LIMIT_EXCEEDED")) {
-                const parts = errorMessage.split("::");
-                const currentRole = parts[1] || "tu rol";
-                const limit = parts[2] || "?";
-                showFeedback(
-                    "Límite de Turnos Alcanzado",
-                    `Ya hay ${limit} ${currentRole}(s) con turno activo.\n\nNo se permiten más turnos simultáneos para este rol.`,
-                    'warning'
-                );
-            } else {
-                showFeedback('Error', errorMessage || 'No se pudo iniciar el turno', 'error');
-            }
-        } finally {
-            setLoading(false);
         }
+        setLoading(false);
     };
 
     const onRefresh = async () => {
@@ -479,43 +421,6 @@ export default function DashboardScreen() {
                         <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{stats.services}</Text>
                     </View>
                 </View>
-
-                {/* Performance Metrics - Personal */}
-                {hasActiveShift && (
-                    <View className="mt-6">
-                        <View className="flex-row items-center mb-3">
-                            <View className="bg-purple-500/20 p-1.5 rounded-lg border border-purple-500/30 mr-2">
-                                <Zap color="#a855f7" size={16} strokeWidth={3} />
-                            </View>
-                            <Text className={`text-xs font-black uppercase tracking-widest ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-                                Mi Rendimiento
-                            </Text>
-                        </View>
-                        <View className="flex-row gap-3">
-                            <PerformanceCard
-                                title="Entradas"
-                                value={myStats.entriesHandled > 0 ? 2.5 : 0}
-                                target={5}
-                                icon="clock"
-                                color="bg-blue-500"
-                            />
-                            <PerformanceCard
-                                title="Salidas"
-                                value={myStats.checkoutsHandled > 0 ? 3.2 : 0}
-                                target={10}
-                                icon="target"
-                                color="bg-emerald-500"
-                            />
-                            <PerformanceCard
-                                title="Entregas"
-                                value={myStats.servicesDelivered > 0 ? 4.1 : 0}
-                                target={5}
-                                icon="zap"
-                                color="bg-amber-500"
-                            />
-                        </View>
-                    </View>
-                )}
 
                 {/* Acciones Urgentes */}
                 {urgentRooms.length > 0 && (

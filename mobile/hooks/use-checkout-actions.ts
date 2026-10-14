@@ -174,265 +174,62 @@ export function useCheckoutActions(onRefresh: () => Promise<void>) {
         }
     }, [onRefresh, showFeedback]);
 
-    const handleReportDamage = useCallback(async (
+    // Hora extra / persona extra / daño cobrados por el cochero. El cochero solo REPORTA: queda
+    // una solicitud y recepción la aprueba (genera el cargo, extiende la salida o suma la persona)
+    // o la rechaza. El requestId hace que un doble toque o reintento no cree dos solicitudes.
+    const registerCharge = useCallback(async (
+        chargeType: 'EXTRA_HOUR' | 'EXTRA_PERSON' | 'DAMAGE_CHARGE',
         stayId: string,
-        salesOrderId: string,
         roomNumber: string,
-        description: string,
         amount: number,
         payments: PaymentEntry[],
-        valetId: string
+        requestId: string,
+        description?: string
     ) => {
         setLoading(true);
         try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
-
-            // Obtener product_id del item base de la orden
-            const { data: baseItem } = await supabase
-                .from('sales_order_items')
-                .select('product_id')
-                .eq('sales_order_id', salesOrderId)
-                .eq('concept_type', 'ROOM_BASE')
-                .limit(1)
-                .maybeSingle();
-
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
-                    sales_order_id: salesOrderId,
-                    product_id: baseItem?.product_id || null,
-                    concept_type: 'DAMAGE_CHARGE',
-                    description: `DAÑO: ${description}`,
-                    unit_price: amount,
-                    qty: 1,
-                    total: amount,
-                    is_paid: false
-                })
-                .select()
-                .single();
-
-            if (itemError) throw itemError;
-
-            for (const p of payments) {
-                const { error: insErr } = await supabase.from('payments').insert({
-                    sales_order_id: salesOrderId,
+            const { data, error } = await supabase.rpc('valet_register_charge', {
+                p_stay_id: stayId,
+                p_charge_type: chargeType,
+                p_amount: amount,
+                p_payments: payments.map(p => ({
                     amount: p.amount,
-                    payment_method: p.method,
-                    terminal_code: p.terminal,
-                    card_last_4: p.cardLast4,
-                    card_type: p.cardType,
-                    reference: p.reference || `VALET_DAMAGE:${item?.id}`,
-                    concept: 'DAMAGE_CHARGE',
-                    status: 'COBRADO_POR_VALET',
-                    collected_by: valetId,
-                    collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null,
-                });
-                if (insErr) throw insErr;
-            }
+                    method: p.method,
+                    terminal: p.terminal,
+                    cardType: p.cardType,
+                    cardLast4: p.cardLast4,
+                    reference: p.reference,
+                })),
+                p_description: description || null,
+                p_request_id: requestId,
+            });
+            if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || 'No se pudo enviar el cobro');
 
-            // Actualizar totales de la orden
-            const { data: currentOrder } = await supabase
-                .from('sales_orders')
-                .select('total, remaining_amount')
-                .eq('id', salesOrderId)
-                .single();
-
-            if (currentOrder) {
-                await supabase.from('sales_orders').update({
-                    total: (currentOrder.total || 0) + amount,
-                    remaining_amount: (currentOrder.remaining_amount || 0) + amount,
-                }).eq('id', salesOrderId);
-            }
-
-            showFeedback('✅ Daño Informado', `Hab. ${roomNumber}: Cargo por $${amount.toFixed(2)} generado. Corrobora el cobro en recepción.`);
+            const label = chargeType === 'EXTRA_HOUR' ? 'Hora extra' : chargeType === 'EXTRA_PERSON' ? 'Persona extra' : 'Daño';
+            showFeedback(`📨 ${label} enviada a recepción`, `Hab. ${roomNumber}: $${amount.toFixed(2)}. Recepción la aprueba; te llegará el aviso. Entrega el dinero en recepción.`);
             await onRefresh();
             return true;
         } catch (error: any) {
-            console.error('Error reporting damage:', error);
-            showFeedback('Error', 'No se pudo registrar el daño.', 'error');
+            console.error(`Error registering ${chargeType}:`, error);
+            showFeedback('Error', error?.message || 'No se pudo enviar el cobro.', 'error');
             return false;
         } finally {
             setLoading(false);
         }
     }, [onRefresh, showFeedback]);
 
-    const handleRegisterExtraHour = useCallback(async (
-        salesOrderId: string,
-        roomNumber: string,
-        amount: number,
-        payments: PaymentEntry[],
-        valetId: string
-    ) => {
-        setLoading(true);
-        try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
+    const handleReportDamage = useCallback((
+        stayId: string, roomNumber: string, description: string, amount: number, payments: PaymentEntry[], requestId: string
+    ) => registerCharge('DAMAGE_CHARGE', stayId, roomNumber, amount, payments, requestId, description), [registerCharge]);
 
-            // Obtener product_id del item base de la orden
-            const { data: baseItem } = await supabase
-                .from('sales_order_items')
-                .select('product_id')
-                .eq('sales_order_id', salesOrderId)
-                .eq('concept_type', 'ROOM_BASE')
-                .limit(1)
-                .maybeSingle();
+    const handleRegisterExtraHour = useCallback((
+        stayId: string, roomNumber: string, amount: number, payments: PaymentEntry[], requestId: string
+    ) => registerCharge('EXTRA_HOUR', stayId, roomNumber, amount, payments, requestId), [registerCharge]);
 
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
-                    sales_order_id: salesOrderId,
-                    product_id: baseItem?.product_id || null,
-                    concept_type: 'EXTRA_HOUR',
-                    description: 'HORA EXTRA (COCHERO)',
-                    unit_price: amount,
-                    qty: 1,
-                    total: amount,
-                    is_paid: false
-                })
-                .select()
-                .single();
-
-            if (itemError) throw itemError;
-
-            for (const p of payments) {
-                const { error: insErr } = await supabase.from('payments').insert({
-                    sales_order_id: salesOrderId,
-                    amount: p.amount,
-                    payment_method: p.method,
-                    terminal_code: p.terminal,
-                    card_last_4: p.cardLast4,
-                    card_type: p.cardType,
-                    reference: p.reference || `VALET_HOUR:${item?.id}`,
-                    concept: 'HORA_EXTRA',
-                    status: 'COBRADO_POR_VALET',
-                    collected_by: valetId,
-                    collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null,
-                });
-                if (insErr) throw insErr;
-            }
-
-            // Actualizar totales de la orden
-            const { data: currentOrder } = await supabase
-                .from('sales_orders')
-                .select('total, remaining_amount')
-                .eq('id', salesOrderId)
-                .single();
-
-            if (currentOrder) {
-                await supabase.from('sales_orders').update({
-                    total: (currentOrder.total || 0) + amount,
-                    remaining_amount: (currentOrder.remaining_amount || 0) + amount,
-                }).eq('id', salesOrderId);
-            }
-
-            showFeedback('✅ Hora Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
-            await onRefresh();
-            return true;
-        } catch (error: any) {
-            console.error('Error registering extra hour:', error);
-            showFeedback('Error', 'No se pudo registrar la hora extra.', 'error');
-            return false;
-        } finally {
-            setLoading(false);
-        }
-    }, [onRefresh, showFeedback]);
-
-    const handleRegisterExtraPerson = useCallback(async (
-        salesOrderId: string,
-        roomNumber: string,
-        amount: number,
-        payments: PaymentEntry[],
-        valetId: string
-    ) => {
-        setLoading(true);
-        try {
-            const { data: session } = await supabase
-                .from('shift_sessions')
-                .select('id')
-                .eq('employee_id', valetId)
-                .eq('status', 'active')
-                .order("clock_in_at", { ascending: false }).limit(1).maybeSingle();
-
-            // Obtener product_id del item base de la orden
-            const { data: baseItem } = await supabase
-                .from('sales_order_items')
-                .select('product_id')
-                .eq('sales_order_id', salesOrderId)
-                .eq('concept_type', 'ROOM_BASE')
-                .limit(1)
-                .maybeSingle();
-
-            const { data: item, error: itemError } = await supabase
-                .from('sales_order_items')
-                .insert({
-                    sales_order_id: salesOrderId,
-                    product_id: baseItem?.product_id || null,
-                    concept_type: 'EXTRA_PERSON',
-                    description: 'PERSONA EXTRA (COCHERO)',
-                    unit_price: amount,
-                    qty: 1,
-                    total: amount,
-                    is_paid: false
-                })
-                .select()
-                .single();
-
-            if (itemError) throw itemError;
-
-            for (const p of payments) {
-                const { error: insErr } = await supabase.from('payments').insert({
-                    sales_order_id: salesOrderId,
-                    amount: p.amount,
-                    payment_method: p.method,
-                    terminal_code: p.terminal,
-                    card_last_4: p.cardLast4,
-                    card_type: p.cardType,
-                    reference: p.reference || `VALET_PERSON:${item?.id}`,
-                    concept: 'PERSONA_EXTRA',
-                    status: 'COBRADO_POR_VALET',
-                    collected_by: valetId,
-                    collected_at: new Date().toISOString(),
-                    shift_session_id: session?.id || null,
-                });
-                if (insErr) throw insErr;
-            }
-
-            // Actualizar totales de la orden
-            const { data: currentOrder } = await supabase
-                .from('sales_orders')
-                .select('total, remaining_amount')
-                .eq('id', salesOrderId)
-                .single();
-
-            if (currentOrder) {
-                await supabase.from('sales_orders').update({
-                    total: (currentOrder.total || 0) + amount,
-                    remaining_amount: (currentOrder.remaining_amount || 0) + amount,
-                }).eq('id', salesOrderId);
-            }
-
-            showFeedback('✅ Persona Extra Informada', `Hab. ${roomNumber}: Cobro registrado. Entrega el dinero en recepción.`);
-            await onRefresh();
-            return true;
-        } catch (error: any) {
-            console.error('Error registering extra person:', error);
-            showFeedback('Error', 'No se pudo registrar la persona extra.', 'error');
-            return false;
-        } finally {
-            setLoading(false);
-        }
-    }, [onRefresh, showFeedback]);
+    const handleRegisterExtraPerson = useCallback((
+        stayId: string, roomNumber: string, amount: number, payments: PaymentEntry[], requestId: string
+    ) => registerCharge('EXTRA_PERSON', stayId, roomNumber, amount, payments, requestId), [registerCharge]);
 
     const handleVerifyAssetPresence = useCallback(async (
         roomId: string,

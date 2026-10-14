@@ -5,6 +5,7 @@ import { useTheme } from '../../contexts/theme-context';
 import { supabase } from '../../lib/supabase';
 import { SyncQueue } from '../../lib/sync-queue';
 import { useUserRole } from '../../hooks/use-user-role';
+import { isEntryPending, isUrgentCheckout, countPendingServices } from '../../lib/valet-rules';
 
 export default function TabLayout() {
     const { isDark } = useTheme();
@@ -18,20 +19,15 @@ export default function TabLayout() {
     useEffect(() => {
         if (role === 'camarista') {
             router.replace('/camarista');
+        } else if (role && role !== 'cochero') {
+            router.replace('/no-access');
         }
     }, [role]);
 
     // Conteo liviano de servicios pendientes para el badge del tab
     const fetchPendingCount = useCallback(async () => {
         // Servicios pendientes
-        const { count: serviceCount } = await supabase
-            .from('sales_order_items')
-            .select('id', { count: 'exact', head: true })
-            .eq('concept_type', 'CONSUMPTION')
-            .is('delivery_accepted_by', null)
-            .eq('is_paid', false)
-            .not('delivery_status', 'in', '("CANCELLED","COMPLETED","DELIVERED")');
-        setPendingServiceCount(serviceCount || 0);
+        setPendingServiceCount(await countPendingServices());
 
         // Habitaciones activas sin vehículo (pendientes de entrada)
         const { data: rooms } = await supabase
@@ -43,22 +39,18 @@ export default function TabLayout() {
                     vehicle_plate,
                     valet_employee_id,
                     vehicle_requested_at,
-                    valet_checkout_requested_at
+                    valet_checkout_requested_at,
+                    checkout_valet_employee_id
                 )
             `)
             .eq("room_stays.status", "ACTIVA");
 
         const activeRooms = rooms || [];
-        const entries = activeRooms.filter(r => {
+        // Habitaciones que piden algo: entrada sin vehículo o salida/auto urgente (sin contar dos veces)
+        setPendingEntryCount(activeRooms.filter(r => {
             const stay = (r as any).room_stays?.[0];
-            return stay && !stay.vehicle_plate;
-        }).length;
-        const urgentCheckouts = activeRooms.filter(r => {
-            const stay = (r as any).room_stays?.[0];
-            return stay && stay.vehicle_plate && 
-                (stay.vehicle_requested_at || stay.valet_checkout_requested_at);
-        }).length;
-        setPendingEntryCount(entries + urgentCheckouts);
+            return isEntryPending(stay) || isUrgentCheckout(stay);
+        }).length);
 
         // TVs pendientes
         if (employeeId) {

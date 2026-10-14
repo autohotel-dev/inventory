@@ -271,19 +271,18 @@ export function useEntryActions(onRefresh: () => Promise<void>) {
                             if (payErr) console.error(`Error creating PERSONA_EXTRA payment ${i + 1}:`, payErr);
                         }
 
-                        // Actualizar totales de la sales_order (solo subtotal y remaining,
-                        // NOT paid_amount — eso lo hace recepción al confirmar)
+                        // Total de la orden (NO paid_amount: eso lo hace recepción al confirmar).
+                        // remaining_amount no se toca: el trigger de renglones ya lo recalculó.
                         const extraTotal = extraCount * extraPersonPrice;
                         const { data: currentOrder } = await supabase
                             .from('sales_orders')
-                            .select('total, remaining_amount')
+                            .select('total')
                             .eq('id', salesOrderId)
                             .single();
 
                         if (currentOrder) {
                             await supabase.from('sales_orders').update({
                                 total: (currentOrder.total || 0) + extraTotal,
-                                remaining_amount: (currentOrder.remaining_amount || 0) + extraTotal,
                             }).eq('id', salesOrderId);
                         }
 

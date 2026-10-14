@@ -37,15 +37,18 @@ function RootLayoutNav() {
                 return;
             }
 
-            // Hay sesión activa — redirigir según rol
+            // Hay sesión activa — redirigir según rol. Solo cocheros y camaristas usan la app;
+            // los demás roles (y cuentas sin empleado) ven la pantalla de sin acceso.
             if (role === 'camarista') {
                 if (seg !== 'camarista') {
                     router.replace('/camarista');
                 }
-            } else if (role) {
-                if (seg === 'login' || !seg || seg === '' || seg === 'camarista') {
+            } else if (role === 'cochero') {
+                if (seg !== '(tabs)') {
                     router.replace('/(tabs)');
                 }
+            } else if (seg !== 'no-access') {
+                router.replace('/no-access');
             }
         });
 
@@ -69,6 +72,7 @@ function RootLayoutNav() {
                 <Stack.Screen name="login" options={{ title: 'Iniciar Sesión' }} />
                 <Stack.Screen name="(tabs)" options={{ title: 'Panel Cocheros' }} />
                 <Stack.Screen name="camarista" options={{ title: 'Panel Camarista' }} />
+                <Stack.Screen name="no-access" options={{ title: 'Sin acceso' }} />
             </Stack>
         </View>
     );

@@ -8,6 +8,9 @@ import { useCheckoutActions } from '../../hooks/use-checkout-actions';
 import { useConsumptionActions } from '../../hooks/use-consumption-actions';
 import { useTheme } from '../../contexts/theme-context';
 import { useFeedback } from '../../contexts/feedback-context';
+import { useConfirm } from '../../contexts/confirm-context';
+import { newRequestId } from '../../lib/request-id';
+import { isUrgentCheckout } from '../../lib/valet-rules';
 import { searchVehicles, VehicleSearchResult } from '../../lib/vehicle-catalog';
 import { AlertCircle, AlertTriangle, Zap } from 'lucide-react-native';
 import { MultiPaymentInput } from '../../components/MultiPaymentInput';
@@ -33,6 +36,20 @@ export const VALID_COCHERO_CONCEPTS = [
     'EXTRA_PERSON', 'EXTRA_HOUR', 'RENEWAL', 'PROMO_4H', 
     'CONSUMPTION', 'DAMAGE_CHARGE', 'Minibar', 'Cafeteria', 'Cocina'
 ];
+
+/** Cobros por verificar y cambio de habitación pendientes de una estancia */
+function getPendingForStay(stay: any): { pendingExtras: SalesOrderItem[]; pendingRoomChangeItem: SalesOrderItem | null } {
+    const orders: SalesOrder[] = Array.isArray(stay?.sales_orders) ? stay.sales_orders : (stay?.sales_orders ? [stay.sales_orders] : []);
+    const allItems = orders.flatMap(o => o.sales_order_items || []);
+    const pendingExtras = allItems.filter(item =>
+        VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
+        (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
+    );
+    const pendingRoomChangeItem = allItems.find(item =>
+        item.concept_type === 'ROOM_CHANGE_ADJUSTMENT' && (!item.delivery_status || item.delivery_status === 'PENDING_VALET')
+    ) || null;
+    return { pendingExtras, pendingRoomChangeItem };
+}
 
 export default function RoomsScreen() {
     const { employeeId, hasActiveShift, isLoading: roleLoading } = useUserRole();
@@ -98,6 +115,9 @@ export default function RoomsScreen() {
 
     // Verify Extra Modal State
     const { showFeedback } = useFeedback();
+    const { showConfirm } = useConfirm();
+    // Un id por cobro: si el cochero toca dos veces o reintenta tras un error de red, la base no cobra doble
+    const [chargeRequestId, setChargeRequestId] = useState(newRequestId);
     const [showVerifyExtraModal, setShowVerifyExtraModal] = useState(false);
     const [extraItems, setExtraItems] = useState<SalesOrderItem[]>([]);
 
@@ -209,6 +229,26 @@ export default function RoomsScreen() {
         fetchRooms();
     };
 
+    // El modal de acciones muestra la estancia de cuando se abrió: si otro cochero la toma o
+    // recepción la cierra, reflejarlo en lugar de dejar botones viejos
+    useEffect(() => {
+        if (!actionModalVisible || !actionStay) return;
+        const freshRoom = rooms.find(r => r.room_stays?.some((s: any) => s.id === actionStay.id));
+        const freshStay = freshRoom?.room_stays?.find((s: any) => s.id === actionStay.id && s.status === 'ACTIVA');
+        if (!freshRoom || !freshStay) {
+            setActionModalVisible(false);
+            showFeedback('Habitación actualizada', `La Hab. ${actionRoom?.number} ya no tiene una estancia activa.`, 'info');
+            return;
+        }
+        if (freshStay !== actionStay) {
+            const { pendingExtras, pendingRoomChangeItem } = getPendingForStay(freshStay);
+            setActionRoom(freshRoom);
+            setActionStay(freshStay);
+            setActionPendingExtras(pendingExtras);
+            setActionPendingRoomChangeItem(pendingRoomChangeItem);
+        }
+    }, [rooms]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const handleOpenEntry = useCallback((roomId: string) => {
         const room = rooms.find(r => r.id === roomId);
         if (!room) return;
@@ -317,6 +357,7 @@ export default function RoomsScreen() {
             tvRemote: false
         });
 
+        setChargeRequestId(newRequestId());
         setShowCheckoutModal(true);
         setShowDamageForm(false);
         setShowExtraHourForm(false);
@@ -423,14 +464,14 @@ export default function RoomsScreen() {
         if (!selectedRoom || !employeeId || !damageDescription || !damageAmount) return;
         const success = await handleReportDamage(
             selectedRoom.stay.id,
-            selectedRoom.stay.sales_order_id,
             selectedRoom.number,
             damageDescription,
             parseFloat(damageAmount),
             damagePayments,
-            employeeId
+            chargeRequestId
         );
         if (success) {
+            setChargeRequestId(newRequestId());
             setShowDamageForm(false);
             setDamageDescription('');
             setDamageAmount('');
@@ -441,13 +482,14 @@ export default function RoomsScreen() {
     const handleExtraHourSubmit = async () => {
         if (!selectedRoom || !employeeId || !extraHourAmount) return;
         const success = await handleRegisterExtraHour(
-            selectedRoom.stay.sales_order_id,
+            selectedRoom.stay.id,
             selectedRoom.number,
             parseFloat(extraHourAmount),
             extraHourPayments,
-            employeeId
+            chargeRequestId
         );
         if (success) {
+            setChargeRequestId(newRequestId());
             setShowExtraHourForm(false);
             setExtraHourAmount('');
             setExtraHourPayments([]);
@@ -457,13 +499,14 @@ export default function RoomsScreen() {
     const handleExtraPersonSubmit = async () => {
         if (!selectedRoom || !employeeId || !extraPersonAmount) return;
         const success = await handleRegisterExtraPerson(
-            selectedRoom.stay.sales_order_id,
+            selectedRoom.stay.id,
             selectedRoom.number,
             parseFloat(extraPersonAmount),
             extraPersonPayments,
-            employeeId
+            chargeRequestId
         );
         if (success) {
+            setChargeRequestId(newRequestId());
             setShowExtraPersonForm(false);
             setExtraPersonAmount('');
             setExtraPersonPayments([]);
@@ -502,9 +545,10 @@ export default function RoomsScreen() {
 
         try {
             // Actualizar issue_description con los detalles del pago reportado por el cochero
-            const existingMetadata = roomChangeItem.issue_description
-                ? JSON.parse(roomChangeItem.issue_description)
-                : {};
+            let existingMetadata: Record<string, unknown> = {};
+            try {
+                existingMetadata = roomChangeItem.issue_description ? JSON.parse(roomChangeItem.issue_description) : {};
+            } catch { /* descripción en texto libre: se conserva abajo */ }
 
             const metadataWithPayment = {
                 ...existingMetadata,
@@ -518,7 +562,7 @@ export default function RoomsScreen() {
             // Marcar el item como entregado/verificado por el cochero
             // NOTA: No marcamos is_paid: true ni insertamos pagos automáticamente.
             // Recepción verificará el dinero y marcará como pagado.
-            await supabase.from('sales_order_items')
+            const { error: verifyError } = await supabase.from('sales_order_items')
                 .update({
                     delivery_status: 'DELIVERED',
                     delivery_completed_at: new Date().toISOString(),
@@ -526,6 +570,7 @@ export default function RoomsScreen() {
                     issue_description: JSON.stringify(metadataWithPayment)
                 })
                 .eq('id', roomChangeItem.id);
+            if (verifyError) throw verifyError;
 
             // Feedback visual
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -548,13 +593,10 @@ export default function RoomsScreen() {
         setShowVerifyRoomChangeModal(true);
     }, []);
 
-    const submitCheckout = async () => {
+    const confirmCheckout = async () => {
         if (!selectedRoom || !employeeId) return;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Registrar la presencia del control (si no está, creará el log de EXTRAVIADO y notificará a recepción)
-        await handleVerifyAssetPresence(selectedRoom.id, employeeId, checkoutChecklist.tvRemote, 'TV_REMOTE');
-        
+
         const success = await handleConfirmCheckout(
             selectedRoom.stay.id,
             selectedRoom.number,
@@ -562,7 +604,23 @@ export default function RoomsScreen() {
             checkoutPersonCount,
             checkoutChecklist
         );
-        if (success) setShowCheckoutModal(false);
+        if (!success) return;
+        // Solo si la salida quedó a nombre de este cochero: si no está, queda EXTRAVIADO y se avisa a recepción
+        await handleVerifyAssetPresence(selectedRoom.id, employeeId, checkoutChecklist.tvRemote, 'TV_REMOTE');
+        setShowCheckoutModal(false);
+    };
+
+    const submitCheckout = () => {
+        if (checkoutChecklist.tvRemote) {
+            confirmCheckout();
+            return;
+        }
+        showConfirm(
+            'Control de TV',
+            `¿El control de la Hab. ${selectedRoom?.number} NO está? Se reportará a recepción como extraviado.`,
+            confirmCheckout,
+            { type: 'danger', confirmText: 'Sí, falta', cancelText: 'Revisar' }
+        );
     };
 
     // Ordenar: urgentes primero, luego servicios pendientes, luego entradas sin vehículo, luego normales
@@ -573,8 +631,8 @@ export default function RoomsScreen() {
             if (!stayA || !stayB) return 0;
 
             // 1. Urgentes (Entregar Auto)
-            const urgentA = (stayA.vehicle_requested_at || stayA.valet_checkout_requested_at) && !stayA.checkout_valet_employee_id ? 1 : 0;
-            const urgentB = (stayB.vehicle_requested_at || stayB.valet_checkout_requested_at) && !stayB.checkout_valet_employee_id ? 1 : 0;
+            const urgentA = isUrgentCheckout(stayA) ? 1 : 0;
+            const urgentB = isUrgentCheckout(stayB) ? 1 : 0;
             if (urgentA !== urgentB) return urgentB - urgentA; // urgentes primero
 
             // 2. Servicios Pendientes
@@ -626,7 +684,7 @@ export default function RoomsScreen() {
         } else if (filterState === 'URGENTES') {
             result = result.filter(r => {
                 const stay = (r as any).room_stays?.find((s: any) => s.status === 'ACTIVA');
-                return stay && (stay.vehicle_requested_at || stay.valet_checkout_requested_at) && !stay.checkout_valet_employee_id;
+                return isUrgentCheckout(stay);
             });
         } else if (filterState === 'SERVICIOS') {
             result = result.filter(r => {
@@ -666,41 +724,7 @@ export default function RoomsScreen() {
         const stay = room.room_stays?.find(s => s.status === 'ACTIVA');
         if (!stay) return null;
 
-        // Calculate pending extras
-        const orders: SalesOrder[] = Array.isArray(stay.sales_orders) ? stay.sales_orders : (stay.sales_orders ? [stay.sales_orders] : []);
-
-        // Debug: Log all items for this room
-        const allOrderItems = orders.flatMap(o => o.sales_order_items || []);
-        if (__DEV__) {
-            console.log(`[Room ${room.number}] Total items: ${allOrderItems.length}, concept_types:`,
-                allOrderItems.map(i => i.concept_type)
-            );
-        }
-
-        const pendingExtras = allOrderItems.filter(item =>
-            VALID_COCHERO_CONCEPTS.includes(item.concept_type || '') &&
-            (!item.delivery_status || item.delivery_status === 'PENDING_VALET' || item.delivery_status === 'ACCEPTED')
-        );
-
-        // Calculate pending room change items
-        const allItems = orders.flatMap(o => o.sales_order_items || []);
-        const roomChangeItems = allItems.filter(item => item.concept_type === 'ROOM_CHANGE_ADJUSTMENT');
-
-        // Debug log
-        if (__DEV__ && roomChangeItems.length > 0) {
-            console.log(`[Room ${room.number}] Found ${roomChangeItems.length} ROOM_CHANGE items:`,
-                roomChangeItems.map(i => ({
-                    id: i.id,
-                    concept_type: i.concept_type,
-                    delivery_status: i.delivery_status,
-                    is_paid: i.is_paid
-                }))
-            );
-        }
-
-        const pendingRoomChangeItem = roomChangeItems.find(item =>
-            !item.delivery_status || item.delivery_status === 'PENDING_VALET'
-        ) || null;
+        const { pendingExtras, pendingRoomChangeItem } = getPendingForStay(stay);
 
         return (
             <CompactRoomCard

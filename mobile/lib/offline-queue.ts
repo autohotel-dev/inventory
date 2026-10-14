@@ -8,6 +8,9 @@ export interface OfflineAction {
   type: 'UPDATE_ROOM_STATUS';
   payload: {
     roomId: string;
+    roomNumber?: string;
+    /** Estado que la camarista vio al hacer la acción; si cambió mientras no había señal, no se aplica */
+    expectedStatus?: string;
     newStatus: string;
     notes?: string | null;
     maintenanceImageUrl?: string | null;
@@ -57,34 +60,40 @@ export const clearOfflineQueue = async () => {
   }
 };
 
-export const syncOfflineQueue = async (): Promise<number> => {
+export const syncOfflineQueue = async (): Promise<{ synced: number; conflicts: string[] }> => {
   const queue = await getOfflineQueue();
-  if (queue.length === 0) return 0;
+  if (queue.length === 0) return { synced: 0, conflicts: [] };
 
   console.log(`[OfflineQueue] Sincronizando ${queue.length} acciones pendientes...`);
-  
+
   const failedActions: OfflineAction[] = [];
+  const conflicts: string[] = [];
   let successCount = 0;
-  
+
   for (const action of queue) {
     try {
       if (action.type === 'UPDATE_ROOM_STATUS') {
-        const updatePayload: any = { status: action.payload.newStatus };
-        if (action.payload.notes !== undefined) {
-          updatePayload.notes = action.payload.notes;
+        const { roomId, roomNumber, expectedStatus, newStatus, notes, maintenanceImageUrl } = action.payload;
+        if (!expectedStatus) {
+          // Acción guardada por una versión anterior de la app: sin estado esperado no es seguro aplicarla
+          conflicts.push(`Hab. ${roomNumber || '?'}`);
+          continue;
         }
-        if (action.payload.maintenanceImageUrl !== undefined) {
-          updatePayload.maintenance_image_url = action.payload.maintenanceImageUrl;
-        }
-
-        const { error } = await supabase
-          .from('rooms')
-          .update(updatePayload)
-          .eq('id', action.payload.roomId);
+        const { data, error } = await supabase.rpc('housekeeping_set_room_status', {
+          p_room_id: roomId,
+          p_expected_status: expectedStatus,
+          p_new_status: newStatus,
+          p_notes: notes ?? null,
+          p_image_url: maintenanceImageUrl ?? null,
+        });
 
         if (error) {
           console.error(`[OfflineQueue] Falló sync de acción ${action.id}:`, error);
           failedActions.push(action);
+        } else if (!data?.success) {
+          // La habitación cambió (recepción la ocupó, otra camarista la tomó…): se descarta, no se reintenta
+          console.warn(`[OfflineQueue] Acción ${action.id} descartada:`, data?.error);
+          conflicts.push(`Hab. ${roomNumber || '?'}`);
         } else {
           successCount++;
         }
@@ -95,13 +104,13 @@ export const syncOfflineQueue = async (): Promise<number> => {
     }
   }
 
-  // Solo mantener las acciones que fallaron (para reintento futuro)
+  // Solo mantener las acciones que fallaron por red/servidor (para reintento futuro)
   if (failedActions.length > 0) {
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failedActions));
   } else {
     await clearOfflineQueue();
   }
-  console.log(`[OfflineQueue] Sincronización completa: ${successCount} éxitos, ${failedActions.length} fallidas.`);
-  
-  return successCount;
+  console.log(`[OfflineQueue] Sincronización: ${successCount} aplicadas, ${conflicts.length} descartadas, ${failedActions.length} pendientes.`);
+
+  return { synced: successCount, conflicts };
 };

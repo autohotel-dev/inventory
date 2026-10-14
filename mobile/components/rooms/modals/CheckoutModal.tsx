@@ -224,7 +224,12 @@ export const CheckoutModal = memo(({
                                         onPress={() => toggleChecklist('tvRemote')}
                                         className="flex-row items-center justify-between py-3"
                                     >
-                                        <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Control de TV Presente</Text>
+                                        <View className="flex-1 pr-3">
+                                            <Text className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Control de TV Presente</Text>
+                                            {!checklist.tvRemote && (
+                                                <Text className="text-[11px] mt-0.5 text-amber-600 dark:text-amber-400">Si no lo marcas, se reporta a recepción como extraviado</Text>
+                                            )}
+                                        </View>
                                         <View className={`w-6 h-6 rounded-md border-2 items-center justify-center ${checklist.tvRemote ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
                                             {checklist.tvRemote && <X color="white" size={14} />}
                                         </View>
@@ -360,9 +365,9 @@ export const CheckoutModal = memo(({
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                     onPress={onSubmit} 
-                                    disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware || !checklist.tvRemote}
+                                    disabled={actionLoading || !checklist.roomState || !checklist.linens || !checklist.glassware}
                                     className={`flex-1 h-14 rounded-2xl items-center justify-center flex-row ${
-                                        (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote && !actionLoading) 
+                                        (checklist.roomState && checklist.linens && checklist.glassware && !actionLoading) 
                                         ? 'bg-red-600' 
                                         : (isDark ? 'bg-zinc-800' : 'bg-zinc-200')
                                     }`}
@@ -372,7 +377,7 @@ export const CheckoutModal = memo(({
                                         <ActivityIndicator size="small" color="#fff" />
                                     ) : (
                                         <Text className={`font-black text-xs uppercase tracking-widest ${
-                                            (checklist.roomState && checklist.linens && checklist.glassware && checklist.tvRemote) 
+                                            (checklist.roomState && checklist.linens && checklist.glassware) 
                                             ? 'text-white' 
                                             : (isDark ? 'text-zinc-600' : 'text-zinc-400')
                                         }`}>

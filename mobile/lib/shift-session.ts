@@ -28,3 +28,43 @@ export async function closeMyOpenShifts(employeeId?: string | null): Promise<voi
         console.error('[Logout] Error cerrando turno:', error);
     }
 }
+
+export interface ShiftDefinition {
+    id: string;
+    name: string;
+    start_time: string;
+    end_time: string;
+    crosses_midnight: boolean;
+}
+
+/** Turno (Mañana, Tarde, Noche…) que corresponde a la hora actual del teléfono */
+export async function getCurrentShiftDefinition(): Promise<ShiftDefinition | null> {
+    const { data: shifts } = await supabase
+        .from('shift_definitions')
+        .select('id, name, start_time, end_time, crosses_midnight')
+        .eq('is_active', true);
+    if (!shifts?.length) return null;
+
+    const currentTime = new Date().toTimeString().slice(0, 8);
+    return (shifts as ShiftDefinition[]).find((s) =>
+        s.crosses_midnight
+            ? currentTime >= s.start_time || currentTime < s.end_time
+            : currentTime >= s.start_time && currentTime < s.end_time
+    ) || null;
+}
+
+/** Abre el turno del empleado. Devuelve un mensaje de error listo para mostrar, o null si se abrió. */
+export async function startMyShift(employeeId: string, shiftDefinitionId: string): Promise<string | null> {
+    const { error } = await supabase.from('shift_sessions').insert({
+        employee_id: employeeId,
+        shift_definition_id: shiftDefinitionId,
+        clock_in_at: new Date().toISOString(),
+        status: 'active',
+    });
+    if (!error) return null;
+    const message = error.message || '';
+    if (message.includes('ROLE_SHIFT_LIMIT_EXCEEDED')) {
+        return 'Ya está lleno el cupo de turnos activos para tu rol. Pide a recepción que cierre el turno anterior.';
+    }
+    return message || 'No se pudo iniciar el turno';
+}
