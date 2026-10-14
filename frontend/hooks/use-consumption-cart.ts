@@ -16,7 +16,7 @@ import { notifyActiveValets } from "@/lib/services/valet-notification-service";
 import { getEmployeeByAuthUserId } from "@/lib/services/employee-service";
 import { getActiveSession } from "@/lib/services/shift-service";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { validatePromotionConditions } from "@/lib/promo-conditions";
+import { findPromotion, priceLines, linesTotal, describePromotion, type Promotion, type ConsumedItem, type PricedLine } from "@/lib/promotions/engine";
 import { logFinancialAction } from "@/lib/audit-logger";
 import { findActiveFlow, logFlowEvent } from "@/lib/flow-logger";
 import { validateStockAvailability } from "@/lib/utils/stock-helpers";
@@ -36,29 +36,19 @@ export interface Product {
 }
 
 export interface CartItem {
+  /** Llave del renglón en el carrito (el producto, o producto+paquete para bebidas incluidas) */
+  key: string;
   product: Product;
   qty: number;
   is_courtesy?: boolean;
   courtesy_reason?: string;
   is_package_item?: boolean;
   included_with?: string;
+  /** Paquete de botella al que pertenece la bebida incluida */
+  package_group?: string;
 }
 
-export interface ActivePromotion {
-  id: string;
-  name: string;
-  promo_type: 'NxM' | 'PERCENT_DISCOUNT' | 'FIXED_PRICE';
-  buy_quantity: number | null;
-  pay_quantity: number | null;
-  discount_percent: number | null;
-  fixed_price: number | null;
-  product_id: string | null;
-  category_id: string | null;
-  subcategory_id: string | null;
-  conditions: {
-    first_order_only?: boolean;
-  } | null;
-}
+export type ActivePromotion = Promotion;
 
 interface UseConsumptionCartProps {
   isOpen: boolean;
@@ -88,13 +78,8 @@ export function useConsumptionCart({
   const [editIsCourtesy, setEditIsCourtesy] = useState<boolean>(false);
   const [editCourtesyReason, setEditCourtesyReason] = useState<string>("");
 
-  // Promo context
-  const [previousOrdersCount, setPreviousOrdersCount] = useState<number>(0);
-  const [consumedItems, setConsumedItems] = useState<{
-    productId: string;
-    categoryId: string | null;
-    subcategoryId: string | null;
-  }[]>([]);
+  // Promo context: lo ya consumido en esta estancia (para "solo primera orden")
+  const [consumedItems, setConsumedItems] = useState<ConsumedItem[]>([]);
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
 
   // Package modal state
@@ -130,7 +115,7 @@ export function useConsumptionCart({
         .from("products")
         .select("id, name, sku, price, barcode, unit, category_id, subcategory_id")
         .eq("is_active", true)
-        .neq("sku", "SVC-ROOM")
+        .not("sku", "like", "SVC-%") // servicios internos (habitación, daños, hora extra) no se venden aquí
         .order("name");
       if (error) throw error;
       setProducts(data || []);
@@ -159,41 +144,26 @@ export function useConsumptionCart({
     }
   };
 
-  const checkPreviousOrders = async () => {
+  // Todos los consumos de una estancia van en su misma orden: lo consumido = sus renglones vigentes
+  const loadConsumedItems = async () => {
     const supabase = createClient();
-    try {
-      const { data: currentOrder } = await supabase
-        .from("sales_orders")
-        .select("booking_id")
-        .eq("id", salesOrderId)
-        .single();
-
-      if (currentOrder?.booking_id) {
-        const { count, error } = await supabase
-          .from("sales_orders")
-          .select("id", { count: 'exact', head: true })
-          .eq("booking_id", currentOrder.booking_id)
-          .neq("id", salesOrderId)
-          .gt("total", 0);
-        if (!error) setPreviousOrdersCount(count || 0);
-
-        const { data: itemsData, error: itemsError } = await supabase
-          .from("sales_order_items")
-          .select(`product_id, products:products(category_id, subcategory_id), sales_orders!inner(booking_id)`)
-          .eq("sales_orders.booking_id", currentOrder.booking_id)
-          .neq("sales_order_id", salesOrderId);
-
-        if (!itemsError && itemsData) {
-          setConsumedItems(itemsData.map((item: any) => ({
-            productId: item.product_id,
-            categoryId: item.products?.category_id || null,
-            subcategoryId: item.products?.subcategory_id || null
-          })));
-        }
-      }
-    } catch (err) {
-      console.error("Error checking previous orders:", err);
+    const { data, error } = await supabase
+      .from("sales_order_items")
+      .select("product_id, is_cancelled, products:products(category_id, subcategory_id)")
+      .eq("sales_order_id", salesOrderId)
+      .eq("concept_type", "CONSUMPTION");
+    if (error) {
+      console.error("Error loading consumed items:", error);
+      setConsumedItems([]);
+      return;
     }
+    setConsumedItems((data || [])
+      .filter((item: any) => !item.is_cancelled && item.product_id)
+      .map((item: any) => ({
+        productId: item.product_id,
+        categoryId: item.products?.category_id || null,
+        subcategoryId: item.products?.subcategory_id || null,
+      })));
   };
 
   // ─── Init on Open ─────────────────────────────────────────────────
@@ -202,7 +172,7 @@ export function useConsumptionCart({
     if (isOpen) {
       fetchProducts();
       fetchActivePromotions();
-      checkPreviousOrders();
+      loadConsumedItems();
       setCartItems(new Map());
       setSearchValue("");
       setSelectedRow(-1);
@@ -244,51 +214,16 @@ export function useConsumptionCart({
 
   // ─── Promotion Engine ─────────────────────────────────────────────
 
-  const findPromoForProduct = useCallback((product: Product & { category_id?: string; subcategory_id?: string }): ActivePromotion | null => {
-    if (activePromotions.length === 0) return null;
+  const findPromoForProduct = useCallback((product: Product): ActivePromotion | null =>
+    findPromotion(product, activePromotions, consumedItems),
+  [activePromotions, consumedItems]);
 
-    const eligiblePromos = activePromotions.filter(p =>
-      validatePromotionConditions(p.conditions, {
-        previousOrdersCount, consumedItems,
-        scope: { productId: p.product_id, categoryId: p.category_id, subcategoryId: p.subcategory_id }
-      })
-    );
-    if (eligiblePromos.length === 0) return null;
-
-    const byProduct = eligiblePromos.find(p => p.product_id === product.id);
-    if (byProduct) return byProduct;
-    if ((product as any).subcategory_id) {
-      const bySub = eligiblePromos.find(p => p.subcategory_id === (product as any).subcategory_id && !p.product_id);
-      if (bySub) return bySub;
-    }
-    if ((product as any).category_id) {
-      const byCat = eligiblePromos.find(p => p.category_id === (product as any).category_id && !p.product_id && !p.subcategory_id);
-      if (byCat) return byCat;
-    }
-    return null;
-  }, [activePromotions, previousOrdersCount]);
-
-  const calcItemPromoTotal = useCallback((product: Product, qty: number, isCourtesy: boolean): { total: number; promo: ActivePromotion | null; savedAmount: number } => {
-    if (isCourtesy) return { total: 0, promo: null, savedAmount: 0 };
+  const calcItemPromoTotal = useCallback((product: Product, qty: number, isCourtesy: boolean): { total: number; promo: ActivePromotion | null; savedAmount: number; lines: PricedLine[] } => {
+    if (isCourtesy) return { total: 0, promo: null, savedAmount: 0, lines: [{ qty, unitPrice: 0, isPromoGift: false, promo: null }] };
     const promo = findPromoForProduct(product);
-    if (!promo) return { total: product.price * qty, promo: null, savedAmount: 0 };
-
-    let total = product.price * qty;
-    switch (promo.promo_type) {
-      case 'NxM': {
-        const buyN = promo.buy_quantity || 2;
-        const payM = promo.pay_quantity || 1;
-        total = (Math.floor(qty / buyN) * payM + qty % buyN) * product.price;
-        break;
-      }
-      case 'PERCENT_DISCOUNT':
-        total = product.price * qty * (1 - (promo.discount_percent || 0) / 100);
-        break;
-      case 'FIXED_PRICE':
-        total = (promo.fixed_price || product.price) * qty;
-        break;
-    }
-    return { total, promo, savedAmount: (product.price * qty) - total };
+    const lines = priceLines(product, qty, promo);
+    const total = linesTotal(lines);
+    return { total, promo: lines.some(l => l.promo) ? promo : null, savedAmount: Math.round((product.price * qty - total) * 100) / 100, lines };
   }, [findPromoForProduct]);
 
   // ─── Product Search ───────────────────────────────────────────────
@@ -350,21 +285,14 @@ export function useConsumptionCart({
 
   // ─── Cart Operations ──────────────────────────────────────────────
 
-  const directAddToCart = (product: Product, isPackageItem = false, parentId?: string) => {
+  const directAddToCart = (product: Product) => {
     setCartItems(prev => {
       const newCart = new Map(prev);
-      const key = isPackageItem ? `${product.id}-pkg-${parentId}-${Date.now()}` : product.id;
-      const existing = newCart.get(key);
-      if (existing && !isPackageItem) {
-        newCart.set(key, { ...existing, qty: existing.qty + 1 });
+      const existing = newCart.get(product.id);
+      if (existing) {
+        newCart.set(product.id, { ...existing, qty: existing.qty + 1 });
       } else {
-        newCart.set(key, {
-          product, qty: 1,
-          is_courtesy: isPackageItem,
-          courtesy_reason: isPackageItem ? "Incluido en paquete de botella" : "",
-          is_package_item: isPackageItem,
-          included_with: parentId
-        });
+        newCart.set(product.id, { key: product.id, product, qty: 1, is_courtesy: false, courtesy_reason: "" });
       }
       return newCart;
     });
@@ -407,17 +335,19 @@ export function useConsumptionCart({
   const handlePackageConfirm = (selectedDrinks: { product: Product; qty: number }[]) => {
     if (!pendingBottle) return;
     directAddToCart(pendingBottle);
-    selectedDrinks.forEach(({ product, qty }) => {
-      setCartItems(prev => {
-        const newCart = new Map(prev);
-        const key = `${product.id}-pkg-${pendingBottle.id}`;
+    // Cada botella lleva su propio paquete: una segunda botella igual no reemplaza las bebidas de la primera
+    const group = `${pendingBottle.id}-${Date.now()}`;
+    setCartItems(prev => {
+      const newCart = new Map(prev);
+      selectedDrinks.forEach(({ product, qty }) => {
+        const key = `${product.id}-pkg-${group}`;
         newCart.set(key, {
-          product, qty,
-          is_courtesy: true, courtesy_reason: "Incluido en paquete",
-          is_package_item: true, included_with: pendingBottle.id
+          key, product, qty,
+          is_courtesy: true, courtesy_reason: "Incluido en paquete de botella",
+          is_package_item: true, included_with: pendingBottle.id, package_group: group,
         });
-        return newCart;
       });
+      return newCart;
     });
     setPendingBottle(null);
     setActivePackageRule(null);
@@ -428,42 +358,64 @@ export function useConsumptionCart({
     ensureFocus();
   };
 
-  const removeFromCart = (productId: string) => {
+  const packageGroupsOf = (cart: Map<string, CartItem>, bottleId: string) =>
+    [...new Set([...cart.values()].filter(i => i.is_package_item && i.included_with === bottleId).map(i => i.package_group!))];
+
+  const removeFromCart = (key: string) => {
     playClick();
-    setCartItems(prev => { const c = new Map(prev); c.delete(productId); return c; });
+    setCartItems(prev => {
+      const c = new Map(prev);
+      const item = c.get(key);
+      c.delete(key);
+      // Quitar la botella quita también las bebidas de sus paquetes
+      if (item && !item.is_package_item) {
+        [...c.values()].filter(i => i.is_package_item && i.included_with === item.product.id).forEach(i => c.delete(i.key));
+      }
+      return c;
+    });
     setSelectedRow(-1);
     ensureFocus();
   };
 
-  const updateCartItem = (productId: string, updates: Partial<CartItem>) => {
+  const updateCartItem = (key: string, updates: Partial<CartItem>) => {
     setCartItems(prev => {
       const newCart = new Map(prev);
-      const existing = newCart.get(productId);
+      const existing = newCart.get(key);
       if (existing) {
-        newCart.set(productId, { ...existing, ...updates });
-        if (updates.qty !== undefined && updates.qty <= 0) newCart.delete(productId);
+        newCart.set(key, { ...existing, ...updates });
+        if (updates.qty !== undefined && updates.qty <= 0) newCart.delete(key);
       }
       return newCart;
     });
   };
 
-  const incrementQty = (productId: string) => {
+  const incrementQty = (key: string) => {
+    const item = cartItems.get(key);
+    if (!item) return;
+    if (item.is_package_item) {
+      toast.info("Las bebidas del paquete no se pueden aumentar", { description: "Si quieren más, agrégalas como consumo normal." });
+      return;
+    }
+    // Una botella más con paquete pasa por su selección de bebidas
+    if (packageGroupsOf(cartItems, item.product.id).length > 0) { addToCart(item.product); return; }
     playClick();
-    setCartItems(prev => {
-      const c = new Map(prev);
-      const e = c.get(productId);
-      if (e) c.set(productId, { ...e, qty: e.qty + 1 });
-      return c;
-    });
+    updateCartItem(key, { qty: item.qty + 1 });
   };
 
-  const decrementQty = (productId: string) => {
+  const decrementQty = (key: string) => {
     playClick();
     setCartItems(prev => {
       const c = new Map(prev);
-      const e = c.get(productId);
-      if (e && e.qty > 1) c.set(productId, { ...e, qty: e.qty - 1 });
-      else c.delete(productId);
+      const e = c.get(key);
+      if (!e) return c;
+      const groups = e.is_package_item ? [] : packageGroupsOf(c, e.product.id);
+      if (groups.length > 0) {
+        // Una botella menos se lleva su último paquete
+        const last = groups.sort().at(-1);
+        [...c.values()].filter(i => i.package_group === last).forEach(i => c.delete(i.key));
+      }
+      if (e.qty > 1) c.set(key, { ...e, qty: e.qty - 1 });
+      else c.delete(key);
       return c;
     });
   };
@@ -471,7 +423,11 @@ export function useConsumptionCart({
   // ─── Edit Item ────────────────────────────────────────────────────
 
   const openEditQty = (item: CartItem) => {
-    setEditingItemId(item.product.id);
+    if (item.is_package_item || packageGroupsOf(cartItems, item.product.id).length > 0) {
+      toast.info("Los paquetes de botella no se editan", { description: "Usa + y − o quita la botella y vuélvela a agregar." });
+      return;
+    }
+    setEditingItemId(item.key);
     setEditQty(item.qty);
     setEditIsCourtesy(item.is_courtesy || false);
     setEditCourtesyReason(item.courtesy_reason || "");
@@ -568,17 +524,17 @@ export function useConsumptionCart({
       }
 
       // Insert items
-      const itemsToInsert = Array.from(cartItems.values()).map(({ product, qty, is_courtesy, courtesy_reason }) => {
-        const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
-        const effectiveUnitPrice = is_courtesy ? 0 : (qty > 0 ? total / qty : product.price);
-        return {
-          sales_order_id: salesOrderId, product_id: product.id, qty,
-          unit_price: Math.round(effectiveUnitPrice * 100) / 100,
+      // Un renglón por precio: la parte con promoción va separada de la de precio normal, así el
+      // total de cada renglón (qty × precio) cuadra con lo que se cobra y con el ticket
+      const itemsToInsert = Array.from(cartItems.values()).flatMap(({ product, qty, is_courtesy, courtesy_reason }) =>
+        calcItemPromoTotal(product, qty, is_courtesy || false).lines.map(line => ({
+          sales_order_id: salesOrderId, product_id: product.id, qty: line.qty,
+          unit_price: line.unitPrice,
           concept_type: "CONSUMPTION", is_paid: false,
-          is_courtesy: is_courtesy || false, courtesy_reason: courtesy_reason || null,
+          is_courtesy: (is_courtesy || line.isPromoGift) || false,
+          courtesy_reason: line.isPromoGift ? `Promoción ${line.promo?.name}` : (courtesy_reason || null),
           delivery_status: 'PENDING_VALET', shift_session_id: currentSessionId
-        };
-      });
+        })));
 
       const { error: itemsError } = await supabase.from("sales_order_items").insert(itemsToInsert);
       if (itemsError) throw itemsError;
@@ -627,14 +583,13 @@ export function useConsumptionCart({
         const folio = `COM-${date.getFullYear().toString().slice(-2)}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
         const printData = {
           roomNumber: roomNumber || 'N/A', folio, date: new Date(),
-          items: Array.from(cartItems.values()).map(({ product, qty, is_courtesy }) => {
-            const { total } = calcItemPromoTotal(product, qty, is_courtesy || false);
-            return {
-              name: product.name, qty,
-              price: qty > 0 ? Math.round((total / qty) * 100) / 100 : product.price,
-              total
-            };
-          }),
+          items: Array.from(cartItems.values()).flatMap(({ product, qty, is_courtesy }) =>
+            calcItemPromoTotal(product, qty, is_courtesy || false).lines.map(line => ({
+              name: line.promo ? `${product.name} (${describePromotion(line.promo)})` : product.name,
+              qty: line.qty,
+              price: line.unitPrice,
+              total: Math.round(line.qty * line.unitPrice * 100) / 100,
+            }))),
           subtotal: totalAmount, total: totalAmount, hotelName: undefined
         };
         const printSuccess = await printConsumptionTickets(printData);

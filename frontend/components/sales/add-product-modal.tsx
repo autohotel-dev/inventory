@@ -264,7 +264,7 @@ export function AddProductModal({
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg text-neutral-100">Agregar Productos</h3>
-                  <p className="text-neutral-500 text-xs">Escanea o busca productos</p>
+                  <p className="text-neutral-500 text-xs">Precio de lista: promociones y paquetes de botella solo aplican en Consumos de habitación</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">

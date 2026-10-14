@@ -832,8 +832,18 @@ export default function SettingsPage() {
                            ══════════════════════════════════════════════════════ */}
                         {activeSection === "catalog" && (
                             <div className="space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-400">
-                                <BottlePackageRules />
-                                <ProductPromotions />
+                                {canEditShared ? (
+                                    <>
+                                        <BottlePackageRules />
+                                        <ProductPromotions />
+                                    </>
+                                ) : (
+                                    <SectionCard gradient={currentSection.gradient}>
+                                        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                                            Paquetes y promociones los configura administración.
+                                        </CardContent>
+                                    </SectionCard>
+                                )}
                             </div>
                         )}
 

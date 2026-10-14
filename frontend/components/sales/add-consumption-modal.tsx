@@ -58,7 +58,7 @@ export function AddConsumptionModal({
       }
       if (e.key === 'Delete' && selectedRow >= 0 && !editingItemId) {
         const items = Array.from(cartItems.values());
-        if (items[selectedRow]) removeFromCart(items[selectedRow].product.id);
+        if (items[selectedRow]) removeFromCart(items[selectedRow].key);
       }
       if (e.key === 'ArrowDown' && !editingItemId) {
         e.preventDefault();
@@ -193,7 +193,7 @@ export function AddConsumptionModal({
               <tbody>
                 {cartItemsArray.map((item, index) => (
                   <tr
-                    key={item.product.id}
+                    key={item.key}
                     className={cn(
                       "border-b border-border/50 transition-all",
                       selectedRow === index && "bg-green-500/10",
@@ -205,7 +205,7 @@ export function AddConsumptionModal({
                     <td className="px-6 py-4 text-muted-foreground">{index + 1}</td>
                     <td className="px-6 py-4">
                       {(() => {
-                        const itemPromo = findPromoForProduct(item.product);
+                        const itemPromo = item.is_courtesy ? null : calcItemPromoTotal(item.product, item.qty, false).promo;
                         return (
                           <div>
                             <p className="font-medium">{item.product.name}</p>
@@ -239,7 +239,7 @@ export function AddConsumptionModal({
                           className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
-                            decrementQty(item.product.id);
+                            decrementQty(item.key);
                           }}
                         >
                           <Minus className="h-3 w-3" />
@@ -253,7 +253,7 @@ export function AddConsumptionModal({
                           className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
-                            incrementQty(item.product.id);
+                            incrementQty(item.key);
                           }}
                         >
                           <Plus className="h-3 w-3" />
@@ -284,7 +284,7 @@ export function AddConsumptionModal({
                         className="h-8 w-8 text-destructive hover:bg-destructive/20"
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeFromCart(item.product.id);
+                          removeFromCart(item.key);
                         }}
                       >
                         <Trash2 className="h-4 w-4" />

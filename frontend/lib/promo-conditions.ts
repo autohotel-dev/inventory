@@ -29,8 +29,8 @@ export interface ConditionContext {
 export const PROMO_CONDITIONS: Record<string, PromotionCondition> = {
   first_order_only: {
     id: 'first_order_only',
-    label: 'Solo primera orden (del tipo)',
-    description: 'Válido solo si es el primer consumo de este producto/categoría',
+    label: 'Solo la primera pieza por estancia',
+    description: 'Aplica a una pieza (un paquete en NxM) y solo si en la estancia aún no se consume este producto o categoría',
     type: 'BOOLEAN',
     defaultValue: false,
     validator: (value: boolean, context: ConditionContext) => {

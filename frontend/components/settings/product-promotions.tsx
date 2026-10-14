@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PROMO_CONDITIONS } from "@/lib/promo-conditions";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +117,10 @@ const defaultFormData: FormData = {
     conditions: {},
 };
 
+/** ISO de la base → valor de <input type="datetime-local"> en hora local (antes se mostraba la hora UTC
+ *  y cada edición recorría la vigencia 6 h). */
+const toLocalInput = (iso: string | null) => (iso ? format(new Date(iso), "yyyy-MM-dd'T'HH:mm") : "");
+
 const PROMO_TYPE_LABELS: Record<PromoType, { label: string; icon: React.ReactNode; color: string }> = {
     NxM: { label: "NxM", icon: <Package className="h-3.5 w-3.5" />, color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
     PERCENT_DISCOUNT: { label: "% Desc.", icon: <Percent className="h-3.5 w-3.5" />, color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
@@ -219,8 +224,8 @@ export function ProductPromotions() {
             category_id: promo.category_id || "",
             subcategory_id: promo.subcategory_id || "",
             is_active: promo.is_active,
-            start_date: promo.start_date ? promo.start_date.slice(0, 16) : "",
-            end_date: promo.end_date ? promo.end_date.slice(0, 16) : "",
+            start_date: toLocalInput(promo.start_date),
+            end_date: toLocalInput(promo.end_date),
             conditions: (promo.conditions as any) || {},
         });
         setProductSearch(promo.product?.name || "");
@@ -252,15 +257,45 @@ export function ProductPromotions() {
         }
 
         if (formData.promo_type === "PERCENT_DISCOUNT") {
-            if (formData.discount_percent <= 0 || formData.discount_percent > 100) {
-                toast.error("El descuento debe estar entre 1% y 100%");
+            if (formData.discount_percent <= 0 || formData.discount_percent >= 100) {
+                toast.error("El descuento debe ser mayor a 0% y menor a 100%", { description: "Para regalar un producto usa una cortesía con motivo." });
                 return;
             }
         }
 
-        if (formData.promo_type === "FIXED_PRICE" && formData.fixed_price <= 0) {
-            toast.error("El precio fijo debe ser mayor a 0");
+        if (formData.promo_type === "FIXED_PRICE") {
+            if (formData.scope !== "product") {
+                toast.error("El precio especial solo aplica a un producto", { description: "En una categoría cada producto tiene su propio precio; usa % de descuento." });
+                return;
+            }
+            const product = products.find(p => p.id === formData.product_id);
+            if (formData.fixed_price <= 0 || (product && formData.fixed_price >= product.price)) {
+                toast.error(`El precio especial debe ser mayor a $0 y menor que el precio normal${product ? ` ($${product.price.toFixed(2)})` : ""}`);
+                return;
+            }
+        }
+
+        const startIso = formData.start_date ? new Date(formData.start_date).toISOString() : null;
+        const endIso = formData.end_date ? new Date(formData.end_date).toISOString() : null;
+        if (startIso && endIso && endIso <= startIso) {
+            toast.error("La fecha de fin debe ser posterior a la de inicio");
             return;
+        }
+
+        // Dos promociones activas sobre lo mismo en fechas que se cruzan: solo una aplicaría
+        if (formData.is_active) {
+            const overlap = promotions.find(p =>
+                p.id !== editingPromo?.id && p.is_active &&
+                (formData.scope === "product"
+                    ? p.product_id === formData.product_id
+                    : !p.product_id && p.category_id === formData.category_id && (p.subcategory_id || "") === (formData.subcategory_id || "")) &&
+                (!p.end_date || !startIso || p.end_date > startIso) &&
+                (!endIso || !p.start_date || endIso > p.start_date)
+            );
+            if (overlap) {
+                toast.error(`Se cruza con la promoción activa "${overlap.name}"`, { description: "Desactívala o ajusta las fechas para que no se encimen." });
+                return;
+            }
         }
 
         setSaving(true);
@@ -278,8 +313,8 @@ export function ProductPromotions() {
                 category_id: formData.scope === "category" ? formData.category_id : null,
                 subcategory_id: formData.scope === "category" && formData.subcategory_id ? formData.subcategory_id : null,
                 is_active: formData.is_active,
-                start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
-                end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
+                start_date: startIso,
+                end_date: endIso,
                 conditions: formData.conditions,
                 updated_at: new Date().toISOString(),
             };
@@ -304,7 +339,7 @@ export function ProductPromotions() {
             setIsModalOpen(false);
         } catch (error) {
             console.error("Error saving promotion:", error);
-            toast.error("Error al guardar la promoción");
+            toast.error("No se pudo guardar la promoción", { description: (error as { message?: string })?.message });
         } finally {
             setSaving(false);
         }
@@ -319,7 +354,7 @@ export function ProductPromotions() {
             .eq("id", deleteConfirm.id);
 
         if (error) {
-            toast.error("Error al eliminar la promoción");
+            toast.error("No se pudo eliminar la promoción", { description: error.message });
         } else {
             setPromotions(prev => prev.filter(p => p.id !== deleteConfirm.id));
             toast.success("Promoción eliminada");
@@ -335,7 +370,7 @@ export function ProductPromotions() {
             .eq("id", promo.id);
 
         if (error) {
-            toast.error("Error al cambiar el estado");
+            toast.error("No se pudo cambiar el estado", { description: error.message });
         } else {
             setPromotions(prev =>
                 prev.map(p => (p.id === promo.id ? { ...p, is_active: !p.is_active } : p))
@@ -626,7 +661,7 @@ export function ProductPromotions() {
                                     <Input
                                         type="number"
                                         min={1}
-                                        max={100}
+                                        max={99}
                                         value={formData.discount_percent}
                                         onChange={(e) => setFormData({ ...formData, discount_percent: parseFloat(e.target.value) || 0 })}
                                         className="w-full text-lg font-medium"
