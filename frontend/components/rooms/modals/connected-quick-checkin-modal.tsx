@@ -122,7 +122,8 @@ export function ConnectedQuickCheckinModal({
 
       if (rpcError || !rpcResult?.success) {
         console.error("RPC Error:", rpcError || rpcResult?.error);
-        toast.error("Error al registrar la estancia");
+        // La base explica el motivo (p.ej. la habitación ya tiene una estancia activa)
+        toast.error("Error al registrar la estancia", { description: rpcResult?.error || rpcError?.message });
         return;
       }
 
